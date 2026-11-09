@@ -53,7 +53,7 @@ export const EXPENSE_CATEGORIES = [
   'Miscellaneous',
 ] as const;
 
-const STOCK_REASONS = ['opening', 'stocktake', 'damage', 'waste', 'return', 'correction'] as const;
+const STOCK_REASONS = ['opening', 'stocktake', 'damage', 'waste', 'return', 'correction', 'TRANSFER'] as const;
 const DUE_SOON_DAYS = 3;
 
 export interface OperatingAllocation {
@@ -67,8 +67,18 @@ export interface OperatingContract {
   receiptState?: 'RECEIVED' | 'PART_RECEIVED' | 'AWAITING' | null;
   receivedAmount?: string | null;
   quantityReceived?: string | null;
-  stockAction?: 'SET' | 'ADD' | 'REDUCE' | null;
+  stockAction?: 'SET' | 'ADD' | 'REDUCE' | 'TRANSFER' | null;
   stockReason?: (typeof STOCK_REASONS)[number] | null;
+  /** HOLD sheet (TRD-QA-HOLD): a held order/shipment is frozen until released. */
+  holdStatus?: 'NONE' | 'HELD' | 'RELEASED' | null;
+  holdReason?: string | null;
+  /** TRANSFER sheet (TRD-QA-TRANSFER): moves quantity between two locations. */
+  transferFromMasterId?: string | null;
+  transferToMasterId?: string | null;
+  transferFromName?: string | null;
+  transferToName?: string | null;
+  /** Which location a stock record belongs to. Empty means the single default store. */
+  locationName?: string | null;
   expenseCategory?: string | null;
   appointmentStatus?: 'BOOKED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | null;
   appointmentAction?: 'RESCHEDULE' | 'CANCEL' | 'NO_SHOW' | 'START' | 'COMPLETE' | null;
@@ -98,6 +108,11 @@ export interface OperatingContract {
   taxStatus?: 'CALCULATED' | 'NOT_CONFIGURED' | null;
   gst?: import('./operating-gst').GstSnapshot | null;
   gstEstimate?: import('./operating-gst').GstSnapshot | null;
+  /**
+   * The IRN block. Absent on every invoice written before e-invoice support existed, and
+   * `NOT_CONFIGURED` on every invoice written without a GSP account.
+   */
+  eInvoice?: import('./operating-einvoice').EInvoiceSnapshot | null;
   originalCurrency?: string | null;
   fxRate?: string | null;
   convertedAmount?: string | null;
@@ -257,10 +272,26 @@ export function parseOperatingContract(raw: unknown): OperatingContract | null {
         : null,
     receivedAmount: rec.receivedAmount == null ? null : String(rec.receivedAmount),
     quantityReceived: rec.quantityReceived == null ? null : String(rec.quantityReceived),
-    stockAction: rec.stockAction === 'SET' || rec.stockAction === 'ADD' || rec.stockAction === 'REDUCE' ? rec.stockAction : null,
+    stockAction:
+      rec.stockAction === 'SET' ||
+      rec.stockAction === 'ADD' ||
+      rec.stockAction === 'REDUCE' ||
+      rec.stockAction === 'TRANSFER'
+        ? rec.stockAction
+        : null,
     stockReason: STOCK_REASONS.includes(rec.stockReason as (typeof STOCK_REASONS)[number])
       ? (rec.stockReason as (typeof STOCK_REASONS)[number])
       : null,
+    holdStatus:
+      rec.holdStatus === 'NONE' || rec.holdStatus === 'HELD' || rec.holdStatus === 'RELEASED'
+        ? rec.holdStatus
+        : null,
+    holdReason: rec.holdReason == null ? null : String(rec.holdReason),
+    transferFromMasterId: rec.transferFromMasterId == null ? null : String(rec.transferFromMasterId),
+    transferToMasterId: rec.transferToMasterId == null ? null : String(rec.transferToMasterId),
+    transferFromName: rec.transferFromName == null ? null : String(rec.transferFromName),
+    transferToName: rec.transferToName == null ? null : String(rec.transferToName),
+    locationName: rec.locationName == null ? null : String(rec.locationName),
     expenseCategory: rec.expenseCategory == null ? null : String(rec.expenseCategory),
     appointmentStatus:
       rec.appointmentStatus === 'BOOKED' ||

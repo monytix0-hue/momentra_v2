@@ -113,6 +113,17 @@ const ENDPOINTS: EndpointDef[] = [
   { method: 'get', path: '/business/moments/{momentId}/roster', operationId: 'getBusinessRoster', summary: 'Business company roster', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
   { method: 'get', path: '/business/moments/{momentId}/weekly-report', operationId: 'getBusinessWeeklyReport', summary: 'Business weekly activity report', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
   { method: 'post', path: '/business/moments/{momentId}/share-link', operationId: 'createBusinessShareLink', summary: 'Create business dashboard share link', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
+  { method: 'post', path: '/business/moments/{momentId}/operating-events', operationId: 'recordOperatingEvent', summary: 'Record an operating (business vertical) record', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
+  { method: 'patch', path: '/business/moments/{momentId}/operating-events/{eventId}', operationId: 'reviseOperatingEvent', summary: 'Revise an operating record', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
+  { method: 'post', path: '/business/moments/{momentId}/operating-events/{eventId}/decision', operationId: 'decideOperatingEvent', summary: 'Approve or reject an operating record', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
+  { method: 'get', path: '/business/moments/{momentId}/operating-events/{eventId}/document', operationId: 'getOperatingDocument', summary: 'Read a structured invoice/challan document for reprint', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
+  { method: 'get', path: '/companies/{companyId}/operating-masters', operationId: 'listOperatingMasters', summary: 'List operating masters (customers, items, warehouses, routes)', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
+  { method: 'post', path: '/companies/{companyId}/operating-masters', operationId: 'createOperatingMaster', summary: 'Create an operating master', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
+  { method: 'patch', path: '/companies/{companyId}/operating-masters/{masterId}', operationId: 'updateOperatingMaster', summary: 'Update an operating master', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
+  { method: 'delete', path: '/companies/{companyId}/operating-masters/{masterId}', operationId: 'archiveOperatingMaster', summary: 'Archive an operating master', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
+  { method: 'get', path: '/companies/{companyId}/operating-price-lists', operationId: 'listOperatingPriceLists', summary: 'List effective-dated price lists', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
+  { method: 'post', path: '/companies/{companyId}/operating-price-lists', operationId: 'createOperatingPriceList', summary: 'Create an effective-dated price list', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
+  { method: 'patch', path: '/companies/{companyId}/operating-price-lists/{priceListId}', operationId: 'updateOperatingPriceList', summary: 'Update a price list', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
 ];
 
 function pathParams(path: string): string[] {
@@ -292,6 +303,34 @@ components:
         format: uuid
     actionProposalIdParam:
       name: actionProposalId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    eventIdParam:
+      name: eventId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    activityIdParam:
+      name: activityId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    masterIdParam:
+      name: masterId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    priceListIdParam:
+      name: priceListId
       in: path
       required: true
       schema:

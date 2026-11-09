@@ -48,15 +48,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
+import com.example.momentra.ui.theme.generated.BusinessDomain
+import com.example.momentra.ui.theme.generated.BusinessEmptyTokens as GeneratedBusinessEmptyTokens
+import com.example.momentra.ui.theme.generated.BusinessTokens
 
-internal object BusinessEmptyTokens {
-    val Accent = Color(0xFF818CF8)
-    val TextPrimary = Color(0xFFF1F5F9)
-    val TextSecondary = Color(0xFFCBD5E1)
-    val TextMuted = Color(0xFF64748B)
-    val CardFill = Color.White.copy(alpha = 0.08f)
-    val CardStroke = Color.White.copy(alpha = 0.10f)
-    val IconWell = Accent.copy(alpha = 0.10f)
+/**
+ * Domain-aware empty screen tokens for Business.
+ * Uses generated BusinessTokens from business.tokens.json.
+ * Default to CORPORATE domain; pass domain from ViewModel for domain-specific theming.
+ */
+@Composable
+fun rememberBusinessEmptyTokens(domain: BusinessDomain = BusinessDomain.CORPORATE): GeneratedBusinessEmptyTokens {
+    return remember(domain) { GeneratedBusinessEmptyTokens(domain) }
 }
 
 @Composable
@@ -90,22 +93,22 @@ internal fun BusinessEmptyScrollColumn(
 }
 
 @Composable
-internal fun BusinessEmptyPill(label: String) {
+internal fun BusinessEmptyPill(label: String, tokens: GeneratedBusinessEmptyTokens = rememberBusinessEmptyTokens()) {
     Text(
         text = label.uppercase(),
-        color = BusinessEmptyTokens.Accent,
+        color = tokens.accent,
         fontWeight = FontWeight.Bold,
         fontSize = 11.sp,
         modifier = Modifier
             .clip(RoundedCornerShape(100.dp))
-            .border(1.dp, BusinessEmptyTokens.Accent, RoundedCornerShape(100.dp))
-            .background(BusinessEmptyTokens.Accent.copy(alpha = 0.10f))
+            .border(1.dp, tokens.accent, RoundedCornerShape(100.dp))
+            .background(tokens.accent.copy(alpha = 0.10f))
             .padding(horizontal = 10.dp, vertical = 4.dp),
     )
 }
 
 @Composable
-internal fun BusinessEmptyHeadline(title: String, body: String) {
+internal fun BusinessEmptyHeadline(title: String, body: String, tokens: GeneratedBusinessEmptyTokens = rememberBusinessEmptyTokens()) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -113,7 +116,7 @@ internal fun BusinessEmptyHeadline(title: String, body: String) {
     ) {
         Text(
             text = title,
-            color = BusinessEmptyTokens.TextPrimary,
+            color = tokens.textPrimary,
             fontWeight = FontWeight.Bold,
             fontSize = 32.sp,
             lineHeight = 38.sp,
@@ -122,7 +125,7 @@ internal fun BusinessEmptyHeadline(title: String, body: String) {
         )
         Text(
             text = body,
-            color = BusinessEmptyTokens.TextSecondary,
+            color = tokens.textSecondary,
             fontSize = 14.sp,
             lineHeight = 20.sp,
             textAlign = TextAlign.Center,
@@ -132,13 +135,13 @@ internal fun BusinessEmptyHeadline(title: String, body: String) {
 }
 
 @Composable
-internal fun BusinessEmptyCta(label: String, onClick: () -> Unit) {
+internal fun BusinessEmptyCta(label: String, onClick: () -> Unit, tokens: GeneratedBusinessEmptyTokens = rememberBusinessEmptyTokens()) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .border(1.5.dp, BusinessEmptyTokens.Accent, RoundedCornerShape(12.dp))
-            .background(BusinessEmptyTokens.Accent.copy(alpha = 0.15f))
+            .border(1.5.dp, tokens.accent, RoundedCornerShape(12.dp))
+            .background(tokens.accent.copy(alpha = 0.15f))
             .clickable(role = Role.Button, onClick = onClick)
             .semantics {
                 contentDescription = label
@@ -149,7 +152,7 @@ internal fun BusinessEmptyCta(label: String, onClick: () -> Unit) {
     ) {
         Text(
             text = label,
-            color = BusinessEmptyTokens.TextPrimary,
+            color = tokens.textPrimary,
             fontWeight = FontWeight.SemiBold,
             fontSize = 15.sp,
         )

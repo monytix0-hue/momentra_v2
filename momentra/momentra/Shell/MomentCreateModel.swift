@@ -75,7 +75,7 @@ final class MomentCreateModel: ObservableObject {
         onSuccess: @escaping (CreateMomentOutcome) -> Void
     ) {
         let catalog = BusinessSetupCatalog.forKind(kind)
-        let allowedKeys = OperatingMomentCatalog.preferenceKeys
+        let allowedKeys = catalog.allowedKeys
         let filtered = SetupPreferenceFilter.filterToCatalogKeys(preferences, allowedKeys: allowedKeys)
         let resolvedTitle = title ?? catalog.defaultTitle
         let momentTypeCode = subtype ?? catalog.momentTypeCode
@@ -90,6 +90,18 @@ final class MomentCreateModel: ObservableObject {
                         taxIdentifier: taxIdentifier,
                         editingMomentId: editingMomentId
                     )
+                    // The document cancels its debounce when §06 is pressed, so the last edits are
+                    // written here before the status flips — activation must not promote a draft
+                    // that is one keystroke behind the screen. An already-ACTIVE moment has no
+                    // draft row to patch, so this only runs for a DRAFT.
+                    if !filtered.isEmpty,
+                       editingMomentStatus?.caseInsensitiveCompare("DRAFT") == .orderedSame {
+                        _ = try? await APIClient.shared.patchBusinessSetupDraft(
+                            momentId: editingMomentId,
+                            title: resolvedTitle,
+                            preferences: filtered
+                        )
+                    }
                     let detail = try await APIClient.shared.getMomentDetail(momentId: editingMomentId)
                     let result = try await APIClient.shared.updateMoment(
                         momentId: editingMomentId,
@@ -144,7 +156,7 @@ final class MomentCreateModel: ObservableObject {
                 let outcome = try await self.repository.createBusinessSetup(
                     draftKey: draftKey,
                     companyId: resolvedCompanyId,
-                    familyCode: kind.rawValue,
+                    familyCode: catalog.familyCode,
                     title: resolvedTitle,
                     description: catalog.subtitle,
                     momentTypeCode: momentTypeCode,
@@ -217,6 +229,17 @@ final class MomentCreateModel: ObservableObject {
         )
     }
 
+    /// Persist the setup document into its draft. Deliberately silent: a failed intermediate save
+    /// must never blank the document or raise an error the operator cannot act on — §06's
+    /// activation reports a real failure.
+    func saveBusinessSetupDraft(momentId: String, title: String?, preferences: [String: Any]) async {
+        _ = try? await APIClient.shared.patchBusinessSetupDraft(
+            momentId: momentId,
+            title: title,
+            preferences: preferences
+        )
+    }
+
     func discardMomentDraft(momentId: String, onSuccess: @escaping () -> Void) {
         guard !state.submitting else { return }
         state = UiState(submitting: true, error: nil)
@@ -277,6 +300,25 @@ final class MomentCreateModel: ObservableObject {
 
     func getDomainSetupPrefill(momentId: String) async -> DomainSetupPrefill? {
         try? await APIClient.shared.getDomainSetupPrefill(momentId: momentId)
+    }
+
+    /// The company §04's masters sheets write into.
+    ///
+    /// A setup draft is created before §01 knows a company, and masters are company-scoped, so the
+    /// document creates one the first time a §04 row is opened and links it to the draft. Doing it
+    /// here rather than on open means a document nobody takes to §04 leaves no company behind.
+    func ensureSetupCompany(
+        momentId: String,
+        companyName: String,
+        taxIdentifier: String? = nil
+    ) async -> String? {
+        let name = companyName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try? await ensureBusinessCompany(
+            companyId: nil,
+            companyName: name.isEmpty ? "New business" : name,
+            taxIdentifier: taxIdentifier,
+            editingMomentId: momentId
+        )
     }
 
     private func submitGroupEdit(

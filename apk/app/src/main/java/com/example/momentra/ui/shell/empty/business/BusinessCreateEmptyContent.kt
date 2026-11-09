@@ -23,6 +23,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
+import com.example.momentra.ui.theme.generated.BusinessEmptyTokens as GeneratedBusinessEmptyTokens
+import com.example.momentra.ui.shell.empty.business.rememberBusinessEmptyTokens
 
 private data class CreateTileData(
     @DrawableRes val icon: Int,
@@ -45,31 +47,33 @@ fun BusinessCreateEmptyContent(
         CreateTileData(R.drawable.ic_business_empty_bar_chart, "View Summary", "See how much you spent"),
     )
 
+    val tokens = rememberBusinessEmptyTokens()
     BusinessEmptyScrollColumn(modifier = modifier) {
-        BusinessEmptyPill("CREATE")
+        BusinessEmptyPill("CREATE", tokens)
         BusinessEmptyHeadline(
             title = "Add a Purchase or Expense",
             body = "Keep track of money in and out. Add a receipt, bill, or anything you bought for your business.",
+            tokens
         )
 
         Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
             for (row in 0 until 3) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    CreateTileCard(tiles[row * 2], Modifier.weight(1f))
-                    CreateTileCard(tiles[row * 2 + 1], Modifier.weight(1f))
+                    CreateTileCard(tiles[row * 2], Modifier.weight(1f), tokens)
+                    CreateTileCard(tiles[row * 2 + 1], Modifier.weight(1f), tokens)
                 }
             }
         }
 
         Text(
             text = "Built for every business",
-            color = BusinessEmptyTokens.TextMuted,
+            color = tokens.textMuted,
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
 
-        BusinessEmptyCta("Add Your First Activity →", onStartCta)
+        BusinessEmptyCta("Add Your First Activity →", onStartCta, tokens)
     }
 }
 
@@ -77,14 +81,15 @@ fun BusinessCreateEmptyContent(
 private fun CreateTileCard(
     tile: CreateTileData,
     modifier: Modifier = Modifier,
+    tokens: GeneratedBusinessEmptyTokens = rememberBusinessEmptyTokens(),
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = modifier
             .height(110.dp)
             .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, BusinessEmptyTokens.CardStroke, RoundedCornerShape(16.dp))
-            .background(BusinessEmptyTokens.CardFill)
+            .border(1.dp, tokens.cardStroke, RoundedCornerShape(16.dp))
+            .background(tokens.cardFill)
             .padding(16.dp),
     ) {
         Box(
@@ -92,20 +97,20 @@ private fun CreateTileCard(
             modifier = Modifier
                 .size(width = 36.dp, height = 32.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(BusinessEmptyTokens.IconWell),
+                .background(tokens.iconWell),
         ) {
             BusinessEmptyIcon(tile.icon, 18.dp)
         }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = tile.title,
-                color = BusinessEmptyTokens.TextPrimary,
+                color = tokens.textPrimary,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp,
             )
             Text(
                 text = tile.body,
-                color = BusinessEmptyTokens.TextSecondary,
+                color = tokens.textSecondary,
                 fontSize = 11.sp,
                 lineHeight = 14.sp,
             )

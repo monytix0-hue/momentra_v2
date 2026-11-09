@@ -6,6 +6,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.Hexagon
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.WbSunny
@@ -63,8 +64,11 @@ data class AppStateRow(
 
 /** The lucide glyph Figma places inside the hero badge (18dp, white stroke). */
 enum class AppStateIcon {
+    /** ⚡ lucide bolt — Pulse. */
+    Bolt,
+    /** ⬡ lucide hexagon — Moments. */
+    Hexagon,
     Sparkle,
-    Moments,
     Sun,
     Memory,
     Plus,
@@ -76,8 +80,9 @@ enum class AppStateIcon {
     /** Material Icons Extended equivalent, tinted white at 18dp inside the badge. */
     val imageVector: ImageVector
         get() = when (this) {
+            Bolt -> Icons.Outlined.Bolt
+            Hexagon -> Icons.Outlined.Hexagon
             Sparkle -> Icons.Outlined.AutoAwesome
-            Moments -> Icons.Outlined.Bolt
             Sun -> Icons.Outlined.WbSunny
             Memory -> Icons.Outlined.History
             Plus -> Icons.Outlined.Add
@@ -99,6 +104,8 @@ data class AppStateSpec(
     val secondaryLabel: String? = null,
     val errorCode: String? = null,
     val footnote: String? = null,
+    /** Glyph inside the floating status dot. Figma alternates this per frame. */
+    val dotGlyph: String = "✓",
 )
 
 /**
@@ -111,32 +118,28 @@ object BusinessAppStateSpecs {
 
     private const val FOOTNOTE = "Nothing was lost. Values stay hidden until they reload — never shown as 0."
 
-    /** Hub tile labels are per-vertical text overrides (Figma "Hub label overrides"). */
-    fun hubTileLabels(accent: BusinessAppStateAccent): List<Pair<AppStateIcon, String>> = when (accent) {
-        BusinessAppStateAccent.Services -> listOf(
-            AppStateIcon.Check to "Invoice",
-            AppStateIcon.Plus to "Purchase",
-            AppStateIcon.Moments to "Collection",
-            AppStateIcon.Sparkle to "Payment",
-            AppStateIcon.Memory to "Expense",
-            AppStateIcon.Sun to "Appointment",
-        )
-        BusinessAppStateAccent.Marketing -> listOf(
-            AppStateIcon.Check to "Client invoice",
-            AppStateIcon.Plus to "Vendor bill",
-            AppStateIcon.Moments to "Collection",
-            AppStateIcon.Sparkle to "Payment",
-            AppStateIcon.Memory to "Expense",
-            AppStateIcon.Sun to "Campaign",
-        )
-        else -> listOf(
-            AppStateIcon.Check to "Sale",
-            AppStateIcon.Plus to "Purchase",
-            AppStateIcon.Moments to "Collection",
-            AppStateIcon.Sparkle to "Payment",
-            AppStateIcon.Memory to "Expense",
-            AppStateIcon.Sun to "Stock",
-        )
+    /**
+     * Hub tile labels are per-vertical text overrides (Figma "Hub label overrides").
+     *
+     * Keyed on the business *vertical*, not the accent — the accent is unified across verticals,
+     * but the Services and Marketing label sets still differ.
+     */
+    /**
+     * Figma's six Hub tiles, in frame order: Sale, Purchase, Collection, Payment, Expense, Stock.
+     *
+     * The glyph set is fixed (Lucide keys -> `ic_biz_*` VectorDrawables); only the two copy-override
+     * verticals relabel them.
+     */
+    fun hubTileLabels(vertical: BusinessAppStateVertical): List<Pair<String, String>> {
+        val glyphs = listOf("camera", "receipt", "clipboard-list", "banknote", "calculator", "package")
+        val labels = when (vertical) {
+            BusinessAppStateVertical.Services ->
+                listOf("Invoice", "Purchase", "Collection", "Payment", "Expense", "Appointment")
+            BusinessAppStateVertical.Marketing ->
+                listOf("Client invoice", "Vendor bill", "Collection", "Payment", "Expense", "Campaign")
+            else -> listOf("Sale", "Purchase", "Collection", "Payment", "Expense", "Stock")
+        }
+        return glyphs.zip(labels)
     }
 
     /** "OCTOBER 2026" — Memory eyebrow. */
@@ -168,7 +171,9 @@ object BusinessAppStateSpecs {
         BusinessAppStatePhase.Empty -> AppStateSpec(
             screen = BusinessAppStateScreen.Pulse,
             phase = phase,
-            icon = AppStateIcon.Plus,
+            // Figma Pulse Empty: bolt in the hero core, plus in the status dot.
+            icon = AppStateIcon.Bolt,
+            dotGlyph = "+",
             title = "No pulse yet",
             body = "Nothing has been recorded for your business this period. Pulse fills in as sales, collections and stock land.",
             eyebrow = "WHAT SHOWS UP HERE",
@@ -211,7 +216,8 @@ object BusinessAppStateSpecs {
         BusinessAppStatePhase.Empty -> AppStateSpec(
             screen = BusinessAppStateScreen.Moments,
             phase = phase,
-            icon = AppStateIcon.Moments,
+            icon = AppStateIcon.Hexagon,
+            dotGlyph = "✦",
             title = "No moment details yet",
             body = "Your moment is live, but nothing is attached yet. Orders, stock and people appear here as you add them.",
             eyebrow = "A MOMENT HOLDS",
@@ -244,7 +250,7 @@ object BusinessAppStateSpecs {
         BusinessAppStatePhase.Setup -> AppStateSpec(
             screen = BusinessAppStateScreen.Moments,
             phase = BusinessAppStatePhase.Empty,
-            icon = AppStateIcon.Moments,
+            icon = AppStateIcon.Hexagon,
             title = "No moment details yet",
             body = "Your moment is live, but nothing is attached yet.",
         )
@@ -255,6 +261,7 @@ object BusinessAppStateSpecs {
             screen = BusinessAppStateScreen.Life,
             phase = phase,
             icon = AppStateIcon.Sun,
+            dotGlyph = "✦",
             title = "Nothing moving today",
             body = "A calm day. No dispatches, collections or people activity yet — Life updates the moment something moves.",
             eyebrow = todayLabel(now),
@@ -299,6 +306,7 @@ object BusinessAppStateSpecs {
             screen = BusinessAppStateScreen.Memory,
             phase = phase,
             icon = AppStateIcon.Memory,
+            dotGlyph = "✦",
             title = "No Memory yet",
             body = "No closed activity for ${monthLabel(now)} yet. Memory writes itself as days close — nothing is estimated.",
             eyebrow = monthLabel(now),
@@ -343,9 +351,14 @@ object BusinessAppStateSpecs {
             screen = BusinessAppStateScreen.Hub,
             phase = phase,
             icon = AppStateIcon.Plus,
+            dotGlyph = "⚡",
             title = "Start with a capture",
             body = "Nothing recorded yet. One sale, purchase or stock update is enough to light up Pulse.",
-            footnote = "Tap Sale to begin — the rest unlock as you go.",
+            // Figma Hub frame: primary capture CTA then "Back to Pulse"; the 2x3 tile grid is
+            // rendered by `BusinessAppStateHubBody` above them.
+            primaryLabel = "Record first capture",
+            secondaryLabel = "Back to Pulse",
+            footnote = "Tap a tile to begin — the rest unlock as you go.",
         )
         BusinessAppStatePhase.Error -> AppStateSpec(
             screen = BusinessAppStateScreen.Hub,
@@ -386,7 +399,9 @@ object BusinessAppStateSpecs {
     private fun noCompany(phase: BusinessAppStatePhase): AppStateSpec = AppStateSpec(
         screen = BusinessAppStateScreen.NoCompany,
         phase = BusinessAppStatePhase.Setup,
-        icon = AppStateIcon.Plus,
+        // Figma NoCompany Setup: sparkle in the hero core, plus in the status dot.
+        icon = AppStateIcon.Sparkle,
+        dotGlyph = "+",
         title = "Add your business to open Pulse",
         body = "Pulse, Moments, Life and Memory need a business first. Takes about two minutes — GSTIN optional.",
         eyebrow = "YOU'LL SET UP",

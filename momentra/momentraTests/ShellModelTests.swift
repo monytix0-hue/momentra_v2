@@ -52,7 +52,7 @@ struct ShellModelTests {
         #expect(AppContextKind.personal.label == "Personal")
         #expect(AppContextKind.business.label == "Business")
         #expect(BottomDestination.pulse.label == "Pulse")
-        #expect(BottomDestination.create.label == "Quickadds")
+        #expect(BottomDestination.create.label == "Create")
     }
 
     @MainActor

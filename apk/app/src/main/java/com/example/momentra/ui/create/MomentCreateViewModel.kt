@@ -129,6 +129,7 @@ class MomentCreateViewModel(
                     title = resolvedTitle,
                     momentTypeCode = momentTypeCode,
                     activateAfter = status == "ACTIVE" && editingMomentStatus.equals("DRAFT", ignoreCase = true),
+                    preferences = prefs,
                     onSuccess = onSuccess,
                 )
                 return@launch
@@ -143,6 +144,27 @@ class MomentCreateViewModel(
             ).fold(
                 onSuccess = { dto -> finishCreateSuccess(dto, momentTypeCode, onSuccess) },
                 onFailure = { e -> finishCreateFailure(e) },
+            )
+        }
+    }
+
+    /**
+     * Saves the six-section setup document against its DRAFT moment.
+     *
+     * Every section but §04 is a preference edit, so it lands here rather than as a separate
+     * master write. Silently ignores failure: the operator is mid-document, and §06 activation
+     * re-sends the full payload through the strict path, which is where a real error belongs.
+     */
+    fun saveBusinessSetupDraft(
+        momentId: String,
+        preferences: Map<String, Any>,
+        title: String? = null,
+    ) {
+        viewModelScope.launch {
+            repository.updateBusinessSetupDraft(
+                momentId = momentId,
+                preferences = preferences,
+                title = title,
             )
         }
     }
@@ -221,6 +243,26 @@ class MomentCreateViewModel(
             )
         }
     }
+
+    /**
+     * The company §04's masters sheets write into.
+     *
+     * A setup draft is created before §01 knows a company, and masters are company-scoped, so the
+     * document creates one the first time a §04 row is opened and links it to the draft. Doing it
+     * here rather than on open means a document nobody takes to §04 leaves no company behind.
+     */
+    suspend fun ensureSetupCompany(
+        momentId: String,
+        companyName: String,
+        taxIdentifier: String? = null,
+    ): String? = runCatching {
+        ensureBusinessCompany(
+            companyId = null,
+            companyName = companyName.trim().ifBlank { "New business" },
+            taxIdentifier = taxIdentifier,
+            editingMomentId = momentId,
+        )
+    }.getOrNull()
 
     private suspend fun ensureBusinessCompany(
         companyId: String?,
@@ -415,8 +457,19 @@ class MomentCreateViewModel(
         title: String,
         momentTypeCode: String,
         activateAfter: Boolean,
+        preferences: Map<String, Any>,
         onSuccess: (CreateMomentOutcome) -> Unit,
     ) {
+        // The document cancels its debounce when §06 is pressed, so the last edits are written
+        // here before the status flips: activation must not promote a draft one keystroke behind
+        // the screen. An ACTIVE moment has no draft row to patch, so this runs only for a draft.
+        if (activateAfter && preferences.isNotEmpty()) {
+            repository.updateBusinessSetupDraft(
+                momentId = momentId,
+                preferences = preferences,
+                title = title,
+            )
+        }
         val lifecycle = MomentLifecycleRepository()
         lifecycle.getVersion(momentId).fold(
             onSuccess = { version ->

@@ -28,7 +28,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.domain.MomentSummary
-import com.example.momentra.ui.shell.business.appstate.BusinessActiveMomentsDirectory
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateBody
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateHubBody
@@ -37,7 +36,11 @@ import com.example.momentra.ui.shell.business.appstate.BusinessAppStatePhase
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateScreen
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateSpecs
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateTokens
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateVertical
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateViewAllSheet
+import com.example.momentra.ui.shell.momentswitcher.MomentSwitcherDirectory
+import com.example.momentra.ui.shell.momentswitcher.businessMomentSwitcherSpec
+import com.example.momentra.ui.shell.momentswitcher.groupMomentSwitcherSpec
 import com.example.momentra.ui.theme.PlusJakartaSans
 
 /**
@@ -81,6 +84,8 @@ private enum class Variant(val label: String) {
     DirectoryEmpty("Directory · Empty"),
     DirectorySearchEmpty("Directory · SearchEmpty"),
     DirectoryLoadError("Directory · LoadError"),
+    GroupDirectoryOngoing("Group directory · Ongoing"),
+    GroupDirectoryEmpty("Group directory · Empty"),
 }
 
 private val variants = Variant.entries
@@ -89,7 +94,7 @@ private val variants = Variant.entries
 private fun GalleryPager(startPage: Int) {
     val pager = rememberPagerState(initialPage = startPage) { variants.size }
     var filter by remember { mutableStateOf("All") }
-    val accent = BusinessAppStateAccent.Trading
+    val accent = BusinessAppStateAccent.Emerald
 
     Column(Modifier.fillMaxSize()) {
         Text(
@@ -112,7 +117,7 @@ private fun GalleryPager(startPage: Int) {
                     Variant.LifeError -> Body(BusinessAppStateScreen.Life, BusinessAppStatePhase.Error)
                     Variant.MemoryEmpty -> Body(BusinessAppStateScreen.Memory, BusinessAppStatePhase.Empty)
                     Variant.MemoryError -> Body(BusinessAppStateScreen.Memory, BusinessAppStatePhase.Error)
-                    Variant.HubEmpty -> BusinessAppStateHubBody(accent, {}, {})
+                    Variant.HubEmpty -> BusinessAppStateHubBody(accent, BusinessAppStateVertical.Trading, {}, {})
                     Variant.HubError -> Body(BusinessAppStateScreen.Hub, BusinessAppStatePhase.Error)
                     Variant.NoCompany -> Body(BusinessAppStateScreen.NoCompany, BusinessAppStatePhase.Setup)
                     Variant.Offline -> Body(BusinessAppStateScreen.Offline, BusinessAppStatePhase.Error)
@@ -145,6 +150,8 @@ private fun GalleryPager(startPage: Int) {
                             MomentSummary("1", "Northwind Traders", "ACTIVE", "TRADING_WHOLESALE", participantCount = 3),
                         ),
                         completed = emptyList(),
+                        // Seeds a query that matches nothing so the SearchEmpty card is deterministic.
+                        initialQuery = "zzz",
                     )
                     Variant.DirectoryLoadError -> Directory(
                         moments = listOf(
@@ -153,6 +160,19 @@ private fun GalleryPager(startPage: Int) {
                         completed = emptyList(),
                         completedTab = true,
                         completedError = "boom",
+                    )
+                    Variant.GroupDirectoryOngoing -> Directory(
+                        moments = listOf(
+                            MomentSummary("1", "Ananya & Rohan", "ACTIVE", "WEDDING", participantCount = 6),
+                            MomentSummary("2", "Goa Weekend", "ACTIVE", "TRIP", participantCount = 4),
+                        ),
+                        completed = emptyList(),
+                        business = false,
+                    )
+                    Variant.GroupDirectoryEmpty -> Directory(
+                        moments = emptyList(),
+                        completed = emptyList(),
+                        business = false,
                     )
                 }
             }
@@ -165,7 +185,7 @@ private fun Body(screen: BusinessAppStateScreen, phase: BusinessAppStatePhase) {
     Box(Modifier.fillMaxSize().background(BusinessAppStateTokens.Page)) {
         BusinessAppStateBody(
             spec = BusinessAppStateSpecs.spec(screen, phase),
-            accent = BusinessAppStateAccent.Trading,
+            accent = BusinessAppStateAccent.Emerald,
             onPrimary = {},
             onSecondary = {},
         )
@@ -178,19 +198,31 @@ private fun Directory(
     completed: List<MomentSummary>,
     completedTab: Boolean = false,
     completedError: String? = null,
+    initialQuery: String = "",
+    business: Boolean = true,
 ) {
     Box(Modifier.fillMaxSize()) {
-        BusinessActiveMomentsDirectory(
+        MomentSwitcherDirectory(
+            spec = if (business) {
+                businessMomentSwitcherSpec("Northwind Traders")
+            } else {
+                groupMomentSwitcherSpec()
+            },
             moments = moments,
             selectedMomentId = moments.firstOrNull()?.momentId,
             visible = true,
             onDismiss = {},
             onSelectMoment = {},
+            onSelectCompletedMoment = {},
+            onOpenStory = {},
             onCreateMoment = {},
             initialCompletedTab = completedTab,
+            // The gallery owns loading so the states are deterministic without a network.
             completedMoments = completed,
+            completedLoading = false,
             completedError = completedError,
-            companyName = "Northwind Traders",
+            initialQuery = initialQuery,
+            modifier = Modifier.fillMaxSize(),
         )
     }
 }

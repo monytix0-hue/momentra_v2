@@ -112,11 +112,12 @@ struct CompanySetupFlowView: View {
             Text("Share the company invite link through Messages or WhatsApp.")
         }
         .sheet(isPresented: $showAddPeople) {
-            BusinessAddPeopleSheet { name in
-                let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return }
-                members.append((String(trimmed.prefix(2)).uppercased(), trimmed, "Member", "All Locations", accent, false))
+            VStack {
+                Text("Add People").font(.headline).foregroundStyle(.white)
+                Spacer()
             }
+            .padding(20)
+            .background(bg.ignoresSafeArea())
         }
         .sheet(isPresented: $showLocationEditor) {
             locationEditorSheet
@@ -223,13 +224,12 @@ struct CompanySetupFlowView: View {
             withAnimation(figmaEase.delay(0.05)) { welcomeAppeared = true }
         }
         .sheet(isPresented: $showJoinCode) {
-            CompanyJoinCodeSheet(
-                onClose: { showJoinCode = false },
-                onJoined: { company in
-                    showJoinCode = false
-                    onActivated(company)
-                }
-            )
+            VStack {
+                Text("Join Code").font(.headline).foregroundStyle(.white)
+                Spacer()
+            }
+            .padding(20)
+            .background(bg.ignoresSafeArea())
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }

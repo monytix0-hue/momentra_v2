@@ -34,10 +34,6 @@ import com.example.momentra.domain.MomentSummary
 
 import com.example.momentra.domain.recentHistoryMoments
 
-import com.example.momentra.ui.shell.empty.business.BusinessCreateFlow
-import com.example.momentra.ui.shell.empty.business.BusinessCreateEmptyContent
-import com.example.momentra.ui.shell.empty.business.BusinessSetupBottomSheet
-import com.example.momentra.ui.shell.empty.business.CompanyFlowSheet
 import com.example.momentra.ui.shell.empty.personal.PersonalLifeEmptyContent
 
 import androidx.compose.runtime.collectAsState
@@ -66,6 +62,7 @@ import com.example.momentra.ui.shell.business.appstate.BusinessAppStateHubBody
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStatePhase
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateScreen
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateSpecs
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateVertical
 import com.example.momentra.ui.shell.circle.CircleComingSoonContent
 import com.example.momentra.ui.theme.ShellTokens
 
@@ -88,6 +85,8 @@ fun ContextEmptyExperience(
     onCreateBusiness: () -> Unit = {},
     /** Opens the company join-code sheet (NoCompany setup state). */
     onJoinCompany: () -> Unit = {},
+    /** Moves the shell to another bottom destination (kit "Back to Pulse" CTAs). */
+    onSelectDestination: (BottomDestination) -> Unit = {},
     groupCreatePhase: GroupCreatePhase = GroupCreatePhase.CHOOSER,
     onGroupCreatePhase: (GroupCreatePhase) -> Unit = {},
     /** Opens Group Create tab without resetting phase (Pulse type cards → setup). */
@@ -138,6 +137,7 @@ fun ContextEmptyExperience(
             onMomentCreated = onMomentCreated,
             onCreateBusiness = onCreateBusiness,
             onJoinCompany = onJoinCompany,
+            onSelectDestination = onSelectDestination,
             modifier = modifier,
         )
 
@@ -344,21 +344,12 @@ private fun BusinessEmpty(
     onMomentCreated: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
     onCreateBusiness: () -> Unit = {},
     onJoinCompany: () -> Unit = {},
+    onSelectDestination: (BottomDestination) -> Unit = {},
     createViewModel: MomentCreateViewModel = viewModel(),
     modifier: Modifier,
 ) {
     val accent = BusinessAppStateAccent.forTypeCode(momentTypeCode)
-
-    if (destination == BottomDestination.CREATE) {
-        BusinessCreateFlow(
-            companyId = companyId,
-            onCreateBack = onCreateBack,
-            onMomentCreated = onMomentCreated,
-            createViewModel = createViewModel,
-            modifier = modifier,
-        )
-        return
-    }
+    val vertical = BusinessAppStateVertical.forTypeCode(momentTypeCode)
 
     // No business yet: Pulse, Moments, Life and Memory all need a company first.
     if (!hasCompany) {
@@ -375,87 +366,39 @@ private fun BusinessEmpty(
         return
     }
 
-    if (first) {
-        val screen = when (destination) {
-            BottomDestination.PULSE -> BusinessAppStateScreen.Pulse
-            BottomDestination.MOMENTS -> BusinessAppStateScreen.Moments
-            BottomDestination.LIFE -> BusinessAppStateScreen.Life
-            BottomDestination.MEMORY -> BusinessAppStateScreen.Memory
-            BottomDestination.CREATE -> BusinessAppStateScreen.Pulse
-        }
-        if (screen == BusinessAppStateScreen.Hub) {
-            BusinessAppStateHubBody(
-                accent = accent,
-                onPrimary = onCreateMoment,
-                onSecondary = onCreateMoment,
-                modifier = modifier,
-            )
-            return
-        }
-        BusinessAppStateBody(
-            spec = BusinessAppStateSpecs.spec(screen, BusinessAppStatePhase.Empty),
+    // Quick adds renders the Hub capture grid rather than a ring-and-rows body.
+    if (destination == BottomDestination.CREATE) {
+        BusinessAppStateHubBody(
             accent = accent,
+            vertical = vertical,
             onPrimary = onCreateMoment,
             onSecondary = onCreateMoment,
+            onBackToPulse = { onSelectDestination(BottomDestination.PULSE) },
             modifier = modifier,
         )
         return
     }
 
-    // Between moments: keep the existing history-aware empty state.
-    when (destination) {
-        BottomDestination.PULSE -> MomentEmptyState(
-            config = MomentEmptyConfig(
-                eyebrow = "PULSE",
-                title = "All quiet for now",
-                body = "There isn't an active work signal needing your attention.",
-                primaryLabel = "+ Start a Business Moment",
-                onPrimary = onCreateMoment,
-                historyTitle = "Recent work",
-                history = history,
-                accent = accent.color,
-            ),
-            modifier = modifier,
-        )
-        BottomDestination.MOMENTS -> MomentEmptyState(
-            config = MomentEmptyConfig(
-                eyebrow = "BUSINESS",
-                title = "No active work moments",
-                body = "Create a moment for something your business is working on \u2014 a launch, campaign, event, project or initiative.",
-                primaryLabel = "+ Create Business Moment",
-                onPrimary = onCreateMoment,
-                historyTitle = "Recent work",
-                history = history,
-                accent = accent.color,
-            ),
-            modifier = modifier,
-        )
-        BottomDestination.CREATE -> Unit
-        BottomDestination.LIFE -> MomentEmptyState(
-            config = MomentEmptyConfig(
-                eyebrow = "LIFE",
-                title = "Your business story continues",
-                body = "As work moments accumulate, Life connects people, finances, and operations into one picture.",
-                primaryLabel = "+ Start a new Moment",
-                onPrimary = onCreateMoment,
-                historyTitle = "Recent work",
-                history = history,
-                accent = accent.color,
-            ),
-            modifier = modifier,
-        )
-        BottomDestination.MEMORY -> MomentEmptyState(
-            config = MomentEmptyConfig(
-                eyebrow = "MEMORY",
-                title = "Patterns wait quietly",
-                body = "Nothing needs your attention right now. Past work stays ready when you want to revisit it.",
-                primaryLabel = "+ Start a new Moment",
-                onPrimary = onCreateMoment,
-                historyTitle = "Past work",
-                history = history,
-                accent = accent.color,
-            ),
-            modifier = modifier,
-        )
-    }
+    // Every remaining business destination uses the shared App States kit, so the
+    // empty screen matches the same Figma frame family on both platforms.
+    BusinessAppStateBody(
+        spec = BusinessAppStateSpecs.spec(
+            businessAppStateScreen(destination),
+            BusinessAppStatePhase.Empty,
+        ),
+        accent = accent,
+        onPrimary = onCreateMoment,
+        onSecondary = onCreateMoment,
+        modifier = modifier,
+    )
 }
+
+/** Maps the shell's bottom destination onto the kit's screen family. */
+private fun businessAppStateScreen(destination: BottomDestination): BusinessAppStateScreen =
+    when (destination) {
+        BottomDestination.PULSE -> BusinessAppStateScreen.Pulse
+        BottomDestination.MOMENTS -> BusinessAppStateScreen.Moments
+        BottomDestination.LIFE -> BusinessAppStateScreen.Life
+        BottomDestination.MEMORY -> BusinessAppStateScreen.Memory
+        BottomDestination.CREATE -> BusinessAppStateScreen.Hub
+    }

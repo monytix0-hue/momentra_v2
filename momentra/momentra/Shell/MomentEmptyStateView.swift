@@ -129,6 +129,8 @@ struct ContextEmptyExperienceView: View {
     let moments: [MomentSummary]
     let hasCompany: Bool
     var selectedCompanyId: String? = nil
+    /// Operating-moment subtype code used to resolve the kit's vertical + accent.
+    var momentTypeCode: String? = nil
     let onCreateMoment: () -> Void
     let onCreateBack: () -> Void
     var onCompanyActivated: (CompanySummary) -> Void = { _ in }
@@ -281,10 +283,11 @@ struct ContextEmptyExperienceView: View {
         )
     }
 
+    /// Business empty states render the shared Figma "App States" kit so every
+    /// destination matches the same 402x874 frame family on iOS and Android.
     @ViewBuilder
     private var businessEmpty: some View {
         if !hasCompany {
-            // No business yet — the kit's Setup variant owns this rather than a bare moment list.
             BusinessAppStateBody(
                 spec: BusinessAppStateSpecs.spec(.noCompany, .setup),
                 accent: businessAccent,
@@ -296,136 +299,37 @@ struct ContextEmptyExperienceView: View {
         }
     }
 
-    /// Accent for the current moment, resolved from the same code set the active screens use.
-    private var businessAccent: BusinessAppStateAccent {
-        BusinessAppStateAccent.forTypeCode(businessTypeCode)
-    }
-
-    private var businessTypeCode: String? {
-        moments.first(where: { $0.companyId == selectedCompanyId })?.momentTypeCode
-            ?? moments.first?.momentTypeCode
-    }
-
     @ViewBuilder
     private var businessEmptyWithCompany: some View {
-        switch destination {
-        case .create:
-            BusinessCreateFlowView(
-                createModel: createModel,
-                companyId: selectedCompanyId,
-                onBack: onCreateBack,
-                onCreated: onMomentCreated
+        if destination == .create {
+            BusinessAppStateHubBody(
+                accent: businessAccent,
+                vertical: BusinessAppStateVertical.forTypeCode(momentTypeCode),
+                onPrimary: onCreateMoment,
+                onSecondary: onCreateMoment
             )
-        case .pulse:
-            if first {
-                BusinessAppStateBody(
-                    spec: BusinessAppStateSpecs.spec(.pulse, .empty),
-                    accent: businessAccent,
-                    onPrimary: onCreateMoment,
-                    onSecondary: onCreateMoment
-                )
-            } else {
-                businessBetweenEmpty
-            }
-        case .moments:
-            if first {
-                BusinessAppStateBody(
-                    spec: BusinessAppStateSpecs.spec(.moments, .empty),
-                    accent: businessAccent,
-                    onPrimary: onCreateMoment,
-                    onSecondary: onCreateMoment
-                )
-            } else {
-                businessBetweenEmpty
-            }
-        case .life:
-            if first {
-                BusinessAppStateBody(
-                    spec: BusinessAppStateSpecs.spec(.life, .empty),
-                    accent: businessAccent,
-                    onPrimary: onCreateMoment,
-                    onSecondary: onCreateMoment
-                )
-            } else {
-                businessBetweenEmpty
-            }
-        case .memory:
-            if first {
-                BusinessAppStateBody(
-                    spec: BusinessAppStateSpecs.spec(.memory, .empty),
-                    accent: businessAccent,
-                    onPrimary: onCreateMoment,
-                    onSecondary: onCreateMoment
-                )
-            } else {
-                businessBetweenEmpty
-            }
+        } else {
+            BusinessAppStateBody(
+                spec: BusinessAppStateSpecs.spec(Self.appStateScreen(for: destination), .empty),
+                accent: businessAccent,
+                onPrimary: onCreateMoment,
+                onSecondary: onCreateMoment
+            )
         }
     }
 
-    @ViewBuilder
-    private var businessBetweenEmpty: some View {
-        let accent = Color(hex: "#818CF8")
+    private var businessAccent: BusinessAppStateAccent {
+        BusinessAppStateAccent.forTypeCode(momentTypeCode)
+    }
+
+    /// Maps the shell's bottom destination onto the kit's screen family.
+    private static func appStateScreen(for destination: BottomDestination) -> BusinessAppStateScreen {
         switch destination {
-        case .pulse:
-            MomentEmptyStateView(
-                config: MomentEmptyConfig(
-                    eyebrow: "PULSE",
-                    title: "All quiet for now",
-                    body: "There isn't an active work signal needing your attention.",
-                    primaryLabel: "+ Start a Business Moment",
-                    onPrimary: onCreateMoment,
-                    historyTitle: "Recent work",
-                    history: history,
-                    accent: accent
-                )
-            )
-        case .moments:
-            MomentEmptyStateView(
-                config: MomentEmptyConfig(
-                    eyebrow: "BUSINESS",
-                    title: "No active work moments",
-                    body: "Create a moment for something your business is working on — a launch, campaign, event, project or initiative.",
-                    primaryLabel: "+ Create Business Moment",
-                    onPrimary: onCreateMoment,
-                    historyTitle: "Recent work",
-                    history: history,
-                    accent: accent
-                )
-            )
-        case .create:
-            BusinessCreateFlowView(
-                createModel: createModel,
-                companyId: selectedCompanyId,
-                onBack: onCreateBack,
-                onCreated: onMomentCreated
-            )
-        case .life:
-            MomentEmptyStateView(
-                config: MomentEmptyConfig(
-                    eyebrow: "LIFE",
-                    title: "Your business story continues",
-                    body: "As work moments accumulate, Life connects people, finances, and operations into one picture.",
-                    primaryLabel: "+ Start a new Moment",
-                    onPrimary: onCreateMoment,
-                    historyTitle: "Recent work",
-                    history: history,
-                    accent: accent
-                )
-            )
-        case .memory:
-            MomentEmptyStateView(
-                config: MomentEmptyConfig(
-                    eyebrow: "MEMORY",
-                    title: "Patterns wait quietly",
-                    body: "Nothing needs your attention right now. Past work stays ready when you want to revisit it.",
-                    primaryLabel: "+ Start a new Moment",
-                    onPrimary: onCreateMoment,
-                    historyTitle: "Past work",
-                    history: history,
-                    accent: accent
-                )
-            )
+        case .pulse: return .pulse
+        case .moments: return .moments
+        case .life: return .life
+        case .memory: return .memory
+        case .create: return .hub
         }
     }
 }

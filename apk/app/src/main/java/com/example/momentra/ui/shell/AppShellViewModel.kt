@@ -64,7 +64,6 @@ data class AppShellUiState(
     val selectedMomentTypeCode: String? = null,
     val selectedMomentByContext: Map<AppContext, String?> = emptyMap(),
     val showMomentSwitcher: Boolean = false,
-    val showCompanySwitcher: Boolean = false,
     val bottomDestination: BottomDestination = BottomDestination.PULSE,
     val lastNonCreateDestination: BottomDestination = BottomDestination.MOMENTS,
     /** Per-context tab memory — no global selectedTab. */
@@ -73,7 +72,6 @@ data class AppShellUiState(
     val momentExperience: MomentExperienceKind = MomentExperienceKind.LOADING,
     val moments: List<MomentSummary> = emptyList(),
     val capabilities: List<String> = emptyList(),
-    val companyMenuOpen: Boolean = false,
     val life360Open: Boolean = false,
     val profileOpen: Boolean = false,
     val generation: Long = 0L,
@@ -299,7 +297,6 @@ class AppShellViewModel(
                 selectedMomentTitle = null,
                 selectedMomentTypeCode = null,
                 showMomentSwitcher = false,
-                companyMenuOpen = false,
                 selectedCompany = if (context == AppContext.BUSINESS) it.selectedCompany else null,
                 moments = emptyList(),
                 momentExperience = MomentExperienceKind.LOADING,
@@ -466,7 +463,20 @@ class AppShellViewModel(
                 currentlySelectedContextDefault = boot.currentlySelectedContext,
             ),
         )
-        val company = boot.companies.firstOrNull { it.companyId == healed.selectedCompanyId }
+        // `heal` deliberately drops the company (business moments share one catalog), so the
+        // company is resolved here against a retained pool — never against the healed id alone.
+        val companyPool = retainedBusinessCompanies(
+            bootCompanies = boot.companies,
+            heldCompanies = current.companies,
+            selected = current.selectedCompany,
+        )
+        val company = resolveBusinessCompany(
+            pool = companyPool,
+            context = healed.selectedContext,
+            healedCompanyId = healed.selectedCompanyId,
+            current = current.selectedCompany,
+            bootDefaultId = boot.selectedCompany?.companyId,
+        )
         val previousById = current.moments.associateBy { it.momentId }
         // Preserve known type codes when bootstrap omits them (legacy group inventory).
         val mergedMoments = healed.moments.map { m ->
@@ -489,9 +499,15 @@ class AppShellViewModel(
             else -> ShellContentState.Empty
         }
         val tab = healed.selectedTabByContext[healed.selectedContext] ?: current.bottomDestination
-        val switcherCount = activeMomentCount(mergedMoments).coerceAtLeast(
-            if (selectedMoment?.isCompletedStatus() == true) 1 else 0,
-        )
+        val switcherCount = if (
+            healed.selectedContext != AppContext.PERSONAL &&
+            experience == MomentExperienceKind.ACTIVE &&
+            selectedMoment?.isCompletedStatus() == true
+        ) {
+            activeMomentCount(mergedMoments).coerceAtLeast(1)
+        } else {
+            activeMomentCount(mergedMoments)
+        }
         val keptCompletedHistory = healed.selectedContext == AppContext.GROUP &&
             current.groupHasCompletedHistory
         val noActiveGroup = healed.selectedContext == AppContext.GROUP &&
@@ -504,7 +520,7 @@ class AppShellViewModel(
         _state.update {
             it.copy(
                 identity = boot.identity,
-                companies = boot.companies,
+                companies = companyPool,
                 capabilities = boot.capabilities,
                 supportedContexts = healed.selectedContext.let { ctx ->
                     // preserve full supported list
@@ -542,13 +558,13 @@ class AppShellViewModel(
                     activeMomentCount = switcherCount,
                     authReady = true,
                 ),
-                showCompanySwitcher = ShellVisibilityPolicy.showCompanySwitcher(
-                    healed.selectedContext,
-                    boot.companies,
-                ),
             )
         }
-        persistCompany(company?.companyId)
+        // Only a business context owns a company id; a transient null must not erase the
+        // remembered one the way the unconditional write used to.
+        if (healed.selectedContext == AppContext.BUSINESS) {
+            company?.companyId?.let { persistCompany(it) }
+        }
         if (noActiveGroup) {
             probeGroupCompletedHistory()
         }
@@ -1085,10 +1101,6 @@ class AppShellViewModel(
         selectBottomDestination(_state.value.lastNonCreateDestination)
     }
 
-    fun toggleCompanyMenu(open: Boolean? = null) {
-        _state.update { it.copy(companyMenuOpen = open ?: !it.companyMenuOpen) }
-    }
-
     fun openLife360(open: Boolean = true) {
         _state.update { it.copy(life360Open = open, profileOpen = if (open) false else it.profileOpen) }
     }
@@ -1149,7 +1161,6 @@ class AppShellViewModel(
                     activeMomentCount = activeMomentCount(scoped),
                     authReady = true,
                 ),
-                companyMenuOpen = false,
                 moments = scoped,
                 momentExperience = experience,
                 generation = it.generation + 1,
@@ -1171,8 +1182,6 @@ class AppShellViewModel(
                 bottomDestination = BottomDestination.CREATE,
                 contextContent = ShellContentState.Empty,
                 momentExperience = MomentExperienceKind.FIRST_MOMENT,
-                companyMenuOpen = false,
-                showCompanySwitcher = false,
             )
         }
         persistCompany(company.companyId)
@@ -1187,6 +1196,44 @@ class AppShellViewModel(
             return
         }
         applyBootstrapInventory(boot, networkRefresh = false)
+    }
+
+    /**
+     * Union of boot, held and currently-selected companies, deduped by id in order.
+     *
+     * Mirrors `retainedBusinessCompanies` in `AppShellModel.swift`: a bootstrap that omits the
+     * company the user just picked must not drop it from inventory.
+     */
+    private fun retainedBusinessCompanies(
+        bootCompanies: List<CompanySummary>,
+        heldCompanies: List<CompanySummary>,
+        selected: CompanySummary?,
+    ): List<CompanySummary> {
+        val pool = mutableListOf<CompanySummary>()
+        val seen = mutableSetOf<String>()
+        for (company in bootCompanies + heldCompanies) {
+            if (seen.add(company.companyId)) pool += company
+        }
+        if (selected != null && seen.add(selected.companyId)) pool += selected
+        return pool
+    }
+
+    /**
+     * Company resolution outside `ShellStateInvariants.heal`, which intentionally returns a null
+     * company id because business moments share one catalog. The order matches iOS exactly so the
+     * two platforms never diverge on which company is selected.
+     */
+    private fun resolveBusinessCompany(
+        pool: List<CompanySummary>,
+        context: AppContext,
+        healedCompanyId: String?,
+        current: CompanySummary?,
+        bootDefaultId: String?,
+    ): CompanySummary? {
+        pool.firstOrNull { it.companyId == healedCompanyId }?.let { return it }
+        if (context != AppContext.BUSINESS) return null
+        if (current != null && pool.any { it.companyId == current.companyId }) return current
+        return pool.firstOrNull { it.companyId == bootDefaultId }
     }
 
     /** A missing moment stays in this context only when its type belongs here. Blank types stay for optimistic creates. */

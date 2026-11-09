@@ -205,9 +205,7 @@ private struct BootstrapCacheEnvelope: Codable {
             CachedMoment(momentId: $0.momentId, title: $0.title, status: $0.status, momentTypeCode: $0.momentTypeCode, companyId: $0.companyId)
         }
         companies = (me.companies ?? []).map { item in
-            let audience = (item.profileJson?[BusinessAudience.prefKey]?.value as? String)
-            CompanyModules.rehydrateFromProfile(companyId: item.companyId, profileJson: item.profileJson)
-            IndustryTemplateCatalog.rehydrateHubHint(companyId: item.companyId, profileJson: item.profileJson)
+            let audience = (item.profileJson?["audience"]?.value as? String)
             return CachedCompany(
                 companyId: item.companyId,
                 displayName: item.displayName,
@@ -218,10 +216,6 @@ private struct BootstrapCacheEnvelope: Codable {
     }
 
     static func rehydrateAudience(from companies: [CompanySummary]) {
-        for company in companies {
-            guard let audience = company.audience, !audience.isEmpty else { continue }
-            BusinessAudience.saveForCompany(companyId: company.companyId, audience: audience)
-        }
     }
 
     func toShellBootstrap() -> ShellBootstrap {

@@ -256,6 +256,19 @@ enum PersonalActionRegistry {
         }
     }
 
+    /// A tile is enabled only when its own capability code is granted.
+    ///
+    /// Codes are the governance source of truth (`core.moment_type_capability` in FRDS
+    /// V019 grants capabilities per code, per moment type), so gating on the shared
+    /// *destination* over-grants: `MILESTONE_CREATE` and `OPPORTUNITY_CREATE` both
+    /// map to `.future`, which used to unlock Opportunity, Pivot, Progress and
+    /// Learning together. Match `GroupActionRegistry.hubTileEnabled`, which greys
+    /// unmatched codes while keeping the full catalog visible.
+    private static func isCodeEnabled(_ capabilityCodes: [String], code: PersonalActionCode) -> Bool {
+        let granted = Set(capabilityCodes.map { $0.uppercased() })
+        return granted.contains(code.rawValue.uppercased())
+    }
+
     private static func isTileEnabled(
         _ tile: PersonalActionTile,
         hasActiveMoment: Bool,
@@ -263,13 +276,7 @@ enum PersonalActionRegistry {
     ) -> Bool {
         guard hasActiveMoment, tile.tappable else { return false }
         guard !capabilityCodes.isEmpty else { return false }
-
-        switch tile.label {
-        case "Spend", "Expense", "Income", "Transfer", "Savings":
-            return isMoneyQuickAddEnabled(capabilityCodes)
-        default:
-            return isDestinationEnabled(capabilityCodes, destination: destination(for: tile.code))
-        }
+        return isCodeEnabled(capabilityCodes, code: tile.code)
     }
 
     /// Hub labels still drive sheet routing; codes are the governance source of truth.
@@ -309,6 +316,7 @@ enum PersonalActionRegistry {
                 tile(.movementRecord, "Transfer", "QaRefresh", "#1E40AF", "#0B2A8A"),
                 tile(.movementRecord, "Savings", "QaTrending", "#10B981", "#047857"),
                 tile(.lifeObservationRecord, "Adjust", "QaSliders", "#D946EF", "#86198F"),
+                tile(.lifeObservationRecord, "Reflect", "QaBook", "#6366F1", "#4338CA", tappable: false),
             ]
         }
     }

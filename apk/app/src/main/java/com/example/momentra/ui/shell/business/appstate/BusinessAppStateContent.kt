@@ -6,13 +6,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,26 +20,31 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.ui.theme.PlusJakartaSans
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Close
+import com.example.momentra.ui.theme.generated.BusinessIcons
 
 /**
- * Renders one app-state body: glow, hero mark ring, title, body copy, glass detail card and the
- * action stack. Every geometry value comes from [BusinessAppStateTokens]; the accent comes from
- * [BusinessAppStateAccent].
+ * Renders one app-state body: glow mesh, hero indicator badge, title, body copy, refraction glass
+ * detail card and the action stack. Every geometry value comes from [BusinessAppStateTokens]; the
+ * accent comes from [BusinessAppStateAccent].
+ *
+ * Rebuilt against Figma "Obsidian & Neon Refraction" (`2852:39645`).
  */
 @Composable
 fun BusinessAppStateBody(
@@ -51,12 +56,20 @@ fun BusinessAppStateBody(
 ) {
     val accentColor = accent.color
     val errorAccent = BusinessAppStateTokens.ErrorRing
+    val tone = if (spec.phase == BusinessAppStatePhase.Error) AppStateTone.Error else AppStateTone.Normal
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val viewportHeight = maxHeight
 
+        // Figma root background for every App States frame.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(BusinessAppStateTokens.Page),
+        )
         AppStateGlow(
             accent = accentColor,
+            tone = tone,
             modifier = Modifier
                 .align(Alignment.Center)
                 .padding(top = 24.dp),
@@ -77,16 +90,17 @@ fun BusinessAppStateBody(
                 .padding(horizontal = BusinessAppStateTokens.ScreenHorizontalPadding)
                 .padding(vertical = 24.dp),
         ) {
-
             if (spec.screen == BusinessAppStateScreen.Offline) {
-                OfflineBanner()
+                AppStateOfflineBanner(text = BusinessAppStateSpecs.OFFLINE_BANNER)
             }
 
-            val ringAccent = if (spec.phase == BusinessAppStatePhase.Error) errorAccent else accentColor
             AppStateMarkRing(
-                accent = ringAccent,
+                accent = accentColor,
                 icon = spec.icon.imageVector,
-                size = if (spec.screen == BusinessAppStateScreen.NoCompany) 132.dp else 120.dp,
+                // Figma: the 120pt hero maps onto the 112dp badge; No-company uses 124dp.
+                size = if (spec.screen == BusinessAppStateScreen.NoCompany) 124.dp else BusinessAppStateTokens.HeroSize,
+                tone = tone,
+                dotGlyph = spec.dotGlyph,
             )
 
             AppStateTitle(spec.title)
@@ -99,8 +113,16 @@ fun BusinessAppStateBody(
             }
 
             if (spec.rows.isNotEmpty() && spec.eyebrow != null) {
-                AppStateGlassCard(accent = accentColor) {
-                    AppStateEyebrow(spec.eyebrow, accentColor)
+                AppStateGlassCard {
+                    // The Offline frame re-tints the eyebrow to #94A4B8.
+                    AppStateEyebrow(
+                        text = spec.eyebrow,
+                        accent = if (spec.screen == BusinessAppStateScreen.Offline) {
+                            BusinessAppStateTokens.TextMuted
+                        } else {
+                            accentColor
+                        },
+                    )
                     spec.rows.forEach { row ->
                         AppStateGlassRow(
                             label = row.label,
@@ -129,39 +151,11 @@ fun BusinessAppStateBody(
     }
 }
 
-/** Amber banner shown above the ring on the Offline state. */
-@Composable
-private fun OfflineBanner(modifier: Modifier = Modifier) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(BusinessAppStateTokens.WarningSurface)
-            .border(1.dp, BusinessAppStateTokens.WarningBorder, RoundedCornerShape(16.dp))
-            .padding(horizontal = 14.dp, vertical = 13.dp),
-    ) {
-        Text(
-            text = "⌁",
-            color = BusinessAppStateTokens.Warning,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = PlusJakartaSans,
-        )
-        Text(
-            text = BusinessAppStateSpecs.OFFLINE_BANNER,
-            color = Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = PlusJakartaSans,
-        )
-    }
-}
-
 /**
- * Loading body: label row with a pulsing accent dot, then two skeleton tiles and three
- * skeleton cards. Figma aligns this body to the top rather than centring it.
+ * Loading body: hero badge, title, then a single refraction glass skeleton box holding three
+ * shimmering placeholder bars, followed by a 110dp trailing spacer.
+ *
+ * Figma removed the pulsing-dot label row and the 2-tile + 3-card grid, so both are gone here.
  */
 @Composable
 fun BusinessAppStateLoadingBody(
@@ -170,72 +164,14 @@ fun BusinessAppStateLoadingBody(
     modifier: Modifier = Modifier,
 ) {
     val accentColor = accent.color
-    Box(modifier = modifier.fillMaxSize()) {
-        AppStateGlow(
-            accent = accentColor,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(top = 24.dp),
-        )
-        Column(
-            verticalArrangement = Arrangement.spacedBy(BusinessAppStateTokens.BodyGap),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = BusinessAppStateTokens.ScreenHorizontalPadding)
-                .padding(vertical = 28.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                AppStateSpinnerDot(accentColor)
-                Text(
-                    text = label,
-                    color = Color.White.copy(alpha = 0.75f),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = PlusJakartaSans,
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                repeat(2) {
-                    AppStateSkeletonBox(accent = accentColor, modifier = Modifier.width(172.dp)) {
-                        AppStateSkeletonBar(width = 70.dp, height = 26.dp, radius = 8.dp)
-                        AppStateSkeletonBar(width = 90.dp, height = 10.dp, radius = 5.dp)
-                    }
-                }
-            }
-
-            repeat(3) {
-                AppStateSkeletonBox(accent = accentColor, modifier = Modifier.fillMaxWidth()) {
-                    AppStateSkeletonBar(width = 120.dp, height = 12.dp)
-                    AppStateSkeletonBar(width = 220.dp, height = 28.dp, radius = 8.dp)
-                    AppStateSkeletonBar(width = 300.dp, height = 12.dp)
-                    AppStateSkeletonBar(width = 240.dp, height = 12.dp)
-                }
-            }
-        }
-    }
-}
-
-/**
- * Hub empty body: six capture tiles in a two-column grid. The first tile carries the accent
- * treatment, the rest are muted until the first capture lands.
- */
-@Composable
-fun BusinessAppStateHubBody(
-    accent: BusinessAppStateAccent,
-    onPrimary: () -> Unit,
-    onSecondary: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val spec = BusinessAppStateSpecs.spec(BusinessAppStateScreen.Hub, BusinessAppStatePhase.Empty)
-    val tiles = BusinessAppStateSpecs.hubTileLabels(accent)
-    val accentColor = accent.color
-
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val viewportHeight = maxHeight
+
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(BusinessAppStateTokens.Page),
+        )
         AppStateGlow(
             accent = accentColor,
             modifier = Modifier
@@ -255,31 +191,115 @@ fun BusinessAppStateHubBody(
                 .padding(horizontal = BusinessAppStateTokens.ScreenHorizontalPadding)
                 .padding(vertical = 24.dp),
         ) {
-            AppStateMarkRing(accent = accentColor, icon = spec.icon.imageVector)
+            AppStateMarkRing(
+                accent = accentColor,
+                icon = AppStateIcon.Sparkle.imageVector,
+            )
+
+            AppStateTitle(label)
+
+            AppStateSkeletonBox(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(BusinessAppStateTokens.SkeletonBoxHeight),
+            ) {
+                AppStateSkeletonBar(width = 160.dp)
+                AppStateSkeletonBar(width = 300.dp)
+                AppStateSkeletonBar(width = 220.dp)
+            }
+
+            Spacer(Modifier.height(BusinessAppStateTokens.SkeletonTrailingSpace))
+        }
+    }
+}
+
+/**
+ * Hub empty body: six equal capture tiles in a three-column glass grid. The amber highlight and
+ * the muted 60% tiles are gone — every tile carries the same weight.
+ */
+@Composable
+fun BusinessAppStateHubBody(
+    accent: BusinessAppStateAccent,
+    vertical: BusinessAppStateVertical,
+    onPrimary: () -> Unit,
+    onSecondary: () -> Unit,
+    /** Secondary CTA "Back to Pulse" from the Figma Hub frame. */
+    onBackToPulse: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    val spec = BusinessAppStateSpecs.spec(BusinessAppStateScreen.Hub, BusinessAppStatePhase.Empty)
+    val tiles = BusinessAppStateSpecs.hubTileLabels(vertical)
+    val accentColor = accent.color
+
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val viewportHeight = maxHeight
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(BusinessAppStateTokens.Page),
+        )
+        AppStateGlow(
+            accent = accentColor,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(top = 24.dp),
+        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(
+                BusinessAppStateTokens.BodyGap,
+                Alignment.CenterVertically,
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = viewportHeight)
+                .padding(horizontal = BusinessAppStateTokens.ScreenHorizontalPadding)
+                .padding(vertical = 24.dp),
+        ) {
+            // Every tile carries equal weight in the Obsidian frame — no amber badge.
+            AppStateMarkRing(
+                accent = accentColor,
+                icon = spec.icon.imageVector,
+                dotGlyph = spec.dotGlyph,
+            )
             AppStateTitle(spec.title)
             AppStateBodyText(spec.body)
 
-            tiles.chunked(2).forEachIndexed { rowIndex, rowTiles ->
+            tiles.chunked(3).forEach { rowTiles ->
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(BusinessAppStateTokens.HubColumnGap),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    rowTiles.forEachIndexed { colIndex, (icon, label) ->
-                        val isFirst = rowIndex == 0 && colIndex == 0
+                    rowTiles.forEach { (icon, label) ->
                         HubTile(
                             icon = icon,
                             label = label,
-                            accent = accentColor,
-                            highlighted = isFirst,
                             onClick = onPrimary,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.width(BusinessAppStateTokens.HubTileWidth),
                         )
                     }
-                    if (rowTiles.size == 1) Spacer(Modifier.weight(1f))
+                    if (rowTiles.size < 3) {
+                        repeat(3 - rowTiles.size) {
+                            Spacer(Modifier.width(BusinessAppStateTokens.HubTileWidth))
+                        }
+                    }
                 }
             }
 
-            spec.footnote?.let { AppStateFootnote(it) }
+            // Figma Hub frame carries a CTA pair under the tile grid; the grid itself replaces
+            // `spec.rows`, so the labels still live on the spec.
+            spec.primaryLabel?.let { label ->
+                Spacer(Modifier.height(2.dp))
+                AppStatePrimaryButton(label = label, onClick = onPrimary)
+            }
+            spec.secondaryLabel?.let { label ->
+                AppStateSecondaryButton(label = label, onClick = onBackToPulse)
+            }
+
+            spec.footnote?.let {
+                AppStateFootnote(it)
+            }
             Spacer(Modifier.height(16.dp))
         }
     }
@@ -287,50 +307,52 @@ fun BusinessAppStateHubBody(
 
 @Composable
 private fun HubTile(
-    icon: AppStateIcon,
+    icon: String,
     label: String,
-    accent: Color,
-    highlighted: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val t = BusinessAppStateTokens
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(t.HubTileLabelGap),
         modifier = modifier
-            .height(73.dp)
-            .clip(RoundedCornerShape(BusinessAppStateTokens.CardRadius))
-            .background(
-                if (highlighted) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.05f),
-            )
+            .height(t.HubTileHeight)
+            .clip(RoundedCornerShape(t.HubTileRadius))
+            // Figma draws the tile as a flat `white 5%` wash with an emerald @25% hairline.
+            .background(t.HubTileFill)
             .border(
                 1.dp,
-                if (highlighted) accent.copy(alpha = 0.60f) else Color.White.copy(alpha = 0.12f),
-                RoundedCornerShape(BusinessAppStateTokens.CardRadius),
+                t.HubTileStroke,
+                RoundedCornerShape(t.HubTileRadius),
             )
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(vertical = 12.dp),
+            .padding(vertical = t.HubTileVerticalPadding),
     ) {
-        androidx.compose.material3.Icon(
-            imageVector = icon.imageVector,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(22.dp),
-        )
+        val res = BusinessIcons.res(icon)
+        if (res != null) {
+            Icon(
+                painter = painterResource(res),
+                contentDescription = null,
+                tint = t.Emerald,
+                modifier = Modifier.size(t.HubIconSize),
+            )
+        }
         Text(
             text = label,
             color = Color.White,
-            fontSize = 12.sp,
+            fontSize = t.HubLabelSize.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = PlusJakartaSans,
             textAlign = TextAlign.Center,
+            maxLines = 1,
         )
     }
 }
 
 /**
  * Sheet variant of the empty state, used by the Pulse "Needs Attention" view-all sheet.
- * Figma: sheet fills from y=150 with a scrim behind it, radius 20, accent stroke.
+ * Figma: sheet fills from the bottom with a scrim behind it, radius 22, emerald stroke.
  */
 @Composable
 fun BusinessAppStateViewAllSheet(
@@ -344,6 +366,10 @@ fun BusinessAppStateViewAllSheet(
     val spec = BusinessAppStateSpecs.spec(BusinessAppStateScreen.ViewAll, BusinessAppStatePhase.Empty)
     val accentColor = accent.color
     val filters = listOf("All", "Open", "Due soon", "Closed")
+    val sheetShape = RoundedCornerShape(
+        topStart = BusinessAppStateTokens.CardRadius,
+        topEnd = BusinessAppStateTokens.CardRadius,
+    )
 
     Box(
         modifier = modifier
@@ -356,12 +382,12 @@ fun BusinessAppStateViewAllSheet(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                .background(BusinessAppStateTokens.Sheet)
+                .clip(sheetShape)
+                .background(BusinessAppStateTokens.GlassCardFill)
                 .border(
-                    1.dp,
-                    accentColor.copy(alpha = 0.35f),
-                    RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+                    BusinessAppStateTokens.GlassCardStrokeWidth,
+                    BusinessAppStateTokens.GlassCardStroke,
+                    sheetShape,
                 )
                 .clickable(enabled = false) {}
                 .padding(horizontal = 20.dp, vertical = 12.dp),
@@ -372,7 +398,7 @@ fun BusinessAppStateViewAllSheet(
                     .width(40.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color.White.copy(alpha = 0.30f)),
+                    .background(BusinessAppStateTokens.Emerald.copy(alpha = 0.30f)),
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -401,24 +427,18 @@ fun BusinessAppStateViewAllSheet(
                             .clip(RoundedCornerShape(BusinessAppStateTokens.ButtonRadius))
                             .background(
                                 if (selected) {
-                                    Brush.horizontalGradient(
-                                        listOf(
-                                            BusinessAppStateTokens.CtaStart,
-                                            BusinessAppStateTokens.CtaEnd,
-                                        ),
-                                    )
+                                    BusinessAppStateTokens.Emerald.copy(alpha = 0.20f)
                                 } else {
-                                    Brush.horizontalGradient(
-                                        listOf(
-                                            Color.White.copy(alpha = 0.10f),
-                                            Color.White.copy(alpha = 0.10f),
-                                        ),
-                                    )
+                                    Color.White.copy(alpha = 0.06f)
                                 },
                             )
                             .border(
                                 1.dp,
-                                if (selected) Color.Transparent else Color.White.copy(alpha = 0.22f),
+                                if (selected) {
+                                    BusinessAppStateTokens.Emerald.copy(alpha = 0.80f)
+                                } else {
+                                    BusinessAppStateTokens.SecondaryButtonStroke
+                                },
                                 RoundedCornerShape(BusinessAppStateTokens.ButtonRadius),
                             )
                             .clickable(role = Role.Button) { onSelectFilter(filter) }
@@ -426,7 +446,7 @@ fun BusinessAppStateViewAllSheet(
                     ) {
                         Text(
                             text = filter,
-                            color = Color.White,
+                            color = if (selected) BusinessAppStateTokens.Emerald else BusinessAppStateTokens.TextMuted,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             fontFamily = PlusJakartaSans,
@@ -440,10 +460,10 @@ fun BusinessAppStateViewAllSheet(
                 verticalArrangement = Arrangement.spacedBy(BusinessAppStateTokens.BodyGap),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                AppStateMarkRing(accent = accentColor, icon = spec.icon.imageVector, size = 112.dp)
+                AppStateMarkRing(accent = accentColor, icon = spec.icon.imageVector)
                 AppStateTitle(spec.title)
                 AppStateBodyText(spec.body)
-                spec.secondaryLabel?.let { AppStateSecondaryButton(it, onShowAll) }
+                spec.secondaryLabel?.let { AppStateSecondaryButton(it, onShowAll, filled = true) }
                 spec.footnote?.let { AppStateFootnote(it) }
             }
             Spacer(Modifier.height(12.dp))

@@ -22,13 +22,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -155,7 +151,7 @@ private fun contextLine(model: OperatingProjectionDto): String {
 @Composable
 fun OperatingSheetScrim(
     onDismiss: () -> Unit,
-    accent: Color = Color(0xFFF59E0B),
+    accent: Color = Color(0xFF10B981),
     surface: Color = Color(0xFF1C1926),
     border: Color = Color(0xFF2A2538),
     content: @Composable () -> Unit,
@@ -184,20 +180,23 @@ fun OperatingSheetScrim(
     }
 }
 
-private class CaptureForm(
+/** Which state field a capture sheet's picker is editing. */
+internal enum class StatePickerField { BUSINESS, BILLING }
+
+internal class CaptureForm(
     channel: String,
     choice: String,
     unit: String,
     masterKind: String,
     receiptState: String,
     detail: String,
-) {
-    var eventDate by mutableStateOf(LocalDate.now())
+) {    var eventDate by mutableStateOf(LocalDate.now())
     var dateOpen by mutableStateOf(false)
     var dueDate by mutableStateOf(LocalDate.now())
     var dueDateOpen by mutableStateOf(false)
     var goodsDueDate by mutableStateOf(LocalDate.now())
     var goodsDueOpen by mutableStateOf(false)
+    var monthOpen by mutableStateOf(false)
     var amount by mutableStateOf("")
     var channel by mutableStateOf(channel)
     var party by mutableStateOf("")
@@ -223,6 +222,8 @@ private class CaptureForm(
     var stockReason by mutableStateOf("Stocktake")
     var receivedAmount by mutableStateOf("")
     var productMasterId by mutableStateOf<String?>(null)
+    /** Linked master for a `MASTERS` capture; linking by id keeps identity stable. */
+    var masterId by mutableStateOf<String?>(null)
     var lovKind by mutableStateOf<String?>(null)
     var localMasters by mutableStateOf<List<OperatingLovOption>>(emptyList())
     var taxMode by mutableStateOf("Not configured")
@@ -241,6 +242,8 @@ private class CaptureForm(
     var businessState by mutableStateOf("")
     var billingState by mutableStateOf("")
     var deliveryState by mutableStateOf("")
+    /** Which state picker the capture sheet has open, or `null` when none is. */
+    var statePicker by mutableStateOf<StatePickerField?>(null)
     var partyGstin by mutableStateOf("")
     var supplierPhone by mutableStateOf("")
     var supplierAddress by mutableStateOf("")
@@ -266,6 +269,17 @@ private class CaptureForm(
     var returnReason by mutableStateOf("")
     var expenseCategory by mutableStateOf("")
     var detail by mutableStateOf(detail)
+    /** `HOLD` capture (`TRD-QA-HOLD`): freeze an order or a dispatch without moving it. */
+    var holdTarget by mutableStateOf("Order")
+    var holdReason by mutableStateOf("")
+    /** `TRANSFER` capture (`TRD-QA-TRANSFER`): move the same quantity between two locations. */
+    var transferFromName by mutableStateOf("")
+    var transferToName by mutableStateOf("")
+    var transferFromId by mutableStateOf<String?>(null)
+    var transferToId by mutableStateOf<String?>(null)
+    /** `REPRINT` capture (`TRD-QA-REPRINT`): a read, never a new document. */
+    var reprintKind by mutableStateOf("INVOICE")
+    var reprintSourceId by mutableStateOf("")
 
     val dateText: String get() = eventDate.format(dayFormat)
     val dueDateText: String get() = dueDate.format(dayFormat)
@@ -334,8 +348,10 @@ private class CaptureForm(
             .firstOrNull { !it.isNullOrBlank() }
             .orEmpty()
             .trim()
-        if (business.isBlank() || supply.isBlank()) return
-        supplyChoice = if (supply.equals(business, ignoreCase = true)) "INTRA" else "INTER"
+        // Compare GST state codes: a master saved as "MH" and a business saved as "Maharashtra"
+        // are the same state, and an exact-string compare used to charge IGST on that sale.
+        val jurisdiction = IndiaStateCatalog.jurisdiction(business, supply) ?: return
+        supplyChoice = jurisdiction
     }
 }
 
@@ -396,7 +412,6 @@ private fun saleSettled(choice: String) =
 private fun initialCaptureDetail(mode: String, variant: String): String =
     if ((variant == "client" || variant == "own") && mode == "DELIVERABLE") "Due" else ""
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OperatingCaptureSheet(
     title: String,
@@ -575,6 +590,9 @@ fun OperatingCaptureSheet(
                 "SUPPLIER", "PARTNER" -> SupplierPartnerCapture(form, mode, currency, channels, production, trading, distribution, marketing, restaurant, service, client, own)
                 "MASTERS" -> MastersCapture(form, model)
                 "APPROVAL" -> ApprovalCapture(form, model, currency, marketing, onDecide)
+                "HOLD" -> HoldCaptureLayout(form, model)
+                "TRANSFER" -> TransferCaptureLayout(form, model, actor)
+                "REPRINT" -> ReprintCaptureLayout(form, model, currency)
                 else -> FallbackNoteCapture(form)
             }
             if (form.error != null) Text(form.error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans, fontSize = 12.sp)
@@ -1068,7 +1086,7 @@ private fun BudgetTargetCapture(
 ) {
     val typed = form.amount.toBigDecimalOrNull()
     if (production && mode == "BUDGET") {
-        ReadField("Plan month", form.dateText) { form.dateOpen = true }
+        ReadField("Plan month", monthPickerLabel(form.eventDate)) { form.monthOpen = true }
         ChoiceBlock("Revise", listOf("Budget", "Target"), form.choice) { form.choice = it }
         SummaryCard(
             "Current plan",
@@ -1109,7 +1127,7 @@ private fun BudgetTargetCapture(
             listOf("The current target stays active until this revision is approved."),
         )
     } else if (marketing && mode == "BUDGET") {
-        ReadField("Plan month", form.dateText) { form.dateOpen = true }
+        ReadField("Plan month", monthPickerLabel(form.eventDate)) { form.monthOpen = true }
         SummaryCard(
             "Current plan",
             listOf(
@@ -1121,7 +1139,7 @@ private fun BudgetTargetCapture(
         EditField("Revision reason", form.purpose, "Required") { form.purpose = it }
         SummaryCard("After approval", budgetSummary(model, currency, typed))
     } else if (lovTrade && mode == "BUDGET") {
-        ReadField("Plan month", form.dateText) { form.dateOpen = true }
+        ReadField("Plan month", monthPickerLabel(form.eventDate)) { form.monthOpen = true }
         if (model.budget?.configured == true) {
             SummaryCard(
                 "Current plan",
@@ -1142,7 +1160,7 @@ private fun BudgetTargetCapture(
         EditField("Revision reason", form.purpose, "Why this changes") { form.purpose = it }
         SummaryCard("After approval", budgetSummary(model, currency, typed))
     } else {
-        ReadField(if (mode == "TARGET") "Plan" else "Plan month", form.dateText) { form.dateOpen = true }
+        ReadField(if (mode == "TARGET") "Plan" else "Plan month", monthPickerLabel(form.eventDate)) { form.monthOpen = true }
         SummaryCard(
             "Current plan",
             listOf(
@@ -1856,16 +1874,90 @@ private fun MastersCapture(
     form: CaptureForm,
     model: OperatingProjectionDto,
 ) {
-    ChoiceBlock("Master", masterKinds(model.subtype), form.masterKind) { form.masterKind = it }
-        EditField("Name", form.itemName, "Required") { form.itemName = it }
-        if (form.masterKind in setOf("PRODUCT", "MATERIAL", "CONSUMABLE")) {
-            val tradingMaster = model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")
-            val units = if (tradingMaster) OperatingSeedUoms.all.map { it.name } else listOf("piece", "kg", "litre", "count")
-            ChoiceBlock(if (tradingMaster) "Base unit" else "Unit", units, form.unit) { form.unit = it }
+    // `TRD-QA-11` masters capture: link an existing row by id, or create a new one.
+    // Linking is what makes `UPDATE` events reference `masterId` instead of re-declaring
+    // a name, so a posted bill never rewrites a master's identity.
+    val tradingMaster = model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")
+    val kinds = masterKinds(model.subtype)
+    val existing = model.masters.orEmpty().filter { master ->
+        kinds.any { it.equals(master.kind, true) }
+    }
+    if (tradingMaster) {
+        ChoiceBlock("Master", kinds, form.masterKind) { form.masterKind = it }
+        Text(
+            if (existing.isEmpty()) "No master recorded yet — create the first one." else "Link an existing record",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+        existing
+            .filter { it.kind.equals(form.masterKind, true) }
+            .take(10)
+            .forEach { master ->
+                val on = form.masterId == master.id
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (on) SheetHigh else Color.Transparent)
+                        .border(1.dp, if (on) SheetAccent else SheetBorder, RoundedCornerShape(12.dp))
+                        .clickable {
+                            if (on) {
+                                form.masterId = null
+                                form.itemName = ""
+                            } else {
+                                form.masterId = master.id
+                                form.itemName = master.name
+                                master.unit?.takeIf { it.isNotBlank() }?.let { form.unit = it }
+                                master.gstRate?.takeIf { it.isNotBlank() }?.let { form.gstRate = it }
+                            }
+                        }
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            master.name,
+                            color = SheetInk,
+                            fontFamily = PlusJakartaSans,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                        )
+                        Text(
+                            listOfNotNull(
+                                master.kind,
+                                master.unit?.takeIf { it.isNotBlank() },
+                                if (master.source == "EVENT") "From activity" else "Master",
+                            ).joinToString(" · "),
+                            color = SheetMuted,
+                            fontFamily = PlusJakartaSans,
+                            fontSize = 11.sp,
+                        )
+                    }
+                    if (on) OperatingBadgeChip("Linked", TradeSheetThemePlaceholder)
+                }
+            }
+        if (form.masterId != null) {
+            OperatingWhyFootnote(
+                "Saving links this record by id. It does not rewrite the master's name or price.",
+                CaptureSheetTheme,
+            )
         }
-        EditField("Detail", form.purpose, "Optional") { form.purpose = it }
-        MasterGstFields(form, model)
-        Text("Saving adds a selectable record. It does not create a sale or a cost.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        Text("Or create a new record", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else {
+        ChoiceBlock("Master", kinds, form.masterKind) { form.masterKind = it }
+    }
+    EditField("Name", form.itemName, "Required") {
+        form.itemName = it
+        form.masterId = null
+    }
+    if (form.masterKind in setOf("PRODUCT", "MATERIAL", "CONSUMABLE")) {
+        val units = if (tradingMaster) OperatingSeedUoms.all.map { it.name } else listOf("piece", "kg", "litre", "count")
+        ChoiceBlock(if (tradingMaster) "Base unit" else "Unit", units, form.unit) { form.unit = it }
+    }
+    EditField("Detail", form.purpose, "Optional") { form.purpose = it }
+    MasterGstFields(form, model)
+    Text("Saving adds a selectable record. It does not create a sale or a cost.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
 }
 
 @Composable
@@ -1929,6 +2021,10 @@ private fun CaptureSheetFooter(
         Text(footerLine(mode, restaurant, service, trading, distribution, marketing, client, production, job), color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         val action = actionLabel(mode, form.choice, restaurant, service, trading, distribution, marketing, client, production)
         val enabled = when {
+            mode == "HOLD" -> form.parentId.isNotBlank() && form.holdReason.isNotBlank()
+            mode == "TRANSFER" -> form.purpose.isNotBlank() && form.quantity.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true &&
+                form.transferToName.isNotBlank() && form.transferFromName != form.transferToName
+            mode == "REPRINT" -> form.reprintSourceId.isNotBlank()
             mode == "RETURN" -> form.parentId.isNotBlank() && form.returnReason.isNotBlank()
             lovTrade && mode == "SPEND" -> form.expenseCategory.isNotBlank() && form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && (form.choice == "Paid" || form.party.isNotBlank())
             lovTrade && mode == "SALE" -> {
@@ -1989,6 +2085,11 @@ private fun CaptureSheetFooter(
                 .clip(RoundedCornerShape(12.dp))
                 .background(if (enabled) accentGradient else Brush.horizontalGradient(listOf(Color(0xFF353A59), Color(0xFF353A59))))
                 .clickable(enabled = enabled) {
+                    if (mode == "REPRINT") {
+                        // `TRD-QA-REPRINT` is a read: the layout already loaded the document.
+                        onDismiss()
+                        return@clickable
+                    }
                     if (mode == "APPROVAL") {
                         val item = model.attention.firstOrNull { it.kind == "APPROVAL" }
                         val decide = onDecide
@@ -2092,6 +2193,16 @@ private fun CaptureSheetFooter(
                         periodEnd = form.periodEnd,
                         supersedesId = form.supersedesId,
                         effectiveDay = form.eventDate.toString(),
+                        holdTargetLabel = form.holdTarget,
+                        holdLabel = form.choice,
+                        holdReason = form.holdReason,
+                        linkedMasterId = form.masterId,
+                        transferFromMasterId = form.transferFromId,
+                        transferFromName = form.transferFromName,
+                        transferToMasterId = form.transferToId,
+                        transferToName = form.transferToName,
+                        existingOrderStatus = seed?.status?.takeIf { it.isNotBlank() },
+                        existingShipmentStatus = seed?.status?.takeIf { it.isNotBlank() },
                         dueAtDay = when {
                             mode == "ISSUE" -> form.eventDate.toString()
                             unpaidDue -> form.dueDate.toString()
@@ -2139,61 +2250,100 @@ private fun CaptureSheetFooter(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CaptureDateDialogs(form: CaptureForm) {
+    // The state picker is shared with the setup document and the masters sheet, so a state is
+    // written back as the same canonical name everywhere.
+    form.statePicker?.let { field ->
+        IndiaStateSheet(
+            selected = if (field == StatePickerField.BUSINESS) form.businessState else form.billingState,
+            theme = CaptureSheetTheme,
+            onDismiss = { form.statePicker = null },
+            onPick = { picked ->
+                if (field == StatePickerField.BUSINESS) form.businessState = picked.name
+                else form.billingState = picked.name
+                form.statePicker = null
+            },
+        )
+    }
+    // The three Figma pickers (`TRD-PICKER` / `DST-PICKER`) replace the stock Material
+    // dialogs so a trading capture matches the frame instead of the platform calendar.
     if (form.dateOpen) {
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = localDateToUtcMillis(form.eventDate))
-        DatePickerDialog(
-            onDismissRequest = { form.dateOpen = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let { form.eventDate = utcMillisToLocalDate(it) }
+        OperatingSheetScrim(onDismiss = { form.dateOpen = false }) {
+            OperatingPickerSheet(
+                mode = OperatingPickerMode.DAY,
+                initial = form.eventDate,
+                theme = CaptureSheetTheme,
+                onDismiss = { form.dateOpen = false },
+                onDay = {
+                    form.eventDate = it
                     form.dateOpen = false
-                }) { Text("OK", fontFamily = PlusJakartaSans) }
-            },
-            dismissButton = {
-                TextButton(onClick = { form.dateOpen = false }) { Text("Cancel", fontFamily = PlusJakartaSans) }
-            },
-        ) {
-            DatePicker(state = pickerState)
+                },
+            )
         }
     }
     if (form.dueDateOpen) {
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = localDateToUtcMillis(form.dueDate))
-        DatePickerDialog(
-            onDismissRequest = { form.dueDateOpen = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let { form.dueDate = utcMillisToLocalDate(it) }
+        OperatingSheetScrim(onDismiss = { form.dueDateOpen = false }) {
+            OperatingPickerSheet(
+                mode = OperatingPickerMode.DAY,
+                initial = form.dueDate,
+                theme = CaptureSheetTheme,
+                title = "When is this due?",
+                onDismiss = { form.dueDateOpen = false },
+                onDay = {
+                    form.dueDate = it
                     form.dueDateOpen = false
-                }) { Text("OK", fontFamily = PlusJakartaSans) }
-            },
-            dismissButton = {
-                TextButton(onClick = { form.dueDateOpen = false }) { Text("Cancel", fontFamily = PlusJakartaSans) }
-            },
-        ) {
-            DatePicker(state = pickerState)
+                },
+            )
         }
     }
     if (form.goodsDueOpen) {
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = localDateToUtcMillis(form.goodsDueDate))
-        DatePickerDialog(
-            onDismissRequest = { form.goodsDueOpen = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let { form.goodsDueDate = utcMillisToLocalDate(it) }
+        OperatingSheetScrim(onDismiss = { form.goodsDueOpen = false }) {
+            OperatingPickerSheet(
+                mode = OperatingPickerMode.DATE_TIME,
+                initial = form.goodsDueDate,
+                theme = CaptureSheetTheme,
+                title = "When will the goods arrive?",
+                onDismiss = { form.goodsDueOpen = false },
+                onDay = {
+                    form.goodsDueDate = it
                     form.goodsDueOpen = false
-                }) { Text("OK", fontFamily = PlusJakartaSans) }
-            },
-            dismissButton = {
-                TextButton(onClick = { form.goodsDueOpen = false }) { Text("Cancel", fontFamily = PlusJakartaSans) }
-            },
-        ) {
-            DatePicker(state = pickerState)
+                },
+            )
+        }
+    }
+    if (form.monthOpen) {
+        // `TRD-PICKER` month variant — a budget or a target is planned by month.
+        OperatingSheetScrim(onDismiss = { form.monthOpen = false }) {
+            OperatingPickerSheet(
+                mode = OperatingPickerMode.MONTH,
+                initial = form.eventDate,
+                theme = CaptureSheetTheme,
+                title = "Plan month",
+                onDismiss = { form.monthOpen = false },
+                onDay = {},
+                onMonth = {
+                    form.eventDate = it.atDay(1)
+                    form.monthOpen = false
+                },
+            )
         }
     }
 }
+
+/** The capture sheet's own palette, shared by the pickers opened from inside it. */
+private val CaptureSheetTheme = OperatingSheetTheme(
+    accent = SheetAccent,
+    accentSoft = SheetAccent,
+    canvas = BusinessSheetTokens.bg,
+    surface = BusinessSheetTokens.bg,
+    inset = BusinessSheetTokens.field,
+    border = SheetBorder,
+    ink = SheetInk,
+    body = SheetMuted,
+    warning = OperatingSheetWarning,
+    negative = OperatingSheetNegative,
+)
 
 @Composable
 private fun CaptureLovHost(
@@ -2335,6 +2485,9 @@ private fun footerLine(mode: String, restaurant: Boolean = false, service: Boole
     "PAYMENT" -> if (marketing) "Draft · Manual confirmation only · No live transfer" else "Draft · Nothing saved yet"
     "RESULT", "COMPLETE" -> "Draft · Not yet saved"
     "RETURN" -> "Draft · Credit note only · No refund is paid"
+    "HOLD" -> "Draft · A hold freezes the record · Nothing is posted"
+    "TRANSFER" -> "Draft · Stock moves between two places · Total on-hand unchanged"
+    "REPRINT" -> "Read only · Reprinting never posts a new record"
     "DELIVERABLE" -> if (marketing) "Assigned work only" else "Draft · Nothing saved yet"
     "PRODUCTION" -> "Draft · Not yet saved"
     "DELIVERY" -> if (production && job) "Draft · No evidence attached · Not yet saved" else if (production) "Draft · Operational signal, not an inventory ledger" else "Draft · Nothing saved yet"
@@ -2348,6 +2501,12 @@ private fun actionLabel(mode: String, choice: String, restaurant: Boolean = fals
     "PAYMENT" -> if (marketing) "Mark Paid" else "Record Payment"
     "REIMBURSE" -> "Mark Reimbursed"
     "RETURN" -> "Save return"
+    "HOLD" -> if (choice == "No hold") "Release hold" else "Hold record"
+    "TRANSFER" -> "Save transfer"
+    "REPRINT" -> "Print / share"
+    "HOLD" -> if (choice == "No hold") "Release hold" else "Hold record"
+    "TRANSFER" -> "Save transfer"
+    "REPRINT" -> "Print / share"
     "COLLECTION" -> "Mark Received"
     "BUDGET" -> if (marketing) "Submit plan revision" else "Submit revision"
     "TARGET" -> when {
@@ -2411,6 +2570,9 @@ private fun requiredMessage(mode: String): String = when (mode) {
         "A description is required."
     "PERSON", "ROLE", "INVITE", "SUPPLIER", "PARTNER" -> "A name is required."
     "RETURN" -> "Choose the source, a positive credit amount, and a reason."
+    "HOLD" -> "Choose the record and add a reason for the hold."
+    "TRANSFER" -> "Choose the item, both locations, and a positive quantity."
+    "REPRINT" -> "Choose the record to reprint."
     else -> "Check the fields and try again."
 }
 
@@ -2420,14 +2582,11 @@ private fun occurredAtValue(date: LocalDate): String? {
         .format(date.atStartOfDay(ZoneId.systemDefault()))
 }
 
-private fun localDateToUtcMillis(date: LocalDate): Long =
-    date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+/** `September 2026` — the label the month picker returns, matching `TRD-PICKER`. */
+internal fun monthPickerLabel(date: LocalDate): String =
+    date.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))
 
-private fun utcMillisToLocalDate(millis: Long): LocalDate =
-    Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
-
-private fun payCode(label: String): String = when {
-    label.equals("Received", true) || label.equals("Walk-in", true) -> "RECEIVED"
+private fun payCode(label: String): String = when {    label.equals("Received", true) || label.equals("Walk-in", true) -> "RECEIVED"
     label.equals("Paid", true) -> "PAID"
     label.equals("Part paid", true) -> "PART_PAID"
     else -> "PAY_LATER"
@@ -2738,6 +2897,16 @@ private fun buildDraft(
     periodEnd: String = "",
     supersedesId: String = "",
     effectiveDay: String = "",
+    holdTargetLabel: String = "Order",
+    holdLabel: String = "No hold",
+    holdReason: String = "",
+    linkedMasterId: String? = null,
+    transferFromMasterId: String? = null,
+    transferFromName: String = "",
+    transferToMasterId: String? = null,
+    transferToName: String = "",
+    existingOrderStatus: String? = null,
+    existingShipmentStatus: String? = null,
 ): OperatingCaptureDraft? {
     if (lovTrade && (mode == "UPDATE" || mode == "ISSUE")) {
         if (purpose.isBlank()) return null
@@ -2758,13 +2927,15 @@ private fun buildDraft(
         )
     }
     if (mode == "MASTERS") {
-        if (itemName.isBlank()) return null
+        // A linked master is referenced by id; only a new master needs a name.
+        val linked = linkedMasterId?.takeIf { it.isNotBlank() }
+        if (itemName.isBlank() && linked == null) return null
         val productMaster = masterKind in setOf("PRODUCT", "MATERIAL", "CONSUMABLE")
         val savedUnit = if (lovTrade) OperatingSeedUoms.canonical(unit).ifBlank { null } else unit.ifBlank { null }
-        if (productMaster && lovTrade && savedUnit.isNullOrBlank()) return null
+        if (productMaster && lovTrade && savedUnit.isNullOrBlank() && linked == null) return null
         return OperatingCaptureDraft(
             eventType = "UPDATE",
-            title = itemName.trim(),
+            title = itemName.ifBlank { "Linked master" }.trim(),
             amount = null,
             note = purpose.ifBlank { null },
             channelName = null,
@@ -2772,8 +2943,64 @@ private fun buildDraft(
             paymentStatus = null,
             occurredAt = occurredAt,
             unit = savedUnit,
-            itemName = itemName.trim(),
+            itemName = itemName.trim().ifBlank { null },
             masterKind = masterKind,
+            masterId = linked,
+        )
+    }
+    if (mode == "HOLD") {
+        // `TRD-QA-HOLD`: a hold revises the open record, it never creates a new one.
+        if (parentId.isBlank() || holdReason.isBlank()) return null
+        val target = if (holdTargetLabel == "Dispatch") "SHIPMENT" else "ORDER"
+        val held = choice != "No hold"
+        return OperatingCaptureDraft(
+            eventType = target,
+            title = title,
+            amount = null,
+            note = holdReason.trim(),
+            channelName = null,
+            counterpartyName = null,
+            paymentStatus = null,
+            occurredAt = occurredAt,
+            parentEventId = parentId,
+            revisesEventId = parentId,
+            contract = com.example.momentra.data.api.OperatingContractBody(
+                holdStatus = if (held) "HELD" else "RELEASED",
+                holdReason = if (held) holdReason.trim().take(200) else null,
+                orderStatus = if (target == "ORDER") existingOrderStatus else null,
+                shipmentStatus = if (target == "SHIPMENT") existingShipmentStatus else null,
+            ),
+        )
+    }
+    if (mode == "TRANSFER") {
+        // `TRD-QA-TRANSFER`: one quantity leaves one location and enters another.
+        val qty = quantity.toBigDecimalOrNull()?.takeIf { it > BigDecimal.ZERO } ?: return null
+        if (purpose.isBlank() || transferToName.isBlank()) return null
+        if (transferFromName.isNotBlank() && transferFromName == transferToName) return null
+        // The contract accepts these reasons only, in this case. Anything else is a 400,
+        // so an unmapped label falls back to the transfer itself.
+        val reason = OperatingStockReasons.contractCode(stockReasonLabel) ?: "TRANSFER"
+        return OperatingCaptureDraft(
+            eventType = "STOCK",
+            title = purpose.trim(),
+            amount = null,
+            note = null,
+            channelName = null,
+            counterpartyName = null,
+            paymentStatus = "NONE",
+            occurredAt = occurredAt,
+            quantity = qty.setScale(2, RoundingMode.HALF_UP).toPlainString(),
+            unit = OperatingSeedUoms.canonical(unit).ifBlank { null },
+            itemName = purpose.trim(),
+            contract = com.example.momentra.data.api.OperatingContractBody(
+                stockAction = "TRANSFER",
+                stockReason = reason,
+                ownership = if (ownership.equals("Consignment", true)) "CONSIGNMENT" else "OWNED",
+                transferFromMasterId = transferFromMasterId,
+                transferFromName = transferFromName.takeIf { it.isNotBlank() },
+                transferToMasterId = transferToMasterId,
+                transferToName = transferToName.trim(),
+            ),
         )
     }
     val marketing = client || own
@@ -2938,17 +3165,11 @@ private fun buildDraft(
             "set current stock", "set" -> "SET"
             "add" -> "ADD"
             "reduce" -> "REDUCE"
+            "transfer" -> "TRANSFER"
             else -> if (mode == "STOCK") "SET" else null
         }
-        val stockReasonCode = when (stockReasonLabel.lowercase()) {
-            "opening count", "opening" -> "opening"
-            "stocktake" -> "stocktake"
-            "damage" -> "damage"
-            "waste" -> "waste"
-            "return" -> "return"
-            "correction" -> "correction"
-            else -> if (mode == "STOCK") "stocktake" else null
-        }
+        val stockReasonCode = OperatingStockReasons.reasonCode(stockReasonLabel)
+            ?: if (mode == "STOCK") "stocktake" else null
         val orderStatus = when {
             mode != "ORDER" -> null
             choice.equals("Preparing", ignoreCase = true) || choice.equals("Scheduled", ignoreCase = true) -> "PREPARING"
@@ -3190,7 +3411,7 @@ private fun budgetSummary(model: OperatingProjectionDto, currency: String, typed
 }
 
 @Composable
-private fun AmountBlock(label: String, currency: String, value: String, hint: String, onValue: (String) -> Unit) {
+internal fun AmountBlock(label: String, currency: String, value: String, hint: String, onValue: (String) -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -3221,7 +3442,7 @@ private fun AmountBlock(label: String, currency: String, value: String, hint: St
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ChoiceBlock(label: String, options: List<String>, selected: String, onSelect: (String) -> Unit) {
+internal fun ChoiceBlock(label: String, options: List<String>, selected: String, onSelect: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
@@ -3246,12 +3467,12 @@ private fun ChoiceBlock(label: String, options: List<String>, selected: String, 
 }
 
 @Composable
-private fun FieldRow(content: @Composable RowScope.() -> Unit) {
+internal fun FieldRow(content: @Composable RowScope.() -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), content = content)
 }
 
 @Composable
-private fun ReadField(
+internal fun ReadField(
     label: String,
     value: String,
     modifier: Modifier = Modifier.fillMaxWidth(),
@@ -3271,7 +3492,7 @@ private fun ReadField(
 }
 
 @Composable
-private fun EditField(label: String, value: String, placeholder: String, modifier: Modifier = Modifier.fillMaxWidth(), onValue: (String) -> Unit) {
+internal fun EditField(label: String, value: String, placeholder: String, modifier: Modifier = Modifier.fillMaxWidth(), onValue: (String) -> Unit) {
     Column(
         modifier
             .clip(RoundedCornerShape(12.dp))
@@ -3295,12 +3516,12 @@ private fun EditField(label: String, value: String, placeholder: String, modifie
 }
 
 @Composable
-private fun NoteField(label: String, value: String, placeholder: String, onValue: (String) -> Unit) {
+internal fun NoteField(label: String, value: String, placeholder: String, onValue: (String) -> Unit) {
     EditField(label, value, placeholder, Modifier.fillMaxWidth(), onValue)
 }
 
 @Composable
-private fun MoreDetails(open: Boolean, hint: String, onToggle: () -> Unit) {
+internal fun MoreDetails(open: Boolean, hint: String, onToggle: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable(onClick = onToggle)) {
         Text(if (open) "More details  ∧" else "More details  ∨", color = SheetAccent, fontFamily = PlusJakartaSans, fontSize = 14.sp)
         Text(hint, color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
@@ -3308,7 +3529,7 @@ private fun MoreDetails(open: Boolean, hint: String, onToggle: () -> Unit) {
 }
 
 @Composable
-private fun SummaryCard(title: String, lines: List<String>) {
+internal fun SummaryCard(title: String, lines: List<String>) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -3473,12 +3694,12 @@ private fun lovOptions(
 }
 
 @Composable
-private fun LovField(label: String, value: String, placeholder: String, modifier: Modifier = Modifier.fillMaxWidth(), onClick: () -> Unit) {
+internal fun LovField(label: String, value: String, placeholder: String, modifier: Modifier = Modifier.fillMaxWidth(), onClick: () -> Unit) {
     ReadField(label, value.ifBlank { "Select $placeholder  ›" }, modifier, onClick)
 }
 
 @Composable
-private fun LovItemLine(
+internal fun LovItemLine(
     itemName: String,
     quantity: String,
     unit: String,
@@ -3777,6 +3998,19 @@ private fun GstPriceFields(form: CaptureForm, model: OperatingProjectionDto, pur
 private fun MasterGstFields(form: CaptureForm, model: OperatingProjectionDto) {
     val gstFamily = model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP", "RETAIL_STORE", "RESTAURANT_FOOD", "CONSUMER_SERVICE", "STANDARD_PRODUCTION", "MADE_TO_ORDER")
     if (!gstFamily || model.gstTracking != "YES") return
+    // The quick sheet's own tokens, adapted to the row component's theme shape.
+    val sheetTheme = OperatingSheetTheme(
+        accent = SheetAccent,
+        accentSoft = SheetAccent.copy(alpha = 0.16f),
+        canvas = BusinessSheetTokens.field,
+        surface = BusinessSheetTokens.field,
+        inset = SheetFieldBg,
+        border = SheetBorder,
+        ink = SheetInk,
+        body = SheetMuted,
+        warning = OperatingSheetWarning,
+        negative = OperatingSheetNegative,
+    )
     val product = form.masterKind in setOf("PRODUCT", "MATERIAL", "CONSUMABLE")
     val party = form.masterKind in setOf("CUSTOMER", "BUYER", "SUPPLIER")
     if (!product && !party) return
@@ -3803,9 +4037,22 @@ private fun MasterGstFields(form: CaptureForm, model: OperatingProjectionDto) {
     } else {
         Text("Save their tax details for future transactions.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         ChoiceBlock("GST registration", listOf("Registered", "Unregistered", "Not sure"), form.partyGstRegistration) { form.partyGstRegistration = it }
-        EditField("Business state", form.businessState, "State") { form.businessState = it }
-        EditField("Billing state", form.billingState, "State") { form.billingState = it }
-        EditField("GSTIN (Optional)", form.partyGstin, "Add their GST number if you have it") { form.partyGstin = it.take(15) }
+        OperatingPickerRow(
+            label = "Business state",
+            value = form.businessState,
+            theme = sheetTheme,
+            placeholder = "Pick a state",
+            onClick = { form.statePicker = StatePickerField.BUSINESS },
+        )
+        OperatingPickerRow(
+            label = "Billing state",
+            value = form.billingState,
+            theme = sheetTheme,
+            hint = IndiaStateCatalog.gstinStateHint(form.partyGstin, form.billingState),
+            placeholder = "Pick a state",
+            onClick = { form.statePicker = StatePickerField.BILLING },
+        )
+        EditField("GSTIN (Optional)", form.partyGstin, "Add their GST number if you have it") { form.partyGstin = it.uppercase().take(15) }
     }
 }
 

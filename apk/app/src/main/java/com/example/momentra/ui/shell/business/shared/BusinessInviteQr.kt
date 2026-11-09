@@ -47,10 +47,6 @@ import androidx.core.content.ContextCompat
 import com.example.momentra.data.api.ApiClient
 import com.example.momentra.data.api.CompanyInviteDto
 import com.example.momentra.data.api.MintCompanyInviteBody
-import com.example.momentra.ui.shell.empty.business.BusinessInviteRoles
-import com.example.momentra.ui.shell.empty.business.CompanyJoinLink
-import com.example.momentra.ui.shell.empty.business.businessInviteMembership
-import com.example.momentra.ui.shell.empty.business.businessInviteRoleLabel
 import com.example.momentra.ui.shell.empty.group.DeviceContact
 import com.example.momentra.ui.shell.empty.group.generateInviteQrBitmap
 import com.example.momentra.ui.shell.empty.group.inviteMessage
@@ -64,6 +60,28 @@ import com.example.momentra.ui.theme.RetailRose
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
+
+val BusinessInviteRoles = listOf(
+    "FINANCE" to "Finance",
+    "APPROVER" to "Approver",
+    "OPERATIONS_LEAD" to "Operations",
+    "CONTRIBUTOR" to "Contributor",
+)
+
+fun businessInviteMembership(role: String): String =
+    if (role == "FINANCE" || role == "APPROVER") "ADMIN" else "MEMBER"
+
+fun businessInviteRoleLabel(role: String?): String =
+    BusinessInviteRoles.firstOrNull { it.first == role }?.second
+        ?: role?.lowercase()?.replace('_', ' ')?.replaceFirstChar { it.uppercase() }
+        ?: "Member"
+
+object CompanyJoinLink {
+    fun displayPath(code: String): String =
+        "https://momentra.tech/c/${code.trim().lowercase()}"
+
+    fun qrPayload(code: String): String = displayPath(code)
+}
 
 /**
  * Invite & QR — Figma `RTL-MASTER · Invite & QR` `2506:29333` and
@@ -620,7 +638,7 @@ internal fun BusinessInviteQr(
     )
 }
 
-private fun inviteRoleAccess(role: String): String = when (role) {
+internal fun inviteRoleAccess(role: String): String = when (role) {
     "FINANCE" -> "money, payments and finance boards"
     "APPROVER" -> "approves money and stock adjustments"
     "OPERATIONS_LEAD" -> "sales, stock, purchases and orders"

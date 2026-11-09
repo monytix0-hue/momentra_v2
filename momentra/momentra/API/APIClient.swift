@@ -67,6 +67,10 @@ struct OperatingActivityPayload: Decodable, Identifiable {
     let status: String?
     let orderSide: String?
     let estimatedAmount: String?
+    /// Open / Part / Overdue / Settled / Done — the Figma status chip (V099+).
+    let badge: String?
+    /// One line of context under the row title (V099+).
+    let subtitle: String?
 }
 
 struct OperatingLifePayload: Decodable {
@@ -88,8 +92,17 @@ struct OperatingRevisionPayload: Decodable, Identifiable {
 
 struct OperatingMasterPayload: Decodable, Identifiable {
     let id: String
+    /// `MASTER` rows are table-backed and editable; `EVENT` rows are the legacy fallback.
+    let source: String?
     let kind: String
     let name: String
+    let code: String?
+    let momentId: String?
+    let status: String?
+    let parentMasterId: String?
+    let sellPrice: String?
+    let mrp: String?
+    let purchasePrice: String?
     let unit: String?
     let dimension: String?
     let conversionToBase: String?
@@ -108,6 +121,8 @@ struct OperatingMasterPayload: Decodable, Identifiable {
     let billingState: String?
     let deliveryState: String?
     let gstin: String?
+    /// Optimistic-concurrency stamp; required when PATCHing or archiving.
+    let version: Int?
 }
 
 struct OperatingQuickAddPayload: Decodable, Identifiable {
@@ -117,12 +132,26 @@ struct OperatingQuickAddPayload: Decodable, Identifiable {
     var id: String { code }
 }
 
+struct OperatingBoardMetricPayload: Decodable, Identifiable {
+    let key: String
+    let label: String
+    let value: String
+    let unit: String?
+    /// `NORMAL` | `WARNING` | `POSITIVE`
+    let tone: String?
+    var id: String { key }
+}
+
 struct OperatingBoardSectionPayload: Decodable, Identifiable {
     let code: String
     let title: String
     let detail: String
     let rows: [OperatingActivityPayload]?
     let coverage: String?
+    /// Quantified tiles the v12 frames draw instead of parsing `detail`.
+    let metrics: [OperatingBoardMetricPayload]?
+    /// The Figma `Why: …` footnote.
+    let why: String?
     var id: String { code }
 }
 
@@ -130,6 +159,14 @@ struct OperatingBoardsPayload: Decodable {
     let moments: [OperatingBoardSectionPayload]?
     let life: [OperatingBoardSectionPayload]?
     let memory: [OperatingBoardSectionPayload]?
+}
+
+/// One group of quantified tiles per Pulse surface (V099+).
+struct OperatingPulseMetricGroupPayload: Decodable, Identifiable {
+    let code: String
+    let metrics: [OperatingBoardMetricPayload]?
+    let why: String?
+    var id: String { code }
 }
 
 struct OperatingProjectionPayload: Decodable {
@@ -164,6 +201,8 @@ struct OperatingProjectionPayload: Decodable {
     let purchasePriceIncludesGst: String?
     let gstPosition: GstPositionPayload?
     let marketing: MarketingInsightPayload?
+    /// Quantified tiles for the six Pulse surfaces, one group per surface (V099+).
+    let pulseMetrics: [OperatingPulseMetricGroupPayload]?
 }
 
 struct MarketingInsightPayload: Decodable {
@@ -209,6 +248,158 @@ struct RecordOperatingEventResult: Decodable {
     let approvalStatus: String
 }
 
+/// Structured reprint payload — the server sends no PDF; the device renders it.
+struct OperatingDocumentLinePayload: Decodable {
+    let itemName: String?
+    let quantity: String?
+    let unit: String?
+    let unitPrice: String?
+    let discount: String?
+    let gstRate: String?
+    let masterId: String?
+    let masterName: String?
+}
+
+struct OperatingDocumentPartyPayload: Decodable {
+    let name: String?
+    let gstin: String?
+    let state: String?
+}
+
+struct OperatingDocumentTaxPayload: Decodable {
+    let taxableAmount: String?
+    let gstRate: String?
+    let cgst: String?
+    let sgst: String?
+    let igst: String?
+    let total: String?
+}
+
+struct OperatingDocumentPayload: Decodable {
+    let kind: String
+    let eventId: String
+    let momentId: String
+    let documentNumber: String
+    let issuedAt: String
+    let currency: String?
+    let seller: OperatingDocumentPartyPayload?
+    let buyer: OperatingDocumentPartyPayload?
+    let lines: [OperatingDocumentLinePayload]?
+    let subTotal: String?
+    let discount: String?
+    let tax: OperatingDocumentTaxPayload?
+    let grandTotal: String?
+    let notes: String?
+    let reprint: Bool?
+}
+
+// MARK: - Operating masters (company-scoped CRUD)
+
+struct OperatingMasterListPayload: Decodable {
+    let items: [OperatingMasterPayload]
+}
+
+struct OperatingPriceListLinePayload: Decodable {
+    let masterId: String?
+    let price: String?
+    let schemePct: String?
+}
+
+struct OperatingPriceListPayload: Decodable, Identifiable {
+    let id: String
+    let momentId: String?
+    let name: String
+    let channel: String?
+    let priceUnit: String?
+    let marginPct: String?
+    let schemePct: String?
+    let gstRate: String?
+    let validFrom: String
+    let validTo: String?
+    let warehouseMasterId: String?
+    let minOrder: String?
+    let status: String?
+    let version: Int?
+    let lines: [OperatingPriceListLinePayload]?
+}
+
+struct OperatingPriceListListPayload: Decodable {
+    let items: [OperatingPriceListPayload]
+}
+
+/// The body `POST /companies/:companyId/operating-masters` accepts.
+struct OperatingMasterCreateBody: Encodable {
+    var kind: String
+    var name: String
+    var code: String? = nil
+    var momentId: String? = nil
+    var unit: String? = nil
+    var dimension: String? = nil
+    var conversionToBase: String? = nil
+    var tracked: Bool? = nil
+    var barcode: String? = nil
+    var sellPrice: String? = nil
+    var mrp: String? = nil
+    var purchasePrice: String? = nil
+    var gstApplicable: String? = nil
+    var gstClassification: String? = nil
+    var gstRate: String? = nil
+    var priceIncludesGst: String? = nil
+    var salePriceIncludesGst: String? = nil
+    var purchasePriceIncludesGst: String? = nil
+    var gstEffectiveFrom: String? = nil
+    var hsn: String? = nil
+    var gstin: String? = nil
+    var businessState: String? = nil
+    var billingState: String? = nil
+    var deliveryState: String? = nil
+    var parentMasterId: String? = nil
+}
+
+/// The body `PATCH /companies/:companyId/operating-masters/:id` accepts. Every field is
+/// optional on the wire; `expectedVersion` is what makes the write optimistic.
+struct OperatingMasterUpdateBody: Encodable {
+    var kind: String? = nil
+    var name: String? = nil
+    var code: String? = nil
+    var unit: String? = nil
+    var conversionToBase: String? = nil
+    var sellPrice: String? = nil
+    var mrp: String? = nil
+    var purchasePrice: String? = nil
+    var gstApplicable: String? = nil
+    var gstRate: String? = nil
+    var hsn: String? = nil
+    var gstin: String? = nil
+    var businessState: String? = nil
+    var billingState: String? = nil
+    var deliveryState: String? = nil
+    var parentMasterId: String? = nil
+    var status: String? = nil
+    var expectedVersion: Int
+}
+
+struct OperatingPriceListLineInput: Encodable {
+    var masterId: String
+    var price: String
+    var schemePct: String?
+}
+
+struct OperatingPriceListCreateBody: Encodable {
+    var name: String
+    var momentId: String?
+    var channel: String?
+    var priceUnit: String?
+    var marginPct: String?
+    var schemePct: String?
+    var gstRate: String?
+    var validFrom: String
+    var validTo: String?
+    var warehouseMasterId: String?
+    var minOrder: String?
+    var lines: [OperatingPriceListLineInput]?
+}
+
 struct OperatingAllocationInput: Encodable {
     let sourceId: String
     let amount: String
@@ -251,6 +442,14 @@ struct OperatingContractInput: Encodable {
     var deliveryStatus: String? = nil
     var quotationStatus: String? = nil
     var scrapQuantity: String? = nil
+    /// `HOLD` (`TRD-QA-HOLD`): `NONE` | `HELD` | `RELEASED`.
+    var holdStatus: String? = nil
+    var holdReason: String? = nil
+    /// `TRANSFER` (`TRD-QA-TRANSFER`): moves quantity between two masters.
+    var transferFromMasterId: String? = nil
+    var transferToMasterId: String? = nil
+    var transferFromName: String? = nil
+    var transferToName: String? = nil
 }
 
 struct MeBootstrap: Decodable {
@@ -822,11 +1021,6 @@ final class APIClient {
         let payload: CompanyListPayload = try await authorizedGet(path: "v1/companies")
         return payload.items.map { item in
             let audience = (item.profileJson?["audience"]?.value as? String)
-            if let audience {
-                BusinessAudience.saveForCompany(companyId: item.companyId, audience: audience)
-            }
-            CompanyModules.rehydrateFromProfile(companyId: item.companyId, profileJson: item.profileJson)
-            IndustryTemplateCatalog.rehydrateHubHint(companyId: item.companyId, profileJson: item.profileJson)
             return CompanySummary(
                 companyId: item.companyId,
                 displayName: item.displayName,
@@ -3183,6 +3377,43 @@ final class APIClient {
         return payload.items.first { $0.momentId == momentId }
     }
 
+    // MARK: - Business setup draft
+
+    struct PatchBusinessSetupDraftResult: Decodable {
+        let momentId: String
+        let setupId: String?
+        let title: String
+        let status: String
+        let version: Int
+        let preferences: [String: AnyDecodable]?
+    }
+
+    /// Saves the six-section document while the moment is still a `DRAFT`. The backend normalises
+    /// leniently, so a half-filled document is a valid draft; activation keeps its strict path.
+    func patchBusinessSetupDraft(
+        momentId: String,
+        title: String? = nil,
+        preferences: [String: Any],
+        expectedVersion: Int? = nil,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> PatchBusinessSetupDraftResult {
+        struct Body: Encodable {
+            let title: String?
+            let preferences: [String: JSONEncodableValue]
+            let expectedVersion: Int?
+        }
+        let body = Body(
+            title: title,
+            preferences: JSONEncodableValue.map(preferences),
+            expectedVersion: expectedVersion
+        )
+        return try await authorizedPatch(
+            path: "v1/moments/\(momentId)/business-setup",
+            body: body,
+            idempotencyKey: idempotencyKey
+        )
+    }
+
     struct ExpenseSubcategoryPayload: Decodable, Identifiable {
         var id: String { subcategoryCode }
         let subcategoryCode: String
@@ -5350,6 +5581,97 @@ final class APIClient {
         try await authorizedGet(path: "v1/business/moments/\(momentId)/operating")
     }
 
+    // MARK: - Operating masters + price lists (V099)
+
+    func listOperatingMasters(
+        companyId: String,
+        kind: String? = nil,
+        search: String? = nil,
+        momentId: String? = nil,
+        includeArchived: Bool = false
+    ) async throws -> OperatingMasterListPayload {
+        var query: [String: String] = [:]
+        if let kind, !kind.isEmpty { query["kind"] = kind }
+        if let search, !search.isEmpty { query["search"] = search }
+        if let momentId, !momentId.isEmpty { query["momentId"] = momentId }
+        if includeArchived { query["includeArchived"] = "true" }
+        return try await authorizedGet(path: "v1/companies/\(companyId)/operating-masters", query: query)
+    }
+
+    func createOperatingMaster(
+        companyId: String,
+        body: OperatingMasterCreateBody,
+        idempotencyKey: String
+    ) async throws -> OperatingMasterPayload {
+        try await authorizedPost(
+            path: "v1/companies/\(companyId)/operating-masters",
+            body: body,
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func updateOperatingMaster(
+        companyId: String,
+        masterId: String,
+        body: OperatingMasterUpdateBody,
+        idempotencyKey: String
+    ) async throws -> OperatingMasterPayload {
+        try await authorizedPatch(
+            path: "v1/companies/\(companyId)/operating-masters/\(masterId)",
+            body: body,
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func archiveOperatingMaster(
+        companyId: String,
+        masterId: String,
+        expectedVersion: Int,
+        idempotencyKey: String
+    ) async throws -> OperatingMasterPayload {
+        struct Body: Encodable { let expectedVersion: Int }
+        return try await authorizedDelete(
+            path: "v1/companies/\(companyId)/operating-masters/\(masterId)",
+            body: Body(expectedVersion: expectedVersion),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func listOperatingPriceLists(
+        companyId: String,
+        momentId: String? = nil,
+        includeArchived: Bool = false
+    ) async throws -> OperatingPriceListListPayload {
+        var query: [String: String] = [:]
+        if let momentId, !momentId.isEmpty { query["momentId"] = momentId }
+        if includeArchived { query["includeArchived"] = "true" }
+        return try await authorizedGet(path: "v1/companies/\(companyId)/operating-price-lists", query: query)
+    }
+
+    func createOperatingPriceList(
+        companyId: String,
+        body: OperatingPriceListCreateBody,
+        idempotencyKey: String
+    ) async throws -> OperatingPriceListPayload {
+        try await authorizedPost(
+            path: "v1/companies/\(companyId)/operating-price-lists",
+            body: body,
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    /// Structured reprint read — `TRD-QA-REPRINT` / `DST-QA-REPRINT`. Nothing is posted.
+    func getOperatingDocument(
+        momentId: String,
+        eventId: String,
+        kind: String
+    ) async throws -> OperatingDocumentPayload {
+        try await authorizedGet(
+            path: "v1/business/moments/\(momentId)/operating-events/\(eventId)/document",
+            query: ["kind": kind]
+        )
+    }
+
     func decideOperatingEvent(momentId: String, eventId: String, decision: String) async throws -> RecordOperatingEventResult {
         struct Body: Encodable { let decision: String }
         return try await authorizedPost(
@@ -5375,6 +5697,7 @@ final class APIClient {
         itemName: String? = nil,
         unitPrice: String? = nil,
         masterKind: String? = nil,
+        masterId: String? = nil,
         conversionToBase: String? = nil,
         revisesEventId: String? = nil,
         dueAt: String? = nil,
@@ -5418,6 +5741,7 @@ final class APIClient {
             let masterId: String?
         }
         struct Master: Encodable {
+            let masterId: String?
             let kind: String
             let name: String
             let unit: String?
@@ -5482,7 +5806,7 @@ final class APIClient {
             return nil
         }()
         let master = masterKind?.isEmpty == false
-            ? Master(kind: masterKind!, name: title, unit: unit, conversionToBase: conversionToBase, gstApplicable: masterGstApplicable, gstClassification: masterGstClassification, gstRate: masterGstRate, priceIncludesGst: masterPriceIncludesGst, salePriceIncludesGst: masterSalePriceIncludesGst, purchasePriceIncludesGst: masterPurchasePriceIncludesGst, gstEffectiveFrom: masterGstEffectiveFrom, hsn: masterHsn, gstRegistration: masterGstRegistration, businessState: masterBusinessState, billingState: masterBillingState, deliveryState: masterDeliveryState, gstin: masterGstin)
+            ? Master(masterId: masterId, kind: masterKind!, name: title, unit: unit, conversionToBase: conversionToBase, gstApplicable: masterGstApplicable, gstClassification: masterGstClassification, gstRate: masterGstRate, priceIncludesGst: masterPriceIncludesGst, salePriceIncludesGst: masterSalePriceIncludesGst, purchasePriceIncludesGst: masterPurchasePriceIncludesGst, gstEffectiveFrom: masterGstEffectiveFrom, hsn: masterHsn, gstRegistration: masterGstRegistration, businessState: masterBusinessState, billingState: masterBillingState, deliveryState: masterDeliveryState, gstin: masterGstin)
             : nil
         let body = Body(
             eventType: eventType,

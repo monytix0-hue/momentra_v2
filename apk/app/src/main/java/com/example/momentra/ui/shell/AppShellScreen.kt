@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -87,18 +88,15 @@ import com.example.momentra.ui.shell.components.MomentraTopBarConfig
 import com.example.momentra.ui.shell.components.ShellBottomNavigation
 import com.example.momentra.ui.shell.components.label
 import com.example.momentra.ui.shell.empty.ContextEmptyExperience
-import com.example.momentra.ui.shell.group.directory.GroupActiveMomentsDirectory
-import com.example.momentra.ui.shell.group.directory.MomentDirectoryKind
 import com.example.momentra.ui.shell.empty.GroupCreateFlow
+import com.example.momentra.ui.shell.empty.business.BusinessCreateFlow
 import com.example.momentra.ui.shell.empty.group.GroupCreatePhase
-import com.example.momentra.ui.shell.empty.business.CompanyJoinConfirmSheet
 import com.example.momentra.ui.shell.empty.group.GroupJoinConfirmSheet
 import com.example.momentra.ui.shell.empty.group.GroupJoinQrScanner
-import com.example.momentra.ui.shell.empty.business.BusinessCreateFlow
-import com.example.momentra.ui.shell.empty.business.BusinessSetupBottomSheet
-import com.example.momentra.ui.shell.empty.business.CompanyFlowSheet
 import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
-import com.example.momentra.ui.shell.business.appstate.BusinessActiveMomentsDirectory
+import com.example.momentra.ui.shell.momentswitcher.MomentSwitcherDirectory
+import com.example.momentra.ui.shell.momentswitcher.businessMomentSwitcherSpec
+import com.example.momentra.ui.shell.momentswitcher.groupMomentSwitcherSpec
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateBody
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateLoadingBody
@@ -363,7 +361,6 @@ fun AppShellScreen(
     var newMomentOpen by remember { mutableStateOf(false) }
     var businessGap by remember { mutableStateOf<BusinessGapPage?>(null) }
     var businessLocation by remember { mutableStateOf<com.example.momentra.data.api.LocationItemDto?>(null) }
-    var reopenCompanySettings by remember { mutableStateOf(false) }
     var pendingActivation by remember { mutableStateOf<PendingBusinessActivation?>(null) }
     var groupCreatePhase by remember { mutableStateOf(GroupCreatePhase.CHOOSER) }
     var preferGroupCreateFlow by remember { mutableStateOf(false) }
@@ -510,10 +507,11 @@ fun AppShellScreen(
             shellViewModel.selectBottomDestination(dest)
         },
     ) {
+    val businessCreateVisible = newMomentOpen && state.selectedContext == AppContext.BUSINESS
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ShellTokens.SurfaceContent),
+            .background(if (businessCreateVisible) Color(0xFF111113) else ShellTokens.SurfaceContent),
     ) {
         state.offlineNotice?.let { notice ->
             Text(
@@ -533,7 +531,7 @@ fun AppShellScreen(
             (groupMomentDirectoryOpen || groupDirectoryHome)
         val businessDirectoryVisible = state.selectedContext == AppContext.BUSINESS &&
             businessMomentDirectoryOpen
-        if (!groupDirectoryVisible && !businessDirectoryVisible) {
+        if (!groupDirectoryVisible && !businessDirectoryVisible && !businessCreateVisible) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -550,18 +548,12 @@ fun AppShellScreen(
                         config = MomentraTopBarConfig(
                             context = state.selectedContext,
                             displayName = identity.displayName,
-                            companies = state.companies,
-                            selectedCompany = state.selectedCompany,
-                            companyMenuOpen = state.companyMenuOpen,
-                            locationName = businessLocation?.name,
                             life360Available = true,
                             globalCreateAvailable = state.selectedContext != AppContext.PERSONAL,
                             qrScanAvailable = true,
                             referAvailable = true,
                             unreadNotificationCount = unreadNotificationCount,
                         ),
-                        onCompanyMenuToggle = shellViewModel::toggleCompanyMenu,
-                        onCompanySelected = shellViewModel::selectCompany,
                         onQrScan = { showJoinQrScanner = true },
                         onLife360 = { shellViewModel.openLife360(true) },
                         onNewMoment = openNewMoment,
@@ -677,20 +669,19 @@ fun AppShellScreen(
                 .align(Alignment.CenterHorizontally)
                 .momentraMaxWidth(shellWindow.contentMaxWidth),
         ) {
-            if (newMomentOpen && state.selectedContext == AppContext.BUSINESS) {
+            if (businessCreateVisible) {
                 BusinessCreateFlow(
                     companyId = state.selectedCompany?.companyId,
                     ownerName = state.identity?.displayName.orEmpty(),
                     onCreateBack = { newMomentOpen = false },
-                    onMomentCreated = { momentId, title, momentTypeCode, status ->
-                        if (momentTypeCode == "RETAIL_STORE" || momentTypeCode == "RESTAURANT_FOOD" || momentTypeCode == "CONSUMER_SERVICE" || momentTypeCode == "TRADING_WHOLESALE" || momentTypeCode == "DISTRIBUTION_DEALERSHIP" || momentTypeCode == "CLIENT_CAMPAIGN" || momentTypeCode == "OWN_BUSINESS_CAMPAIGN" || momentTypeCode == "STANDARD_PRODUCTION" || momentTypeCode == "MADE_TO_ORDER") {
-                            newMomentOpen = false
-                            shellViewModel.onMomentCreated(momentId, title, momentTypeCode, status)
-                            tourController.onSignal(TourSignal.MOMENT_CREATED)
-                        } else {
-                            pendingActivation = PendingBusinessActivation(momentId, title, momentTypeCode, status)
-                        }
+                    onMomentCreated = { id, title, momentTypeCode, status ->
+                        newMomentOpen = false
+                        pendingActivation = PendingBusinessActivation(id, title, momentTypeCode, status)
                     },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .navigationBarsPadding(),
                 )
             } else {
                 ShellDestinationContent(
@@ -716,6 +707,7 @@ fun AppShellScreen(
                     personalPresentFamilies = presentPersonalFamilies(state.moments),
                     viewerReadOnly = groupViewerReadOnly,
                     onRetry = { shellViewModel.selectContext(state.selectedContext) },
+                    onSelectDestination = { shellViewModel.selectBottomDestination(it) },
                     onSessionExpired = onSessionExpired,
                     onCreateMoment = openNewMoment,
                     onOpenPersonalLife = { shellViewModel.selectBottomDestination(BottomDestination.LIFE) },
@@ -825,10 +817,6 @@ fun AppShellScreen(
                     onAddRevenue = { businessRevenueSheetOpen = true },
                     onAddInvoice = { businessInvoiceSheetOpen = true },
                     onAddMembers = { businessMembersSheetOpen = true },
-                    onOpenCompanySettings = {
-                        reopenCompanySettings = true
-                        shellViewModel.toggleCompanyMenu(true)
-                    },
                     onOpenQuickAdd = { shellViewModel.selectBottomDestination(BottomDestination.CREATE) },
                     onOpenMoments = { shellViewModel.selectBottomDestination(BottomDestination.MOMENTS) },
                     onViewBusinessReport = { businessGap = BusinessGapPage.Finance },
@@ -842,6 +830,7 @@ fun AppShellScreen(
                     onViewAllTeamActivity = { teamRecentActivityOpen = true },
                     onViewAllBusinessActivity = { businessRecentActivityOpen = true },
                     onViewAllBusinessAttention = { businessAttentionViewAllOpen = true },
+                    onSelectMoment = shellViewModel::selectMoment,
                     onOpenCompletedMoments = {
                         groupDirectoryPreferCompleted = true
                         groupMomentDirectoryOpen = true
@@ -868,12 +857,24 @@ fun AppShellScreen(
                         .padding(end = 16.dp, bottom = ShellTokens.BottomBarHeight + 16.dp),
                 )
             }
-            GroupActiveMomentsDirectory(
+            // One spec-driven switcher serves both contexts (Figma 2678:37791).
+            val businessSwitcher = state.selectedContext == AppContext.BUSINESS
+            MomentSwitcherDirectory(
+                spec = if (businessSwitcher) {
+                    businessMomentSwitcherSpec(
+                        companyName = state.selectedCompany?.displayName.orEmpty()
+                            .ifBlank { "Your business" },
+                    )
+                } else {
+                    groupMomentSwitcherSpec(allowDismiss = !groupDirectoryHome)
+                },
                 moments = state.moments,
                 selectedMomentId = state.selectedMomentId,
-                visible = groupDirectoryVisible,
+                visible = groupDirectoryVisible || businessDirectoryVisible,
                 onDismiss = {
-                    if (!groupDirectoryHome) {
+                    if (businessSwitcher) {
+                        businessMomentDirectoryOpen = false
+                    } else if (!groupDirectoryHome) {
                         groupMomentDirectoryOpen = false
                         groupDirectoryPreferCompleted = false
                     }
@@ -882,51 +883,34 @@ fun AppShellScreen(
                     shellViewModel.selectMoment(momentId)
                     groupMomentDirectoryOpen = false
                     groupDirectoryPreferCompleted = false
+                    businessMomentDirectoryOpen = false
                 },
                 onSelectCompletedMoment = { moment ->
-                    shellViewModel.selectCompletedGroupMoment(moment)
+                    if (businessSwitcher) {
+                        shellViewModel.selectCompletedBusinessMoment(moment)
+                    } else {
+                        shellViewModel.selectCompletedGroupMoment(moment)
+                    }
                     groupMomentDirectoryOpen = false
                     groupDirectoryPreferCompleted = false
+                    businessMomentDirectoryOpen = false
                 },
                 onOpenStory = { momentId ->
                     storyMomentId = momentId
                     groupMomentDirectoryOpen = false
                     groupDirectoryPreferCompleted = false
+                    businessMomentDirectoryOpen = false
                 },
                 onCreateMoment = {
                     groupMomentDirectoryOpen = false
                     groupDirectoryPreferCompleted = false
-                    openNewMoment()
-                },
-                initialCompletedTab = groupDirectoryPreferCompleted ||
-                    (groupDirectoryHome && state.moments.none { it.isActiveStatus() }),
-                allowDismiss = !groupDirectoryHome,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding(),
-            )
-            BusinessActiveMomentsDirectory(
-                moments = state.moments,
-                selectedMomentId = state.selectedMomentId,
-                visible = businessDirectoryVisible,
-                onDismiss = { businessMomentDirectoryOpen = false },
-                onSelectMoment = { momentId ->
-                    shellViewModel.selectMoment(momentId)
-                    businessMomentDirectoryOpen = false
-                },
-                onSelectCompletedMoment = { moment ->
-                    shellViewModel.selectCompletedBusinessMoment(moment)
-                    businessMomentDirectoryOpen = false
-                },
-                onOpenStory = { momentId ->
-                    storyMomentId = momentId
-                    businessMomentDirectoryOpen = false
-                },
-                onCreateMoment = {
                     businessMomentDirectoryOpen = false
                     openNewMoment()
                 },
-                companyName = state.selectedCompany?.displayName.orEmpty().ifBlank { "Your business" },
+                initialCompletedTab = !businessSwitcher && (
+                    groupDirectoryPreferCompleted ||
+                        (groupDirectoryHome && state.moments.none { it.isActiveStatus() })
+                    ),
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding(),
@@ -951,8 +935,6 @@ fun AppShellScreen(
                 },
                 onBackToSettings = {
                     businessGap = null
-                    reopenCompanySettings = true
-                    shellViewModel.toggleCompanyMenu(true)
                 },
             )
             pendingActivation?.let { pending ->
@@ -1220,40 +1202,6 @@ fun AppShellScreen(
                             },
                         )
                     }
-                },
-            )
-        }
-        if (state.showCompanySwitcher && state.companyMenuOpen && state.selectedContext == AppContext.BUSINESS) {
-            CompanyFlowSheet(
-                companies = state.companies,
-                selectedCompanyId = state.selectedCompany?.companyId,
-                startOnCreate = false,
-                startOnSettings = reopenCompanySettings,
-                onDismiss = {
-                    reopenCompanySettings = false
-                    shellViewModel.toggleCompanyMenu(false)
-                },
-                onSelect = shellViewModel::selectCompany,
-                onCreated = shellViewModel::onCompanyCreated,
-                onOpenLocations = {
-                    reopenCompanySettings = true
-                    shellViewModel.toggleCompanyMenu(false)
-                    businessGap = BusinessGapPage.LocationPicker
-                },
-                onCompaniesChanged = {
-                    shellViewModel.clearSelectedMomentAfterLeave()
-                },
-            )
-        }
-        pendingCompanyJoinCode?.let { code ->
-            CompanyJoinConfirmSheet(
-                code = code,
-                visible = true,
-                onDismiss = { pendingCompanyJoinCode = null },
-                onGoToCompany = { company ->
-                    pendingCompanyJoinCode = null
-                    shellViewModel.onCompanyCreated(company)
-                    shellViewModel.selectContext(AppContext.BUSINESS)
                 },
             )
         }
@@ -1540,21 +1488,23 @@ fun AppShellScreen(
                 }
             }
         }
-        ShellBottomNavigation(
-            selected = state.bottomDestination,
-            onSelect = {
-                newMomentOpen = false
-                groupMomentDirectoryOpen = false
-                businessMomentDirectoryOpen = false
-                if (it == BottomDestination.CREATE && state.selectedContext == AppContext.GROUP) {
-                    groupCreatePhase = GroupCreatePhase.CHOOSER
-                    preferGroupCreateFlow = false
-                }
-                shellViewModel.selectBottomDestination(it)
-            },
-            accent = momentAccent,
-            createLabel = if (state.selectedContext == AppContext.PERSONAL) "Add" else BottomDestination.CREATE.label,
-        )
+        if (!businessCreateVisible) {
+            ShellBottomNavigation(
+                selected = state.bottomDestination,
+                onSelect = {
+                    newMomentOpen = false
+                    groupMomentDirectoryOpen = false
+                    businessMomentDirectoryOpen = false
+                    if (it == BottomDestination.CREATE && state.selectedContext == AppContext.GROUP) {
+                        groupCreatePhase = GroupCreatePhase.CHOOSER
+                        preferGroupCreateFlow = false
+                    }
+                    shellViewModel.selectBottomDestination(it)
+                },
+                accent = momentAccent,
+                createLabel = if (state.selectedContext == AppContext.PERSONAL) "Add" else BottomDestination.CREATE.label,
+            )
+        }
     }
 
     if (state.life360Open) {
@@ -1727,6 +1677,8 @@ private fun ShellDestinationContent(
     onLivingQuickAdd: (LivingQuickAddKind) -> Unit = {},
     onBusinessQuickAdd: (BusinessQuickAddKind) -> Unit = {},
     onOpenCompanySettings: () -> Unit = {},
+    /** Moves the shell to another bottom destination (kit "Back to Pulse" CTAs). */
+    onSelectDestination: (BottomDestination) -> Unit = {},
     onAddRevenue: () -> Unit = {},
     onAddInvoice: () -> Unit = {},
     onAddMembers: () -> Unit = {},
@@ -1744,6 +1696,7 @@ private fun ShellDestinationContent(
     onViewAllTeamActivity: () -> Unit = {},
     onViewAllBusinessActivity: () -> Unit = {},
     onViewAllBusinessAttention: () -> Unit = {},
+    onSelectMoment: (String) -> Unit = {},
     onOpenCompletedMoments: (() -> Unit)? = null,
 ) {
     // Business renders the shared Figma app-state kit (node 2666:29489) for its
@@ -1836,6 +1789,7 @@ private fun ShellDestinationContent(
                 onJoinGroupCode = onJoinGroupCode,
                 onCreateBusiness = { onOpenCompanySettings() },
                 onJoinCompany = { onOpenCompanySettings() },
+                onSelectDestination = onSelectDestination,
                 groupCreatePhase = groupCreatePhase,
                 onGroupCreatePhase = onGroupCreatePhase,
                 onOpenGroupCreateTab = onOpenGroupCreateTab,
@@ -1964,6 +1918,7 @@ private fun ShellDestinationContent(
                             momentTitle = selectedMomentTitle,
                             tab = OperatingTab.QUICK_ADD,
                             refreshToken = businessTabRefreshToken.toInt(),
+                            companyId = companyId,
                             onCreateMoment = onCreateMoment,
                             onOpenQuickAdd = onOpenQuickAdd,
                         )
@@ -2214,9 +2169,11 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 tab = OperatingTab.PULSE,
                                 refreshToken = businessTabRefreshToken.toInt(),
+                                companyId = companyId,
                                 onCreateMoment = onCreateMoment,
                                 onOpenQuickAdd = onOpenQuickAdd,
                                 onViewAllAttention = onViewAllBusinessAttention,
+                                onSwitchMoment = onSelectMoment,
                             )
                         }
                         context == AppContext.BUSINESS && destination == BottomDestination.MOMENTS -> {
@@ -2228,6 +2185,7 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 tab = OperatingTab.MOMENTS,
                                 refreshToken = businessTabRefreshToken.toInt(),
+                                companyId = companyId,
                                 onCreateMoment = onCreateMoment,
                                 onOpenQuickAdd = onOpenQuickAdd,
                             )
@@ -2241,6 +2199,7 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 tab = OperatingTab.LIFE,
                                 refreshToken = businessTabRefreshToken.toInt(),
+                                companyId = companyId,
                                 onCreateMoment = onCreateMoment,
                                 onOpenQuickAdd = onOpenQuickAdd,
                             )
@@ -2254,6 +2213,7 @@ private fun ShellDestinationContent(
                                 momentTitle = selectedMomentTitle,
                                 tab = OperatingTab.MEMORY,
                                 refreshToken = businessTabRefreshToken.toInt(),
+                                companyId = companyId,
                                 onCreateMoment = onCreateMoment,
                                 onOpenQuickAdd = onOpenQuickAdd,
                             )

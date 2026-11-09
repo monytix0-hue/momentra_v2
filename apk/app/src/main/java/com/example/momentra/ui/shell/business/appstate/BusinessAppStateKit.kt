@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,140 +29,188 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.momentra.R
 import com.example.momentra.ui.theme.PlusJakartaSans
+
+/**
+ * Tone of an app-state surface. Error frames swap the emerald accent orb for the diagnostic red
+ * while keeping every emerald structural stroke, which is exactly what Figma draws.
+ *
+ * Keep in lockstep with `AppStateTone` on iOS.
+ */
+enum class AppStateTone {
+    Normal,
+    Error,
+    ;
+
+    val isError: Boolean get() = this == Error
+}
 
 /**
  * Body-only primitives for the Figma "App States · Shared (all Business verticals)" kit.
  *
  * The kit draws a full 402x874 screen, but the shell already owns the status bar, top bar,
  * context switcher, moment selector and bottom nav. Only the "State body" region and the glow
- * ellipse behind it are rendered here, mounted inside existing chrome.
+ * mesh behind it are rendered here, mounted inside existing chrome.
+ *
+ * Rebuilt against Figma "Obsidian & Neon Refraction" (`2852:39645`).
+ *
+ * Keep in lockstep with `BusinessAppStateKit.swift` on iOS.
  */
 
-private val BodyShape = RoundedCornerShape(BusinessAppStateTokens.CardRadius)
+private val CardShape = RoundedCornerShape(BusinessAppStateTokens.CardRadius)
+private val ButtonShape = RoundedCornerShape(BusinessAppStateTokens.ButtonRadius)
 
-/** Soft accent wash behind the state body. Figma: 440dp ellipse, accent @12%, layer blur 160. */
+/**
+ * Volumetric dual-orb mesh behind the state body.
+ *
+ * Figma: an accent orb (`#10B981`, 360dp, 28% → 8% @60% → 0) with a warm `#059669` orb (280dp,
+ * 15% → 0) drifting off its lower-right shoulder. Error frames drop the warm orb and paint the
+ * accent orb `#FF5C38` at 25%.
+ */
 @Composable
 fun AppStateGlow(
     accent: Color,
     modifier: Modifier = Modifier,
-    size: Dp = BusinessAppStateTokens.GlowSize,
+    tone: AppStateTone = AppStateTone.Normal,
+    size: Dp = BusinessAppStateTokens.GlowAccentSize,
 ) {
-    Box(
+    val accentColor = if (tone.isError) BusinessAppStateTokens.GlowError else accent
+    val accentCore = if (tone.isError) BusinessAppStateTokens.GlowErrorAlpha else BusinessAppStateTokens.GlowAccentAlpha
+    val accentMid = if (tone.isError) {
+        BusinessAppStateTokens.GlowErrorAlpha * 0.34f
+    } else {
+        BusinessAppStateTokens.GlowAccentMidAlpha
+    }
+
+    Box(modifier = modifier.size(size)) {
+        GlowOrb(
+            color = accentColor,
+            coreAlpha = accentCore,
+            midAlpha = accentMid,
+            size = size,
+            modifier = Modifier.offset(y = -(size * 0.10f)),
+        )
+        if (!tone.isError) {
+            GlowOrb(
+                color = BusinessAppStateTokens.GlowWarm,
+                coreAlpha = BusinessAppStateTokens.GlowWarmAlpha,
+                midAlpha = 0f,
+                size = BusinessAppStateTokens.GlowWarmSize,
+                modifier = Modifier.offset(x = size * 0.24f, y = size * 0.20f),
+            )
+        }
+    }
+}
+
+/** One soft radial orb in the mesh. */
+@Composable
+private fun GlowOrb(
+    color: Color,
+    coreAlpha: Float,
+    midAlpha: Float,
+    size: Dp,
+    modifier: Modifier = Modifier,
+) {
+    Canvas(
         modifier = modifier
             .size(size)
-            .drawBehind {
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            accent.copy(alpha = BusinessAppStateTokens.GlowAlpha),
-                            Color.Transparent,
-                        ),
-                        center = center,
-                        radius = size.toPx() / 2f,
-                    ),
-                )
-            },
-    )
+            .blur(radius = size * 0.06f),
+    ) {
+        drawCircle(
+            brush = Brush.radialGradient(
+                0f to color.copy(alpha = coreAlpha),
+                BusinessAppStateTokens.GlowAccentMidStop to color.copy(alpha = midAlpha),
+                1f to Color.Transparent,
+                center = center,
+                radius = this.size.minDimension / 2f,
+            ),
+        )
+    }
 }
 
 /**
- * Hero mark ring: blurred halo, accent ring, brand-mark core, accent badge with a glyph.
+ * Floating hero indicator badge: outer halo ring, obsidian core with the state glyph, and a
+ * state-coloured status dot riding the lower-right corner.
  *
- * Figma geometry for the 120dp variant: halo 120, ring 92 inset 14 with 3dp stroke,
- * mark 80 inset 20, badge 40 at bottom-right with a 3dp page-coloured border.
+ * Figma geometry at the 112dp reference: halo 96 inset 8 (emerald @8% fill, emerald @45% 2dp
+ * ring), core 76 inset 18 (`#0F141F` fill, emerald @18% 1.5dp ring, 28dp white glyph), status dot
+ * 36 at (72,72) with a 3.5dp emerald ring and a 17sp `#080A0F` glyph. Everything below scales off
+ * `size / 112`.
  */
 @Composable
 fun AppStateMarkRing(
     accent: Color,
     icon: ImageVector,
     modifier: Modifier = Modifier,
-    size: Dp = 120.dp,
-    markRes: Int = R.drawable.momentra_official_logo,
+    size: Dp = BusinessAppStateTokens.HeroSize,
+    tone: AppStateTone = AppStateTone.Normal,
+    dotGlyph: String = "✓",
 ) {
-    val scale = size.value / 120f
-    val ringSize = (92f * scale).dp
-    val ringInset = (14f * scale).dp
-    val markSize = (80f * scale).dp
-    val markInset = (20f * scale).dp
-    val badgeSize = (40f * scale).dp
-    val badgeInset = (76f * scale).dp
-    val badgeBorder = (3f * scale).dp
+    val t = BusinessAppStateTokens
+    val scale = size.value / t.HeroSize.value
+    val dotFill = if (tone.isError) t.ErrorRing else accent
 
     Box(modifier = modifier.size(size)) {
-        // halo
+        // Outer halo ring.
         Box(
             modifier = Modifier
-                .size(size)
-                .drawBehind {
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(accent.copy(alpha = 0.55f), Color.Transparent),
-                            center = center,
-                            radius = this.size.minDimension / 2f,
-                        ),
-                    )
-                },
+                .offset(x = t.HeroRingInset * scale, y = t.HeroRingInset * scale)
+                .size(t.HeroRingSize * scale)
+                .background(t.Emerald.copy(alpha = t.HeroRingFillAlpha), CircleShape)
+                .border(t.HeroRingStroke * scale, t.Emerald.copy(alpha = t.HeroRingStrokeAlpha), CircleShape),
         )
-        // ring
+        // Obsidian core with the state glyph.
         Box(
             modifier = Modifier
-                .offset(x = ringInset, y = ringInset)
-                .size(ringSize)
-                .border(badgeBorder, accent, CircleShape),
-        )
-        // brand mark core
-        Box(
-            modifier = Modifier
-                .offset(x = markInset, y = markInset)
-                .size(markSize)
+                .offset(x = t.HeroCoreInset * scale, y = t.HeroCoreInset * scale)
+                .size(t.HeroCoreSize * scale)
                 .clip(CircleShape)
-                .background(Color(0xFF14121B))
-                .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(markRes),
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(markSize * 0.62f),
-            )
-        }
-        // badge
-        Box(
-            modifier = Modifier
-                .offset(x = badgeInset, y = badgeInset)
-                .size(badgeSize)
-                .clip(CircleShape)
-                .background(accent)
-                .border(badgeBorder, BusinessAppStateTokens.Page, CircleShape),
+                .background(t.HeroCoreFill)
+                .border(t.HeroCoreStroke * scale, t.Emerald.copy(alpha = t.HeroCoreStrokeAlpha), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size((18f * scale).dp),
+                modifier = Modifier.size(t.HeroGlyphSize * scale),
+            )
+        }
+        // Floating status dot — emerald ring in both tones, only the fill flips.
+        Box(
+            modifier = Modifier
+                .offset(x = t.HeroDotInset * scale, y = t.HeroDotInset * scale)
+                .size(t.HeroDotSize * scale)
+                .clip(CircleShape)
+                .background(dotFill)
+                .border(t.HeroDotStroke * scale, t.Emerald, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = if (tone.isError) "!" else dotGlyph,
+                color = t.HeroDotGlyphColor,
+                fontSize = (t.HeroDotGlyphSize.value * scale).sp,
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = PlusJakartaSans,
             )
         }
     }
 }
 
-/** Section eyebrow inside a glass card. Figma: 12sp ExtraBold, tracking 2, accent. */
+/** Section eyebrow inside a glass card. Figma: 11sp ExtraBold, tracking 1.5, emerald. */
 @Composable
 fun AppStateEyebrow(
     text: String,
@@ -179,22 +228,36 @@ fun AppStateEyebrow(
     )
 }
 
-/** Glass card: 8% white fill, 1dp accent stroke, radius 20, 16/18 padding. */
+/**
+ * Refraction glass card: `rgba(16,22,35,0.72)` over the glow, 1.25dp emerald @35% border,
+ * radius 22, 20/18 padding, 12dp row gap. The flat translucent fill *is* the Figma effect — the
+ * old white linear-gradient sheen is gone on purpose.
+ */
 @Composable
 fun AppStateGlassCard(
-    accent: Color,
     modifier: Modifier = Modifier,
+    /** Border hue. Error diagnostics swap the emerald stroke for the diagnostic red. */
+    accent: Color = BusinessAppStateTokens.GlassCardStroke,
     strokeAlpha: Float = 1f,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(BusinessAppStateTokens.CardRowGap),
         modifier = modifier
             .fillMaxWidth()
-            .clip(BodyShape)
-            .background(BusinessAppStateTokens.GlassFill)
-            .border(1.dp, accent.copy(alpha = strokeAlpha), BodyShape)
-            .padding(horizontal = 18.dp, vertical = 16.dp),
+            .clip(CardShape)
+            // Figma's effect is the flat translucent `rgba(16,22,35,0.72)` fill over the glow —
+            // there is no white sheen overlay, so none is drawn.
+            .background(BusinessAppStateTokens.GlassCardFill)
+            .border(
+                BusinessAppStateTokens.GlassCardStrokeWidth,
+                accent.copy(alpha = accent.alpha * strokeAlpha),
+                CardShape,
+            )
+            .padding(
+                horizontal = BusinessAppStateTokens.CardPaddingHorizontal,
+                vertical = BusinessAppStateTokens.CardPaddingVertical,
+            ),
         content = content,
     )
 }
@@ -214,7 +277,7 @@ fun AppStateGlassRow(
     ) {
         Text(
             text = label,
-            color = Color.White.copy(alpha = 0.75f),
+            color = BusinessAppStateTokens.RowLabelColor,
             fontSize = BusinessAppStateTokens.RowLabelSize.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = PlusJakartaSans,
@@ -224,13 +287,16 @@ fun AppStateGlassRow(
             text = value,
             color = valueColor,
             fontSize = BusinessAppStateTokens.RowValueSize.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             fontFamily = PlusJakartaSans,
         )
     }
 }
 
-/** Primary CTA. Figma: orange ramp, radius 999, height 50, 14sp ExtraBold tracking 1. */
+/**
+ * Primary CTA. Figma: `#059669 → #34D399` gradient, radius 999, height 50, 13.5sp ExtraBold
+ * tracking 1, emerald glow shadow.
+ */
 @Composable
 fun AppStatePrimaryButton(
     label: String,
@@ -241,7 +307,25 @@ fun AppStatePrimaryButton(
         modifier = modifier
             .fillMaxWidth()
             .height(BusinessAppStateTokens.PrimaryButtonHeight)
-            .clip(RoundedCornerShape(BusinessAppStateTokens.ButtonRadius))
+            // Figma `0 4px 12px rgba(16,185,129,0.35)`. Coloured shadows are API 28+, so the
+            // emerald halo is drawn explicitly to keep the look on minSdk 24.
+            .drawBehind {
+                val spread = BusinessAppStateTokens.CtaShadowRadius.toPx()
+                val drop = BusinessAppStateTokens.CtaShadowY.toPx()
+                repeat(4) { i ->
+                    val t = (i + 1) / 4f
+                    drawRoundRect(
+                        color = BusinessAppStateTokens.CtaShadow.copy(alpha = 0.35f / (i + 1)),
+                        topLeft = Offset(-spread * t, drop - spread * t),
+                        size = androidx.compose.ui.geometry.Size(
+                            width = size.width + spread * 2 * t,
+                            height = size.height + spread * 2 * t,
+                        ),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f + spread * t),
+                    )
+                }
+            }
+            .clip(ButtonShape)
             .background(
                 Brush.horizontalGradient(
                     listOf(BusinessAppStateTokens.CtaStart, BusinessAppStateTokens.CtaEnd),
@@ -262,24 +346,21 @@ fun AppStatePrimaryButton(
     }
 }
 
-/** Secondary CTA. Figma: glass 8% fill + white 22% stroke, radius 999, height 48. */
+/** Secondary CTA. Figma: no fill, 1dp emerald @18% border, radius 999, height 46, 13.5sp Bold. */
 @Composable
 fun AppStateSecondaryButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    filled: Boolean = false,
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(BusinessAppStateTokens.SecondaryButtonHeight)
-            .clip(RoundedCornerShape(BusinessAppStateTokens.ButtonRadius))
-            .background(BusinessAppStateTokens.GlassFill)
-            .border(
-                1.dp,
-                BusinessAppStateTokens.GlassStroke,
-                RoundedCornerShape(BusinessAppStateTokens.ButtonRadius),
-            )
+            .clip(ButtonShape)
+            .background(if (filled) Color.White.copy(alpha = 0.06f) else Color.Transparent)
+            .border(1.dp, BusinessAppStateTokens.SecondaryButtonStroke, ButtonShape)
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
@@ -294,7 +375,10 @@ fun AppStateSecondaryButton(
     }
 }
 
-/** Diagnostic pill on error states. Figma: accent @14% fill, accent @40% stroke, 11sp ExtraBold. */
+/**
+ * Diagnostic pill on error states. Figma: `#FF5C38` @15% fill, emerald @45% border, 11sp
+ * ExtraBold tracking 1.5 label in `#FF5C38`.
+ */
 @Composable
 fun AppStateErrorCodePill(
     code: String,
@@ -303,10 +387,10 @@ fun AppStateErrorCodePill(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(BusinessAppStateTokens.ButtonRadius))
-            .background(accent.copy(alpha = 0.14f))
-            .border(1.dp, accent.copy(alpha = 0.40f), RoundedCornerShape(BusinessAppStateTokens.ButtonRadius))
-            .padding(horizontal = 13.dp, vertical = 7.dp),
+            .clip(ButtonShape)
+            .background(BusinessAppStateTokens.ErrorPillFill)
+            .border(1.dp, BusinessAppStateTokens.ErrorPillStroke, ButtonShape)
+            .padding(horizontal = 14.dp, vertical = 6.dp),
     ) {
         Text(
             text = code,
@@ -319,14 +403,50 @@ fun AppStateErrorCodePill(
     }
 }
 
-/** Muted footnote under the actions. Figma: 11sp SemiBold, white @50%. */
+/**
+ * Centred offline status pill. Figma: `rgba(38,46,61,0.9)` fill, emerald @40% border, height 34,
+ * 11.5sp SemiBold white. No icon, no amber.
+ */
 @Composable
-fun AppStateFootnote(text: String, modifier: Modifier = Modifier) {
+fun AppStateOfflineBanner(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(ButtonShape)
+            .background(BusinessAppStateTokens.OfflineBannerFill)
+            .border(1.dp, BusinessAppStateTokens.OfflineBannerStroke, ButtonShape)
+            .height(BusinessAppStateTokens.OfflineBannerHeight)
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = Color.White,
+            fontSize = BusinessAppStateTokens.OfflineBannerLabelSize.sp,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 15.sp,
+            fontFamily = PlusJakartaSans,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** Muted footnote under the actions. Figma: 11sp Medium, `#738099`, line-height 15. */
+@Composable
+fun AppStateFootnote(
+    text: String,
+    modifier: Modifier = Modifier,
+    opacity: Float = BusinessAppStateTokens.FootnoteMutedOpacity,
+) {
     Text(
         text = text,
-        color = Color.White.copy(alpha = 0.50f),
+        color = BusinessAppStateTokens.TextSubtle.copy(
+            alpha = BusinessAppStateTokens.TextSubtle.alpha * opacity,
+        ),
         fontSize = BusinessAppStateTokens.FootnoteSize.sp,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Medium,
         lineHeight = 15.sp,
         fontFamily = PlusJakartaSans,
         textAlign = TextAlign.Center,
@@ -334,7 +454,7 @@ fun AppStateFootnote(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** Title. Figma: 24sp ExtraBold, centred. */
+/** Title. Figma: 24sp Bold, line-height 30, white. */
 @Composable
 fun AppStateTitle(text: String, modifier: Modifier = Modifier, textAlign: TextAlign = TextAlign.Center) {
     Text(
@@ -349,35 +469,35 @@ fun AppStateTitle(text: String, modifier: Modifier = Modifier, textAlign: TextAl
     )
 }
 
-/** Body copy. Figma: 14sp Medium, white @70%, 1.35 line height. */
+/** Body copy. Figma: 13.5sp Medium, `#94A4B8`, line-height 19. */
 @Composable
 fun AppStateBodyText(text: String, modifier: Modifier = Modifier, textAlign: TextAlign = TextAlign.Center) {
     Text(
         text = text,
-        color = Color.White.copy(alpha = 0.70f),
+        color = BusinessAppStateTokens.TextMuted,
         fontSize = BusinessAppStateTokens.BodySize.sp,
         fontWeight = FontWeight.Medium,
-        lineHeight = 19.sp,
+        lineHeight = BusinessAppStateTokens.BodyLineHeight.sp,
         fontFamily = PlusJakartaSans,
         textAlign = textAlign,
         modifier = modifier.fillMaxWidth(),
     )
 }
 
-/** Shimmering placeholder bar used by the loading skeletons. */
+/** Shimmering placeholder bar used by the loading skeleton. Base 4% white → 18% at 50%. */
 @Composable
 fun AppStateSkeletonBar(
     width: Dp,
-    height: Dp,
+    height: Dp = BusinessAppStateTokens.SkeletonBarHeight,
     modifier: Modifier = Modifier,
-    radius: Dp = 6.dp,
+    radius: Dp = BusinessAppStateTokens.SkeletonBarRadius,
 ) {
     val transition = rememberInfiniteTransition(label = "appStateSkeleton")
     val shift by transition.animateFloat(
         initialValue = -1f,
         targetValue = 2f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
         label = "appStateSkeletonShift",
@@ -387,59 +507,47 @@ fun AppStateSkeletonBar(
             .width(width)
             .height(height)
             .clip(RoundedCornerShape(radius))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = 0f),
-                        Color.White.copy(alpha = 0.5f),
-                        Color.White.copy(alpha = 1f),
+            .background(BusinessAppStateTokens.SkeletonBarBase)
+            .drawBehind {
+                val band = size.width * 0.55f
+                val start = shift * size.width
+                drawRect(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            BusinessAppStateTokens.SkeletonBarBase,
+                            BusinessAppStateTokens.SkeletonBarHighlight,
+                            BusinessAppStateTokens.SkeletonBarBase,
+                        ),
+                        startX = start,
+                        endX = start + band,
                     ),
-                    start = Offset(shift * 220f, 0f),
-                    end = Offset(shift * 220f + 120f, 0f),
-                ),
-            ),
+                )
+            },
     )
 }
 
-/** Glass skeleton container used by the loading body. */
+/** Glass skeleton container used by the loading body. Figma: w354 h150, 20/22 padding, 14dp gap. */
 @Composable
 fun AppStateSkeletonBox(
-    accent: Color,
     modifier: Modifier = Modifier,
     radius: Dp = BusinessAppStateTokens.CardRadius,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(BusinessAppStateTokens.SkeletonGap),
         modifier = modifier
             .clip(RoundedCornerShape(radius))
-            .background(BusinessAppStateTokens.GlassFill)
-            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(radius))
-            .padding(horizontal = 18.dp, vertical = 16.dp),
+            .background(BusinessAppStateTokens.GlassCardFill)
+            .border(
+                BusinessAppStateTokens.GlassCardStrokeWidth,
+                BusinessAppStateTokens.GlassCardStroke,
+                RoundedCornerShape(radius),
+            )
+            .padding(
+                horizontal = BusinessAppStateTokens.SkeletonPadHorizontal,
+                vertical = BusinessAppStateTokens.SkeletonPadVertical,
+            ),
         content = content,
-    )
-}
-
-/** Small circular spinner dot with an accent glow, for the loading label. */
-@Composable
-fun AppStateSpinnerDot(accent: Color, modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "appStateSpinner")
-    val alpha by transition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 900, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "appStateSpinnerAlpha",
-    )
-    Box(
-        modifier = modifier
-            .size(10.dp)
-            .drawBehind {
-                drawCircle(color = accent.copy(alpha = 0.35f * alpha), radius = size.minDimension)
-            }
-            .background(accent, CircleShape),
     )
 }
 
@@ -450,7 +558,7 @@ fun AppStateDivider(modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .height(1.dp)
-            .background(Color.White.copy(alpha = 0.06f)),
+            .background(BusinessAppStateTokens.Emerald.copy(alpha = 0.14f)),
     )
 }
 
@@ -467,8 +575,8 @@ fun AppStateIconButton(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.10f))
-            .border(1.dp, Color.White.copy(alpha = 0.20f), CircleShape)
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(1.dp, BusinessAppStateTokens.HairlineStroke, CircleShape)
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

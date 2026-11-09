@@ -94,14 +94,6 @@ fun GroupJoinQrScanner(
     val accepted = remember { AtomicBoolean(false) }
 
     fun acceptRaw(raw: String): Boolean {
-        val company = com.example.momentra.ui.shell.empty.business.CompanyJoinLink.parse(raw)
-        if (company != null && onCompanyCode != null) {
-            if (accepted.compareAndSet(false, true)) {
-                onCompanyCode(company)
-                return true
-            }
-            return false
-        }
         val code = GroupJoinLink.parse(raw) ?: return false
         if (accepted.compareAndSet(false, true)) {
             onCode(code)

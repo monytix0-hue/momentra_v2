@@ -176,9 +176,18 @@ fun BusinessMembersSheet(
         }
     }
 
-    com.example.momentra.ui.shell.empty.business.CompanyInviteShareSheet(
-        companyId = companyId,
-        visible = showInvite,
-        onDismiss = { showInvite = false },
-    )
+    if (showInvite) {
+        ModalBottomSheet(
+            onDismissRequest = { showInvite = false },
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("Invite sharing will be available in a future update.", color = Color.White)
+            }
+        }
+    }
 }

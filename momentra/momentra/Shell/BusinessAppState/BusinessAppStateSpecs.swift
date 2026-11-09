@@ -74,7 +74,8 @@ enum AppStateIcon: String, CaseIterable {
 
 /// One capture tile in the Hub grid.
 struct HubTileSpec: Identifiable {
-    let icon: AppStateIcon
+    /// Lucide glyph shown above the label (BusinessIcons asset, tinted white).
+    let icon: BusinessIcon
     let label: String
     var id: String { label }
 }
@@ -105,36 +106,20 @@ enum BusinessAppStateSpecs {
     static let offlineBanner = "You're offline · showing last known"
 
     /// Hub tile labels are per-vertical text overrides (Figma "Hub label overrides").
-    static func hubTileLabels(accent: BusinessAppStateAccent) -> [HubTileSpec] {
-        switch accent {
-        case .services:
-            return [
-                HubTileSpec(icon: .check, label: "Invoice"),
-                HubTileSpec(icon: .plus, label: "Purchase"),
-                HubTileSpec(icon: .moments, label: "Collection"),
-                HubTileSpec(icon: .sparkle, label: "Payment"),
-                HubTileSpec(icon: .memory, label: "Expense"),
-                HubTileSpec(icon: .sun, label: "Appointment"),
-            ]
-        case .marketing:
-            return [
-                HubTileSpec(icon: .check, label: "Client invoice"),
-                HubTileSpec(icon: .plus, label: "Vendor bill"),
-                HubTileSpec(icon: .moments, label: "Collection"),
-                HubTileSpec(icon: .sparkle, label: "Payment"),
-                HubTileSpec(icon: .memory, label: "Expense"),
-                HubTileSpec(icon: .sun, label: "Campaign"),
-            ]
-        default:
-            return [
-                HubTileSpec(icon: .check, label: "Sale"),
-                HubTileSpec(icon: .plus, label: "Purchase"),
-                HubTileSpec(icon: .moments, label: "Collection"),
-                HubTileSpec(icon: .sparkle, label: "Payment"),
-                HubTileSpec(icon: .memory, label: "Expense"),
-                HubTileSpec(icon: .sun, label: "Stock"),
-            ]
+    ///
+    /// Keyed on the business *vertical*, not the accent — the accent is unified across verticals,
+    /// but the Services and Marketing label sets still differ.
+    ///
+    /// Figma's six Hub tiles, in frame order: Sale, Purchase, Collection, Payment, Expense, Stock.
+    /// The glyph set is fixed; only the two copy-override verticals relabel them.
+    static func hubTileLabels(vertical: BusinessAppStateVertical) -> [HubTileSpec] {
+        let glyphs: [BusinessIcon] = [.camera, .receipt, .clipboardList, .banknote, .calculator, .package]
+        let labels: [String] = switch vertical {
+        case .services: ["Invoice", "Purchase", "Collection", "Payment", "Expense", "Appointment"]
+        case .marketing: ["Client invoice", "Vendor bill", "Collection", "Payment", "Expense", "Campaign"]
+        default: ["Sale", "Purchase", "Collection", "Payment", "Expense", "Stock"]
         }
+        return zip(glyphs, labels).map { HubTileSpec(icon: $0, label: $1) }
     }
 
     /// "OCTOBER 2026" — Memory eyebrow.

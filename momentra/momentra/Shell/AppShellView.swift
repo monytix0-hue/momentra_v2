@@ -19,8 +19,6 @@ struct AppShellView: View {
     @State private var groupMomentDirectoryOpen = false
     @State private var businessMomentDirectoryOpen = false
     @State private var businessGap: BusinessGapPage?
-    @State private var businessLocationName: String?
-    @State private var reopenCompanySettings = false
     @State private var pendingActivation: PendingBusinessActivation?
     @State private var groupDirectoryPreferCompleted = false
     @State private var businessDirectoryPreferCompleted = false
@@ -59,7 +57,6 @@ struct AppShellView: View {
     @State private var showReferComingSoon = false
     @State private var pendingGroupJoin: PendingGroupJoin?
     @State private var pendingCompanyJoin: PendingCompanyJoin?
-    @State private var companyMenuOpen = false
     @State private var businessSetupOpen = false
     @State private var businessJoinOpen = false
     @State private var joinFeedbackMessage: String?
@@ -69,6 +66,10 @@ struct AppShellView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
+        attachEventHandlers(to: shellPageWithOverlay)
+    }
+
+    private var shellPageWithOverlay: some View {
         shellPage
             .overlay(alignment: .bottom) {
                 if let habitRewardMessage {
@@ -83,84 +84,164 @@ struct AppShellView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .onAppear {
-                model.applyPreferredPersonalLock()
-                model.bindIdentity(identity)
-                if let pending = JoinInviteStore.shared.consume() {
-                    pendingGroupJoin = PendingGroupJoin(id: pending)
-                }
-                if let companyCode = JoinCompanyInviteStore.shared.consume() {
-                    pendingCompanyJoin = PendingCompanyJoin(id: companyCode)
-                }
-                handlePendingPushDeepLink()
-                Task { await inboxBadge.refresh() }
-            }
+    }
+
+    @ViewBuilder
+    private func attachEventHandlers<V: View>(to content: V) -> some View {
+        content
+            .onAppear(perform: handleOnAppear)
             .onChange(of: model.moments.map(\.momentId)) { _, _ in
                 model.applyPreferredPersonalLock()
+                handlePendingPushDeepLink()
             }
             .onChange(of: model.selectedContext) { _, _ in
                 model.applyPreferredPersonalLock()
+                newMomentOpen = false
+                groupMomentDirectoryOpen = false
+                businessMomentDirectoryOpen = false
+                groupCreatePhase = .chooser
             }
-            .onReceive(JoinInviteStore.shared.$pendingCode) { code in
-                guard let code, !code.isEmpty else { return }
-                guard pendingGroupJoin == nil else { return }
-                if let pending = JoinInviteStore.shared.consume() {
-                    pendingGroupJoin = PendingGroupJoin(id: pending)
-                }
-            }
-            .onReceive(JoinCompanyInviteStore.shared.$pendingCode) { code in
-                guard let code, !code.isEmpty else { return }
-                guard pendingCompanyJoin == nil else { return }
-                if let pending = JoinCompanyInviteStore.shared.consume() {
-                    pendingCompanyJoin = PendingCompanyJoin(id: pending)
-                }
-            }
-            .onReceive(PushDeepLinkStore.shared.$pendingLink) { link in
-                guard let link, !link.isEmpty else { return }
-                handlePendingPushDeepLink()
-            }
-            .onChange(of: model.moments.map(\.momentId)) { _, _ in
-                handlePendingPushDeepLink()
-            }
+            .onReceive(JoinInviteStore.shared.$pendingCode, perform: handleGroupPendingCode)
+            .onReceive(JoinCompanyInviteStore.shared.$pendingCode, perform: handleCompanyPendingCode)
+            .onReceive(PushDeepLinkStore.shared.$pendingLink, perform: handlePushDeepLink)
             .onChange(of: identity.userId) { _, _ in
                 model.bindIdentity(identity)
             }
             .task(id: "\(model.selectedMomentId ?? "")-\(identity.userId)") {
                 await refreshGroupViewerReadOnly()
             }
-            .onChange(of: model.selectedContext) { _, _ in
+            .onChange(of: model.bottomDestination) { _, _ in
                 newMomentOpen = false
                 groupMomentDirectoryOpen = false
                 businessMomentDirectoryOpen = false
-                groupCreatePhase = .chooser
             }
-            .onChange(of: model.bottomDestination) { _, destination in
-                newMomentOpen = false
-                groupMomentDirectoryOpen = false
-                businessMomentDirectoryOpen = false
-                if destination == .create, model.selectedContext == .group {
-                    // Keep phase when advancing from Pulse type cards; reset only when tapping Create tab from chooser path is handled by openNewMoment / tab setter.
-                }
-            }
-            .onChange(of: scenePhase) { _, phase in
-                guard phase == .active else { return }
-                model.flushOfflineQueue()
-                Task { await inboxBadge.refresh() }
-                if model.selectedContext == .group {
-                    model.refreshVisibleGroupTab()
-                }
-            }
+            .onChange(of: scenePhase, handleScenePhaseChange)
+    }
+
+    private func handleOnAppear() {
+        model.applyPreferredPersonalLock()
+        model.bindIdentity(identity)
+        if let pending = JoinInviteStore.shared.consume() {
+            pendingGroupJoin = PendingGroupJoin(id: pending)
+        }
+        if let companyCode = JoinCompanyInviteStore.shared.consume() {
+            pendingCompanyJoin = PendingCompanyJoin(id: companyCode)
+        }
+        handlePendingPushDeepLink()
+        Task { await inboxBadge.refresh() }
+    }
+
+    private func handleGroupPendingCode(_ code: String?) {
+        guard let code, !code.isEmpty else { return }
+        guard pendingGroupJoin == nil else { return }
+        if let pending = JoinInviteStore.shared.consume() {
+            pendingGroupJoin = PendingGroupJoin(id: pending)
+        }
+    }
+
+    private func handleCompanyPendingCode(_ code: String?) {
+        guard let code, !code.isEmpty else { return }
+        guard pendingCompanyJoin == nil else { return }
+        if let pending = JoinCompanyInviteStore.shared.consume() {
+            pendingCompanyJoin = PendingCompanyJoin(id: pending)
+        }
+    }
+
+    private func handlePushDeepLink(_ link: String?) {
+        guard let link, !link.isEmpty else { return }
+        handlePendingPushDeepLink()
+    }
+
+    private func handleScenePhaseChange(_: ScenePhase, _ phase: ScenePhase) {
+        guard phase == .active else { return }
+        model.flushOfflineQueue()
+        Task { await inboxBadge.refresh() }
+        if model.selectedContext == .group {
+            model.refreshVisibleGroupTab()
+        }
+    }
+
+    private var isStoryPresented: Binding<Bool> {
+        Binding<Bool>(
+            get: { storyMomentId != nil },
+            set: { if !$0 { storyMomentId = nil } }
+        )
+    }
+
+    private var isGroupCollabPresented: Binding<Bool> {
+        Binding<Bool>(
+            get: { groupCollabKind != nil },
+            set: { if !$0 { groupCollabKind = nil } }
+        )
+    }
+
+    private var isJoinFeedbackPresented: Binding<Bool> {
+        Binding<Bool>(
+            get: { joinFeedbackMessage != nil },
+            set: { if !$0 { joinFeedbackMessage = nil } }
+        )
+    }
+
+    private var isLife360Presented: Binding<Bool> {
+        Binding<Bool>(
+            get: { model.life360Open },
+            set: { model.openLife360($0) }
+        )
+    }
+
+    private var isProfilePresented: Binding<Bool> {
+        Binding<Bool>(
+            get: { model.profileOpen },
+            set: { model.openProfile($0) }
+        )
     }
 
     private var shellPage: some View {
-        NativeShellTabView(
+        let base = NativeShellTabView(
             selection: bottomTabSelection,
             accent: momentAccent,
             context: model.selectedContext,
             content: { tabNavigationRoot }
         )
         .background(Color(hex: "#14121B").ignoresSafeArea())
-        .fullScreenCover(isPresented: $showManageMoment) {
+
+        let b0 = base.fullScreenCover(isPresented: businessCreatePresented) {
+            BusinessCreateFlowView(
+                createModel: createModel,
+                companyId: model.selectedCompany?.companyId,
+                ownerName: model.identity?.displayName ?? "",
+                onBack: { newMomentOpen = false },
+                onCreated: { outcome in
+                    newMomentOpen = false
+                    model.onMomentCreated(
+                        momentId: outcome.momentId,
+                        title: outcome.title,
+                        momentTypeCode: outcome.momentTypeCode,
+                        status: outcome.status
+                    )
+                }
+            )
+            .preferredColorScheme(.dark)
+        }
+
+        let b1 = attachSetupAndPersonalCovers(to: b0)
+        let b2 = attachGroupPrimarySheets(to: b1)
+        let b3 = attachGapAndFinanceSheets(to: b2)
+        return attachBusinessAndSystemSheets(to: b3)
+    }
+
+    /// The Business "+" opens the Figma guided selection as a full-screen page (no tab bar, no shell bar).
+    private var businessCreatePresented: Binding<Bool> {
+        Binding(
+            get: { newMomentOpen && model.selectedContext == .business },
+            set: { newMomentOpen = $0 }
+        )
+    }
+
+    @ViewBuilder
+    private func attachSetupAndPersonalCovers<V: View>(to content: V) -> some View {
+        content
+            .fullScreenCover(isPresented: $showManageMoment) {
             if let momentId = model.selectedMomentId {
                 ManageMomentFlowSheet(
                     momentId: momentId,
@@ -232,10 +313,7 @@ struct AppShellView: View {
             }
             .preferredColorScheme(.dark)
         }
-        .fullScreenCover(isPresented: Binding(
-            get: { storyMomentId != nil },
-            set: { if !$0 { storyMomentId = nil } }
-        )) {
+        .fullScreenCover(isPresented: isStoryPresented) {
             if let momentId = storyMomentId {
                 MomentStoryViewerView(momentId: momentId) {
                     storyMomentId = nil
@@ -313,7 +391,12 @@ struct AppShellView: View {
                 }
             }
         }
-        .sheet(isPresented: $groupExpenseSheetPresented) {
+    }
+
+    @ViewBuilder
+    private func attachGroupPrimarySheets<V: View>(to content: V) -> some View {
+        content
+            .sheet(isPresented: $groupExpenseSheetPresented) {
             if groupViewerReadOnly {
                 Text("Viewers can view but not add expenses.")
                     .padding(24)
@@ -392,93 +475,17 @@ struct AppShellView: View {
                     kind: kind,
                     momentId: momentId,
                     momentTypeCode: model.selectedMomentTypeCode,
-                    isPresented: Binding(
-                        get: { groupCollabKind != nil },
-                        set: { if !$0 { groupCollabKind = nil } }
-                    ),
+                    isPresented: isGroupCollabPresented,
                     onSaved: { model.refreshVisibleGroupTab() }
                 )
             }
         }
-        .sheet(isPresented: Binding(
-            get: { companyMenuOpen && ShellVisibilityPolicy.showCompanySwitcher(context: model.selectedContext, companies: model.companies) },
-            set: { companyMenuOpen = $0 }
-        )) {
-            CompanyFlowSheet(
-                companies: model.companies,
-                selectedCompanyId: model.selectedCompany?.companyId,
-                startOnSettings: reopenCompanySettings,
-                onClose: {
-                    reopenCompanySettings = false
-                    companyMenuOpen = false
-                },
-                onSelect: { model.selectCompany($0) },
-                onCreated: { model.onCompanyCreated($0) },
-                onOpenLocations: {
-                    reopenCompanySettings = true
-                    companyMenuOpen = false
-                    businessGap = .locationPicker
-                },
-                onCompaniesChanged: {
-                    model.clearSelectedMomentAfterLeave()
-                }
-            )
-            .presentationDetents([.medium, .large])
-        }
-        .sheet(item: $pendingCompanyJoin) { pending in
-            CompanyJoinConfirmSheet(
-                code: pending.code,
-                onClose: { pendingCompanyJoin = nil },
-                onGoToCompany: { company in
-                    pendingCompanyJoin = nil
-                    model.onCompanyCreated(company)
-                    if model.selectedContext != .business {
-                        model.selectContext(.business)
-                    }
-                }
-            )
-        }
-        .sheet(isPresented: $businessSetupOpen) {
-            CompanySetupFlowView(
-                onClose: { businessSetupOpen = false },
-                onActivated: { company in
-                    businessSetupOpen = false
-                    model.onCompanyCreated(company)
-                    if model.selectedContext != .business {
-                        model.selectContext(.business)
-                    }
-                }
-            )
-        }
-        .sheet(isPresented: $businessJoinOpen) {
-            CompanyJoinCodeSheet(
-                onClose: { businessJoinOpen = false },
-                onJoined: { company in
-                    businessJoinOpen = false
-                    model.onCompanyCreated(company)
-                    if model.selectedContext != .business {
-                        model.selectContext(.business)
-                    }
-                }
-            )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $businessAttentionViewAllOpen) {
-            BusinessAppStateViewAllSheet(
-                accent: BusinessAppStateAccent.forTypeCode(model.selectedMomentTypeCode),
-                selectedFilter: $businessAttentionFilter,
-                onClose: { businessAttentionViewAllOpen = false },
-                onShowAll: {
-                    businessAttentionViewAllOpen = false
-                    businessAttentionFilter = "All"
-                }
-            )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(BusinessAppStateTokens.sheet)
-        }
-        .sheet(item: $pendingGroupJoin) { pending in
+    }
+
+    @ViewBuilder
+    private func attachGapAndFinanceSheets<V: View>(to content: V) -> some View {
+        content
+            .sheet(item: $pendingGroupJoin) { pending in
             GroupJoinConfirmSheet(
                 code: pending.code,
                 onClose: { pendingGroupJoin = nil },
@@ -541,35 +548,6 @@ struct AppShellView: View {
                 onSaved: { model.refreshVisibleGroupTab() }
             )
         }
-        .fullScreenCover(isPresented: $showJoinQrScanner) {
-            GroupJoinQrScanner(
-                onCode: { code in
-                    showJoinQrScanner = false
-                    redeemJoinCode(code)
-                },
-                onCompanyCode: { code in
-                    showJoinQrScanner = false
-                    pendingCompanyJoin = PendingCompanyJoin(id: code)
-                },
-                onDismiss: { showJoinQrScanner = false }
-            )
-        }
-        .alert("Referrals coming soon", isPresented: $showReferComingSoon) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Invite sharing will be available in a future release.")
-        }
-        .alert(
-            "Group invite",
-            isPresented: Binding(
-                get: { joinFeedbackMessage != nil },
-                set: { if !$0 { joinFeedbackMessage = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) { joinFeedbackMessage = nil }
-        } message: {
-            Text(joinFeedbackMessage ?? "")
-        }
         .fullScreenCover(isPresented: $groupFinancePresented) {
             if let momentId = model.selectedMomentId {
                 let family = GroupExperienceFamily.forTypeCode(model.selectedMomentTypeCode)
@@ -606,143 +584,6 @@ struct AppShellView: View {
                 )
             }
         }
-        .sheet(isPresented: $businessExpenseSheetPresented) {
-            if let momentId = model.selectedMomentId {
-                BusinessExpenseSheet(
-                    momentId: momentId,
-                    isPresented: $businessExpenseSheetPresented,
-                    onSaved: { model.refreshVisibleBusinessTab() }
-                )
-            }
-        }
-        .sheet(isPresented: $businessKhataSheetPresented) {
-            if let momentId = model.selectedMomentId {
-                let companyId = model.selectedCompany?.companyId
-                    ?? model.moments.first(where: { $0.momentId == momentId })?.companyId
-                    ?? ""
-                BusinessKhataHomeView(
-                    momentId: momentId,
-                    companyId: companyId,
-                    shopName: model.selectedCompany?.displayName ?? model.selectedMomentTitle ?? "",
-                    isPresented: $businessKhataSheetPresented,
-                    onEntrySaved: { model.refreshVisibleBusinessTab() }
-                )
-            }
-        }
-        .sheet(isPresented: $businessRevenueSheetPresented) {
-            if let momentId = model.selectedMomentId {
-                BusinessRevenueSheet(
-                    momentId: momentId,
-                    isPresented: $businessRevenueSheetPresented,
-                    onSaved: { model.refreshVisibleBusinessTab() }
-                )
-            }
-        }
-        .sheet(isPresented: $businessInvoiceSheetPresented) {
-            if let momentId = model.selectedMomentId {
-                BusinessInvoiceSheet(
-                    momentId: momentId,
-                    shopName: model.selectedCompany?.displayName
-                        ?? model.selectedMomentTitle
-                        ?? "",
-                    isPresented: $businessInvoiceSheetPresented,
-                    onSaved: { model.refreshVisibleBusinessTab() }
-                )
-            }
-        }
-        .sheet(isPresented: $businessMembersSheetPresented) {
-            if let companyId = model.selectedCompany?.companyId {
-                BusinessMembersSheet(
-                    companyId: companyId,
-                    isPresented: $businessMembersSheetPresented
-                )
-            }
-        }
-        .sheet(item: $businessGapQa) { kind in
-            Group {
-                if kind == .expense || kind == .spendEntry {
-                    Color.clear
-                        .onAppear {
-                            businessGapQa = nil
-                            if OperatingMomentCatalog.kind(for: model.selectedMomentTypeCode) != nil,
-                               !OperatingMomentCatalog.isRetired(model.selectedMomentTypeCode) {
-                                model.selectBottomDestination(.create)
-                            } else {
-                                businessExpenseSheetPresented = true
-                            }
-                        }
-                } else {
-                    BusinessGapQuickAddSheet(
-                        theme: BusinessActiveTheme.forTypeCode(model.selectedMomentTypeCode),
-                        kind: kind,
-                        momentId: model.selectedMomentId,
-                        onClose: { businessGapQa = nil },
-                        onSaved: { model.refreshVisibleBusinessTab() },
-                        onExpense: {
-                            businessGapQa = nil
-                            if OperatingMomentCatalog.kind(for: model.selectedMomentTypeCode) != nil,
-                               !OperatingMomentCatalog.isRetired(model.selectedMomentTypeCode) {
-                                model.selectBottomDestination(.create)
-                            } else {
-                                businessExpenseSheetPresented = true
-                            }
-                        },
-                        onRevenue: { businessRevenueSheetPresented = true },
-                        onInvoice: { businessInvoiceSheetPresented = true }
-                    )
-                }
-            }
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
-        }
-        .sheet(item: $lifeOpsQa) { kind in
-            if let momentId = personalQaMomentId ?? model.selectedMomentId {
-                PersonalLifeOpsQuickAddSheet(
-                    kind: kind,
-                    momentId: momentId,
-                    onClose: {
-                        lifeOpsQa = nil
-                        personalQaMomentId = nil
-                    },
-                    onSaved: {
-                        lifeOpsQa = nil
-                        personalQaMomentId = nil
-                        model.refreshVisiblePersonalTab()
-                        if kind == .mood || kind == .recovery {
-                            showHabitReward("Logged · your day is updating")
-                            PersonalEveningNudgeScheduler.onTodaySave()
-                        }
-                    }
-                )
-            }
-        }
-        .sheet(isPresented: $recentActivityOpen) {
-            PersonalRecentActivityFlow(
-                momentId: model.selectedMomentId,
-                isPresented: $recentActivityOpen,
-                onChanged: { model.refreshVisiblePersonalTab() }
-            )
-        }
-        .sheet(isPresented: $teamRecentActivityOpen) {
-            if let momentId = model.selectedMomentId {
-                BusinessRecentActivityFlow(
-                    momentId: momentId,
-                    isPresented: $teamRecentActivityOpen,
-                    accent: Color(hex: "#818CF8"),
-                    subtitle: "Team updates, polls, memories, and other events."
-                )
-            }
-        }
-        .sheet(isPresented: $businessRecentActivityOpen) {
-            if let momentId = model.selectedMomentId {
-                BusinessRecentActivityFlow(
-                    momentId: momentId,
-                    isPresented: $businessRecentActivityOpen,
-                    accent: businessRecentActivityAccent,
-                    subtitle: businessRecentActivitySubtitle
-                )
-            }
-        }
         .sheet(isPresented: $groupRecentActivityOpen) {
             if let momentId = model.selectedMomentId {
                 GroupRecentActivityFlow(
@@ -754,44 +595,140 @@ struct AppShellView: View {
                 )
             }
         }
-        .sheet(isPresented: Binding(
-            get: { model.life360Open },
-            set: { model.openLife360($0) }
-        )) {
-            Life360ComingSoonView(onClose: { model.openLife360(false) })
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $inboxOpen) {
-            NotificationInboxView(
-                onOpenMoment: { momentId in
-                    if model.openMomentFromDeepLink(momentId: momentId) { return }
-                    PushDeepLinkStore.shared.offer("momentra://moment/\(momentId)")
-                },
-                onClose: { inboxOpen = false }
-            )
-        }
-        .sheet(isPresented: Binding(
-            get: { model.profileOpen },
-            set: { model.openProfile($0) }
-        )) {
-            AccountHubView(
-                identity: model.identity ?? identity,
-                onDisplayNameSaved: { name in
-                    model.applyDisplayName(name)
-                    onDisplayNameSaved(name)
-                },
-                onSignOut: {
-                    model.openProfile(false)
-                    onSignOut()
-                },
-                onClose: { model.openProfile(false) },
-                onAccountDeleted: {
-                    model.openProfile(false)
-                    onSignOut()
+    }
+
+    @ViewBuilder
+    private func attachBusinessAndSystemSheets<V: View>(to content: V) -> some View {
+        content
+            .sheet(isPresented: $businessSetupOpen) {
+                CompanySetupFlowView(
+                    onClose: { businessSetupOpen = false },
+                    onActivated: { company in
+                        businessSetupOpen = false
+                        model.onCompanyCreated(company)
+                        if model.selectedContext != .business {
+                            model.selectContext(.business)
+                        }
+                    }
+                )
+            }
+            .sheet(isPresented: $businessJoinOpen) {
+                NavigationStack {
+                    VStack(spacing: 16) {
+                        Text("Join Business")
+                            .font(.headline)
+                        Text("Enter an invite link or join code to join a business.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { businessJoinOpen = false }
+                        }
+                    }
                 }
-            )
-        }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+            .fullScreenCover(isPresented: $showJoinQrScanner) {
+                GroupJoinQrScanner(
+                    onCode: { code in
+                        showJoinQrScanner = false
+                        redeemJoinCode(code)
+                    },
+                    onCompanyCode: { code in
+                        showJoinQrScanner = false
+                        pendingCompanyJoin = PendingCompanyJoin(id: code)
+                    },
+                    onDismiss: { showJoinQrScanner = false }
+                )
+            }
+            .alert("Referrals coming soon", isPresented: $showReferComingSoon) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Invite sharing will be available in a future release.")
+            }
+            .alert("Group invite", isPresented: isJoinFeedbackPresented) {
+                Button("OK", role: .cancel) { joinFeedbackMessage = nil }
+            } message: {
+                Text(joinFeedbackMessage ?? "")
+            }
+            .sheet(item: $lifeOpsQa) { kind in
+                if let momentId = personalQaMomentId ?? model.selectedMomentId {
+                    PersonalLifeOpsQuickAddSheet(
+                        kind: kind,
+                        momentId: momentId,
+                        onClose: {
+                            lifeOpsQa = nil
+                            personalQaMomentId = nil
+                        },
+                        onSaved: {
+                            lifeOpsQa = nil
+                            personalQaMomentId = nil
+                            model.refreshVisiblePersonalTab()
+                            if kind == .mood || kind == .recovery {
+                                showHabitReward("Logged · your day is updating")
+                                PersonalEveningNudgeScheduler.onTodaySave()
+                            }
+                        }
+                    )
+                }
+            }
+            .sheet(isPresented: $recentActivityOpen) {
+                PersonalRecentActivityFlow(
+                    momentId: model.selectedMomentId,
+                    isPresented: $recentActivityOpen,
+                    onChanged: { model.refreshVisiblePersonalTab() }
+                )
+            }
+            .sheet(isPresented: isLife360Presented) {
+                Life360ComingSoonView(onClose: { model.openLife360(false) })
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $inboxOpen) {
+                NotificationInboxView(
+                    onOpenMoment: { momentId in
+                        if model.openMomentFromDeepLink(momentId: momentId) { return }
+                        PushDeepLinkStore.shared.offer("momentra://moment/\(momentId)")
+                    },
+                    onClose: { inboxOpen = false }
+                )
+            }
+            .sheet(isPresented: $businessAttentionViewAllOpen) {
+                BusinessAppStateViewAllSheet(
+                    accent: BusinessAppStateAccent.forTypeCode(model.selectedMomentTypeCode),
+                    selectedFilter: $businessAttentionFilter,
+                    onClose: { businessAttentionViewAllOpen = false },
+                    onShowAll: {
+                        businessAttentionViewAllOpen = false
+                        businessAttentionFilter = "All"
+                    }
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(BusinessAppStateTokens.sheet)
+            }
+            .sheet(isPresented: isProfilePresented) {
+                AccountHubView(
+                    identity: model.identity ?? identity,
+                    onDisplayNameSaved: { name in
+                        model.applyDisplayName(name)
+                        onDisplayNameSaved(name)
+                    },
+                    onSignOut: {
+                        model.openProfile(false)
+                        onSignOut()
+                    },
+                    onClose: { model.openProfile(false) },
+                    onAccountDeleted: {
+                        model.openProfile(false)
+                        onSignOut()
+                    }
+                )
+            }
     }
 
     private func openNewMoment() {
@@ -884,6 +821,30 @@ struct AppShellView: View {
             context: model.selectedContext,
             momentTypeCode: model.selectedMomentTypeCode
         ).primary
+    }
+
+    /// The switcher is open for whichever context owns it — Group and Business used to run separate
+    /// overlays, now one view is mounted for both.
+    private var momentSwitcherDirectoryOpen: Bool {
+        (groupMomentDirectoryOpen && model.selectedContext == .group)
+            || (businessMomentDirectoryOpen && model.selectedContext == .business)
+    }
+
+    private var momentSwitcherIsBusiness: Bool {
+        model.selectedContext == .business
+    }
+
+    private var momentSwitcherPrefersCompleted: Bool {
+        momentSwitcherIsBusiness ? businessDirectoryPreferCompleted : groupDirectoryPreferCompleted
+    }
+
+    private func closeMomentSwitcher() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            groupMomentDirectoryOpen = false
+            groupDirectoryPreferCompleted = false
+            businessMomentDirectoryOpen = false
+            businessDirectoryPreferCompleted = false
+        }
     }
 
     private var shouldShowMomentSwitcher: Bool {
@@ -989,132 +950,44 @@ struct AppShellView: View {
         NavigationStack {
             ZStack {
                 destinationBodyWithFab
-                if groupMomentDirectoryOpen && model.selectedContext == .group {
-                    GroupActiveMomentsDirectoryView(
+                // One spec-driven switcher serves both contexts (Figma 2678:37791).
+                if momentSwitcherDirectoryOpen {
+                    MomentSwitcherDirectoryView(
+                        spec: momentSwitcherIsBusiness
+                            ? businessMomentSwitcherSpec(
+                                companyName: model.selectedCompany?.displayName ?? "Your business"
+                            )
+                            : groupMomentSwitcherSpec(),
                         moments: model.moments,
                         selectedMomentId: model.selectedMomentId,
-                        onDismiss: {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                groupMomentDirectoryOpen = false
-                                groupDirectoryPreferCompleted = false
-                            }
-                        },
+                        onDismiss: closeMomentSwitcher,
                         onSelectMoment: { momentId in
                             model.selectMoment(id: momentId)
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                groupMomentDirectoryOpen = false
-                                groupDirectoryPreferCompleted = false
-                            }
+                            closeMomentSwitcher()
                         },
                         onSelectCompletedMoment: { moment in
-                            model.selectCompletedGroupMoment(moment)
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                groupMomentDirectoryOpen = false
-                                groupDirectoryPreferCompleted = false
+                            if momentSwitcherIsBusiness {
+                                model.selectCompletedBusinessMoment(moment)
+                            } else {
+                                model.selectCompletedGroupMoment(moment)
                             }
+                            closeMomentSwitcher()
                         },
                         onOpenStory: { momentId in
                             storyMomentId = momentId
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                groupMomentDirectoryOpen = false
-                                groupDirectoryPreferCompleted = false
-                            }
+                            closeMomentSwitcher()
                         },
                         onCreateMoment: {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                groupMomentDirectoryOpen = false
-                                groupDirectoryPreferCompleted = false
-                            }
+                            closeMomentSwitcher()
                             openNewMoment()
                         },
-                        initialCompletedTab: groupDirectoryPreferCompleted
+                        initialCompletedTab: momentSwitcherPrefersCompleted
                     )
                     .transition(.asymmetric(
                         insertion: .opacity.combined(with: .move(edge: .bottom)),
                         removal: .opacity.combined(with: .move(edge: .bottom))
                     ))
                     .zIndex(1)
-                }
-                if businessMomentDirectoryOpen && model.selectedContext == .business {
-                    BusinessActiveMomentsDirectoryView(
-                        moments: model.moments,
-                        selectedMomentId: model.selectedMomentId,
-                        onDismiss: {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                businessMomentDirectoryOpen = false
-                            }
-                        },
-                        onSelectMoment: { momentId in
-                            model.selectMoment(id: momentId)
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                businessMomentDirectoryOpen = false
-                            }
-                        },
-                        onSelectCompletedMoment: { moment in
-                            model.selectCompletedBusinessMoment(moment)
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                businessMomentDirectoryOpen = false
-                            }
-                        },
-                        onOpenStory: { momentId in
-                            storyMomentId = momentId
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                businessMomentDirectoryOpen = false
-                            }
-                        },
-                        onCreateMoment: {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                businessMomentDirectoryOpen = false
-                            }
-                            openNewMoment()
-                        },
-                        initialCompletedTab: businessDirectoryPreferCompleted,
-                        companyName: model.selectedCompany?.displayName ?? "Your business"
-                    )
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .bottom)),
-                        removal: .opacity.combined(with: .move(edge: .bottom))
-                    ))
-                    .zIndex(1)
-                }
-                if let businessGap, model.selectedContext == .business {
-                    BusinessGapHost(
-                        page: businessGap,
-                        companyId: model.selectedCompany?.companyId,
-                        companyName: model.selectedCompany?.displayName ?? "",
-                        moments: model.moments,
-                        locationName: $businessLocationName,
-                        onSelectMoment: { moment in
-                            model.selectMoment(id: moment.momentId)
-                            model.selectBottomDestination(.pulse)
-                            self.businessGap = nil
-                        },
-                        onCreateMoment: {
-                            self.businessGap = nil
-                            openNewMoment()
-                        },
-                        onClose: { self.businessGap = nil },
-                        onPage: { self.businessGap = $0 },
-                        onBackToSettings: {
-                            self.businessGap = nil
-                            reopenCompanySettings = true
-                            companyMenuOpen = true
-                        }
-                    )
-                    .zIndex(2)
-                }
-                if let pendingActivation {
-                    BusinessActivationSuccess(title: pendingActivation.title) {
-                        newMomentOpen = false
-                        model.onMomentCreated(
-                            momentId: pendingActivation.momentId,
-                            title: pendingActivation.title,
-                            momentTypeCode: pendingActivation.momentTypeCode,
-                            status: pendingActivation.status
-                        )
-                        self.pendingActivation = nil
-                    }
-                    .zIndex(3)
                 }
             }
             .animation(.easeInOut(duration: 0.28), value: groupMomentDirectoryOpen)
@@ -1123,7 +996,7 @@ struct AppShellView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                if !((groupMomentDirectoryOpen && model.selectedContext == .group) || (businessMomentDirectoryOpen && model.selectedContext == .business)) {
+                if !momentSwitcherDirectoryOpen {
                     shellTopChrome
                 }
             }
@@ -1154,10 +1027,6 @@ struct AppShellView: View {
             MomentraTopBar(
                 context: model.selectedContext,
                 displayName: identity.displayName,
-                companies: model.companies,
-                selectedCompany: model.selectedCompany,
-                companyMenuOpen: $companyMenuOpen,
-                onCompanySelected: model.selectCompany,
                 onQrScan: (model.selectedContext == .group || model.selectedContext == .business)
                     ? { showJoinQrScanner = true }
                     : nil,
@@ -1166,8 +1035,7 @@ struct AppShellView: View {
                 onRefer: { showReferComingSoon = true },
                 onInbox: { inboxOpen = true },
                 onAvatar: { model.openProfile(true) },
-                unreadNotificationCount: inboxBadge.unreadCount,
-                locationName: businessLocationName
+                unreadNotificationCount: inboxBadge.unreadCount
             )
 
             if !shellNavigationTitle.isEmpty {
@@ -1217,7 +1085,7 @@ struct AppShellView: View {
                         },
                         selectedIsCompleted: selectedMomentIsCompleted,
                         startExpanded: false,
-                        participantNames: model.selectedContext == .business ? operatingChrome.participantNames : []
+                        participantNames: []
                     )
             }
         }
@@ -1245,583 +1113,657 @@ struct AppShellView: View {
     private var destinationBody: some View {
         if newMomentOpen, model.selectedContext == .group {
             groupCreateBody
-        } else if newMomentOpen, model.selectedContext == .business {
-            BusinessCreateFlowView(
-                createModel: createModel,
-                companyId: model.selectedCompany?.companyId,
-                ownerName: model.identity?.displayName ?? "",
-                onBack: { newMomentOpen = false },
-                onCreated: { outcome in
-                    if outcome.momentTypeCode == "RETAIL_STORE" || outcome.momentTypeCode == "RESTAURANT_FOOD" || outcome.momentTypeCode == "CONSUMER_SERVICE" || outcome.momentTypeCode == "TRADING_WHOLESALE" || outcome.momentTypeCode == "DISTRIBUTION_DEALERSHIP" || outcome.momentTypeCode == "CLIENT_CAMPAIGN" || outcome.momentTypeCode == "OWN_BUSINESS_CAMPAIGN" || outcome.momentTypeCode == "STANDARD_PRODUCTION" || outcome.momentTypeCode == "MADE_TO_ORDER" {
-                        newMomentOpen = false
-                        model.onMomentCreated(
-                            momentId: outcome.momentId,
-                            title: outcome.title,
-                            momentTypeCode: outcome.momentTypeCode,
-                            status: outcome.status
-                        )
-                    } else {
-                        pendingActivation = PendingBusinessActivation(
-                            momentId: outcome.momentId,
-                            title: outcome.title,
-                            momentTypeCode: outcome.momentTypeCode,
-                            status: outcome.status
-                        )
-                    }
-                }
-            )
         } else {
-            switch model.contextContent {
-            case .idle, .loading:
-                if model.selectedContext == .business {
-                    BusinessAppStateLoadingBody(
-                        label: "\(model.bottomDestination.label) · loading",
-                        accent: BusinessAppStateAccent.forTypeCode(model.selectedMomentTypeCode)
-                    )
-                } else {
-                    ProgressView()
-                        .tint(MomentraBrandTokens.cta)
-                }
-            case .offline:
-                if model.selectedContext == .business {
-                    BusinessAppStateBody(
-                        spec: BusinessAppStateSpecs.spec(.offline, .error),
-                        accent: BusinessAppStateAccent.forTypeCode(model.selectedMomentTypeCode),
-                        onPrimary: { model.selectContext(model.selectedContext) },
-                        onSecondary: { model.selectBottomDestination(.create) }
-                    )
-                } else {
-                    emptyPanel(
-                        title: "You're offline",
-                        body: "Check your connection and try again.",
-                        action: "Retry"
-                    ) {
-                        model.selectContext(model.selectedContext)
-                    }
-                }
-            case .error(let code, let message):
-                if code == "UNAUTHORIZED" {
-                    Color.clear.onAppear(perform: onSessionExpired)
-                }
-                if model.selectedContext == .business {
-                    let accent = BusinessAppStateAccent.forTypeCode(model.selectedMomentTypeCode)
-                    BusinessAppStateBody(
-                        spec: BusinessAppStateSpecs.spec(errorScreen(for: model.bottomDestination), .error),
-                        accent: accent,
-                        onPrimary: { model.selectContext(model.selectedContext) },
-                        onSecondary: { model.selectBottomDestination(.create) }
-                    )
-                } else {
-                    emptyPanel(title: "We couldn't load your moments", body: message, action: "Retry") {
-                        model.selectContext(model.selectedContext)
-                    }
-                }
-            case .forbidden:
-                emptyPanel(
-                    title: "No access",
-                    body: "You no longer have access to this \(model.selectedContext.label.lowercased()) resource. Your session stays signed in."
-                )
-            case .deferred:
-                CircleComingSoonView()
-            case .empty:
-                ContextEmptyExperienceView(
-                    createModel: createModel,
-                    context: model.selectedContext,
-                    destination: model.bottomDestination,
-                    experience: model.momentExperience,
-                    moments: model.moments,
-                    hasCompany: model.selectedCompany != nil,
-                    selectedCompanyId: model.selectedCompany?.companyId,
-                    onCreateMoment: openNewMoment,
-                    onCreateBack: {
-                        if model.selectedContext == .group, groupCreatePhase != .chooser {
-                            groupCreatePhase = .chooser
-                        } else {
-                            groupCreatePhase = .chooser
-                            model.exitCreateDestination()
-                        }
-                    },
-                    onCompanyActivated: { model.onCompanyCreated($0) },
-                    onCreateBusiness: { businessSetupOpen = true },
-                    onJoinCompany: { businessJoinOpen = true },
-                    onMomentCreated: { outcome in
-                        groupCreatePhase = .chooser
-                        model.onMomentCreated(
-                            momentId: outcome.momentId,
-                            title: outcome.title,
-                            momentTypeCode: outcome.momentTypeCode,
-                            status: outcome.status
-                        )
-                    },
-                    groupCreatePhase: groupCreatePhase,
-                    onSelectExperience: {
-                        groupCreatePhase = .experienceSetup
-                        model.selectBottomDestination(.create)
-                    },
-                    onSelectPurchase: {
-                        groupCreatePhase = .purchaseSetup
-                        model.selectBottomDestination(.create)
-                    },
-                    onSelectLiving: {
-                        groupCreatePhase = .livingSetup
-                        model.selectBottomDestination(.create)
-                    },
-                    onExitGroupSetup: { groupCreatePhase = .chooser },
-                    onJoinCode: redeemJoinCode,
-                    onOpenCompletedMoments: {
-                        groupDirectoryPreferCompleted = true
-                        withAnimation(.easeInOut(duration: 0.28)) {
-                            groupMomentDirectoryOpen = true
-                        }
-                    }
-                )
-            case .ready(let detail):
-                let groupTypeCode = model.selectedMomentTypeCode
-                    ?? model.moments.first(where: { $0.momentId == model.selectedMomentId })?.momentTypeCode
-                let groupFamily = GroupExperienceFamily.forTypeCode(groupTypeCode)
-                let isWedding = groupFamily.isWedding
-                let isExperience = groupFamily.isThemedExperience
-                let isPurchase = groupFamily.isThemedPurchase
-                let isLiving = groupFamily.isThemedLiving
-                let experienceTheme = ExperienceActiveTheme.forFamily(groupFamily)
-                let purchaseTheme = PurchaseActiveTheme.forFamily(groupFamily)
-                let livingTheme = LivingActiveTheme.forFamily(groupFamily)
-                if model.selectedContext == .group, model.bottomDestination == .pulse {
-                    if isWedding {
-                        WeddingPulseActiveView(
-                            refreshToken: model.groupTabRefreshToken,
-                            momentTitle: model.selectedMomentTitle,
-                            momentId: model.selectedMomentId,
-                            momentTypeCode: groupTypeCode,
-                            onAddExpense: { groupExpenseSheetPresented = true },
-                            onOpenQuickAdd: { model.selectBottomDestination(.create) },
-                            onViewSplits: { groupSplitsPresented = true },
-                            onOpenFinance: { groupFinancePresented = true },
-                            onQuickAddKind: { kind in weddingGapQa = kind },
-                            onViewAllActivity: { groupRecentActivityOpen = true }
-                        )
-                    } else if isExperience {
-                        ExperiencePulseActiveView(
-                            theme: experienceTheme,
-                            refreshToken: model.groupTabRefreshToken,
-                            momentTitle: model.selectedMomentTitle,
-                            momentId: model.selectedMomentId,
-                            momentTypeCode: groupTypeCode,
-                            viewerReadOnly: groupViewerReadOnly,
-                            onAddExpense: {
-                                guard !groupViewerReadOnly else { return }
-                                groupExpenseSheetPresented = true
-                            },
-                            onOpenQuickAdd: { model.selectBottomDestination(.create) },
-                            onViewSplits: { groupSplitsPresented = true },
-                            onOpenFinance: { groupFinancePresented = true },
-                            onQuickAddKind: { kind in
-                                guard !groupViewerReadOnly else { return }
-                                if kind == .participant {
-                                    groupInviteSheetPresented = true
-                                } else {
-                                    experienceGapQa = kind
-                                }
-                            },
-                            onViewAllActivity: { groupRecentActivityOpen = true }
-                        )
-                    } else if isPurchase {
-                        PurchasePulseActiveView(
-                            theme: purchaseTheme,
-                            refreshToken: model.groupTabRefreshToken,
-                            momentTitle: model.selectedMomentTitle,
-                            momentId: model.selectedMomentId,
-                            momentTypeCode: groupTypeCode,
-                            onAddExpense: { groupExpenseSheetPresented = true },
-                            onOpenQuickAdd: { model.selectBottomDestination(.create) },
-                            onViewSplits: { groupSplitsPresented = true },
-                            onOpenFinance: { groupFinancePresented = true },
-                            onQuickAddKind: { kind in
-                                if kind == .contributor {
-                                    groupInviteSheetPresented = true
-                                } else {
-                                    purchaseGapQa = kind
-                                }
-                            },
-                            onViewAllActivity: { groupRecentActivityOpen = true }
-                        )
-                    } else if isLiving {
-                        LivingPulseActiveView(
-                            theme: livingTheme,
-                            refreshToken: model.groupTabRefreshToken,
-                            momentTitle: model.selectedMomentTitle,
-                            momentId: model.selectedMomentId,
-                            momentTypeCode: groupTypeCode,
-                            onAddExpense: { groupExpenseSheetPresented = true },
-                            onOpenQuickAdd: { model.selectBottomDestination(.create) },
-                            onViewSplits: { groupSplitsPresented = true },
-                            onOpenFinance: { groupFinancePresented = true },
-                            onQuickAddKind: { kind in
-                                if kind == .resident {
-                                    groupInviteSheetPresented = true
-                                } else {
-                                    livingGapQa = kind
-                                }
-                            },
-                            onViewAllActivity: { groupRecentActivityOpen = true }
-                        )
-                    } else {
-                        GroupPulseActiveView(
-                            refreshToken: model.groupTabRefreshToken,
-                            momentTitle: model.selectedMomentTitle,
-                            momentId: model.selectedMomentId,
-                            momentTypeCode: groupTypeCode,
-                            onAddExpense: { groupExpenseSheetPresented = true },
-                            onViewSplits: { groupSplitsPresented = true },
-                            onOpenFinance: { groupFinancePresented = true },
-                            onOpenMemory: { groupCollabKind = .memory },
-                            onOpenChat: { groupCollabKind = .update },
-                            onOpenItinerary: { groupCollabKind = .planning },
-                            onViewAllActivity: { groupRecentActivityOpen = true }
-                        )
-                    }
-                } else if model.selectedContext == .group, model.bottomDestination == .moments {
-                    if isWedding {
-                        WeddingMomentsActiveView(
-                            refreshToken: model.groupTabRefreshToken,
-                            momentId: model.selectedMomentId,
-                            momentTitle: model.selectedMomentTitle,
-                            onOpenQuickAdd: { model.selectBottomDestination(.create) }
-                        )
-                    } else if isExperience {
-                        ExperienceMomentsActiveView(
-                            theme: experienceTheme,
-                            refreshToken: model.groupTabRefreshToken,
-                            momentId: model.selectedMomentId,
-                            momentTitle: model.selectedMomentTitle,
-                            momentTypeCode: groupTypeCode,
-                            onOpenQuickAdd: { model.selectBottomDestination(.create) }
-                        )
-                    } else if isPurchase {
-                        PurchaseMomentsActiveView(
-                            theme: purchaseTheme,
-                            refreshToken: model.groupTabRefreshToken,
-                            momentId: model.selectedMomentId,
-                            momentTitle: model.selectedMomentTitle,
-                            momentTypeCode: groupTypeCode,
-                            onOpenQuickAdd: { model.selectBottomDestination(.create) }
-                        )
-                    } else if isLiving {
-                        LivingMomentsActiveView(
-                            theme: livingTheme,
-                            refreshToken: model.groupTabRefreshToken,
-                            momentId: model.selectedMomentId,
-                            momentTitle: model.selectedMomentTitle,
-                            momentTypeCode: groupTypeCode,
-                            onOpenQuickAdd: { model.selectBottomDestination(.create) }
-                        )
-                    } else {
-                        GroupMomentsActiveView(
-                            refreshToken: model.groupTabRefreshToken,
-                            momentId: model.selectedMomentId,
-                            momentTitle: model.selectedMomentTitle,
-                            momentTypeCode: groupTypeCode,
-                            onCreateMoment: {
-                                groupCreatePhase = .chooser
-                                newMomentOpen = true
-                            }
-                        )
-                    }
-                } else if model.selectedContext == .group, model.bottomDestination == .life {
-                    GroupLifeActiveView(
-                        refreshToken: model.groupTabRefreshToken,
-                        momentId: model.selectedMomentId,
-                        momentTitle: model.selectedMomentTitle,
-                        onQuickAction: { action in
-                            switch action {
-                            case .experience:
-                                if isWedding { weddingGapQa = .planning }
-                                else if isExperience { experienceGapQa = .planning }
-                                else if isPurchase { purchaseGapQa = .purchaseItem }
-                                else if isLiving { livingGapQa = .task }
-                                else { groupCollabKind = .planning }
-                            case .goal, .community:
-                                // Goal / Community moments are Coming Soon — do not open unrelated sheets.
-                                joinFeedbackMessage = action == .goal
-                                    ? "Goal moments are coming soon."
-                                    : "Community moments are coming soon."
-                            case .purchase:
-                                if isWedding { weddingGapQa = .expense }
-                                else if isExperience { experienceGapQa = .expense }
-                                else if isPurchase { purchaseGapQa = .expense }
-                                else if isLiving { livingGapQa = .expense }
-                                else { groupExpenseSheetPresented = true }
-                            case .living:
-                                if isWedding { weddingGapQa = .vendor }
-                                else if isExperience { experienceGapQa = experienceTheme.includesVendor ? .vendor : .booking }
-                                else if isPurchase { purchaseGapQa = purchaseTheme.includesVendor ? .vendor : .contribution }
-                                else if isLiving { groupInviteSheetPresented = true }
-                                else { groupCollabKind = .booking }
-                            }
-                        }
-                    )
-                } else if model.selectedContext == .group, model.bottomDestination == .memory {
-                    if isWedding {
-                        WeddingMemoryActiveView(
-                            refreshToken: model.groupTabRefreshToken,
-                            momentId: model.selectedMomentId,
-                            momentTitle: model.selectedMomentTitle,
-                            onOpenQuickAdd: { weddingGapQa = .memory }
-                        )
-                    } else if isExperience {
-                        ExperienceMemoryActiveView(
-                            theme: experienceTheme,
-                            refreshToken: model.groupTabRefreshToken,
-                            momentId: model.selectedMomentId,
-                            momentTitle: model.selectedMomentTitle,
-                            onOpenQuickAdd: { experienceGapQa = .memory }
-                        )
-                    } else if isPurchase {
-                        PurchaseMemoryActiveView(
-                            theme: purchaseTheme,
-                            refreshToken: model.groupTabRefreshToken,
-                            momentId: model.selectedMomentId,
-                            momentTitle: model.selectedMomentTitle,
-                            onOpenQuickAdd: { purchaseGapQa = .memory }
-                        )
-                    } else if isLiving {
-                        LivingMemoryActiveView(
-                            theme: livingTheme,
-                            refreshToken: model.groupTabRefreshToken,
-                            momentId: model.selectedMomentId,
-                            momentTitle: model.selectedMomentTitle,
-                            onOpenQuickAdd: { livingGapQa = .memory }
-                        )
-                    } else {
-                        GroupMemoryActiveView(
-                            refreshToken: model.groupTabRefreshToken,
-                            momentId: model.selectedMomentId,
-                            momentTitle: model.selectedMomentTitle,
-                            onOpenQuickAdd: { groupCollabKind = .memory }
-                        )
-                    }
-                } else if model.selectedContext == .group, model.bottomDestination == .create {
-                    if isWedding {
-                        WeddingQuickAddHubView(
-                            momentTitle: model.selectedMomentTitle,
-                            hasActiveMoment: model.selectedMomentId != nil,
-                            capabilityCodes: model.capabilities,
-                            viewerReadOnly: groupViewerReadOnly,
-                            onClose: { model.exitCreateDestination() },
-                            onTile: { kind in
-                                guard !groupViewerReadOnly else { return }
-                                weddingGapQa = kind
-                            },
-                            onNewMoment: {
-                                groupCreatePhase = .chooser
-                                newMomentOpen = true
-                            },
-                            onJoinCode: redeemJoinCode
-                        )
-                    } else if isExperience {
-                        ExperienceQuickAddHubView(
-                            theme: experienceTheme,
-                            momentTitle: model.selectedMomentTitle,
-                            hasActiveMoment: model.selectedMomentId != nil,
-                            capabilityCodes: model.capabilities,
-                            viewerReadOnly: groupViewerReadOnly,
-                            onClose: { model.exitCreateDestination() },
-                            onTile: { kind in
-                                if groupViewerReadOnly { return }
-                                if kind == .participant {
-                                    groupInviteSheetPresented = true
-                                } else {
-                                    experienceGapQa = kind
-                                }
-                            },
-                            onNewMoment: {
-                                groupCreatePhase = .chooser
-                                newMomentOpen = true
-                            },
-                            onJoinCode: redeemJoinCode
-                        )
-                    } else if isPurchase {
-                        PurchaseQuickAddHubView(
-                            theme: purchaseTheme,
-                            momentTitle: model.selectedMomentTitle,
-                            hasActiveMoment: model.selectedMomentId != nil,
-                            capabilityCodes: model.capabilities,
-                            viewerReadOnly: groupViewerReadOnly,
-                            onClose: { model.exitCreateDestination() },
-                            onTile: { kind in
-                                guard !groupViewerReadOnly else { return }
-                                if kind == .contributor {
-                                    groupInviteSheetPresented = true
-                                } else {
-                                    purchaseGapQa = kind
-                                }
-                            },
-                            onNewMoment: {
-                                groupCreatePhase = .chooser
-                                newMomentOpen = true
-                            },
-                            onJoinCode: redeemJoinCode
-                        )
-                    } else if isLiving {
-                        LivingQuickAddHubView(
-                            theme: livingTheme,
-                            momentTitle: model.selectedMomentTitle,
-                            hasActiveMoment: model.selectedMomentId != nil,
-                            capabilityCodes: model.capabilities,
-                            viewerReadOnly: groupViewerReadOnly,
-                            onClose: { model.exitCreateDestination() },
-                            onTile: { kind in
-                                guard !groupViewerReadOnly else { return }
-                                if kind == .resident {
-                                    groupInviteSheetPresented = true
-                                } else {
-                                    livingGapQa = kind
-                                }
-                            },
-                            onNewMoment: {
-                                groupCreatePhase = .chooser
-                                newMomentOpen = true
-                            },
-                            onJoinCode: redeemJoinCode
-                        )
-                    } else {
-                        GroupQuickAddHubView(
-                            hasActiveMoment: model.selectedMomentId != nil,
-                            capabilityCodes: model.capabilities,
-                            momentTypeCode: model.selectedMomentTypeCode,
-                            momentTitle: model.selectedMomentTitle,
-                            viewerReadOnly: groupViewerReadOnly,
-                            onClose: { model.exitCreateDestination() },
-                            onExpense: {
-                                guard !groupViewerReadOnly else { return }
-                                groupExpenseSheetPresented = true
-                            },
-                            onContribution: {
-                                guard !groupViewerReadOnly else { return }
-                                groupContributionSheetPresented = true
-                            },
-                            onSettle: {
-                                guard !groupViewerReadOnly else { return }
-                                groupSettlementSheetPresented = true
-                            },
-                            onParticipants: { groupParticipantsSheetPresented = true },
-                            onInvite: {
-                                guard !groupViewerReadOnly else { return }
-                                groupInviteSheetPresented = true
-                            },
-                            onBudget: {
-                                guard !groupViewerReadOnly else { return }
-                                groupBudgetSheetPresented = true
-                            },
-                            onPlanning: {
-                                guard !groupViewerReadOnly else { return }
-                                groupCollabKind = .planning
-                            },
-                            onChecklist: {
-                                guard !groupViewerReadOnly else { return }
-                                groupCollabKind = .checklist
-                            },
-                            onBooking: {
-                                guard !groupViewerReadOnly else { return }
-                                groupCollabKind = .booking
-                            },
-                            onPoll: {
-                                guard !groupViewerReadOnly else { return }
-                                groupCollabKind = .poll
-                            },
-                            onUpdate: {
-                                guard !groupViewerReadOnly else { return }
-                                groupCollabKind = .update
-                            },
-                            onMemory: {
-                                guard !groupViewerReadOnly else { return }
-                                groupCollabKind = .memory
-                            },
-                            onPurchaseItem: {
-                                guard !groupViewerReadOnly else { return }
-                                groupCollabKind = .purchaseItem
-                            },
-                            onResident: {
-                                guard !groupViewerReadOnly else { return }
-                                groupInviteSheetPresented = true
-                            },
-                            onNewMoment: {
-                                groupCreatePhase = .chooser
-                                newMomentOpen = true
-                            },
-                            onJoinCode: redeemJoinCode
-                        )
-                    }
-                } else if model.selectedContext == .personal,
-                          [.pulse, .moments, .memory, .life, .create].contains(model.bottomDestination) {
-                    PersonalExperienceHost(
-                        destination: model.bottomDestination,
-                        onOpenLife: { model.selectBottomDestination(.life) },
-                        onOpenPulse: { model.selectBottomDestination(.pulse) },
-                        onOpenMoments: { model.selectBottomDestination(.moments) }
-                    )
-                } else if model.selectedContext == .business,
-                          [.pulse, .moments, .life, .memory, .create].contains(model.bottomDestination),
-                          model.selectedMomentId != nil {
-                    let tab: OperatingTab = switch model.bottomDestination {
-                    case .moments: .moments
-                    case .life: .life
-                    case .memory: .memory
-                    case .create: .quickAdd
-                    default: .pulse
-                    }
-                    OperatingMomentPage(
-                        momentId: model.selectedMomentId,
-                        momentTypeCode: model.selectedMomentTypeCode,
-                        momentTitle: model.selectedMomentTitle,
-                        tab: tab,
-                        refreshToken: Int(model.businessTabRefreshToken),
-                        onCreateMoment: { newMomentOpen = true },
-                        onOpenQuickAdd: { model.selectBottomDestination(.create) },
-                        onViewAllAttention: { businessAttentionViewAllOpen = true }
-                    )
-                } else if model.selectedContext == .business,
-                          [.pulse, .moments, .life, .memory, .create].contains(model.bottomDestination) {
-                    ContextEmptyExperienceView(
-                        createModel: createModel,
-                        context: model.selectedContext,
-                        destination: model.bottomDestination,
-                        experience: model.momentExperience,
-                        moments: model.moments,
-                        hasCompany: model.selectedCompany != nil,
-                        selectedCompanyId: model.selectedCompany?.companyId,
-                        onCreateMoment: { model.selectBottomDestination(.create) },
-                        onCreateBack: { model.exitCreateDestination() },
-                        onCreateBusiness: { businessSetupOpen = true },
-                        onJoinCompany: { businessJoinOpen = true },
-                        onCompanyActivated: { model.onCompanyCreated($0) },
-                        onMomentCreated: { outcome in
-                            model.onMomentCreated(
-                                momentId: outcome.momentId,
-                                title: outcome.title,
-                                momentTypeCode: outcome.momentTypeCode,
-                                status: outcome.status
-                            )
-                        }
-                    )
-                } else {
-                    emptyPanel(
-                        title: "\(model.selectedContext.label) · \(model.bottomDestination.label)",
-                        body: detail ?? "Active Moment ready. Product features arrive in later phases."
-                    )
-                }
-            }
+            destinationContent
         }
     }
 
-    /// Which kit screen the current bottom destination maps to, for error and loading bodies.
-    private func errorScreen(for destination: BottomDestination) -> BusinessAppStateScreen {
-        switch destination {
-        case .pulse: return .pulse
-        case .moments: return .moments
-        case .life: return .life
-        case .memory: return .memory
-        case .create: return .hub
+    @ViewBuilder
+    private var destinationContent: some View {
+        switch model.contextContent {
+        case .idle, .loading:
+            if model.selectedContext == .business {
+                BusinessAppStateLoadingBody(
+                    label: "\(model.bottomDestination.label) · loading",
+                    accent: BusinessAppStateAccent.forTypeCode(model.selectedMomentTypeCode)
+                )
+            } else {
+                ProgressView()
+                    .tint(MomentraBrandTokens.cta)
+            }
+        case .offline:
+            if model.selectedContext == .business {
+                BusinessAppStateBody(
+                    spec: BusinessAppStateSpecs.spec(.offline, .error),
+                    accent: BusinessAppStateAccent.forTypeCode(model.selectedMomentTypeCode),
+                    onPrimary: { model.selectContext(model.selectedContext) },
+                    onSecondary: { model.selectBottomDestination(.create) }
+                )
+            } else {
+                emptyPanel(
+                    title: "You're offline",
+                    body: "Check your connection and try again.",
+                    action: "Retry"
+                ) {
+                    model.selectContext(model.selectedContext)
+                }
+            }
+        case .error(let code, let message):
+            if code == "UNAUTHORIZED" {
+                Color.clear.onAppear(perform: onSessionExpired)
+            }
+            if model.selectedContext == .business {
+                let accent = BusinessAppStateAccent.forTypeCode(model.selectedMomentTypeCode)
+                BusinessAppStateBody(
+                    spec: BusinessAppStateSpecs.spec(errorScreen(for: model.bottomDestination), .error),
+                    accent: accent,
+                    onPrimary: { model.selectContext(model.selectedContext) },
+                    onSecondary: { model.selectBottomDestination(.create) }
+                )
+            } else {
+                emptyPanel(title: "We couldn't load your moments", body: message, action: "Retry") {
+                    model.selectContext(model.selectedContext)
+                }
+            }
+        case .forbidden:
+            emptyPanel(
+                title: "No access",
+                body: "You no longer have access to this \(model.selectedContext.label.lowercased()) resource. Your session stays signed in."
+            )
+        case .deferred:
+            CircleComingSoonView()
+        case .empty:
+            emptyDestinationContent
+        case .ready(let detail):
+            readyDestinationBody(detail: detail)
+        }
+    }
+
+    @ViewBuilder
+    private var emptyDestinationContent: some View {
+        ContextEmptyExperienceView(
+            createModel: createModel,
+            context: model.selectedContext,
+            destination: model.bottomDestination,
+            experience: model.momentExperience,
+            moments: model.moments,
+            hasCompany: model.selectedCompany != nil,
+            selectedCompanyId: model.selectedCompany?.companyId,
+            momentTypeCode: model.selectedMomentTypeCode,
+            onCreateMoment: openNewMoment,
+            onCreateBack: {
+                if model.selectedContext == .group, groupCreatePhase != .chooser {
+                    groupCreatePhase = .chooser
+                } else {
+                    groupCreatePhase = .chooser
+                    model.exitCreateDestination()
+                }
+            },
+            onCompanyActivated: { model.onCompanyCreated($0) },
+            onMomentCreated: { outcome in
+                groupCreatePhase = .chooser
+                model.onMomentCreated(
+                    momentId: outcome.momentId,
+                    title: outcome.title,
+                    momentTypeCode: outcome.momentTypeCode,
+                    status: outcome.status
+                )
+            },
+            groupCreatePhase: groupCreatePhase,
+            onSelectExperience: {
+                groupCreatePhase = .experienceSetup
+                model.selectBottomDestination(.create)
+            },
+            onSelectPurchase: {
+                groupCreatePhase = .purchaseSetup
+                model.selectBottomDestination(.create)
+            },
+            onSelectLiving: {
+                groupCreatePhase = .livingSetup
+                model.selectBottomDestination(.create)
+            },
+            onExitGroupSetup: { groupCreatePhase = .chooser },
+            onJoinCode: redeemJoinCode,
+            onOpenCompletedMoments: {
+                groupDirectoryPreferCompleted = true
+                withAnimation(.easeInOut(duration: 0.28)) {
+                    groupMomentDirectoryOpen = true
+                }
+            },
+            onCreateBusiness: { businessSetupOpen = true },
+            onJoinCompany: { businessJoinOpen = true }
+        )
+    }
+
+    @ViewBuilder
+    private func readyDestinationBody(detail: String?) -> some View {
+        if model.selectedContext == .group {
+            groupReadyDestinationBody
+        } else if model.selectedContext == .personal,
+                  [.pulse, .moments, .memory, .life, .create].contains(model.bottomDestination) {
+            PersonalExperienceHost(
+                destination: model.bottomDestination,
+                onOpenLife: { model.selectBottomDestination(.life) },
+                onOpenPulse: { model.selectBottomDestination(.pulse) },
+                onOpenMoments: { model.selectBottomDestination(.moments) }
+            )
+        } else if model.selectedContext == .business,
+                  let momentId = model.selectedMomentId,
+                  BusinessOperatingVertical.forSubtype(
+                      model.selectedMomentTypeCode
+                          ?? model.moments.first(where: { $0.momentId == momentId })?.momentTypeCode
+                  ) != nil,
+                  [.pulse, .moments, .life, .memory, .create].contains(model.bottomDestination) {
+            OperatingExperienceHost(
+                momentId: momentId,
+                companyId: model.selectedCompany?.companyId
+                    ?? model.moments.first(where: { $0.momentId == momentId })?.companyId,
+                subtype: model.selectedMomentTypeCode
+                    ?? model.moments.first(where: { $0.momentId == momentId })?.momentTypeCode,
+                destination: model.bottomDestination,
+                refreshToken: model.businessTabRefreshToken,
+                onStoryReady: { id in storyMomentId = id }
+            )
+            .id(momentId)
+        } else if model.selectedContext == .business,
+                  [.pulse, .moments, .life, .memory, .create].contains(model.bottomDestination),
+                  model.selectedMomentId == nil {
+            businessEmptyExperience
+        } else {
+            emptyPanel(
+                title: "\(model.selectedContext.label) · \(model.bottomDestination.label)",
+                body: detail ?? "Active Moment ready. Product features arrive in later phases."
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var businessEmptyExperience: some View {
+        ContextEmptyExperienceView(
+            createModel: createModel,
+            context: model.selectedContext,
+            destination: model.bottomDestination,
+            experience: model.momentExperience,
+            moments: model.moments,
+            hasCompany: model.selectedCompany != nil,
+            selectedCompanyId: model.selectedCompany?.companyId,
+            momentTypeCode: model.selectedMomentTypeCode,
+            onCreateMoment: { model.selectBottomDestination(.create) },
+            onCreateBack: { model.exitCreateDestination() },
+            onCompanyActivated: { model.onCompanyCreated($0) },
+            onMomentCreated: { outcome in
+                model.onMomentCreated(
+                    momentId: outcome.momentId,
+                    title: outcome.title,
+                    momentTypeCode: outcome.momentTypeCode,
+                    status: outcome.status
+                )
+            },
+            onCreateBusiness: { businessSetupOpen = true },
+            onJoinCompany: { businessJoinOpen = true }
+        )
+    }
+
+    @ViewBuilder
+    private var groupReadyDestinationBody: some View {
+        let groupTypeCode = model.selectedMomentTypeCode
+            ?? model.moments.first(where: { $0.momentId == model.selectedMomentId })?.momentTypeCode
+        let groupFamily = GroupExperienceFamily.forTypeCode(groupTypeCode)
+        let experienceTheme = ExperienceActiveTheme.forFamily(groupFamily)
+        let purchaseTheme = PurchaseActiveTheme.forFamily(groupFamily)
+        let livingTheme = LivingActiveTheme.forFamily(groupFamily)
+
+        switch model.bottomDestination {
+        case .pulse:
+            groupPulseActive(
+                family: groupFamily,
+                typeCode: groupTypeCode,
+                experienceTheme: experienceTheme,
+                purchaseTheme: purchaseTheme,
+                livingTheme: livingTheme
+            )
+        case .moments:
+            groupMomentsActive(
+                family: groupFamily,
+                typeCode: groupTypeCode,
+                experienceTheme: experienceTheme,
+                purchaseTheme: purchaseTheme,
+                livingTheme: livingTheme
+            )
+        case .life:
+            groupLifeActive(
+                family: groupFamily,
+                experienceTheme: experienceTheme,
+                purchaseTheme: purchaseTheme,
+                livingTheme: livingTheme
+            )
+        case .memory:
+            groupMemoryActive(
+                family: groupFamily,
+                experienceTheme: experienceTheme,
+                purchaseTheme: purchaseTheme,
+                livingTheme: livingTheme
+            )
+        case .create:
+            groupQuickAddActive(
+                family: groupFamily,
+                typeCode: groupTypeCode,
+                experienceTheme: experienceTheme,
+                purchaseTheme: purchaseTheme,
+                livingTheme: livingTheme
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func groupPulseActive(
+        family: GroupExperienceFamily,
+        typeCode: String?,
+        experienceTheme: ExperienceActiveTheme,
+        purchaseTheme: PurchaseActiveTheme,
+        livingTheme: LivingActiveTheme
+    ) -> some View {
+        if family.isWedding {
+            WeddingPulseActiveView(
+                refreshToken: model.groupTabRefreshToken,
+                momentTitle: model.selectedMomentTitle,
+                momentId: model.selectedMomentId,
+                momentTypeCode: typeCode,
+                onAddExpense: { groupExpenseSheetPresented = true },
+                onOpenQuickAdd: { model.selectBottomDestination(.create) },
+                onViewSplits: { groupSplitsPresented = true },
+                onOpenFinance: { groupFinancePresented = true },
+                onQuickAddKind: { kind in weddingGapQa = kind },
+                onViewAllActivity: { groupRecentActivityOpen = true }
+            )
+        } else if family.isThemedExperience {
+            ExperiencePulseActiveView(
+                theme: experienceTheme,
+                refreshToken: model.groupTabRefreshToken,
+                momentTitle: model.selectedMomentTitle,
+                momentId: model.selectedMomentId,
+                momentTypeCode: typeCode,
+                viewerReadOnly: groupViewerReadOnly,
+                onAddExpense: {
+                    guard !groupViewerReadOnly else { return }
+                    groupExpenseSheetPresented = true
+                },
+                onOpenQuickAdd: { model.selectBottomDestination(.create) },
+                onViewSplits: { groupSplitsPresented = true },
+                onOpenFinance: { groupFinancePresented = true },
+                onQuickAddKind: { kind in
+                    guard !groupViewerReadOnly else { return }
+                    if kind == .participant {
+                        groupInviteSheetPresented = true
+                    } else {
+                        experienceGapQa = kind
+                    }
+                },
+                onViewAllActivity: { groupRecentActivityOpen = true }
+            )
+        } else if family.isThemedPurchase {
+            PurchasePulseActiveView(
+                theme: purchaseTheme,
+                refreshToken: model.groupTabRefreshToken,
+                momentTitle: model.selectedMomentTitle,
+                momentId: model.selectedMomentId,
+                momentTypeCode: typeCode,
+                onAddExpense: { groupExpenseSheetPresented = true },
+                onOpenQuickAdd: { model.selectBottomDestination(.create) },
+                onViewSplits: { groupSplitsPresented = true },
+                onOpenFinance: { groupFinancePresented = true },
+                onQuickAddKind: { kind in
+                    if kind == .contributor {
+                        groupInviteSheetPresented = true
+                    } else {
+                        purchaseGapQa = kind
+                    }
+                },
+                onViewAllActivity: { groupRecentActivityOpen = true }
+            )
+        } else if family.isThemedLiving {
+            LivingPulseActiveView(
+                theme: livingTheme,
+                refreshToken: model.groupTabRefreshToken,
+                momentTitle: model.selectedMomentTitle,
+                momentId: model.selectedMomentId,
+                momentTypeCode: typeCode,
+                onAddExpense: { groupExpenseSheetPresented = true },
+                onOpenQuickAdd: { model.selectBottomDestination(.create) },
+                onViewSplits: { groupSplitsPresented = true },
+                onOpenFinance: { groupFinancePresented = true },
+                onQuickAddKind: { kind in
+                    if kind == .resident {
+                        groupInviteSheetPresented = true
+                    } else {
+                        livingGapQa = kind
+                    }
+                },
+                onViewAllActivity: { groupRecentActivityOpen = true }
+            )
+        } else {
+            GroupPulseActiveView(
+                refreshToken: model.groupTabRefreshToken,
+                momentTitle: model.selectedMomentTitle,
+                momentId: model.selectedMomentId,
+                momentTypeCode: typeCode,
+                onAddExpense: { groupExpenseSheetPresented = true },
+                onViewSplits: { groupSplitsPresented = true },
+                onOpenFinance: { groupFinancePresented = true },
+                onOpenMemory: { groupCollabKind = .memory },
+                onOpenChat: { groupCollabKind = .update },
+                onOpenItinerary: { groupCollabKind = .planning },
+                onViewAllActivity: { groupRecentActivityOpen = true }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func groupMomentsActive(
+        family: GroupExperienceFamily,
+        typeCode: String?,
+        experienceTheme: ExperienceActiveTheme,
+        purchaseTheme: PurchaseActiveTheme,
+        livingTheme: LivingActiveTheme
+    ) -> some View {
+        if family.isWedding {
+            WeddingMomentsActiveView(
+                refreshToken: model.groupTabRefreshToken,
+                momentId: model.selectedMomentId,
+                momentTitle: model.selectedMomentTitle,
+                onOpenQuickAdd: { model.selectBottomDestination(.create) }
+            )
+        } else if family.isThemedExperience {
+            ExperienceMomentsActiveView(
+                theme: experienceTheme,
+                refreshToken: model.groupTabRefreshToken,
+                momentId: model.selectedMomentId,
+                momentTitle: model.selectedMomentTitle,
+                momentTypeCode: typeCode,
+                onOpenQuickAdd: { model.selectBottomDestination(.create) }
+            )
+        } else if family.isThemedPurchase {
+            PurchaseMomentsActiveView(
+                theme: purchaseTheme,
+                refreshToken: model.groupTabRefreshToken,
+                momentId: model.selectedMomentId,
+                momentTitle: model.selectedMomentTitle,
+                momentTypeCode: typeCode,
+                onOpenQuickAdd: { model.selectBottomDestination(.create) }
+            )
+        } else if family.isThemedLiving {
+            LivingMomentsActiveView(
+                theme: livingTheme,
+                refreshToken: model.groupTabRefreshToken,
+                momentId: model.selectedMomentId,
+                momentTitle: model.selectedMomentTitle,
+                momentTypeCode: typeCode,
+                onOpenQuickAdd: { model.selectBottomDestination(.create) }
+            )
+        } else {
+            GroupMomentsActiveView(
+                refreshToken: model.groupTabRefreshToken,
+                momentId: model.selectedMomentId,
+                momentTitle: model.selectedMomentTitle,
+                momentTypeCode: typeCode,
+                onCreateMoment: {
+                    groupCreatePhase = .chooser
+                    newMomentOpen = true
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func groupLifeActive(
+        family: GroupExperienceFamily,
+        experienceTheme: ExperienceActiveTheme,
+        purchaseTheme: PurchaseActiveTheme,
+        livingTheme: LivingActiveTheme
+    ) -> some View {
+        let isWedding = family.isWedding
+        let isExperience = family.isThemedExperience
+        let isPurchase = family.isThemedPurchase
+        let isLiving = family.isThemedLiving
+        GroupLifeActiveView(
+            refreshToken: model.groupTabRefreshToken,
+            momentId: model.selectedMomentId,
+            momentTitle: model.selectedMomentTitle,
+            onQuickAction: { action in
+                switch action {
+                case .experience:
+                    if isWedding { weddingGapQa = .planning }
+                    else if isExperience { experienceGapQa = .planning }
+                    else if isPurchase { purchaseGapQa = .purchaseItem }
+                    else if isLiving { livingGapQa = .task }
+                    else { groupCollabKind = .planning }
+                case .goal, .community:
+                    joinFeedbackMessage = action == .goal
+                        ? "Goal moments are coming soon."
+                        : "Community moments are coming soon."
+                case .purchase:
+                    if isWedding { weddingGapQa = .expense }
+                    else if isExperience { experienceGapQa = .expense }
+                    else if isPurchase { purchaseGapQa = .expense }
+                    else if isLiving { livingGapQa = .expense }
+                    else { groupExpenseSheetPresented = true }
+                case .living:
+                    if isWedding { weddingGapQa = .vendor }
+                    else if isExperience { experienceGapQa = experienceTheme.includesVendor ? .vendor : .booking }
+                    else if isPurchase { purchaseGapQa = purchaseTheme.includesVendor ? .vendor : .contribution }
+                    else if isLiving { groupInviteSheetPresented = true }
+                    else { groupCollabKind = .booking }
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func groupMemoryActive(
+        family: GroupExperienceFamily,
+        experienceTheme: ExperienceActiveTheme,
+        purchaseTheme: PurchaseActiveTheme,
+        livingTheme: LivingActiveTheme
+    ) -> some View {
+        if family.isWedding {
+            WeddingMemoryActiveView(
+                refreshToken: model.groupTabRefreshToken,
+                momentId: model.selectedMomentId,
+                momentTitle: model.selectedMomentTitle,
+                onOpenQuickAdd: { weddingGapQa = .memory }
+            )
+        } else if family.isThemedExperience {
+            ExperienceMemoryActiveView(
+                theme: experienceTheme,
+                refreshToken: model.groupTabRefreshToken,
+                momentId: model.selectedMomentId,
+                momentTitle: model.selectedMomentTitle,
+                onOpenQuickAdd: { experienceGapQa = .memory }
+            )
+        } else if family.isThemedPurchase {
+            PurchaseMemoryActiveView(
+                theme: purchaseTheme,
+                refreshToken: model.groupTabRefreshToken,
+                momentId: model.selectedMomentId,
+                momentTitle: model.selectedMomentTitle,
+                onOpenQuickAdd: { purchaseGapQa = .memory }
+            )
+        } else if family.isThemedLiving {
+            LivingMemoryActiveView(
+                theme: livingTheme,
+                refreshToken: model.groupTabRefreshToken,
+                momentId: model.selectedMomentId,
+                momentTitle: model.selectedMomentTitle,
+                onOpenQuickAdd: { livingGapQa = .memory }
+            )
+        } else {
+            GroupMemoryActiveView(
+                refreshToken: model.groupTabRefreshToken,
+                momentId: model.selectedMomentId,
+                momentTitle: model.selectedMomentTitle,
+                onOpenQuickAdd: { groupCollabKind = .memory }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func groupQuickAddActive(
+        family: GroupExperienceFamily,
+        typeCode: String?,
+        experienceTheme: ExperienceActiveTheme,
+        purchaseTheme: PurchaseActiveTheme,
+        livingTheme: LivingActiveTheme
+    ) -> some View {
+        if family.isWedding {
+            WeddingQuickAddHubView(
+                momentTitle: model.selectedMomentTitle,
+                hasActiveMoment: model.selectedMomentId != nil,
+                capabilityCodes: model.capabilities,
+                viewerReadOnly: groupViewerReadOnly,
+                onClose: { model.exitCreateDestination() },
+                onTile: { kind in
+                    guard !groupViewerReadOnly else { return }
+                    weddingGapQa = kind
+                },
+                onNewMoment: {
+                    groupCreatePhase = .chooser
+                    newMomentOpen = true
+                },
+                onJoinCode: redeemJoinCode
+            )
+        } else if family.isThemedExperience {
+            ExperienceQuickAddHubView(
+                theme: experienceTheme,
+                momentTitle: model.selectedMomentTitle,
+                hasActiveMoment: model.selectedMomentId != nil,
+                capabilityCodes: model.capabilities,
+                viewerReadOnly: groupViewerReadOnly,
+                onClose: { model.exitCreateDestination() },
+                onTile: { kind in
+                    if groupViewerReadOnly { return }
+                    if kind == .participant {
+                        groupInviteSheetPresented = true
+                    } else {
+                        experienceGapQa = kind
+                    }
+                },
+                onNewMoment: {
+                    groupCreatePhase = .chooser
+                    newMomentOpen = true
+                },
+                onJoinCode: redeemJoinCode
+            )
+        } else if family.isThemedPurchase {
+            PurchaseQuickAddHubView(
+                theme: purchaseTheme,
+                momentTitle: model.selectedMomentTitle,
+                hasActiveMoment: model.selectedMomentId != nil,
+                capabilityCodes: model.capabilities,
+                viewerReadOnly: groupViewerReadOnly,
+                onClose: { model.exitCreateDestination() },
+                onTile: { kind in
+                    guard !groupViewerReadOnly else { return }
+                    if kind == .contributor {
+                        groupInviteSheetPresented = true
+                    } else {
+                        purchaseGapQa = kind
+                    }
+                },
+                onNewMoment: {
+                    groupCreatePhase = .chooser
+                    newMomentOpen = true
+                },
+                onJoinCode: redeemJoinCode
+            )
+        } else if family.isThemedLiving {
+            LivingQuickAddHubView(
+                theme: livingTheme,
+                momentTitle: model.selectedMomentTitle,
+                hasActiveMoment: model.selectedMomentId != nil,
+                capabilityCodes: model.capabilities,
+                viewerReadOnly: groupViewerReadOnly,
+                onClose: { model.exitCreateDestination() },
+                onTile: { kind in
+                    guard !groupViewerReadOnly else { return }
+                    if kind == .resident {
+                        groupInviteSheetPresented = true
+                    } else {
+                        livingGapQa = kind
+                    }
+                },
+                onNewMoment: {
+                    groupCreatePhase = .chooser
+                    newMomentOpen = true
+                },
+                onJoinCode: redeemJoinCode
+            )
+        } else {
+            GroupQuickAddHubView(
+                hasActiveMoment: model.selectedMomentId != nil,
+                capabilityCodes: model.capabilities,
+                momentTypeCode: model.selectedMomentTypeCode,
+                momentTitle: model.selectedMomentTitle,
+                viewerReadOnly: groupViewerReadOnly,
+                onClose: { model.exitCreateDestination() },
+                onExpense: {
+                    guard !groupViewerReadOnly else { return }
+                    groupExpenseSheetPresented = true
+                },
+                onContribution: {
+                    guard !groupViewerReadOnly else { return }
+                    groupContributionSheetPresented = true
+                },
+                onSettle: {
+                    guard !groupViewerReadOnly else { return }
+                    groupSettlementSheetPresented = true
+                },
+                onParticipants: { groupParticipantsSheetPresented = true },
+                onInvite: {
+                    guard !groupViewerReadOnly else { return }
+                    groupInviteSheetPresented = true
+                },
+                onBudget: {
+                    guard !groupViewerReadOnly else { return }
+                    groupBudgetSheetPresented = true
+                },
+                onPlanning: {
+                    guard !groupViewerReadOnly else { return }
+                    groupCollabKind = .planning
+                },
+                onChecklist: {
+                    guard !groupViewerReadOnly else { return }
+                    groupCollabKind = .checklist
+                },
+                onBooking: {
+                    guard !groupViewerReadOnly else { return }
+                    groupCollabKind = .booking
+                },
+                onPoll: {
+                    guard !groupViewerReadOnly else { return }
+                    groupCollabKind = .poll
+                },
+                onUpdate: {
+                    guard !groupViewerReadOnly else { return }
+                    groupCollabKind = .update
+                },
+                onMemory: {
+                    guard !groupViewerReadOnly else { return }
+                    groupCollabKind = .memory
+                },
+                onPurchaseItem: {
+                    guard !groupViewerReadOnly else { return }
+                    groupCollabKind = .purchaseItem
+                },
+                onResident: {
+                    guard !groupViewerReadOnly else { return }
+                    groupInviteSheetPresented = true
+                },
+                onNewMoment: {
+                    groupCreatePhase = .chooser
+                    newMomentOpen = true
+                },
+                onJoinCode: redeemJoinCode
+            )
         }
     }
 
@@ -1905,6 +1847,17 @@ struct AppShellView: View {
             .presentationCornerRadius(24)
             .presentationBackground(GroupSetupTheme.card)
             .presentationDragIndicator(.visible)
+        }
+    }
+
+    /// Which kit screen the current bottom destination maps to, for error and loading bodies.
+    private func errorScreen(for destination: BottomDestination) -> BusinessAppStateScreen {
+        switch destination {
+        case .pulse: return .pulse
+        case .moments: return .moments
+        case .life: return .life
+        case .memory: return .memory
+        case .create: return .hub
         }
     }
 

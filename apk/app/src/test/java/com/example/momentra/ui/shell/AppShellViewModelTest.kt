@@ -251,6 +251,7 @@ class AppShellViewModelTest {
         vm.bindIdentity(ShellIdentity("u1", null, null, null))
         vm.selectContext(AppContext.BUSINESS)
         advanceUntilIdle()
+        // A company exists, so the shell shows the per-tab Pulse empty frame — not NoCompany.
         assertEquals("c1", vm.state.value.selectedCompany?.companyId)
         assertEquals(MomentExperienceKind.FIRST_MOMENT, vm.state.value.momentExperience)
         assertFalse(vm.state.value.showMomentSwitcher)
@@ -269,6 +270,63 @@ class AppShellViewModelTest {
         advanceUntilIdle()
         assertEquals(MomentExperienceKind.BETWEEN_MOMENTS, vm.state.value.momentExperience)
         assertFalse(vm.state.value.showMomentSwitcher)
+    }
+
+    @Test
+    fun businessCompanyIsSelectedSoTabsReachTheirOwnEmptyState() = runTest {
+        // Regression: `heal` drops the company id, which used to leave selectedCompany null and
+        // forced the NoCompany setup frame onto every business tab.
+        val vm = AppShellViewModel(
+            FakeMeGateway(
+                companies = listOf(CompanySummary("c1", "Acme")),
+                businessMoments = emptyList(),
+            ),
+        )
+        vm.bindIdentity(ShellIdentity("u1", null, null, null))
+        vm.selectContext(AppContext.BUSINESS)
+        advanceUntilIdle()
+        assertEquals("c1", vm.state.value.selectedCompany?.companyId)
+        assertTrue(vm.state.value.contextContent is ShellContentState.Empty)
+        assertEquals(MomentExperienceKind.FIRST_MOMENT, vm.state.value.momentExperience)
+    }
+
+    @Test
+    fun bootstrapWithoutTheSelectedCompanyRetainsIt() = runTest {
+        val gateway = FakeMeGateway(
+            companies = listOf(CompanySummary("c1", "Acme")),
+            businessMoments = emptyList(),
+        )
+        val vm = AppShellViewModel(gateway)
+        vm.bindIdentity(ShellIdentity("u1", null, null, null))
+        vm.selectContext(AppContext.BUSINESS)
+        advanceUntilIdle()
+        assertEquals("c1", vm.state.value.selectedCompany?.companyId)
+
+        // A later bootstrap that omits the company must not silently drop the selection.
+        gateway.overrideBootstrap = gateway.snapshot().copy(
+            companies = emptyList(),
+            selectedCompany = null,
+        )
+        vm.reloadCurrentContext()
+        advanceUntilIdle()
+        assertEquals("c1", vm.state.value.selectedCompany?.companyId)
+    }
+
+    @Test
+    fun leavingBusinessClearsTheSelectedCompany() = runTest {
+        val vm = AppShellViewModel(
+            FakeMeGateway(
+                companies = listOf(CompanySummary("c1", "Acme")),
+                personalMoments = listOf(MomentSummary("p1", "Life", "ACTIVE", "LIFE_RHYTHM")),
+            ),
+        )
+        vm.bindIdentity(ShellIdentity("u1", null, null, null))
+        vm.selectContext(AppContext.BUSINESS)
+        advanceUntilIdle()
+        assertEquals("c1", vm.state.value.selectedCompany?.companyId)
+        vm.selectContext(AppContext.PERSONAL)
+        advanceUntilIdle()
+        assertNull(vm.state.value.selectedCompany)
     }
 
     @Test
@@ -366,6 +424,7 @@ class AppShellViewModelTest {
     fun bottomNavRemainsUsableWhileEmpty() = runTest {
         val vm = AppShellViewModel(FakeMeGateway())
         vm.bindIdentity(ShellIdentity("u1", null, null, null))
+        vm.selectContext(AppContext.GROUP)
         advanceUntilIdle()
         vm.selectBottomDestination(BottomDestination.MOMENTS)
         vm.selectBottomDestination(BottomDestination.LIFE)
@@ -445,18 +504,23 @@ private open class FakeMeGateway(
     private val bootstrapError: Throwable? = null,
     private val cacheFresh: Boolean = false,
 ) : MeGateway {
+    /** Mutable override so a later bootstrap can omit a company the user already selected. */
+    var overrideBootstrap: com.example.momentra.domain.ShellBootstrap? = null
+
     override suspend fun getMe(): Result<ShellIdentity> =
         Result.success(ShellIdentity(userId, null, null, null))
 
     override suspend fun getBootstrap(): Result<com.example.momentra.domain.ShellBootstrap> {
         if (bootstrapError != null) return Result.failure(bootstrapError)
-        return Result.success(bootstrapSnapshot())
+        return Result.success(overrideBootstrap ?: bootstrapSnapshot())
     }
 
     override fun cachedBootstrap(userId: String): com.example.momentra.domain.ShellBootstrap? =
         if (cacheFresh) bootstrapSnapshot() else null
 
     override fun isBootstrapCacheFresh(userId: String, maxAgeMs: Long): Boolean = cacheFresh
+
+    fun snapshot() = bootstrapSnapshot()
 
     private fun bootstrapSnapshot() = com.example.momentra.domain.ShellBootstrap(
         identity = ShellIdentity(userId, null, null, null),

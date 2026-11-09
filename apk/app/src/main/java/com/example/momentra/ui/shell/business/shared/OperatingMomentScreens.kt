@@ -87,6 +87,9 @@ fun OperatingMomentPage(
     onOpenQuickAdd: () -> Unit = {},
     /** Opens the Pulse "Needs Attention" view-all sheet (app-state kit ViewAll variant). */
     onViewAllAttention: () -> Unit = {},
+    /** Moves the shell to another moment; the `Switch Moment` sheet delegates here. */
+    onSwitchMoment: ((String) -> Unit)? = null,
+    companyId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     if (momentId.isNullOrBlank()) {
@@ -103,6 +106,8 @@ fun OperatingMomentPage(
     val repo = remember { BusinessSliceRepository() }
     val activeMomentId = momentId
     androidx.compose.runtime.SideEffect {
+        OperatingChromeState.momentId = activeMomentId
+        OperatingChromeState.onSwitchMoment = onSwitchMoment
         OperatingChromeState.record = { draft ->
             repo.recordOperatingEvent(
                 activeMomentId,
@@ -136,7 +141,7 @@ fun OperatingMomentPage(
             )
         }
     }
-    LaunchedEffect(momentId, refreshToken, tick) {
+    LaunchedEffect(momentId, refreshToken, tick, OperatingChromeState.refresh) {
         repo.getOperating(momentId).fold(
             onSuccess = {
                 OperatingProjectionCache.put(momentId, it)
@@ -148,6 +153,25 @@ fun OperatingMomentPage(
                 if (projection == null) error = it.message ?: "Could not load this moment"
             },
         )
+    }
+    // The shared chrome sheets (masters, story, pickers) take the vertical's palette.
+    androidx.compose.runtime.SideEffect {
+        when (projection?.subtype) {
+            "DISTRIBUTION_DEALERSHIP" -> {
+                OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.distribution.DistBrand
+                OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.distribution.DistBg
+                OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.distribution.DistBorder
+                OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.distribution.DistInk
+                OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.distribution.DistSecondary
+            }
+            else -> {
+                OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.trading.TradeBrand
+                OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.trading.TradeBg
+                OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.trading.TradeBorder
+                OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.trading.TradeInk
+                OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.trading.TradeSecondary
+            }
+        }
     }
     val model = projection
     if (model?.retired == true) {
@@ -429,6 +453,7 @@ fun OperatingMomentPage(
                     onFailure = { error = it.message },
                 )
             },
+            companyId = companyId,
             modifier = modifier,
         )
         return
@@ -801,7 +826,7 @@ private fun InfoCard(label: String, body: String) {
 }
 
 @Composable
-internal fun OperatingChromeSheets(model: OperatingProjectionDto) {
+internal fun OperatingChromeSheets(model: OperatingProjectionDto, companyId: String? = null) {
     val editing = OperatingChromeState.editing
     val settling = OperatingChromeState.settling
     val record = OperatingChromeState.record
@@ -843,4 +868,85 @@ internal fun OperatingChromeSheets(model: OperatingProjectionDto) {
             },
         )
     }
+
+    // Story config — `TRD-MEMORY-v12` / `DST-MEMORY-v12` Memory-tab CTA.
+    val storyId = OperatingChromeState.momentId
+    if (OperatingChromeState.storyConfigOpen && storyId != null) {
+        OperatingSheetScrim(
+            onDismiss = { OperatingChromeState.storyConfigOpen = false },
+            accent = OperatingChromeState.storyAccent,
+            surface = OperatingChromeState.storySurface,
+            border = OperatingChromeState.storyBorder,
+        ) {
+            if (model.subtype == "DISTRIBUTION_DEALERSHIP") {
+                com.example.momentra.ui.shell.business.distribution.DistributionStoryConfigSheet(
+                    model = model,
+                    momentId = storyId,
+                    theme = OperatingChromeState.storyTheme(),
+                    onDismiss = { OperatingChromeState.storyConfigOpen = false },
+                )
+            } else {
+                com.example.momentra.ui.shell.business.trading.TradingStoryConfigSheet(
+                    model = model,
+                    momentId = storyId,
+                    theme = OperatingChromeState.storyTheme(),
+                    onDismiss = { OperatingChromeState.storyConfigOpen = false },
+                )
+            }
+        }
+    }
+
+    // Masters — opened from Quick Add or a view-all sheet.
+    val mastersTab = OperatingChromeState.mastersOpen
+    val mastersMomentId = OperatingChromeState.momentId
+    if (mastersTab != null && mastersMomentId != null) {
+        val tab = OperatingMasterTab.entries.firstOrNull { it.name == mastersTab } ?: OperatingMasterTab.Catalogue
+        OperatingSheetScrim(
+            onDismiss = { OperatingChromeState.mastersOpen = null },
+            accent = OperatingChromeState.storyAccent,
+            surface = OperatingChromeState.storySurface,
+            border = OperatingChromeState.storyBorder,
+        ) {
+            OperatingMastersSheet(
+                tab = tab,
+                model = model,
+                context = OperatingMasterContext(
+                    companyId = companyId,
+                    momentId = mastersMomentId,
+                    onChanged = { OperatingChromeState.refresh += 1 },
+                ),
+                theme = OperatingChromeState.storyTheme(),
+                onClose = { OperatingChromeState.mastersOpen = null },
+            )
+        }
+    }
+
+    // `Switch Moment` — `TRD-SWITCH 2566:33577`. Selecting a moment is delegated to the
+    // shell so this sheet never navigates on its own.
+    if (OperatingChromeState.switchMomentOpen) {
+        OperatingSheetScrim(
+            onDismiss = { OperatingChromeState.switchMomentOpen = false },
+            accent = OperatingChromeState.storyAccent,
+            surface = OperatingChromeState.storySurface,
+            border = OperatingChromeState.storyBorder,
+        ) {
+            OperatingSwitchMomentSheet(
+                currentMomentId = OperatingChromeState.momentId,
+                theme = OperatingChromeState.storyTheme(),
+                onDismiss = { OperatingChromeState.switchMomentOpen = false },
+                onSelect = {
+                    OperatingChromeState.switchMomentOpen = false
+                    OperatingChromeState.onSwitchMoment?.invoke(it)
+                },
+            )
+        }
+    }
 }
+
+/** The eight chapters the backend composes for each vertical. */
+internal val TRADING_STORY_PAGES = listOf(
+    "Moment", "Motion", "Orders", "Money", "Stock", "Network", "Attention", "So far",
+)
+internal val DISTRIBUTION_STORY_PAGES = listOf(
+    "Moment", "Motion", "Dealers", "Money", "Stock", "Network", "Attention", "So far",
+)

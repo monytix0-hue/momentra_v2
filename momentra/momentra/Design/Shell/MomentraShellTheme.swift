@@ -7,8 +7,6 @@ enum GlobalTheme {
     static let contextUnselected = Color(hex: 0xC9C4D9)
     static let bottomSelected = Color(hex: 0xC9BFFF)
     static let bottomUnselected = Color(hex: 0xC9C4D8)
-    static let companyChipBackground = Color(hex: 0x1A2030)
-    static let companyChipBorder = Color(hex: 0x3A4258)
     static let actionCircle = Color(hex: 0x1E293B)
     static let statusOnline = Color(hex: 0x10B981)
     static let moduleCardBackground = Color(hex: 0x161B26)

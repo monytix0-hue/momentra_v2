@@ -49,3 +49,22 @@ backend/venv/
 *.log
 .DS_Store
 Thumbs.db
+
+# Design export dumps (hundreds of MB, regenerable from Figma)
+figma_data.json
+figma_design_data.json
+figma_frame_data.json
+frame-*.json
+.figma_tmp/
+graphify-out/
+
+# Local agent settings + ad-hoc scratch scripts
+.claude/settings.local.json
+.claude/settings.sync-conflict-*.json
+settings.json*
+.dump*
+.tmp_*
+backend/typescript/tmpdbg/
+tools/design-pipeline/package.tmp.json
+test.png
+
