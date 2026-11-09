@@ -77,15 +77,24 @@ struct BusinessSetupWizardView: View {
         _momentStatus = State(initialValue: editingMomentId == nil ? "DRAFT" : "ACTIVE")
     }
 
+    /// The document's own palette. Every card, field, chip and pill in the six sections reads
+    /// from this, never from `OperatingTheme` — that is what the Android `SetupDocumentKit` does,
+    /// and what makes the two platforms render the same document.
+    private var docTheme: BusinessSetupDocTheme {
+        BusinessSetupDocTheme.theme(for: doc.vertical)
+    }
+
+    /// Only the sheets and the masters view are operating surfaces; the document itself does not
+    /// use this.
     private var theme: OperatingTheme {
         OperatingTheme(vertical: doc.vertical)
     }
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            theme.canvas.ignoresSafeArea()
+            docTheme.canvas.ignoresSafeArea()
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: SetupDocSectionGap.value) {
                     header
                     kindCard
                     ForEach(BusinessSetupDocSpec.sections(doc.vertical)) { section in
@@ -94,13 +103,13 @@ struct BusinessSetupWizardView: View {
                     if let error = createModel.state.error, !error.isEmpty {
                         Text(error)
                             .font(.plusJakarta(size: 13))
-                            .foregroundStyle(theme.negative)
+                            .foregroundStyle(docTheme.negative)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     Spacer(minLength: 28)
                 }
                 .padding(.horizontal, 17)
-                .padding(.top, 16)
+                .padding(.vertical, 16)
             }
             .scrollDismissesKeyboard(.interactively)
         }
@@ -141,7 +150,7 @@ struct BusinessSetupWizardView: View {
                 Button(action: close) {
                     Text("‹  Close")
                         .font(.plusJakarta(size: 14))
-                        .foregroundStyle(theme.muted)
+                        .foregroundStyle(docTheme.muted)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 6)
                         .contentShape(Rectangle())
@@ -151,41 +160,71 @@ struct BusinessSetupWizardView: View {
                 Spacer(minLength: 4)
                 Text(BusinessSetupDocSpec.kindLabel(doc.vertical))
                     .font(.plusJakarta(size: 11, weight: .semibold))
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(docTheme.accent)
             }
 
             ZStack {
+                if doc.vertical.isMarketing {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [
+                                    BusinessSetupDocTheme.emblemGlow.opacity(0.40),
+                                    BusinessSetupDocTheme.emblemGlow.opacity(0.12),
+                                    .clear,
+                                ],
+                                center: .center,
+                                startRadius: 8,
+                                endRadius: 60
+                            )
+                        )
+                        .frame(width: 120, height: 120)
+                }
                 Circle()
-                    .fill(theme.surface)
+                    .fill(docTheme.card)
+                    .frame(width: 96, height: 96)
+                    .shadow(
+                        color: doc.vertical.isMarketing
+                            ? BusinessSetupDocTheme.emblemGlow.opacity(0.40)
+                            : .clear,
+                        radius: 20
+                    )
                 Circle()
-                    .stroke(theme.border, lineWidth: 1)
-                Text("◈")
-                    .font(.plusJakarta(size: 44, weight: .semibold))
-                    .foregroundStyle(theme.ink)
+                    .stroke(docTheme.border, lineWidth: 1)
+                    .frame(width: 96, height: 96)
+                if doc.vertical.isMarketing {
+                    Image("MarketingSetupMega")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 40, height: 40)
+                } else {
+                    Text("◈")
+                        .font(.plusJakarta(size: 44, weight: .semibold))
+                        .foregroundStyle(docTheme.ink)
+                }
             }
-            .frame(width: 96, height: 96)
+            .frame(width: 120, height: 120)
             .frame(maxWidth: .infinity)
 
             Text("\(displayName) Setup")
                 .font(.plusJakarta(size: 32, weight: .semibold))
-                .foregroundStyle(theme.ink)
+                .foregroundStyle(docTheme.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("Bring your business, people, and monthly plan together before you start.")
                 .font(.plusJakarta(size: 14))
-                .foregroundStyle(theme.muted)
+                .foregroundStyle(docTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack {
                 Spacer(minLength: 0)
                 Text(BusinessSetupDocSpec.statusPillLabel(status: momentStatus))
                     .font(.plusJakarta(size: 11, weight: .semibold))
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(docTheme.accent)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(theme.surface)
+                    .background(docTheme.card)
                     .clipShape(Capsule())
-                    .overlay(Capsule().stroke(theme.accent.opacity(0.4), lineWidth: 1))
                 Spacer(minLength: 0)
             }
         }
@@ -198,14 +237,22 @@ struct BusinessSetupWizardView: View {
 
     // MARK: - Kind switcher
 
-    /// §00 `Kind of business` — a subtype switcher inside the setup, not a family picker.
+    /// §00 kind tiles — Trading↔Distribution or Client↔Own for marketing.
     private var kindCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Kind of business")
+        let options: [BusinessOperatingVertical] = {
+            switch kind {
+            case .marketing: return [.clientCampaign, .ownBusinessCampaign]
+            case .manufacturing: return [.standardProduction, .madeToOrder]
+            case .retail: return [.retailStore, .restaurantFood, .consumerService]
+            default: return [.distribution, .trading]
+            }
+        }()
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(kind == .marketing ? "Kind of campaign" : "Kind of business")
                 .font(.plusJakarta(size: 11, weight: .semibold))
-                .foregroundStyle(theme.muted)
+                .foregroundStyle(docTheme.muted)
             HStack(spacing: 10) {
-                ForEach([BusinessOperatingVertical.distribution, .trading], id: \.rawValue) { vertical in
+                ForEach(options, id: \.rawValue) { vertical in
                     let on = doc.vertical == vertical
                     Button {
                         doc.switchVertical(vertical)
@@ -213,35 +260,39 @@ struct BusinessSetupWizardView: View {
                         VStack(spacing: 4) {
                             Text("◈")
                                 .font(.plusJakarta(size: 20, weight: .semibold))
-                                .foregroundStyle(on ? theme.ink : theme.muted)
+                                .foregroundStyle(on ? docTheme.ink : docTheme.muted)
                             Text(BusinessSetupDocSpec.kindLabel(vertical))
                                 .font(.plusJakarta(size: 11, weight: .semibold))
-                                .foregroundStyle(on ? theme.ink : theme.muted)
+                                .foregroundStyle(on ? docTheme.ink : docTheme.muted)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background(theme.surface)
+                        .background(docTheme.card)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(on ? theme.accent : theme.border, lineWidth: 1)
+                                .stroke(on ? docTheme.accent : docTheme.border, lineWidth: 1)
                         )
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("setup.kind.\(vertical.storyNoun)")
                 }
             }
-            Text("6 steps · \(BusinessSetupDocSpec.kindLabel(doc.vertical)) setup")
+            Text(
+                kind == .marketing
+                    ? "4 sections + GST & Review"
+                    : "6 steps · \(BusinessSetupDocSpec.kindLabel(doc.vertical)) setup"
+            )
                 .font(.plusJakarta(size: 12))
-                .foregroundStyle(theme.muted)
+                .foregroundStyle(docTheme.muted)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.surface)
+        .background(docTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(theme.border, lineWidth: 1)
+                .stroke(docTheme.border, lineWidth: 1)
         )
     }
 
@@ -249,27 +300,15 @@ struct BusinessSetupWizardView: View {
 
     @ViewBuilder
     private func sectionView(_ section: BusinessSetupSectionSpec) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(section.number)
-                    .font(.plusJakarta(size: 13, weight: .bold))
-                    .foregroundStyle(theme.accent)
-                Text(section.title)
-                    .font(.plusJakarta(size: 18, weight: .semibold))
-                    .foregroundStyle(theme.ink)
-                Spacer(minLength: 0)
-            }
-            if !section.subtitle.isEmpty {
-                Text(section.subtitle)
-                    .font(.plusJakarta(size: 12))
-                    .foregroundStyle(theme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        SetupSectionCard(spec: section, theme: docTheme) {
             switch section.number {
             case "01": basicsSection
             case "02": peopleSection
-            case "03": planSection
-            case "04": mastersSection
+            case "03":
+                // Marketing stacks network before the monthly plan; trading keeps plan then masters.
+                if doc.vertical.isMarketing { mastersSection } else { planSection }
+            case "04":
+                if doc.vertical.isMarketing { planSection } else { mastersSection }
             case "05": gstSection
             default: reviewSection
             }
@@ -280,30 +319,43 @@ struct BusinessSetupWizardView: View {
     // MARK: §01
 
     private var basicsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            panel("Identity") {
-                field("Business name", text: $doc.businessName, placeholder: "Northstar Trading")
-                field("Company name", text: $doc.companyName, hint: "Registered company name", placeholder: displayName)
-                field(
-                    "GSTIN",
-                    text: Binding(
-                        get: { doc.gstin },
-                        set: { doc.gstin = $0.uppercased() }
-                    ),
-                    hint: IndiaStateCatalog.gstinStateHint(gstin: doc.gstin, state: doc.gstState)
-                        ?? "15-digit GSTIN, if you have one",
-                    placeholder: "29ABCDE4321T1Z5"
-                )
+        VStack(alignment: .leading, spacing: 14) {
+            SetupPanelCard(title: "Identity", theme: docTheme) {
+                if doc.vertical.isMarketing {
+                    field(
+                        "Campaign name",
+                        text: $doc.businessName,
+                        placeholder: doc.vertical == .ownBusinessCampaign ? "Spring launch" : "Brightline Q2"
+                    )
+                    field(
+                        doc.vertical == .ownBusinessCampaign ? "Brand / business" : "Client",
+                        text: $doc.location,
+                        placeholder: doc.vertical == .ownBusinessCampaign ? "Your brand" : "Client name"
+                    )
+                } else {
+                    field("Business name", text: $doc.businessName, placeholder: "Northstar Trading")
+                    field("Company name", text: $doc.companyName, hint: "Registered company name", placeholder: displayName)
+                    field(
+                        "GSTIN",
+                        text: Binding(
+                            get: { doc.gstin },
+                            set: { doc.gstin = $0.uppercased() }
+                        ),
+                        hint: IndiaStateCatalog.gstinStateHint(gstin: doc.gstin, state: doc.gstState)
+                            ?? "15-digit GSTIN, if you have one",
+                        placeholder: "29ABCDE4321T1Z5"
+                    )
+                }
                 pickerRow(
                     "Currency",
                     value: doc.currency,
                     tag: "setup.field.currency"
                 ) { sheetVerticalPicker() }
-                HStack(spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
                     dateSlot(
                         label: "Start date",
                         value: doc.startDate,
-                        placeholder: "Today",
+                        placeholder: doc.vertical.isMarketing ? "Required" : "Today",
                         tag: "setup.field.startDate",
                         onPick: { doc.startDate = $0 }
                     )
@@ -316,15 +368,17 @@ struct BusinessSetupWizardView: View {
                     )
                 }
             }
-            panel("Dates & more") {
-                field(
-                    "Description",
-                    text: $doc.description,
-                    placeholder: "Everyday notes about this business",
-                    axis: .vertical
-                )
-                field("Location", text: $doc.location, placeholder: "Add your DC location")
-                footnote("You can fill in the extra details later.")
+            if !doc.vertical.isMarketing {
+                SetupPanelCard(title: "Dates & more", theme: docTheme) {
+                    field(
+                        "Description",
+                        text: $doc.description,
+                        placeholder: "Everyday notes about this business",
+                        axis: .vertical
+                    )
+                    field("Location", text: $doc.location, placeholder: "Add your DC location")
+                    footnote("You can fill in the extra details later.", size: 11)
+                }
             }
         }
     }
@@ -334,68 +388,63 @@ struct BusinessSetupWizardView: View {
     private var peopleSection: some View {
         let owner = ownerName.trimmingCharacters(in: .whitespacesAndNewlines)
         let ownerDisplay = owner.isEmpty ? "You" : owner
-        return VStack(alignment: .leading, spacing: 12) {
+        return VStack(alignment: .leading, spacing: 14) {
             // One card with the owner first and every invitee under it — the group setup people
             // card keeps one container and separates its rows with a hairline, so the team reads
             // as one list rather than a person plus a detached block of names.
             VStack(spacing: 10) {
                 HStack(spacing: 10) {
-                    Text(BusinessSetupDocSpec.initials(ownerDisplay))
-                        .font(.plusJakarta(size: 15, weight: .bold))
-                        .foregroundStyle(theme.onAccent)
-                        .frame(width: 44, height: 44)
-                        .background(theme.accent)
-                        .clipShape(Circle())
+                    SetupDocAvatar(initials: BusinessSetupDocSpec.initials(ownerDisplay), theme: docTheme, size: 44, tone: docTheme.accent)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(ownerDisplay) · You")
                             .font(.plusJakarta(size: 14, weight: .bold))
-                            .foregroundStyle(theme.ink)
+                            .foregroundStyle(docTheme.ink)
                             .lineLimit(1)
                         Text("Owner · \(displayName)")
                             .font(.plusJakarta(size: 12))
-                            .foregroundStyle(theme.muted)
+                            .foregroundStyle(docTheme.muted)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 4)
                     Text("You are owner")
                         .font(.plusJakarta(size: 10, weight: .bold))
-                        .foregroundStyle(theme.accent)
+                        .foregroundStyle(docTheme.accent)
+                        .lineLimit(1)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(theme.accent.opacity(0.13))
+                        .background(docTheme.accent.opacity(0.13))
                         .clipShape(Capsule())
-                        .overlay(Capsule().stroke(theme.accent, lineWidth: 1))
+                        .overlay(Capsule().stroke(docTheme.accent, lineWidth: 1))
                 }
 
                 // Everyone already invited, as live rows rather than a count — a name is what
                 // makes a pending invite believable, exactly as the group card lists its people.
                 ForEach(doc.invitees) { invitee in
-                    Divider().overlay(theme.border)
+                    Divider().overlay(docTheme.border)
                     inviteeRow(invitee)
                 }
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.inset)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(theme.border, lineWidth: 1)
+                    .stroke(docTheme.border, lineWidth: 1)
             )
 
-            panel("Roles on invite") {
+            SetupPanelCard(title: "Roles on invite", theme: docTheme) {
                 chipRow(
                     doc.roles.map(\.label),
                     selected: [doc.inviteRoleLabel]
                 ) { doc.inviteRole = BusinessSetupDocSpec.roleCode($0) }
                 HStack(alignment: .top) {
-                    footnote(BusinessSetupDocSpec.inviteAccessNote(doc.inviteRole))
+                    footnote(BusinessSetupDocSpec.inviteAccessNote(doc.inviteRole), size: 11)
                     Spacer(minLength: 8)
                     // The group card shows the count beside the roles rather than in a second
                     // panel — a duplicate team panel would list the same people twice.
                     Text(doc.invitees.isEmpty ? "No invites yet" : "\(doc.invitees.count) pending")
                         .font(.plusJakarta(size: 11))
-                        .foregroundStyle(theme.muted)
+                        .foregroundStyle(docTheme.muted)
                         .lineLimit(1)
                 }
             }
@@ -403,14 +452,14 @@ struct BusinessSetupWizardView: View {
             HStack(spacing: 10) {
                 // Enabled before the first mint on purpose: a share mints on demand, so it never
                 // depends on the sheet having been opened first.
-                outlineAction("Share QR", enabled: true, busy: mintingInvite) { shareInviteQr() }
-                outlineAction("WhatsApp", enabled: true, busy: mintingInvite) { shareInviteWhatsApp() }
+                SetupDocOutlineAction(title: "Share QR", theme: docTheme, busy: mintingInvite) { shareInviteQr() }
+                SetupDocOutlineAction(title: "WhatsApp", theme: docTheme, busy: mintingInvite) { shareInviteWhatsApp() }
             }
 
             if let inviteError, !inviteError.isEmpty {
                 Text(inviteError)
                     .font(.plusJakarta(size: 12))
-                    .foregroundStyle(theme.negative)
+                    .foregroundStyle(docTheme.negative)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -419,12 +468,12 @@ struct BusinessSetupWizardView: View {
             } label: {
                 Text("+ Invite people · \(doc.inviteRoleLabel)")
                     .font(.plusJakarta(size: 14, weight: .bold))
-                    .foregroundStyle(theme.ink)
+                    .foregroundStyle(docTheme.ink)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(theme.accent.opacity(0.45), lineWidth: 1)
+                            .stroke(docTheme.accent.opacity(0.45), lineWidth: 1)
                     )
             }
             .buttonStyle(.plain)
@@ -440,20 +489,15 @@ struct BusinessSetupWizardView: View {
     /// One invited person: initials, name, and the role the pending invite grants.
     private func inviteeRow(_ invitee: BusinessSetupInvitee) -> some View {
         HStack(spacing: 10) {
-            Text(BusinessSetupDocSpec.initials(invitee.name))
-                .font(.plusJakarta(size: 13, weight: .bold))
-                .foregroundStyle(theme.muted)
-                .frame(width: 40, height: 40)
-                .background(theme.surface.opacity(0.6))
-                .clipShape(Circle())
+            SetupDocAvatar(initials: BusinessSetupDocSpec.initials(invitee.name), theme: docTheme, size: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text(invitee.name)
                     .font(.plusJakarta(size: 14, weight: .bold))
-                    .foregroundStyle(theme.ink)
+                    .foregroundStyle(docTheme.ink)
                     .lineLimit(1)
                 Text(BusinessSetupDocSpec.teamMeta(status: "PENDING", role: invitee.roleLabel))
                     .font(.plusJakarta(size: 12))
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(docTheme.accent)
                     .lineLimit(1)
             }
             Spacer(minLength: 4)
@@ -462,7 +506,7 @@ struct BusinessSetupWizardView: View {
             } label: {
                 Text("Remove")
                     .font(.plusJakarta(size: 12, weight: .semibold))
-                    .foregroundStyle(theme.muted)
+                    .foregroundStyle(docTheme.muted)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .contentShape(Rectangle())
@@ -472,47 +516,15 @@ struct BusinessSetupWizardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The group card's two dotted actions: a QR for the room, WhatsApp for the person. While a
-    /// mint is in flight the pair shows that rather than greying out for no stated reason. A
-    /// share mints on demand, so both stay live before the first code exists.
-    private func outlineAction(
-        _ title: String,
-        enabled: Bool,
-        busy: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        let live = enabled && !busy
-        return Button(action: action) {
-            Group {
-                if busy {
-                    ProgressView()
-                        .tint(theme.accent)
-                } else {
-                    Text(title)
-                        .font(.plusJakarta(size: 13, weight: .semibold))
-                        .foregroundStyle(live ? theme.ink : theme.muted)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(theme.border, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(!live)
-    }
-
     // MARK: §03
 
     private var planSection: some View {
         let budgetOk = (Decimal(string: BusinessSetupDocSpec.plainAmount(doc.budget)) ?? 0) > 0
         let targetOk = (Decimal(string: BusinessSetupDocSpec.plainAmount(doc.target)) ?? 0) > 0
-        return VStack(alignment: .leading, spacing: 12) {
-            panel("Channels") {
+        return VStack(alignment: .leading, spacing: 14) {
+            SetupPanelCard(title: "Channels", theme: docTheme) {
                 chipRow(doc.channelChoices, selected: doc.channels) { doc.toggleChannel($0) }
-                footnote(BusinessSetupDocSpec.channelHint(selected: doc.channels.count))
+                footnote(BusinessSetupDocSpec.channelHint(selected: doc.channels.count), size: 11)
             }
             pickerRow("Month", value: BusinessSetupDocSpec.monthLabel(doc.month), tag: "setup.field.month") {
                 sheetMonthPicker()
@@ -553,7 +565,7 @@ struct BusinessSetupWizardView: View {
     // MARK: §04
 
     private var mastersSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) {
             masterRow(
                 glyph: "◇",
                 title: "Catalogue & SKU",
@@ -601,13 +613,13 @@ struct BusinessSetupWizardView: View {
     // MARK: §05
 
     private var gstSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             Button {
                 doc.gstOpen.toggle()
             } label: {
                 Text(doc.gstOpen ? "Hide GST setup" : "Show GST setup")
                     .font(.plusJakarta(size: 12, weight: .semibold))
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(docTheme.accent)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .contentShape(Rectangle())
@@ -615,46 +627,45 @@ struct BusinessSetupWizardView: View {
             .buttonStyle(.plain)
 
             if doc.gstOpen {
-                panel("Tracking") {
+                SetupPanelCard(title: "Tracking", theme: docTheme) {
                     chipRow(
                         BusinessSetupDocSpec.gstTrackingLabels,
                         selected: [doc.gstTracking],
                         label: "Do you want to track GST in this Moment?"
                     ) { doc.gstTracking = $0 }
                     if doc.gstTracking != "Yes" {
-                        footnote(BusinessSetupDocSpec.gstSkipCaveat)
+                        footnote(BusinessSetupDocSpec.gstSkipCaveat, size: 11)
                     }
                 }
                 if doc.gstTracking == "Yes" {
-                    panel("Registration") {
+                    SetupPanelCard(title: "Registration", theme: docTheme) {
                         chipRow(
                             BusinessSetupDocSpec.gstRegistrationLabels,
                             selected: [doc.gstRegistration],
                             label: "How is your business registered for GST?"
                         ) { doc.gstRegistration = $0 }
-                        pickerSlot(
+                        pickerRow(
                             "Which state is your business registered in?",
                             value: doc.gstState,
                             placeholder: "Pick a state",
                             hint: IndiaStateCatalog.gstinStateHint(gstin: doc.gstin, state: doc.gstState)
                                 ?? "Used to decide CGST + SGST or IGST on every sale.",
                             tag: "setup.field.gstState"
-                        ) { route = .gstState }
+                        ) { route = .picker(.gstState) }
                     }
-                    panel("Pricing") {
+                    SetupPanelCard(title: "Pricing", theme: docTheme) {
                         chipRow(
                             BusinessSetupDocSpec.gstPricingLabels,
                             selected: [doc.gstPricing],
                             label: "Do prices include GST?"
                         ) { doc.gstPricing = $0 }
-                        footnote(BusinessSetupDocSpec.gstNote)
+                        footnote(BusinessSetupDocSpec.gstNote, size: 11)
                         dateSlot(
                             label: "Effective from (optional)",
                             value: doc.gstEffectiveFrom,
                             placeholder: "YYYY-MM-DD",
                             tag: "setup.field.gstEffectiveFrom",
-                            onPick: { doc.gstEffectiveFrom = $0 },
-                            fullWidth: true
+                            onPick: { doc.gstEffectiveFrom = $0 }
                         )
                     }
                 }
@@ -667,11 +678,11 @@ struct BusinessSetupWizardView: View {
     private var reviewSection: some View {
         let owner = ownerName.trimmingCharacters(in: .whitespacesAndNewlines)
         let month = BusinessSetupDocSpec.monthLabel(doc.month)
-        return VStack(alignment: .leading, spacing: 12) {
-            panel("Moment") {
+        return VStack(alignment: .leading, spacing: 14) {
+            SetupPanelCard(title: "Moment", theme: docTheme) {
                 Text(displayName)
                     .font(.plusJakarta(size: 15, weight: .bold))
-                    .foregroundStyle(theme.ink)
+                    .foregroundStyle(docTheme.ink)
                 Text(BusinessSetupDocSpec.momentLine(
                     vertical: doc.vertical,
                     currency: BusinessSetupDocSpec.currencyCode(doc.currency),
@@ -679,9 +690,9 @@ struct BusinessSetupWizardView: View {
                     endDate: doc.endDate
                 ))
                 .font(.plusJakarta(size: 12))
-                .foregroundStyle(theme.muted)
+                .foregroundStyle(docTheme.muted)
             }
-            panel("Summary") {
+            SetupPanelCard(title: "Summary", theme: docTheme) {
                 keyValue("Company", doc.companyName.isEmpty ? (doc.businessName.isEmpty ? "—" : doc.businessName) : doc.companyName)
                 keyValue("GSTIN", doc.gstin.isEmpty ? "Not added" : doc.gstin)
                 keyValue("People", "\(owner.isEmpty ? "Owner" : owner) · Owner")
@@ -689,29 +700,25 @@ struct BusinessSetupWizardView: View {
                 keyValue("\(month) sales target", doc.target.isEmpty ? "Not set" : doc.target)
                 keyValue("Target measure", doc.metric)
             }
-            panel("Before you start") {
+            SetupPanelCard(title: "Before you start", theme: docTheme) {
                 footnote(doc.hasChannels
                     ? "Sales channels · \(doc.channelChoices.filter { doc.channels.contains($0) }.joined(separator: ", "))"
-                    : "Choose at least one sales channel in section 03.")
-                footnote("Name, currency, owner, and sales channels are set. Budget and sales target are filled in.")
-                footnote("This stays private to your business. Only the owner can change who has access. Nothing is counted until you start.")
+                    : "Choose at least one sales channel in section 03.", size: 11)
+                footnote("Name, currency, owner, and sales channels are set. Budget and sales target are filled in.", size: 11)
+                footnote("This stays private to your business. Only the owner can change who has access. Nothing is counted until you start.", size: 11)
             }
             statusPill(
                 doc.canStart ? "Ready to start" : "A few fields still need you",
                 good: doc.canStart
             )
-            Button(action: start) {
-                Text(starting ? startingLabel : activateLabel)
-                    .font(.plusJakarta(size: 15, weight: .bold))
-                    .foregroundStyle(theme.onAccent)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 15)
-                    .background(doc.canStart && !starting ? theme.accent : theme.border)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            SetupDocCta(
+                label: starting ? startingLabel : activateLabel,
+                theme: docTheme,
+                enabled: doc.canStart && !starting,
+                tag: "setup.submit"
+            ) {
+                start()
             }
-            .buttonStyle(.plain)
-            .disabled(!doc.canStart || starting)
-            .accessibilityIdentifier("setup.submit")
         }
     }
 
@@ -727,23 +734,8 @@ struct BusinessSetupWizardView: View {
 
     // MARK: - Small pieces
 
-    private func panel<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.plusJakarta(size: 12, weight: .semibold))
-                .foregroundStyle(theme.muted)
-            content()
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.inset)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(theme.border, lineWidth: 1)
-        )
-    }
-
+    /// The document's field: `SetupDocField` owns the label, frame, hint and cursor, so the
+    /// wizard only decides what is typed into it.
     private func field(
         _ label: String,
         text: Binding<String>,
@@ -752,72 +744,35 @@ struct BusinessSetupWizardView: View {
         keyboard: UIKeyboardType = .default,
         axis: Axis = .horizontal
     ) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(label)
-                .font(.plusJakarta(size: 11, weight: .semibold))
-                .foregroundStyle(theme.muted)
-            TextField(
-                "",
-                text: text,
-                prompt: Text(placeholder).foregroundStyle(theme.muted.opacity(0.7)),
-                axis: axis
-            )
-            .font(.plusJakarta(size: 14))
-            .foregroundStyle(theme.ink)
-            .keyboardType(keyboard)
-            .textInputAutocapitalization(keyboard == .default ? .words : .never)
-            .autocorrectionDisabled()
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(theme.border, lineWidth: 1)
-            )
-            .accessibilityIdentifier("setup.field.\(label)")
-            if let hint {
-                Text(hint)
-                    .font(.plusJakarta(size: 10))
-                    .foregroundStyle(theme.muted)
-            }
-        }
+        SetupDocField(
+            label: label,
+            text: text,
+            theme: docTheme,
+            hint: hint,
+            placeholder: placeholder,
+            keyboard: keyboard,
+            axis: axis,
+            tag: "setup.field.\(label)"
+        )
     }
 
     private func pickerRow(
         _ label: String,
         value: String,
+        placeholder: String = "Select",
+        hint: String? = nil,
         tag: String,
         onTap: @escaping () -> Void
     ) -> some View {
-        Button(action: onTap) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(label)
-                        .font(.plusJakarta(size: 11, weight: .semibold))
-                        .foregroundStyle(theme.muted)
-                    Text(value.isEmpty ? "Select" : value)
-                        .font(.plusJakarta(size: 14))
-                        .foregroundStyle(value.isEmpty ? theme.muted : theme.ink)
-                }
-                Spacer(minLength: 4)
-                Text("▾")
-                    .font(.plusJakarta(size: 12))
-                    .foregroundStyle(theme.muted)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(theme.border, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(tag)
+        SetupDocPickerField(
+            label: label,
+            value: value,
+            theme: docTheme,
+            placeholder: placeholder,
+            hint: hint,
+            tag: tag,
+            onTap: onTap
+        )
     }
 
     /// Start date, end date, and GST effective-from read their ISO strings through
@@ -827,68 +782,22 @@ struct BusinessSetupWizardView: View {
         value: String,
         placeholder: String,
         tag: String,
-        onPick: @escaping (String) -> Void,
-        fullWidth: Bool = false
+        onPick: @escaping (String) -> Void
     ) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.plusJakarta(size: 11, weight: .semibold))
-                .foregroundStyle(theme.muted)
+                .font(.plusJakarta(size: 11, weight: .medium))
+                .foregroundStyle(docTheme.muted)
                 .lineLimit(1)
             SetupDateTap(
-                theme: theme,
+                theme: docTheme,
                 value: value,
                 placeholder: placeholder,
                 tag: tag,
                 onPick: onPick
             )
         }
-        .frame(maxWidth: fullWidth ? .infinity : nil)
-    }
-
-    /// A field that opens a picker instead of a keyboard, matching `field`'s frame.
-    private func pickerSlot(
-        _ label: String,
-        value: String,
-        placeholder: String,
-        hint: String? = nil,
-        tag: String,
-        onTap: @escaping () -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(label)
-                .font(.plusJakarta(size: 11, weight: .semibold))
-                .foregroundStyle(theme.muted)
-            Button(action: onTap) {
-                HStack(spacing: 4) {
-                    Text(value.isEmpty ? placeholder : value)
-                        .font(.plusJakarta(size: 14))
-                        .foregroundStyle(value.isEmpty ? theme.muted.opacity(0.7) : theme.ink)
-                        .lineLimit(1)
-                    Spacer(minLength: 4)
-                    Text("›")
-                        .font(.plusJakarta(size: 16))
-                        .foregroundStyle(theme.muted)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(theme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(theme.border, lineWidth: 1)
-                )
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(tag)
-            if let hint {
-                Text(hint)
-                    .font(.plusJakarta(size: 10))
-                    .foregroundStyle(theme.muted)
-            }
-        }
+        .frame(maxWidth: .infinity)
     }
 
     private func chipRow(
@@ -897,84 +806,33 @@ struct BusinessSetupWizardView: View {
         label: String? = nil,
         onSelect: @escaping (String) -> Void
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let label {
-                Text(label)
-                    .font(.plusJakarta(size: 11))
-                    .foregroundStyle(theme.muted)
-            }
-            FlowLayout(spacing: 8) {
-                ForEach(options, id: \.self) { option in
-                    let on = selected.contains(option)
-                    Button {
-                        onSelect(option)
-                    } label: {
-                        Text(option)
-                            .font(.plusJakarta(size: 12, weight: .semibold))
-                            .foregroundStyle(on ? theme.accent : theme.body)
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 7)
-                            .background(on ? theme.accent.opacity(0.13) : theme.surface)
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule().stroke(on ? theme.accent : theme.border, lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(on ? [.isSelected] : [])
-                }
-            }
-        }
+        SetupDocChipRow(
+            options: options,
+            selected: selected,
+            theme: docTheme,
+            label: label,
+            onSelect: onSelect
+        )
     }
 
     private func keyValue(_ key: String, _ value: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(key)
-                .font(.plusJakarta(size: 12))
-                .foregroundStyle(theme.muted)
-            Spacer(minLength: 8)
-            Text(value)
-                .font(.plusJakarta(size: 12, weight: .semibold))
-                .foregroundStyle(theme.ink)
-                .multilineTextAlignment(.trailing)
-        }
+        SetupDocKeyValue(label: key, value: value, theme: docTheme)
     }
 
-    private func footnote(_ text: String) -> some View {
-        Text(text)
-            .font(.plusJakarta(size: 11))
-            .foregroundStyle(theme.muted)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
+    private func footnote(_ text: String, size: CGFloat = 12) -> some View {
+        SetupDocFootnote(text: text, theme: docTheme, size: size)
     }
 
     private func why(_ title: String, _ body: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.plusJakarta(size: 12, weight: .semibold))
-                .foregroundStyle(theme.ink)
-            Text(body)
-                .font(.plusJakarta(size: 11))
-                .foregroundStyle(theme.muted)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        SetupDocWhyCard(title: title, bodyText: body, theme: docTheme)
     }
 
     private func statusPill(_ text: String, good: Bool) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(good ? theme.positive : theme.muted)
-                .frame(width: 6, height: 6)
-            Text(text)
-                .font(.plusJakarta(size: 11, weight: .semibold))
-                .foregroundStyle(good ? theme.positive : theme.muted)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background((good ? theme.positive : theme.muted).opacity(0.12))
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke((good ? theme.positive : theme.muted).opacity(0.4), lineWidth: 1))
+        SetupDocStatusPill(
+            text: text,
+            theme: docTheme,
+            tone: good ? docTheme.positive : docTheme.muted
+        )
     }
 
     private func masterRow(
@@ -984,41 +842,14 @@ struct BusinessSetupWizardView: View {
         tag: String,
         onTap: @escaping () -> Void
     ) -> some View {
-        Button(action: onTap) {
-            HStack(spacing: 11) {
-                Text(glyph)
-                    .font(.plusJakarta(size: 17))
-                    .foregroundStyle(theme.accent)
-                    .frame(width: 36, height: 36)
-                    .background(theme.accent.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.plusJakarta(size: 14, weight: .semibold))
-                        .foregroundStyle(theme.ink)
-                    Text(subtitle)
-                        .font(.plusJakarta(size: 11))
-                        .foregroundStyle(theme.muted)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                }
-                Spacer(minLength: 4)
-                Text("›")
-                    .font(.plusJakarta(size: 16))
-                    .foregroundStyle(theme.muted)
-            }
-            .padding(11)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(theme.border, lineWidth: 1)
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(tag)
+        SetupDocMasterRow(
+            glyph: glyph,
+            title: title,
+            subtitle: subtitle,
+            theme: docTheme,
+            tag: tag,
+            onTap: onTap
+        )
     }
 
     // MARK: - Sheets
@@ -1030,7 +861,7 @@ struct BusinessSetupWizardView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Currency")
                     .font(.plusJakarta(size: 22, weight: .semibold))
-                    .foregroundStyle(theme.ink)
+                    .foregroundStyle(docTheme.ink)
                 ForEach(BusinessSetupDocSpec.currencyLabels, id: \.self) { label in
                     let on = label == doc.currency
                     Button {
@@ -1040,22 +871,22 @@ struct BusinessSetupWizardView: View {
                         HStack {
                             Text(label)
                                 .font(.plusJakarta(size: 14))
-                                .foregroundStyle(theme.ink)
+                                .foregroundStyle(docTheme.ink)
                             Spacer(minLength: 4)
                             if on {
                                 Text("●")
                                     .font(.system(size: 10))
-                                    .foregroundStyle(theme.accent)
+                                    .foregroundStyle(docTheme.accent)
                             }
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(on ? theme.accent.opacity(0.14) : theme.inset)
+                        .background(on ? docTheme.accent.opacity(0.14) : docTheme.inset)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(on ? theme.accent : theme.border, lineWidth: 1)
+                                .stroke(on ? docTheme.accent : docTheme.panelStroke, lineWidth: 1)
                         )
                     }
                     .buttonStyle(.plain)
@@ -1064,10 +895,10 @@ struct BusinessSetupWizardView: View {
             }
             .padding(18)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(theme.canvas.ignoresSafeArea())
+            .background(docTheme.canvas.ignoresSafeArea())
         case .month:
             SetupMonthPickerSheet(
-                theme: theme,
+                theme: docTheme,
                 initial: doc.month,
                 onPick: {
                     doc.month = $0
@@ -1077,7 +908,7 @@ struct BusinessSetupWizardView: View {
             )
         case .gstState:
             SetupStatePickerSheet(
-                theme: theme,
+                theme: docTheme,
                 selected: doc.gstState,
                 onPick: {
                     // Store the canonical name; the code is derived on emit.
@@ -1296,7 +1127,7 @@ private enum SetupPickerKind: String, Identifiable {
 /// The state picker in the document's own palette: a searchable list over the canonical India
 /// States & UTs, states first and union territories after.
 private struct SetupStatePickerSheet: View {
-    let theme: OperatingTheme
+    let theme: BusinessSetupDocTheme
     let selected: String
     let onPick: (IndiaState) -> Void
     let onCancel: () -> Void
@@ -1318,11 +1149,11 @@ private struct SetupStatePickerSheet: View {
                 .textInputAutocapitalization(.words)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
-                .background(theme.surface)
+                .background(theme.inset)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(theme.border, lineWidth: 1)
+                        .stroke(theme.panelStroke, lineWidth: 1)
                 )
             if matches.isEmpty {
                 Text("No state matches \"\(query)\".")
@@ -1346,7 +1177,7 @@ private struct SetupStatePickerSheet: View {
             }
             Button("Cancel", action: onCancel)
                 .font(.plusJakarta(size: 14, weight: .semibold))
-                .foregroundStyle(theme.body)
+                .foregroundStyle(theme.muted)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
         }
@@ -1382,7 +1213,7 @@ private struct SetupStatePickerSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(on ? theme.accent : theme.border, lineWidth: 1)
+                    .stroke(on ? theme.accent : theme.panelStroke, lineWidth: 1)
             )
             .contentShape(Rectangle())
         }
@@ -1402,7 +1233,7 @@ private struct SetupStatePickerSheet: View {
 /// A month picker in the document's own palette. `SetupDateField` picks a day; §03 asks for a
 /// month, so this is the one place a month control is drawn.
 private struct SetupMonthPickerSheet: View {
-    let theme: OperatingTheme
+    let theme: BusinessSetupDocTheme
     let initial: String
     let onPick: (String) -> Void
     let onCancel: () -> Void
@@ -1417,7 +1248,7 @@ private struct SetupMonthPickerSheet: View {
     }()
 
     init(
-        theme: OperatingTheme,
+        theme: BusinessSetupDocTheme,
         initial: String,
         onPick: @escaping (String) -> Void,
         onCancel: @escaping () -> Void
@@ -1441,12 +1272,12 @@ private struct SetupMonthPickerSheet: View {
             HStack(spacing: 10) {
                 Button("Cancel", action: onCancel)
                     .font(.plusJakarta(size: 14, weight: .semibold))
-                    .foregroundStyle(theme.body)
+                    .foregroundStyle(theme.muted)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(theme.border, lineWidth: 1)
+                            .stroke(theme.panelStroke, lineWidth: 1)
                     )
                     .buttonStyle(.plain)
                 Button {
@@ -1454,7 +1285,7 @@ private struct SetupMonthPickerSheet: View {
                 } label: {
                     Text("Use month")
                         .font(.plusJakarta(size: 14, weight: .semibold))
-                        .foregroundStyle(theme.onAccent)
+                        .foregroundStyle(theme.ink)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                         .background(theme.accent)
@@ -1474,7 +1305,7 @@ private struct SetupMonthPickerSheet: View {
 /// own palette and with the frame's placeholder words (`Today`, `Still open`). The ISO conversion
 /// still goes through `SetupDateTimeUtils`, so there is one date format in the app.
 private struct SetupDateTap: View {
-    let theme: OperatingTheme
+    let theme: BusinessSetupDocTheme
     let value: String
     let placeholder: String
     let tag: String
@@ -1493,24 +1324,24 @@ private struct SetupDateTap: View {
             draft = SetupDateTimeUtils.dateFromIso(value.isEmpty ? nil : value)
             showPicker = true
         } label: {
-            HStack {
+            HStack(spacing: 8) {
                 Text(display)
-                    .font(.plusJakarta(size: 14))
-                    .foregroundStyle(value.isEmpty ? theme.muted.opacity(0.7) : theme.ink)
+                    .font(.plusJakarta(size: 14, weight: .medium))
+                    .foregroundStyle(value.isEmpty ? theme.faint : theme.ink)
                     .lineLimit(1)
                 Spacer(minLength: 4)
-                Text("▾")
-                    .font(.plusJakarta(size: 12))
+                Text("›")
+                    .font(.plusJakarta(size: 16))
                     .foregroundStyle(theme.muted)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.surface)
+            .background(theme.inset)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(theme.border, lineWidth: 1)
+                    .stroke(theme.panelStroke, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -1685,10 +1516,9 @@ private extension BusinessSetupWizardView {
         if let preferences = prefill.preferences?.mapValues({ $0.value }) {
             next.apply(preferences: preferences)
         }
-        if let title = prefill.title?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !title.isEmpty,
+        if !prefill.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            next.businessName.isEmpty {
-            next.businessName = title
+            next.businessName = prefill.title
         }
         doc = next
         // The wire's status is authoritative: a draft stays a draft, and a live moment keeps its

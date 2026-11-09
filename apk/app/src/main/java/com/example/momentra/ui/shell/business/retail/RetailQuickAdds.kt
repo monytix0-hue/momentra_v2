@@ -97,6 +97,15 @@ fun RetailQuickAddHub(
             onApproval = { approvalOpen = true },
         )
 
+        GridSectionHeader("Utilities · 3", "Hold · move · reprint")
+        QuickAddGrid(
+            tiles = RetailUtilityTiles,
+            allowed = allowed,
+            onSheet = { sheet = it },
+            onMasters = { mastersOpen = it },
+            onApproval = { approvalOpen = true },
+        )
+
         WhyNote(
             "Boundaries: posted sale = revenue once. Quick amount ≠ SKU movement. Order is commitment only. " +
                 "Collection/payment allocate — never duplicate facts. Empty analytics = Unavailable.",
@@ -219,6 +228,12 @@ private val RetailSupportTiles = listOf(
     QuickTile("Locations", "Stores · aisles", RetailTileIcons.locations, masterTab = MastersTab.Locations, wide = false),
     QuickTile("Invite & QR", "Join · people · roles", RetailTileIcons.invite, masterTab = MastersTab.Invite, wide = true),
     QuickTile("Issue", "Update · approval", RetailTileIcons.issue, RetailSheet.ISSUE, requires = "UPDATE", wide = true),
+)
+
+private val RetailUtilityTiles = listOf(
+    QuickTile("Hold", "Park order", RetailTileIcons.hold, RetailSheet.HOLD, requires = "ORDER"),
+    QuickTile("Transfer", "Between stores", RetailTileIcons.transfer, RetailSheet.TRANSFER, requires = "STOCK"),
+    QuickTile("Reprint", "Receipt · bill", RetailTileIcons.reprint, RetailSheet.REPRINT, requires = "SALE"),
 )
 
 /** 3-column grid; `wide` tiles span the remaining width in their row. */
@@ -520,4 +535,7 @@ internal enum class RetailSheet(
     STATUS("Status / Assignment", "ORDER", "ORDER", RetailTileIcons.status),
     BUDGET("Revise Budget", "BUDGET", "BUDGET", RetailTileIcons.budget),
     ISSUE("Issue / Update", "ISSUE", "ISSUE", RetailTileIcons.issue),
+    HOLD("Hold / release", "ORDER", "HOLD", RetailTileIcons.hold),
+    TRANSFER("Transfer stock", "STOCK", "TRANSFER", RetailTileIcons.transfer),
+    REPRINT("Reprint receipt", "SALE", "REPRINT", RetailTileIcons.reprint),
 }

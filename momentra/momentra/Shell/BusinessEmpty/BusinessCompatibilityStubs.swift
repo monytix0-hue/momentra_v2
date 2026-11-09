@@ -36,12 +36,16 @@ enum BusinessSetupKind: String, CaseIterable, Equatable, Identifiable {
     var maestroTag: String { rawValue }
     var activateColor: Color { accent }
 
-    /// The two operating verticals, or `nil` for a family that has no operating screens.
+    /// Operating vertical seed for the setup document, or `nil` when the compact form is used.
     var vertical: BusinessOperatingVertical? {
         switch self {
         case .trading: return .trading
         case .distribution: return .distribution
-        default: return nil
+        case .manufacturing: return .standardProduction
+        case .marketing: return .clientCampaign
+        case .retail: return .retailStore
+        case .restaurant: return .restaurantFood
+        case .service: return .consumerService
         }
     }
 
@@ -72,7 +76,11 @@ enum BusinessSetupKind: String, CaseIterable, Equatable, Identifiable {
         switch self {
         case .trading: return BusinessOperatingVertical.trading.accent
         case .distribution: return BusinessOperatingVertical.distribution.accent
-        default: return .indigo
+        case .manufacturing: return BusinessOperatingVertical.standardProduction.accent
+        case .marketing: return BusinessOperatingVertical.clientCampaign.accent
+        case .retail: return BusinessOperatingVertical.retailStore.accent
+        case .restaurant: return BusinessOperatingVertical.restaurantFood.accent
+        case .service: return BusinessOperatingVertical.consumerService.accent
         }
     }
 
@@ -85,7 +93,7 @@ enum BusinessSetupKind: String, CaseIterable, Equatable, Identifiable {
     /// §02 `Roles on invite`, in frame order.
     var inviteRoles: [BusinessSetupRoleSpec] {
         guard let vertical else { return [] }
-        return BusinessSetupDocSpec.roles(vertical: vertical)
+        return BusinessSetupDocSpec.roles(vertical)
     }
 }
 

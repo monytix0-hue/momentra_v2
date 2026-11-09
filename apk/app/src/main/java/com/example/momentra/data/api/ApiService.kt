@@ -945,6 +945,10 @@ interface ApiService {
     @GET("v1/business/moments/{momentId}/operating")
     suspend fun getOperatingMoment(
         @Path("momentId") momentId: String,
+        @Query("period") period: String? = null,
+        @Query("status") status: String? = null,
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null,
     ): SuccessEnvelope<OperatingProjectionDto>
 
     @POST("v1/business/moments/{momentId}/operating-events")

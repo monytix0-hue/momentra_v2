@@ -211,7 +211,77 @@ async function loadSetup(client: PoolClient, momentId: string): Promise<SetupRow
   return row.rows[0] ?? null;
 }
 
-async function loadEvents(client: PoolClient, momentId: string): Promise<OperatingEventRow[]> {
+export type OperatingProjectionQuery = {
+  period?: 'this_month' | 'last_month' | 'custom';
+  from?: string;
+  to?: string;
+  status?: 'all' | 'open' | 'done' | 'overdue' | 'settled';
+};
+
+function resolveOperatingRange(query?: OperatingProjectionQuery): { from?: Date; to?: Date } {
+  // No period → unscoped window (historic default). Only chip-driven fetches narrow the range.
+  if (!query?.period) return {};
+  if (query.period === 'this_month') {
+    const now = new Date();
+    return { from: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)), to: now };
+  }
+  if (query.period === 'last_month') {
+    const now = new Date();
+    const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+    const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0, 23, 59, 59, 999));
+    return { from, to };
+  }
+  const from = query.from ? new Date(query.from) : undefined;
+  const to = query.to ? new Date(query.to) : undefined;
+  return {
+    from: from && !Number.isNaN(from.getTime()) ? from : undefined,
+    to: to && !Number.isNaN(to.getTime()) ? to : undefined,
+  };
+}
+
+function matchesOperatingStatus(
+  row: {
+    payment_status: string;
+    approval_status: string;
+    payload: Record<string, unknown> | null;
+  },
+  status?: OperatingProjectionQuery['status']
+): boolean {
+  if (!status || status === 'all') return true;
+  const payment = (row.payment_status ?? '').toUpperCase();
+  const approval = (row.approval_status ?? '').toUpperCase();
+  const dueAt = typeof row.payload?.dueAt === 'string' ? row.payload.dueAt : null;
+  const overdue = dueAt != null && !Number.isNaN(Date.parse(dueAt)) && Date.parse(dueAt) < Date.now();
+  switch (status) {
+    case 'settled':
+      return payment === 'PAID' || payment === 'COLLECTED' || approval === 'APPROVED';
+    case 'done':
+      return approval === 'APPROVED' || payment === 'PAID' || payment === 'COLLECTED';
+    case 'overdue':
+      return overdue || payment === 'OVERDUE';
+    case 'open':
+      return !(payment === 'PAID' || payment === 'COLLECTED') && approval !== 'REJECTED';
+    default:
+      return true;
+  }
+}
+
+async function loadEvents(
+  client: PoolClient,
+  momentId: string,
+  query?: OperatingProjectionQuery
+): Promise<OperatingEventRow[]> {
+  const range = resolveOperatingRange(query);
+  const values: unknown[] = [momentId];
+  const clauses = ['moment_id = $1'];
+  if (range.from) {
+    values.push(range.from.toISOString());
+    clauses.push(`occurred_at >= $${values.length}`);
+  }
+  if (range.to) {
+    values.push(range.to.toISOString());
+    clauses.push(`occurred_at <= $${values.length}`);
+  }
   const rows = await client.query<{
     operating_event_id: string;
     event_type: string;
@@ -236,12 +306,14 @@ async function loadEvents(client: PoolClient, momentId: string): Promise<Operati
             submitted_by_user_id, decided_by_user_id, occurred_at, parent_event_id, quantity::text,
             payload
      FROM business.operating_event
-     WHERE moment_id = $1
+     WHERE ${clauses.join(' AND ')}
      ORDER BY occurred_at DESC
      LIMIT 200`,
-    [momentId]
+    values
   );
-  return rows.rows.map((r) => {
+  return rows.rows
+    .filter((r) => matchesOperatingStatus(r, query?.status))
+    .map((r) => {
     const payload = r.payload ?? {};
     const metric = payload.metric === 'LEADS' || payload.metric === 'CONVERSIONS' ? payload.metric : null;
     const rejected = payload.rejectedQuantity;
@@ -361,7 +433,8 @@ export async function viewerRole(
 export async function getOperatingProjection(
   client: PoolClient,
   ctx: RequestContext,
-  momentId: string
+  momentId: string,
+  query?: OperatingProjectionQuery
 ): Promise<OperatingProjection | { retired: true; familyCode: string; title: string }> {
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
   if (isLegacyBusinessFamily(scope.businessFamily) || !isOperatingFamily(scope.businessFamily)) {
@@ -381,7 +454,7 @@ export async function getOperatingProjection(
     return { retired: true, familyCode: scope.businessFamily, title: 'Business moment' };
   }
   const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs, scope.membershipType);
-  const events = await loadEvents(client, momentId);
+  const events = await loadEvents(client, momentId, query);
   // Table masters are the authority; event-derived masters remain a read fallback.
   const masterRows = scope.companyId
     ? await listMastersForCompany(client, scope.companyId).catch(() => [])

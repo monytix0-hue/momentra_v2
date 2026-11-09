@@ -53,18 +53,89 @@ internal data class SetupMasterCounts(
 internal object SetupDocumentSpec {
     const val TRADING = "TRADING_WHOLESALE"
     const val DISTRIBUTION = "DISTRIBUTION_DEALERSHIP"
+    const val STANDARD_PRODUCTION = "STANDARD_PRODUCTION"
+    const val MADE_TO_ORDER = "MADE_TO_ORDER"
+    const val RETAIL_STORE = "RETAIL_STORE"
+    const val RESTAURANT_FOOD = "RESTAURANT_FOOD"
+    const val CONSUMER_SERVICE = "CONSUMER_SERVICE"
+
+    val retailChannels: List<String> = listOf(
+        "Walk-in counter",
+        "WhatsApp / phone",
+        "Marketplace",
+        "Delivery apps",
+        "Wholesale desk",
+        "Other",
+    )
+
+    val restaurantChannels: List<String> = listOf(
+        "In-dining",
+        "Takeaway",
+        "Cloud / delivery",
+        "Catering",
+        "Events",
+        "Other",
+    )
+
+    val serviceChannels: List<String> = listOf(
+        "Walk-in",
+        "Appointment booking",
+        "Home visit",
+        "WhatsApp / phone",
+        "Online",
+        "Other",
+    )
 
     const val CATALOGUE_INVITE = "Name, barcode, MRP, case size, HSN, GST"
     const val WAREHOUSE_INVITE = "Godowns hold stock · routes carry it · branches receive"
     const val NETWORK_INVITE = "GSTIN on file · ITC posts on GRN, never on PO save"
+    const val MFG_CATALOGUE_INVITE = "Part · SKU · BOM · HSN · GST"
+    const val MFG_WAREHOUSE_INVITE = "Lines · stores · WIP bins hold material and finished stock"
+    const val MFG_NETWORK_INVITE = "Vendors & buyers on file · job customers for MTO"
 
     /** The role every §02 chip defaults to; also the fallback for an unknown saved code. */
     const val DEFAULT_INVITE_ROLE = "OPERATIONS_LEAD"
 
+    /** Manufacturing plant / workshop channels (MFG-SETUP-v6 / MTO-SETUP). */
+    val manufacturingChannels: List<String> = listOf(
+        "Direct / plant gate",
+        "Dealer / distributor",
+        "Export",
+        "Job-work / subcontract",
+        "Online / marketplace",
+        "Other",
+    )
+
     /** The six sections, in the order the frames stack them. */
     fun sections(subtypeCode: String): List<SetupSectionSpec> {
-        val distribution = isDistribution(subtypeCode)
-        val noun = if (distribution) "distribution" else "trading"
+        val noun = when {
+            isMadeToOrder(subtypeCode) -> "make-to-order"
+            isManufacturing(subtypeCode) -> "manufacturing"
+            isService(subtypeCode) -> "service"
+            isRestaurant(subtypeCode) -> "restaurant"
+            isRetail(subtypeCode) -> "retail"
+            isDistribution(subtypeCode) -> "distribution"
+            else -> "trading"
+        }
+        val mastersTitle = when {
+            isManufacturing(subtypeCode) -> "Parts, Lines & Network"
+            isService(subtypeCode) -> "Services, Rooms & Clients"
+            isRestaurant(subtypeCode) -> "Menu, Stations & Vendors"
+            isRetail(subtypeCode) -> "Catalogue, Locations & Network"
+            else -> "Catalogue, Warehouses & Network"
+        }
+        val mastersSubtitle = when {
+            isManufacturing(subtypeCode) ->
+                "BOM, lines/stores, and vendors your production and purchases read from."
+            isService(subtypeCode) ->
+                "Offerings, rooms/staff, and clients your bookings and charges read from."
+            isRestaurant(subtypeCode) ->
+                "Menu, stations, and vendors your KOT, POS and purchases read from."
+            isRetail(subtypeCode) ->
+                "SKU, locations, and suppliers your POS, stock and purchases read from."
+            else ->
+                "Masters your orders, dispatches and purchases read from. Each opens its own sheet."
+        }
         return listOf(
             SetupSectionSpec("01", "Business Basics", "A home for this $noun business."),
             SetupSectionSpec(
@@ -75,13 +146,10 @@ internal object SetupDocumentSpec {
             SetupSectionSpec(
                 "03",
                 "Channels & Monthly Plan",
-                "Where do you sell? Choose at least one.",
+                if (isManufacturing(subtypeCode)) "Where do jobs and sales land? Choose at least one."
+                else "Where do you sell? Choose at least one.",
             ),
-            SetupSectionSpec(
-                "04",
-                "Catalogue, Warehouses & Network",
-                "Masters your orders, dispatches and purchases read from. Each opens its own sheet.",
-            ),
+            SetupSectionSpec("04", mastersTitle, mastersSubtitle),
             SetupSectionSpec("05", "GST & Tax Details", "Set up GST once to make buying and selling easier."),
             SetupSectionSpec("06", "Review your setup", ""),
         )
@@ -90,32 +158,74 @@ internal object SetupDocumentSpec {
     fun isDistribution(subtypeCode: String): Boolean =
         subtypeCode.equals(DISTRIBUTION, ignoreCase = true)
 
-    fun subtype(subtypeCode: String): OperatingSubtype =
-        OperatingMomentCatalog.subtypes(BusinessSetupKind.TRADING_DISTRIBUTION)
+    fun isManufacturing(subtypeCode: String): Boolean =
+        subtypeCode.equals(STANDARD_PRODUCTION, ignoreCase = true) ||
+            subtypeCode.equals(MADE_TO_ORDER, ignoreCase = true) ||
+            subtypeCode.equals("MANUFACTURING_PRODUCTION", ignoreCase = true)
+
+    fun isMadeToOrder(subtypeCode: String): Boolean =
+        subtypeCode.equals(MADE_TO_ORDER, ignoreCase = true)
+
+    fun isRetail(subtypeCode: String): Boolean =
+        subtypeCode.equals(RETAIL_STORE, ignoreCase = true)
+
+    fun isRestaurant(subtypeCode: String): Boolean =
+        subtypeCode.equals(RESTAURANT_FOOD, ignoreCase = true)
+
+    fun isService(subtypeCode: String): Boolean =
+        subtypeCode.equals(CONSUMER_SERVICE, ignoreCase = true)
+
+    fun isRetailFamily(subtypeCode: String): Boolean =
+        isRetail(subtypeCode) || isRestaurant(subtypeCode) || isService(subtypeCode)
+
+    fun subtype(subtypeCode: String): OperatingSubtype {
+        val retail = OperatingMomentCatalog.subtypes(BusinessSetupKind.RETAIL_CONSUMER)
+            .firstOrNull { it.code.equals(subtypeCode, ignoreCase = true) }
+        if (retail != null) return retail
+        val mfg = OperatingMomentCatalog.subtypes(BusinessSetupKind.MANUFACTURING_PRODUCTION)
+            .firstOrNull { it.code.equals(subtypeCode, ignoreCase = true) }
+        if (mfg != null) return mfg
+        return OperatingMomentCatalog.subtypes(BusinessSetupKind.TRADING_DISTRIBUTION)
             .firstOrNull { it.code.equals(subtypeCode, ignoreCase = true) }
             ?: OperatingMomentCatalog.subtypes(BusinessSetupKind.TRADING_DISTRIBUTION).first()
+    }
 
-    fun channels(subtypeCode: String): List<String> =
-        if (isDistribution(subtypeCode)) OperatingMomentCatalog.distributionChannels
-        else OperatingMomentCatalog.tradingChannels
+    fun channels(subtypeCode: String): List<String> = when {
+        isManufacturing(subtypeCode) -> manufacturingChannels
+        isService(subtypeCode) -> serviceChannels
+        isRestaurant(subtypeCode) -> restaurantChannels
+        isRetail(subtypeCode) -> retailChannels
+        isDistribution(subtypeCode) -> OperatingMomentCatalog.distributionChannels
+        else -> OperatingMomentCatalog.tradingChannels
+    }
 
-    fun inviteRoles(subtypeCode: String): List<OperatingInviteRole> =
-        if (isDistribution(subtypeCode)) OperatingMomentCatalog.distributionInviteRoles
-        else OperatingMomentCatalog.tradingInviteRoles
+    fun inviteRoles(subtypeCode: String): List<OperatingInviteRole> = when {
+        subtypeCode.equals("CLIENT_CAMPAIGN", ignoreCase = true) ||
+            subtypeCode.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true) ->
+            OperatingMomentCatalog.marketingInviteRoles
+        isManufacturing(subtypeCode) -> OperatingMomentCatalog.tradingInviteRoles
+        isDistribution(subtypeCode) -> OperatingMomentCatalog.distributionInviteRoles
+        else -> OperatingMomentCatalog.tradingInviteRoles
+    }
 
     /** The label for a role code, or the code itself when a saved draft carries an old one. */
-    fun roleLabel(code: String): String =
-        inviteRoles(TRADING).firstOrNull { it.code == code }?.label ?: businessInviteRoleLabel(code)
+    fun roleLabel(code: String, subtypeCode: String = TRADING): String =
+        inviteRoles(subtypeCode).firstOrNull { it.code == code }?.label
+            ?: inviteRoles(TRADING).firstOrNull { it.code == code }?.label
+            ?: businessInviteRoleLabel(code)
 
     /** The code for a role label; unknown labels fall back to the default operations role. */
-    fun roleCode(label: String): String =
-        inviteRoles(TRADING).firstOrNull { it.label == label }?.code ?: DEFAULT_INVITE_ROLE
+    fun roleCode(label: String, subtypeCode: String = TRADING): String =
+        inviteRoles(subtypeCode).firstOrNull { it.label == label }?.code
+            ?: inviteRoles(TRADING).firstOrNull { it.label == label }?.code
+            ?: DEFAULT_INVITE_ROLE
 
     /** `FINANCE` and `APPROVER` mint an admin membership; the other two mint a member. */
     fun membershipType(code: String): String = businessInviteMembership(code)
 
     /** What the selected role can reach, under the chips. */
-    fun inviteAccessNote(code: String): String = "Access: ${inviteRoleAccess(code)}."
+    fun inviteAccessNote(code: String, subtypeCode: String = TRADING): String =
+        "Access: ${inviteRoleAccess(code, isDistribution(subtypeCode))}."
 
     /**
      * §02 participant rows for the wire. The owner is always first, because the backend
@@ -158,9 +268,23 @@ internal object SetupDocumentSpec {
                 )
             }
 
-    fun networkLabel(subtypeCode: String): String = subtype(subtypeCode).networkLabel
+    fun networkLabel(subtypeCode: String): String = subtype(subtypeCode).networkLabel.ifBlank {
+        when {
+            isMadeToOrder(subtypeCode) -> "Customers & suppliers"
+            isManufacturing(subtypeCode) -> "Vendors & buyers"
+            else -> "Network"
+        }
+    }
 
-    fun kindLabel(subtypeCode: String): String = if (isDistribution(subtypeCode)) "Distribution" else "Trading"
+    fun kindLabel(subtypeCode: String): String = when {
+        isMadeToOrder(subtypeCode) -> "Workshop"
+        isManufacturing(subtypeCode) -> "Plant"
+        isService(subtypeCode) -> "Service"
+        isRestaurant(subtypeCode) -> "Restaurant"
+        isRetail(subtypeCode) -> "Retail store"
+        isDistribution(subtypeCode) -> "Distribution"
+        else -> "Trading"
+    }
 
     /** §02's `Default …` footnote, keyed off the default invite role. */
     fun defaultRoleNote(subtypeCode: String): String =

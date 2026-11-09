@@ -138,6 +138,39 @@ export async function updateBusinessSetupDraftRow(
   return updated.rows[0]?.business_system_setup_id ?? null;
 }
 
+/**
+ * Keep `core.moment.moment_type_id` aligned with `preferences.subtype` when the setup document's
+ * kind tiles flip mid-draft (Client ↔ Own, Trading ↔ Distribution). Without this, activate and
+ * shell chrome keep the type chosen on create.
+ */
+export async function syncBusinessMomentTypeFromSubtype(
+  client: PoolClient,
+  momentId: string,
+  subtypeCode: string
+): Promise<string | null> {
+  const code = String(subtypeCode ?? '')
+    .trim()
+    .toUpperCase();
+  if (!code) return null;
+  const typeRow = await client.query<{ moment_type_id: string; code: string }>(
+    `SELECT moment_type_id, code
+     FROM core.moment_type
+     WHERE domain_code = 'BUSINESS' AND code = $1 AND status = 'ACTIVE'
+     LIMIT 1`,
+    [code]
+  );
+  const next = typeRow.rows[0];
+  if (!next) return null;
+  await client.query(
+    `UPDATE core.moment
+     SET moment_type_id = $2, updated_at = now()
+     WHERE moment_id = $1
+       AND moment_type_id IS DISTINCT FROM $2`,
+    [momentId, next.moment_type_id]
+  );
+  return next.code;
+}
+
 export function catalogSubtitleForPersonal(systemCode: PersonalSetupSystemCode): string {
   return PERSONAL_SETUP_CATALOG.find((s) => s.systemCode === systemCode)?.subtitle ?? '';
 }

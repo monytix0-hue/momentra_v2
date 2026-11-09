@@ -4,7 +4,13 @@ import Foundation
 /// the same contract Android consumes; masters and price lists are company-scoped rows, not
 /// event-derived names, so a write can reference a master by id.
 protocol BusinessOperatingGateway {
-    func loadProjection(momentId: String) async throws -> OperatingProjectionPayload
+    func loadProjection(
+        momentId: String,
+        period: String?,
+        status: String?,
+        from: String?,
+        to: String?
+    ) async throws -> OperatingProjectionPayload
     func recordEvent(_ input: OperatingEventInput) async throws -> RecordOperatingEventResult
     func decideEvent(momentId: String, eventId: String, decision: String) async throws -> RecordOperatingEventResult
     func listMasters(companyId: String, kind: String?, momentId: String?) async throws -> [OperatingMasterPayload]
@@ -38,6 +44,16 @@ struct OperatingEventInput {
     var contract: OperatingContractInput? = nil
     var paymentStatus: String? = nil
     var revisesEventId: String? = nil
+    /// Marketing campaign fields (`CLIENT_CAMPAIGN` / `OWN_BUSINESS_CAMPAIGN`).
+    var reportingMode: String? = nil
+    var metricCode: String? = nil
+    var budgetCategory: String? = nil
+    var activityStatus: String? = nil
+    var revisionKind: String? = nil
+    var creativeVersion: String? = nil
+    var resultSource: String? = nil
+    var attributedSales: String? = nil
+    var effectiveFrom: String? = nil
 
     struct OperatingLineItem {
         var itemName: String
@@ -57,8 +73,20 @@ final class BusinessOperatingRepository: BusinessOperatingGateway {
         self.idempotency = idempotency
     }
 
-    func loadProjection(momentId: String) async throws -> OperatingProjectionPayload {
-        try await client.getOperatingMoment(momentId: momentId)
+    func loadProjection(
+        momentId: String,
+        period: String? = nil,
+        status: String? = nil,
+        from: String? = nil,
+        to: String? = nil
+    ) async throws -> OperatingProjectionPayload {
+        try await client.getOperatingMoment(
+            momentId: momentId,
+            period: period,
+            status: status,
+            from: from,
+            to: to
+        )
     }
 
     func recordEvent(_ input: OperatingEventInput) async throws -> RecordOperatingEventResult {
@@ -89,6 +117,15 @@ final class BusinessOperatingRepository: BusinessOperatingGateway {
             lineItems: input.lineItems?.map {
                 (itemName: $0.itemName, quantity: $0.quantity, unit: $0.unit, unitPrice: $0.unitPrice, masterId: $0.masterId)
             },
+            reportingMode: input.reportingMode,
+            metricCode: input.metricCode,
+            budgetCategory: input.budgetCategory,
+            activityStatus: input.activityStatus,
+            attributedSales: input.attributedSales,
+            revisionKind: input.revisionKind,
+            creativeVersion: input.creativeVersion,
+            resultSource: input.resultSource,
+            effectiveFrom: input.effectiveFrom,
             idempotencyKey: key
         )
         idempotency.clear(draftKey: draftKey)

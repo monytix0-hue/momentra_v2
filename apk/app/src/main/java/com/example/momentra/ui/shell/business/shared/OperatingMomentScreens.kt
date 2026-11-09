@@ -37,7 +37,7 @@ import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.domain.BottomDestination
 import com.example.momentra.ui.shell.business.distribution.DistributionActive
 import com.example.momentra.ui.shell.business.marketing.MarketingActive
-import com.example.momentra.ui.shell.business.production.ProductionActive
+import com.example.momentra.ui.shell.business.manufacturing.ManufacturingActive
 import com.example.momentra.ui.shell.business.restaurant.RestaurantActive
 import com.example.momentra.ui.shell.business.trading.TradingActive
 import com.example.momentra.ui.shell.business.service.ConsumerServiceActive
@@ -341,11 +341,10 @@ fun OperatingMomentPage(
         return
     }
     if (model != null && (model.subtype == "STANDARD_PRODUCTION" || model.subtype == "MADE_TO_ORDER")) {
-        ProductionActive(
+        ManufacturingActive(
             model = model,
             tab = tab,
             onOpenQuickAdd = onOpenQuickAdd,
-            momentId = momentId,
             onRecord = { draft ->
                 repo.recordOperatingEvent(
                     momentId,
@@ -386,6 +385,7 @@ fun OperatingMomentPage(
                     onFailure = { error = it.message },
                 )
             },
+            companyId = companyId,
             modifier = modifier,
         )
         return
@@ -878,20 +878,28 @@ internal fun OperatingChromeSheets(model: OperatingProjectionDto, companyId: Str
             surface = OperatingChromeState.storySurface,
             border = OperatingChromeState.storyBorder,
         ) {
-            if (model.subtype == "DISTRIBUTION_DEALERSHIP") {
-                com.example.momentra.ui.shell.business.distribution.DistributionStoryConfigSheet(
-                    model = model,
-                    momentId = storyId,
-                    theme = OperatingChromeState.storyTheme(),
-                    onDismiss = { OperatingChromeState.storyConfigOpen = false },
-                )
-            } else {
-                com.example.momentra.ui.shell.business.trading.TradingStoryConfigSheet(
-                    model = model,
-                    momentId = storyId,
-                    theme = OperatingChromeState.storyTheme(),
-                    onDismiss = { OperatingChromeState.storyConfigOpen = false },
-                )
+            when (model.subtype) {
+                "DISTRIBUTION_DEALERSHIP" ->
+                    com.example.momentra.ui.shell.business.distribution.DistributionStoryConfigSheet(
+                        model = model,
+                        momentId = storyId,
+                        theme = OperatingChromeState.storyTheme(),
+                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
+                    )
+                "STANDARD_PRODUCTION", "MADE_TO_ORDER" ->
+                    com.example.momentra.ui.shell.business.manufacturing.ManufacturingStoryConfigSheet(
+                        model = model,
+                        momentId = storyId,
+                        theme = OperatingChromeState.storyTheme(),
+                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
+                    )
+                else ->
+                    com.example.momentra.ui.shell.business.trading.TradingStoryConfigSheet(
+                        model = model,
+                        momentId = storyId,
+                        theme = OperatingChromeState.storyTheme(),
+                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
+                    )
             }
         }
     }
@@ -949,4 +957,10 @@ internal val TRADING_STORY_PAGES = listOf(
 )
 internal val DISTRIBUTION_STORY_PAGES = listOf(
     "Moment", "Motion", "Dealers", "Money", "Stock", "Network", "Attention", "So far",
+)
+internal val MANUFACTURING_STORY_PAGES = listOf(
+    "Moment", "Motion", "Orders", "Money", "Stock", "Network", "Attention", "So far",
+)
+internal val MTO_STORY_PAGES = listOf(
+    "Jobs", "One job", "Confirmed", "Money", "Production", "Network", "Attention", "So far",
 )

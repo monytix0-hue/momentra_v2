@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -69,14 +70,14 @@ internal val TradingSetupDocTheme = SetupDocTheme(
     negative = Color(0xFFF87171),
 )
 
-/** `DST-SETUP-v6` tokens — orange on the distribution canvas (`2560:29336`). */
+/** `DST-SETUP-v6` tokens — orange on the distribution canvas (aligned to DST-PULSE-v12). */
 internal val DistributionSetupDocTheme = SetupDocTheme(
     accent = Color(0xFFEA580C),
-    canvas = Color(0xFF0B1226),
-    card = Color(0xFF13203A),
-    inset = Color(0xFF0B1226),
-    border = Color(0xFF24365A),
-    panelStroke = Color(0xFF2A3D63),
+    canvas = Color(0xFF0F172A),
+    card = Color(0xFF151D2E),
+    inset = Color(0xFF0F172A),
+    border = Color(0xFF1E293B),
+    panelStroke = Color(0xFF334155),
     ink = Color(0xFFF8FAFC),
     muted = Color(0xFF94A3B8),
     faint = Color(0xFF64748B),
@@ -84,8 +85,74 @@ internal val DistributionSetupDocTheme = SetupDocTheme(
     negative = Color(0xFFF87171),
 )
 
-internal fun setupDocTheme(subtypeCode: String): SetupDocTheme =
-    if (SetupDocumentSpec.isDistribution(subtypeCode)) DistributionSetupDocTheme else TradingSetupDocTheme
+/** `MFG-SETUP-v6` / `MTO-SETUP` — amber on the manufacturing zinc canvas. */
+internal val ManufacturingSetupDocTheme = SetupDocTheme(
+    accent = Color(0xFFF59E0B),
+    canvas = Color(0xFF18181B),
+    card = Color(0xFF27272A),
+    inset = Color(0xFF18181B),
+    border = Color(0xFF3F3F46),
+    panelStroke = Color(0xFF52525B),
+    ink = Color(0xFFF8FAFC),
+    muted = Color(0xFFA1A1AA),
+    faint = Color(0xFF71717A),
+    positive = Color(0xFF22C55E),
+    negative = Color(0xFFF87171),
+)
+
+/** `RTL-SETUP-v6` — rose on the retail canvas (`2510:29750`). */
+internal val RetailSetupDocTheme = SetupDocTheme(
+    accent = Color(0xFFF43F5E),
+    canvas = Color(0xFF0B0A1F),
+    card = Color(0xFF2A1A1F),
+    inset = Color(0xFF170D11),
+    border = Color(0xFF4C0519),
+    panelStroke = Color(0xFF881337),
+    ink = Color(0xFFF8FAFC),
+    muted = Color(0xFF94A3B8),
+    faint = Color(0xFF64748B),
+    positive = Color(0xFF22C55E),
+    negative = Color(0xFFF87171),
+)
+
+/** `RST-SETUP-v6` — ember on the restaurant stone canvas. */
+internal val RestaurantSetupDocTheme = SetupDocTheme(
+    accent = Color(0xFFEA580C),
+    canvas = Color(0xFF1C1917),
+    card = Color(0xFF292524),
+    inset = Color(0xFF1C1917),
+    border = Color(0xFF44403C),
+    panelStroke = Color(0xFF57534E),
+    ink = Color(0xFFFAFAF9),
+    muted = Color(0xFFA8A29E),
+    faint = Color(0xFF78716C),
+    positive = Color(0xFF22C55E),
+    negative = Color(0xFFF87171),
+)
+
+/** `SVC-SETUP-v6` — teal on the services canvas (`2535:29334`). */
+internal val ServiceSetupDocTheme = SetupDocTheme(
+    accent = Color(0xFF0D9488),
+    canvas = Color(0xFF042F2E),
+    card = Color(0xFF134E4A),
+    inset = Color(0xFF042F2E),
+    border = Color(0xFF115E59),
+    panelStroke = Color(0xFF0F766E),
+    ink = Color(0xFFF0FDFA),
+    muted = Color(0xFF5EEAD4),
+    faint = Color(0xFF64748B),
+    positive = Color(0xFF22C55E),
+    negative = Color(0xFFF87171),
+)
+
+internal fun setupDocTheme(subtypeCode: String): SetupDocTheme = when {
+    SetupDocumentSpec.isManufacturing(subtypeCode) -> ManufacturingSetupDocTheme
+    SetupDocumentSpec.isRestaurant(subtypeCode) -> RestaurantSetupDocTheme
+    SetupDocumentSpec.isService(subtypeCode) -> ServiceSetupDocTheme
+    SetupDocumentSpec.isRetail(subtypeCode) -> RetailSetupDocTheme
+    SetupDocumentSpec.isDistribution(subtypeCode) -> DistributionSetupDocTheme
+    else -> TradingSetupDocTheme
+}
 
 /**
  * One numbered section: accent `01`, 18sp bold title, 12sp subtitle, then a 20dp-radius card
@@ -96,14 +163,29 @@ internal fun SetupSection(
     spec: SetupSectionSpec,
     theme: SetupDocTheme,
     modifier: Modifier = Modifier,
+    /** Marketing Figma: soft accent drop `0 8px 28px @ 0.18` under section cards. */
+    accentShadow: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val shape = RoundedCornerShape(20.dp)
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .then(
+                if (accentShadow) {
+                    Modifier.shadow(
+                        elevation = 14.dp,
+                        shape = shape,
+                        ambientColor = theme.accent.copy(alpha = 0.18f),
+                        spotColor = theme.accent.copy(alpha = 0.18f),
+                    )
+                } else {
+                    Modifier
+                },
+            )
+            .clip(shape)
             .background(theme.card)
-            .border(1.dp, theme.accent.copy(alpha = 0.28f), RoundedCornerShape(20.dp))
+            .border(1.dp, theme.accent.copy(alpha = 0.28f), shape)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -480,12 +562,26 @@ internal fun SetupCta(
     theme: SetupDocTheme,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    accentShadow: Boolean = false,
     onClick: () -> Unit,
 ) {
+    val shape = RoundedCornerShape(14.dp)
     Box(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .then(
+                if (accentShadow && enabled) {
+                    Modifier.shadow(
+                        elevation = 14.dp,
+                        shape = shape,
+                        ambientColor = theme.accent.copy(alpha = 0.18f),
+                        spotColor = theme.accent.copy(alpha = 0.18f),
+                    )
+                } else {
+                    Modifier
+                },
+            )
+            .clip(shape)
             .background(if (enabled) theme.accent else theme.accent.copy(alpha = 0.35f))
             .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 14.dp),

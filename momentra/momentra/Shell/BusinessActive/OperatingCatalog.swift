@@ -8,11 +8,24 @@ import SwiftUI
 enum BusinessOperatingVertical: String, CaseIterable {
     case trading = "TRADING_WHOLESALE"
     case distribution = "DISTRIBUTION_DEALERSHIP"
+    case standardProduction = "STANDARD_PRODUCTION"
+    case madeToOrder = "MADE_TO_ORDER"
+    case clientCampaign = "CLIENT_CAMPAIGN"
+    case ownBusinessCampaign = "OWN_BUSINESS_CAMPAIGN"
+    case retailStore = "RETAIL_STORE"
+    case restaurantFood = "RESTAURANT_FOOD"
+    case consumerService = "CONSUMER_SERVICE"
 
     var domain: BusinessDomain {
         switch self {
         case .trading: return .trading
         case .distribution: return .distribution
+        case .standardProduction, .madeToOrder: return .manufacturing
+        case .clientCampaign: return .marketing
+        case .ownBusinessCampaign: return .marketingOwn
+        case .retailStore: return .retail
+        case .restaurantFood: return .restaurant
+        case .consumerService: return .services
         }
     }
 
@@ -22,6 +35,12 @@ enum BusinessOperatingVertical: String, CaseIterable {
         switch self {
         case .trading: return BusinessTokens.Colors.tradingCanvas
         case .distribution: return BusinessTokens.Colors.distributionCanvas
+        case .standardProduction, .madeToOrder: return BusinessTokens.Colors.manufacturingCanvas
+        case .clientCampaign: return BusinessTokens.Colors.marketingCanvas
+        case .ownBusinessCampaign: return BusinessTokens.Colors.marketingOwnCanvas
+        case .retailStore: return BusinessTokens.Colors.retailCanvas
+        case .restaurantFood: return BusinessTokens.Colors.restaurantCanvas
+        case .consumerService: return BusinessTokens.Colors.servicesCanvas
         }
     }
 
@@ -29,6 +48,12 @@ enum BusinessOperatingVertical: String, CaseIterable {
         switch self {
         case .trading: return BusinessTokens.Colors.tradingSurface
         case .distribution: return BusinessTokens.Colors.distributionSurface
+        case .standardProduction, .madeToOrder: return BusinessTokens.Colors.manufacturingSurface
+        case .clientCampaign: return BusinessTokens.Colors.marketingSurface
+        case .ownBusinessCampaign: return BusinessTokens.Colors.marketingOwnSurface
+        case .retailStore: return BusinessTokens.Colors.retailSurface
+        case .restaurantFood: return BusinessTokens.Colors.restaurantSurface
+        case .consumerService: return BusinessTokens.Colors.servicesSurface
         }
     }
 
@@ -36,6 +61,12 @@ enum BusinessOperatingVertical: String, CaseIterable {
         switch self {
         case .trading: return BusinessTokens.Colors.tradingInset
         case .distribution: return BusinessTokens.Colors.distributionInset
+        case .standardProduction, .madeToOrder: return BusinessTokens.Colors.manufacturingInset
+        case .clientCampaign: return BusinessTokens.Colors.marketingInset
+        case .ownBusinessCampaign: return BusinessTokens.Colors.marketingOwnInset
+        case .retailStore: return BusinessTokens.Colors.retailInset
+        case .restaurantFood: return BusinessTokens.Colors.restaurantInset
+        case .consumerService: return BusinessTokens.Colors.servicesInset
         }
     }
 
@@ -47,14 +78,26 @@ enum BusinessOperatingVertical: String, CaseIterable {
         switch self {
         case .trading: return BusinessTokens.Colors.tradingOnAccent
         case .distribution: return BusinessTokens.Colors.distributionOnAccent
+        case .standardProduction, .madeToOrder: return BusinessTokens.Colors.manufacturingOnAccent
+        case .clientCampaign: return BusinessTokens.Colors.marketingOnAccent
+        case .ownBusinessCampaign: return BusinessTokens.Colors.marketingOwnOnAccent
+        case .retailStore: return BusinessTokens.Colors.retailOnAccent
+        case .restaurantFood: return BusinessTokens.Colors.restaurantOnAccent
+        case .consumerService: return BusinessTokens.Colors.servicesOnAccent
         }
     }
 
-    /// `Buyers` for a wholesale trade, `Dealers` for a dealership.
     var partyNoun: String {
         switch self {
         case .trading: return "Buyers"
         case .distribution: return "Dealers"
+        case .standardProduction: return "Buyers"
+        case .madeToOrder: return "Customers"
+        case .clientCampaign: return "Clients"
+        case .ownBusinessCampaign: return "Brand"
+        case .retailStore: return "Customers"
+        case .restaurantFood: return "Guests"
+        case .consumerService: return "Clients"
         }
     }
 
@@ -62,22 +105,67 @@ enum BusinessOperatingVertical: String, CaseIterable {
         switch self {
         case .trading: return "Source. Sell. Collect."
         case .distribution: return "Source. Move. Settle."
+        case .standardProduction: return "Plan. Make. Fulfil."
+        case .madeToOrder: return "Quote. Confirm. Make. Invoice."
+        case .clientCampaign: return "Plan. Spend. Report."
+        case .ownBusinessCampaign: return "Plan. Promote. Grow."
+        case .retailStore: return "Stock. Sell. Collect."
+        case .restaurantFood: return "Prep. Serve. Collect."
+        case .consumerService: return "Book. Serve. Charge."
         }
     }
 
-    var storyNoun: String { self == .trading ? "trading" : "distribution" }
+    var storyNoun: String {
+        switch self {
+        case .trading: return "trading"
+        case .distribution: return "distribution"
+        case .standardProduction: return "manufacturing"
+        case .madeToOrder: return "make-to-order"
+        case .clientCampaign: return "client"
+        case .ownBusinessCampaign: return "own"
+        case .retailStore: return "retail"
+        case .restaurantFood: return "restaurant"
+        case .consumerService: return "service"
+        }
+    }
+
+    var isMarketing: Bool {
+        self == .clientCampaign || self == .ownBusinessCampaign
+    }
+
+    var isManufacturing: Bool {
+        self == .standardProduction || self == .madeToOrder
+    }
+
+    var isRetailFamily: Bool {
+        self == .retailStore || self == .restaurantFood || self == .consumerService
+    }
 
     /// The eight chapters the backend composes for this vertical.
     var storyPages: [String] {
         switch self {
-        case .trading: return ["Moment", "Motion", "Orders", "Money", "Stock", "Network", "Attention", "So far"]
+        case .trading, .standardProduction:
+            return ["Moment", "Motion", "Orders", "Money", "Stock", "Network", "Attention", "So far"]
         case .distribution: return ["Moment", "Motion", "Dealers", "Money", "Stock", "Network", "Attention", "So far"]
+        case .madeToOrder:
+            return ["Jobs", "One job", "Confirmed", "Money", "Production", "Network", "Attention", "So far"]
+        case .clientCampaign, .ownBusinessCampaign:
+            return ["Moment", "Motion", "Spend", "Results", "Creative", "Network", "Attention", "So far"]
+        case .retailStore, .restaurantFood, .consumerService:
+            return ["Moment", "Motion", "Earned", "Money", "Work", "People", "Forward", "So far"]
         }
     }
 
     static func forSubtype(_ subtype: String?) -> BusinessOperatingVertical? {
         guard let subtype else { return nil }
-        return BusinessOperatingVertical(rawValue: subtype.uppercased())
+        let code = subtype.uppercased()
+        if let exact = BusinessOperatingVertical(rawValue: code) { return exact }
+        if code.contains("MARKETING") { return .clientCampaign }
+        if code.contains("MANUFACTURING") { return .standardProduction }
+        if code.contains("RETAIL") { return .retailStore }
+        if code.contains("RESTAURANT") || code.contains("FOOD") { return .restaurantFood }
+        if code.contains("SERVICE") && !code.contains("CAMPAIGN") { return .consumerService }
+        return nil
     }
 }
 
@@ -94,6 +182,74 @@ struct OperatingSheetSpec: Identifiable, Equatable {
     var pulseSurface: Bool = false
 
     var id: String { code }
+
+    /// Figma `DST-SHEET` / `TRD-SHEET` node id for this surface.
+    var figmaId: String { OperatingSheetChrome.figmaId(for: code) }
+    /// Status chips under the period row (All / Open / Done, …).
+    var statusFilters: [String] { OperatingSheetChrome.statusFilters(for: code) }
+    /// Sticky footer primary CTA label.
+    var footerCta: String { OperatingSheetChrome.footerCta(for: code) }
+    var periodFilters: [String] { OperatingSheetChrome.periodFilters }
+}
+
+/// Sticky-header chrome shared by every view-all sheet (`DST-SHEET` / `TRD-SHEET`).
+enum OperatingSheetChrome {
+    static let periodFilters = ["This month", "Last month", "Custom range ›"]
+
+    static func figmaId(for code: String) -> String {
+        switch code {
+        case "TARGET_BUDGET": return "2561:29337"
+        case "FINANCE": return "2561:29430"
+        case "PAYMENT_READINESS": return "2561:29507"
+        case "ATTENTION": return "2561:29581"
+        case "ACTIVITY": return "2561:29673"
+        case "GST": return "2561:29759"
+        case "orders": return "2561:29845"
+        case "stock": return "2561:29941"
+        case "network": return "2561:30031"
+        case "M4": return "2561:30116"
+        case "L1": return "2561:30214"
+        case "L2": return "2561:30294"
+        case "L3": return "2561:30398"
+        case "L4": return "2561:30492"
+        case "ME1": return "2561:30588"
+        case "ME2": return "2561:30680"
+        case "fulfilment": return "2561:30773"
+        case "ME4": return "2561:30852"
+        default: return ""
+        }
+    }
+
+    static func statusFilters(for code: String) -> [String] {
+        switch code {
+        case "FINANCE", "PAYMENT_READINESS", "ATTENTION", "orders", "M4", "L3":
+            return ["Open", "Overdue", "Settled"]
+        case "ME1", "ME2", "fulfilment", "ME4":
+            return ["All", "Open", "Settled"]
+        default:
+            return ["All", "Open", "Done"]
+        }
+    }
+
+    static func footerCta(for code: String) -> String {
+        switch code {
+        case "PAYMENT_READINESS", "L3": return "Record payment"
+        case "ATTENTION": return "Resolve all"
+        case "orders", "M4": return "Resolve commitments"
+        case "ME1", "ME2", "fulfilment", "ME4": return "Open Memory"
+        default: return "Open Quick Add"
+        }
+    }
+
+    /// Footer CTA → capture mode or chrome action the host should take.
+    static func footerAction(for code: String) -> String {
+        switch footerCta(for: code) {
+        case "Record payment": return "PAYMENT"
+        case "Resolve all", "Resolve commitments": return "ATTENTION"
+        case "Open Memory": return "MEMORY"
+        default: return "QUICK_ADD"
+        }
+    }
 }
 
 /// The eighteen surfaces in Figma order — identical codes for both verticals, because the board
@@ -164,10 +320,10 @@ enum OperatingSheetCatalog {
         ),
         OperatingSheetSpec(
             code: "network",
-            title: "Buyers, Suppliers & Channels",
-            eyebrow: "Who the business runs through",
+            title: "Dealers, Principals & Routes",
+            eyebrow: "Who the network runs through",
             emptyTitle: "No people yet",
-            emptyBody: "Named buyers, suppliers, and channels appear as you record them."
+            emptyBody: "Named dealers, principals, and routes appear as you record them."
         ),
         OperatingSheetSpec(
             code: "M4",
@@ -179,16 +335,16 @@ enum OperatingSheetCatalog {
         OperatingSheetSpec(
             code: "L1",
             title: "Current Business",
-            eyebrow: "Where the business stands today",
+            eyebrow: "The network today",
             emptyTitle: "Nothing recorded yet",
             emptyBody: "Board updates and the live position will show here."
         ),
         OperatingSheetSpec(
             code: "L2",
-            title: "Buyers & Channels",
-            eyebrow: "Attributed sales by channel",
+            title: "Dealers & Channels",
+            eyebrow: "Attributed sales by dealer and channel",
             emptyTitle: "No channels recorded",
-            emptyBody: "Channel-attributed sales appear once a channel is chosen."
+            emptyBody: "Dealer-attributed sales appear once a channel is chosen."
         ),
         OperatingSheetSpec(
             code: "L3",
@@ -239,6 +395,65 @@ enum OperatingSheetCatalog {
 
     static func spec(forCode code: String) -> OperatingSheetSpec? {
         all.first { $0.code == code }
+    }
+
+    /// Plant vs job-order copy for the shared eighteen codes.
+    static func spec(forCode code: String, vertical: BusinessOperatingVertical) -> OperatingSheetSpec? {
+        guard var spec = spec(forCode: code) else { return nil }
+        guard vertical.isManufacturing else { return spec }
+        if vertical == .madeToOrder {
+            switch code {
+            case "orders":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Current Jobs",
+                    eyebrow: spec.eyebrow,
+                    emptyTitle: "No jobs yet",
+                    emptyBody: "Confirmed jobs and their operations will show here.",
+                    pulseSurface: spec.pulseSurface
+                )
+            case "stock":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Job Operations",
+                    eyebrow: "WIP against open jobs",
+                    emptyTitle: "No job stock yet",
+                    emptyBody: "Materials issued to jobs and finished goods appear here.",
+                    pulseSurface: spec.pulseSurface
+                )
+            case "M4":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Open Jobs",
+                    eyebrow: spec.eyebrow,
+                    emptyTitle: spec.emptyTitle,
+                    emptyBody: spec.emptyBody,
+                    pulseSurface: spec.pulseSurface
+                )
+            case "L2":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Jobs & Customers",
+                    eyebrow: "Attributed work by customer and channel",
+                    emptyTitle: spec.emptyTitle,
+                    emptyBody: spec.emptyBody,
+                    pulseSurface: spec.pulseSurface
+                )
+            default:
+                break
+            }
+        }
+        if code == "network" {
+            spec = OperatingSheetSpec(
+                code: spec.code,
+                title: "Vendors, Buyers & Lines",
+                eyebrow: "Who the network runs through",
+                emptyTitle: "No people yet",
+                emptyBody: "Named vendors, buyers, and lines appear as you record them.",
+                pulseSurface: spec.pulseSurface
+            )
+        }
+        return spec
     }
 
     /// Board section code → the surface it opens. The Pulse surfaces are opened by their own
@@ -300,7 +515,7 @@ enum OperatingCaptureLayout: String, CaseIterable {
         case "BUDGET", "TARGET": return .budget
         case "UPDATE", "ISSUE": return .update
         case "APPROVAL": return .approval
-        case "ORDER": return .order
+        case "ORDER", "CUSTOMER_ORDER", "PRODUCTION": return .order
         case "SHIPMENT", "DELIVERY": return .shipment
         default: return nil
         }

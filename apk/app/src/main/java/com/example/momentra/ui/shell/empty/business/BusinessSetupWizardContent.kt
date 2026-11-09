@@ -85,8 +85,11 @@ fun BusinessSetupWizardContent(
         MomentraAnalytics.get().onScreenEnter(kind.analyticsScreen)
         onDispose { MomentraAnalytics.get().onScreenExit(kind.analyticsScreen) }
     }
-    if (kind == BusinessSetupKind.TRADING_DISTRIBUTION) {
-        TradingDistributionSetupContent(
+    when (kind) {
+        BusinessSetupKind.TRADING_DISTRIBUTION,
+        BusinessSetupKind.MANUFACTURING_PRODUCTION,
+        BusinessSetupKind.RETAIL_CONSUMER,
+        -> TradingDistributionSetupContent(
             kind = kind,
             companyId = companyId,
             createViewModel = createViewModel,
@@ -100,8 +103,21 @@ fun BusinessSetupWizardContent(
             editingMomentStatus = editingMomentStatus,
             ownerName = ownerName,
         )
-    } else {
-        LegacySetupWizardContent(
+        BusinessSetupKind.MARKETING_CAMPAIGNS -> MarketingCampaignsSetupContent(
+            kind = kind,
+            companyId = companyId,
+            createViewModel = createViewModel,
+            submitting = submitting,
+            error = error,
+            onClose = onClose,
+            onCreated = onCreated,
+            modifier = modifier,
+            editingMomentId = editingMomentId,
+            initialTitle = initialTitle,
+            editingMomentStatus = editingMomentStatus,
+            ownerName = ownerName,
+        )
+        else -> LegacySetupWizardContent(
             kind = kind,
             companyId = companyId,
             createViewModel = createViewModel,
@@ -469,9 +485,318 @@ private fun TradingDistributionSetupContent(
                 error = inviteError,
                 theme = setupDocTheme(state.subtype),
                 existingNames = state.invitees.map { it.name },
+                subtypeCode = state.subtype,
                 onRoleChange = { code ->
                     state.inviteRole = code
                     // A code grants the role it was minted with, so a role change must re-mint.
+                    ensureInvite(code)
+                },
+                onAddPerson = { invitee ->
+                    if (state.invitees.none { it.name.equals(invitee.name, ignoreCase = true) }) {
+                        state.invitees = state.invitees + invitee
+                    }
+                },
+                onRetry = { ensureInvite(state.inviteRole) },
+                onDismiss = { inviteSheetOpen = false },
+            )
+        }
+    }
+}
+
+@Composable
+private fun MarketingCampaignsSetupContent(
+    kind: BusinessSetupKind,
+    companyId: String,
+    createViewModel: MomentCreateViewModel,
+    submitting: Boolean,
+    error: String?,
+    onClose: () -> Unit,
+    onCreated: (CreateMomentOutcome) -> Unit,
+    modifier: Modifier = Modifier,
+    editingMomentId: String? = null,
+    initialTitle: String? = null,
+    editingMomentStatus: String? = null,
+    ownerName: String = "",
+) {
+    val subtypes = remember(kind) { OperatingMomentCatalog.subtypes(kind) }
+    val state = remember(kind, editingMomentId) {
+        MarketingSetupDocState(
+            subtypeCode = subtypes.first().code,
+            initialName = initialTitle.orEmpty(),
+        )
+    }
+
+    var draftId by remember(kind, editingMomentId) { mutableStateOf(editingMomentId) }
+    var draftCompanyId by remember(kind, editingMomentId) {
+        mutableStateOf(companyId.takeIf { it.isNotBlank() })
+    }
+    var momentStatus by remember(kind, editingMomentId) {
+        mutableStateOf(
+            if (editingMomentId == null) {
+                "DRAFT"
+            } else {
+                editingMomentStatus?.trim()?.uppercase()?.takeIf { it.isNotEmpty() } ?: "ACTIVE"
+            },
+        )
+    }
+    var starting by remember(kind) { mutableStateOf(false) }
+    var started by remember(kind) { mutableStateOf(false) }
+    var abandoned by remember(kind) { mutableStateOf(false) }
+    var counts by remember(kind) { mutableStateOf(SetupMasterCounts()) }
+    var reloadKey by remember(kind) { mutableIntStateOf(0) }
+    var sheetOpen by remember(kind) { mutableStateOf(false) }
+    var sheetTab by remember(kind) { mutableStateOf(OperatingMasterTab.Catalogue) }
+    var sheetForm by remember(kind) { mutableStateOf<OperatingMasterTab?>(null) }
+
+    var setupInvite by remember(kind, editingMomentId) { mutableStateOf<CompanyInviteDto?>(null) }
+    var mintingInvite by remember(kind) { mutableStateOf(false) }
+    var inviteError by remember(kind) { mutableStateOf<String?>(null) }
+    var inviteSheetOpen by remember(kind) { mutableStateOf(false) }
+
+    val repo = remember { BusinessSliceRepository() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    LaunchedEffect(kind, editingMomentId) {
+        if (draftId != null) return@LaunchedEffect
+        createViewModel.submitBusinessSetup(
+            kind = kind,
+            companyId = companyId.takeIf { it.isNotBlank() },
+            preferences = state.preferences(ownerName),
+            title = state.campaignName.ifBlank { kind.title },
+            subtype = state.subtype,
+            status = "DRAFT",
+            onSuccess = { outcome ->
+                if (abandoned) {
+                    createViewModel.discardMomentDraft(outcome.momentId) {}
+                } else {
+                    draftId = outcome.momentId
+                }
+            },
+        )
+    }
+
+    LaunchedEffect(draftId) {
+        state.draftMomentId = draftId
+        val id = draftId ?: return@LaunchedEffect
+        val wantsPrefill = editingMomentId != null || state.campaignName.isBlank()
+        val prefill = if (wantsPrefill || draftCompanyId == null) {
+            createViewModel.getDomainSetupPrefill(id)
+        } else {
+            null
+        }
+        if (wantsPrefill) {
+            prefill?.preferences?.let { state.applyPrefill(it) }
+            val saved = prefill?.title?.trim().orEmpty()
+            if (saved.isNotEmpty() && state.campaignName.isBlank()) {
+                state.campaignName = saved
+            }
+        }
+        prefill?.status?.trim()?.uppercase()?.takeIf { it.isNotEmpty() }?.let { momentStatus = it }
+        prefill?.companyId?.takeIf { it.isNotBlank() }?.let { draftCompanyId = it }
+        state.companyId = draftCompanyId
+    }
+
+    LaunchedEffect(draftCompanyId, draftId, reloadKey) {
+        val cid = draftCompanyId ?: return@LaunchedEffect
+        repo.listMasters(cid, momentId = draftId).onSuccess { masters ->
+            val byKind = masters.groupBy { it.kind.uppercase() }
+            fun count(vararg kinds: String) = kinds.sumOf { byKind[it].orEmpty().size }
+            counts = counts.copy(
+                skus = count("SKU", "PRODUCT", "BATCH"),
+                warehouses = count("WAREHOUSE", "LOCATION"),
+                routes = count("ROUTE"),
+                principals = count("PRINCIPAL", "SUPPLIER", "VENDOR", "CLIENT"),
+                dealers = count("DEALER", "BUYER", "CUSTOMER", "CREATOR"),
+            )
+        }
+    }
+
+    LaunchedEffect(draftCompanyId) {
+        state.companyId = draftCompanyId
+    }
+
+    val revision = with(state) {
+        listOf(
+            subtype, campaignName, partyName, offering, purpose, description, currency,
+            startDate, endDate, gstin, channels.joinToString("|"), budget, clientFee,
+            mediaApproved, target, metric, inviteRole, gstTracking, gstRegistration,
+            gstState, gstPricing, gstEffectiveFrom,
+            invitees.joinToString("|") { it.name + ":" + it.roleCode },
+        ).joinToString("\u0001")
+    }
+    LaunchedEffect(draftId, revision, momentStatus) {
+        val id = draftId ?: return@LaunchedEffect
+        if (!MarketingSetupDocumentSpec.isPromotable(momentStatus)) return@LaunchedEffect
+        delay(700)
+        createViewModel.saveBusinessSetupDraft(
+            momentId = id,
+            preferences = state.preferences(ownerName),
+            title = state.campaignName.ifBlank { kind.title },
+        )
+    }
+
+    suspend fun mintInvite(roleCode: String): CompanyInviteDto? {
+        val draft = draftId
+        val cid = draftCompanyId ?: if (draft != null) {
+            createViewModel.ensureSetupCompany(
+                momentId = draft,
+                companyName = state.campaignName.ifBlank { kind.title },
+                taxIdentifier = state.gstin,
+            )?.also {
+                draftCompanyId = it
+                state.companyId = it
+            }
+        } else {
+            null
+        } ?: return null
+        return runCatching {
+            ApiClient.apiService.mintCompanyInvite(
+                idempotencyKey = UUID.randomUUID().toString(),
+                body = MintCompanyInviteBody(
+                    companyId = cid,
+                    membershipType = MarketingSetupDocumentSpec.membershipType(roleCode),
+                    operatingRole = roleCode,
+                ),
+            ).data
+        }.getOrElse { failure ->
+            inviteError = failure.message ?: "Could not mint an invite"
+            null
+        }
+    }
+
+    suspend fun inviteFor(roleCode: String = state.inviteRole): CompanyInviteDto? {
+        val current = setupInvite
+        if (current != null && current.operatingRole == roleCode) return current
+        var waitedMs = 0
+        while (mintingInvite && waitedMs < MINT_WAIT_MS) {
+            delay(120)
+            waitedMs += 120
+            val settled = setupInvite
+            if (settled != null && settled.operatingRole == roleCode) return settled
+        }
+        mintingInvite = true
+        inviteError = null
+        val minted = mintInvite(roleCode)
+        if (minted != null) setupInvite = minted
+        mintingInvite = false
+        return minted
+    }
+
+    fun ensureInvite(roleCode: String = state.inviteRole) {
+        scope.launch { inviteFor(roleCode) }
+    }
+
+    Box(modifier.fillMaxSize()) {
+        MarketingSetupDocument(
+            state = state,
+            ownerName = ownerName,
+            counts = counts,
+            submitting = submitting && starting,
+            error = error,
+            onClose = {
+                val draft = draftId
+                if (draft != null && !started && MarketingSetupDocumentSpec.isDiscardable(momentStatus)) {
+                    createViewModel.discardMomentDraft(draft) { onClose() }
+                } else {
+                    if (draft == null) abandoned = true
+                    onClose()
+                }
+            },
+            onOpenMasters = { tab, form ->
+                val draft = draftId
+                if (draftCompanyId == null && draft != null) {
+                    scope.launch {
+                        val cid = createViewModel.ensureSetupCompany(
+                            momentId = draft,
+                            companyName = state.campaignName.ifBlank { kind.title },
+                            taxIdentifier = state.gstin,
+                        )
+                        if (cid != null) {
+                            draftCompanyId = cid
+                            state.companyId = cid
+                        }
+                        sheetTab = tab
+                        sheetForm = form
+                        sheetOpen = true
+                    }
+                } else {
+                    sheetTab = tab
+                    sheetForm = form
+                    sheetOpen = true
+                }
+            },
+            momentStatus = momentStatus,
+            onStart = {
+                val draft = draftId
+                if (starting || draft == null) return@MarketingSetupDocument
+                starting = true
+                createViewModel.submitBusinessSetup(
+                    kind = kind,
+                    companyId = draftCompanyId,
+                    preferences = state.preferences(ownerName),
+                    title = state.campaignName.trim().ifBlank { kind.title },
+                    subtype = state.subtype,
+                    editingMomentId = draft,
+                    editingMomentStatus = momentStatus,
+                    status = "ACTIVE",
+                    companyName = state.companyName.ifBlank { state.campaignName },
+                    taxIdentifier = state.gstin,
+                    onSuccess = { outcome ->
+                        starting = false
+                        started = true
+                        onCreated(outcome)
+                    },
+                )
+            },
+            onOpenInvite = {
+                inviteSheetOpen = true
+                ensureInvite()
+            },
+            onShareInviteQr = {
+                scope.launch {
+                    val code = inviteFor()?.inviteCode?.takeIf { it.isNotBlank() } ?: return@launch
+                    val px = (156 * context.resources.displayMetrics.density).toInt()
+                    val bitmap = generateInviteQrBitmap(CompanyJoinLink.qrPayload(code), px)
+                    shareInviteQr(context, bitmap, CompanyJoinLink.displayPath(code))
+                }
+            },
+            onWhatsAppInvite = {
+                scope.launch {
+                    val code = inviteFor()?.inviteCode?.takeIf { it.isNotBlank() } ?: return@launch
+                    sendInviteWhatsApp(
+                        context,
+                        null,
+                        inviteMessage(
+                            state.campaignName.ifBlank { kind.title },
+                            CompanyJoinLink.displayPath(code),
+                        ),
+                    )
+                }
+            },
+            mintingInvite = mintingInvite,
+            inviteError = inviteError,
+        )
+        MarketingSetupMastersHost(
+            state = state,
+            open = sheetOpen,
+            tab = sheetTab,
+            initialForm = sheetForm,
+            onDismiss = { sheetOpen = false },
+            onChanged = { reloadKey += 1 },
+        )
+        if (inviteSheetOpen) {
+            BusinessSetupInviteSheet(
+                title = state.campaignName.ifBlank { kind.title },
+                roleCode = state.inviteRole,
+                invite = setupInvite,
+                minting = mintingInvite,
+                error = inviteError,
+                theme = marketingSetupDocTheme(state.subtype),
+                existingNames = state.invitees.map { it.name },
+                subtypeCode = state.subtype,
+                onRoleChange = { code ->
+                    state.inviteRole = code
                     ensureInvite(code)
                 },
                 onAddPerson = { invitee ->

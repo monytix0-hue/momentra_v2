@@ -119,223 +119,113 @@ fun TradingQuickAddHub(
     onDecide: suspend (String, String) -> Unit,
 ) {
     val allowed = model.quickAdds.map { it.code }.toSet()
-    var query by remember { mutableStateOf("") }
     var sheet by remember { mutableStateOf<TradingSheet?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var approvalOpen by remember { mutableStateOf(false) }
-    var mastersOpen by remember { mutableStateOf(false) }
-    val role = model.role.orEmpty()
-    val owner = role == "OWNER_ADMIN"
-    val approver = role == "APPROVER" || owner
-    LaunchedEffect(Unit) {
-        when (OperatingChromeState.quickAddHint) {
-            "shipment" -> sheet = TradingSheet.SHIPMENT
-            "stock" -> sheet = TradingSheet.STOCK
-            "budget" -> sheet = TradingSheet.BUDGET
-        }
+    val theme = remember { com.example.momentra.ui.shell.business.shared.OperatingV12Theme.trading() }
+    LaunchedEffect(OperatingChromeState.quickAddHint) {
+        val hint = OperatingChromeState.quickAddHint?.uppercase() ?: return@LaunchedEffect
+        sheet = TradingSheet.entries.firstOrNull { it.captureMode == hint || it.name == hint }
+            ?: when (hint.lowercase()) {
+                "shipment", "delivery" -> TradingSheet.SHIPMENT
+                "stock" -> TradingSheet.STOCK
+                "budget" -> TradingSheet.BUDGET
+                "sale" -> TradingSheet.SALE
+                "purchase" -> TradingSheet.PURCHASE
+                "collection" -> TradingSheet.COLLECTION
+                "payment" -> TradingSheet.PAYMENT
+                "spend", "expense" -> TradingSheet.SPEND
+                "order" -> TradingSheet.ORDER
+                "update", "issue" -> TradingSheet.UPDATE
+                else -> null
+            }
         OperatingChromeState.quickAddHint = null
     }
     Box(Modifier.fillMaxSize()) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 17.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-    Text("Quick Adds", color = TradeInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 28.sp)
-    Text("Record what happened · ${model.title.orEmpty()}", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        HubChip(OperatingMomentCatalog.roles.firstOrNull { it.first == role }?.second ?: "Trading", filled = true)
-        HubChip("Trading", filled = false)
-    }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(TradeNotice)
-            .border(1.dp, TradeBrand.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
-            .shadow(24.dp, RoundedCornerShape(18.dp), ambientColor = TradeBrand.copy(alpha = 0.4f), spotColor = TradeBrand.copy(alpha = 0.4f))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text("Source. Sell. Collect.", color = TradeInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-        Text("Capture a sale, a cost, or a note while it is still clear.", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
-        if ("SALE" in allowed) {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(TradeBrand)
-                    .clickable { sheet = TradingSheet.SALE }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon(painterResource(R.drawable.qa_plus), contentDescription = null, tint = TradeBg, modifier = Modifier.size(14.dp))
-                Text("Record Sale", color = TradeBg, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(TradeField)
-            .border(1.dp, TradeBorder, RoundedCornerShape(12.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Icon(painterResource(R.drawable.qa_search), contentDescription = null, tint = TradeSecondary, modifier = Modifier.size(18.dp))
-        BasicTextField(
-            value = query,
-            onValueChange = { query = it },
-            textStyle = TextStyle(color = TradeInk, fontFamily = PlusJakartaSans, fontSize = 14.sp),
-            cursorBrush = SolidColor(TradeBrand),
-            decorationBox = { inner ->
-                if (query.isEmpty()) Text("Search actions", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 14.sp)
-                inner()
-            },
-            modifier = Modifier.weight(1f),
-        )
-    }
-    val core = listOf(
-        TradingSheet.SALE to "Sale",
-        TradingSheet.PURCHASE to "Purchase",
-        TradingSheet.SPEND to "Expense",
-        TradingSheet.PAYMENT to "Payment",
-        TradingSheet.COLLECTION to "Money collection",
-        TradingSheet.BUDGET to "Budget",
-        TradingSheet.UPDATE to "Update",
-        TradingSheet.ISSUE to "Issue",
-        TradingSheet.STOCK to "Stock",
-        TradingSheet.ORDER to "Order",
-        TradingSheet.SHIPMENT to "Shipment",
-        TradingSheet.RETURN to "Return",
-    ).filter { (kind, label) ->
-        kind.eventType in allowed && label.contains(query, ignoreCase = true)
-    }
-    Text("Core actions · ${core.size}", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-    core.chunked(3).forEach { row ->
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            row.forEach { (kind, label) ->
-                ActionCard(label, kind.hubIcon, locked = null, modifier = Modifier.weight(1f)) { sheet = kind }
-            }
-        }
-    }
-    Text(
-        "Masters",
-        color = Color.White,
-        fontFamily = PlusJakartaSans,
-        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-        modifier = Modifier.clickable { mastersOpen = true }.padding(vertical = 8.dp),
-    )
-    Text("Support & management", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-    val support = listOf(
-        Triple(TradingSheet.HOLD, "Hold / release", if ("ORDER" in allowed) null else "Moments only"),
-        Triple(TradingSheet.TRANSFER, "Transfer stock", if ("STOCK" in allowed) null else "Stock only"),
-        Triple(TradingSheet.REPRINT, "Reprint document", if ("SALE" in allowed) null else "Sales only"),
-        Triple(TradingSheet.REIMBURSE, "Reimbursement", if ("PAYMENT" in allowed) null else "Finance only"),
-        Triple(null, "Approval review", if (approver) null else "Approver only"),
-        Triple(TradingSheet.PERSON, "Add person", if (owner && "UPDATE" in allowed) null else "Owner only"),
-        Triple(TradingSheet.ROLE, "Role & access", if (owner && "UPDATE" in allowed) null else "Owner only"),
-        Triple(TradingSheet.SUPPLIER, "Suppliers & channels", if ("UPDATE" in allowed) null else "View only"),
-        Triple(TradingSheet.INVITE, "Invite & QR", if (owner && "UPDATE" in allowed) null else "Owner only"),
-    ).filter { (_, label, _) -> label.contains(query, ignoreCase = true) }
-    support.chunked(3).forEach { row ->
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            row.forEach { (kind, label, lock) ->
-                ActionCard(label, if (kind == null) R.drawable.qa_shield else kind.hubIcon, lock, Modifier.weight(1f)) {
-                    if (label == "Approval review" && approver) approvalOpen = true
-                    else if (kind != null && lock == null) sheet = kind
-                }
-            }
-        }
-    }
-    Text(
-        "Review approvals",
-        color = if (approver) TradeAccent else TradeSecondary,
-        fontFamily = PlusJakartaSans,
-        modifier = Modifier.clickable(enabled = approver) { approvalOpen = true },
-    )
-    if (!owner) {
-        Text("Some support actions stay with the Owner or Approver.", color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-    }
-    if (error != null) Text(error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans, fontSize = 13.sp)
-    }
-    val createMaster: suspend (String, String, String?, String?) -> Unit = { kind, name, unit, conversion ->
-        onRecord(
-            TradingEventDraft(
-                eventType = "UPDATE",
-                title = name,
-                amount = null,
-                note = null,
-                channelName = null,
-                counterpartyName = null,
-                paymentStatus = null,
-                unit = unit,
-                itemName = name,
-                masterKind = kind,
-                conversionToBase = conversion,
-            ),
-        )
-    }
-    val open = sheet
-    if (open != null) {
-        OperatingSheetScrim(onDismiss = { sheet = null }, accent = TradeBrand) {
-            OperatingCaptureSheet(
-                title = open.title,
-                icon = open.hubIcon,
-                eventType = open.eventType,
-                mode = open.captureMode,
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            com.example.momentra.ui.shell.business.shared.OperatingV12HubScreen(
                 model = model,
-                channelLabel = when (open.captureMode) {
-                    "SALE" -> "Sales channel"
-                    "COLLECTION" -> "Received from"
-                    else -> "Channel"
+                theme = theme,
+                onCapture = { code ->
+                    sheet = TradingSheet.entries.firstOrNull { it.captureMode == code || it.eventType == code }
+                        ?: TradingSheet.UPDATE
                 },
-                variant = "trading",
-                onDismiss = { sheet = null },
-                onSubmit = { draft ->
-                    onRecord(draft.toTrading())
-                    sheet = null
-                },
-                onDecide = onDecide,
-                onCreateMaster = if ("UPDATE" in allowed) createMaster else null,
+                onOpenMasters = { tabName -> OperatingChromeState.mastersOpen = tabName },
+            )
+            if (error != null) {
+                Text(error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans, fontSize = 13.sp)
+            }
+            Text(
+                "Review approvals",
+                color = TradeAccent,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clickable { approvalOpen = true }.padding(vertical = 4.dp),
             )
         }
-    }
-    if (mastersOpen) {
-        OperatingSheetScrim(onDismiss = { mastersOpen = false }, accent = TradeBrand) {
-            OperatingCaptureSheet(
-                title = "Masters",
-                icon = R.drawable.qa_shield,
-                eventType = "UPDATE",
-                mode = "MASTERS",
-                model = model,
-                onDismiss = { mastersOpen = false },
-                onSubmit = { draft ->
-                    onRecord(draft.toTrading())
-                    mastersOpen = false
-                },
+        val createMaster: suspend (String, String, String?, String?) -> Unit = { kind, name, unit, conversion ->
+            onRecord(
+                TradingEventDraft(
+                    eventType = "UPDATE",
+                    title = name,
+                    amount = null,
+                    note = null,
+                    channelName = null,
+                    counterpartyName = null,
+                    paymentStatus = null,
+                    unit = unit,
+                    itemName = name,
+                    masterKind = kind,
+                    conversionToBase = conversion,
+                ),
             )
         }
-    }
-    if (approvalOpen) {
-        OperatingSheetScrim(onDismiss = { approvalOpen = false }, accent = TradeBrand) {
-            OperatingCaptureSheet(
-                title = "Review Approval",
-                icon = R.drawable.qa_shield,
-                eventType = "APPROVAL",
-                mode = "APPROVAL",
-                model = model,
-                variant = "trading",
-                onDismiss = { approvalOpen = false },
-                onSubmit = {},
-                onDecide = onDecide,
-            )
+        val open = sheet
+        if (open != null) {
+            OperatingSheetScrim(onDismiss = { sheet = null }, accent = TradeBrand) {
+                OperatingCaptureSheet(
+                    title = open.title,
+                    icon = open.hubIcon,
+                    eventType = open.eventType,
+                    mode = open.captureMode,
+                    model = model,
+                    channelLabel = when (open.captureMode) {
+                        "SALE" -> "Sales channel"
+                        "COLLECTION" -> "Received from"
+                        else -> "Channel"
+                    },
+                    variant = "trading",
+                    onDismiss = { sheet = null },
+                    onSubmit = { draft ->
+                        onRecord(draft.toTrading())
+                        sheet = null
+                    },
+                    onDecide = onDecide,
+                    onCreateMaster = if ("UPDATE" in allowed) createMaster else null,
+                )
+            }
         }
-    }
+        if (approvalOpen) {
+            OperatingSheetScrim(onDismiss = { approvalOpen = false }, accent = TradeBrand) {
+                OperatingCaptureSheet(
+                    title = "Review Approval",
+                    icon = R.drawable.qa_shield,
+                    eventType = "APPROVAL",
+                    mode = "APPROVAL",
+                    model = model,
+                    variant = "trading",
+                    onDismiss = { approvalOpen = false },
+                    onSubmit = {},
+                    onDecide = onDecide,
+                )
+            }
+        }
     }
 }
 

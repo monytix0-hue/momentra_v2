@@ -27,7 +27,8 @@ data class ContextTheme(
 object ContextThemes {
     private val personal = ContextTheme(AppContext.PERSONAL, Color(0xFF7C5CFC), Color(0xFFA78BFA))
     private val group = ContextTheme(AppContext.GROUP, Color(0xFFE8621A), Color(0xFFFF8E63))
-    private val business = ContextTheme(AppContext.BUSINESS, Color(0xFF818CF8), Color(0xFFA5B4FC))
+    /** Business context chrome — Figma vertical accent `#EA580C` / soft `#FFB598`. */
+    private val business = ContextTheme(AppContext.BUSINESS, Color(0xFFEA580C), Color(0xFFFFB598))
     /** Figma `1075:7556` Circle Coming Soon — pink, not Personal purple. */
     private val circle = ContextTheme(AppContext.CIRCLE, Color(0xFFE86BA3), Color(0xFFFF6B8A))
 
@@ -144,10 +145,31 @@ object MomentThemes {
 
     fun business(momentTypeCode: String?): MomentTheme {
         val code = momentTypeCode?.uppercase().orEmpty()
+        // Domain Color System — matches design/tokens/business.tokens.json (nav + chrome accent).
         return when {
-            code.contains("RUNWAY") -> base("BUSINESS", "BUSINESS_RUNWAY", Color(0xFF34D399), Color(0xFF6EE7B7))
+            code == "DISTRIBUTION_DEALERSHIP" || code.contains("DEALERSHIP") ->
+                // Distribution · S `#EA580C` / soft `#FFB598` (DST-PULSE-v12)
+                base("BUSINESS", code.ifBlank { "DISTRIBUTION_DEALERSHIP" }, Color(0xFFEA580C), Color(0xFFFFB598))
+            code == "TRADING_WHOLESALE" || code.contains("WHOLESALE") || code == "TRADING_DISTRIBUTION" ->
+                // FinTech / Trading · S `#10B981` / soft `#6EE7B7` (TRD-PULSE-v12)
+                base("BUSINESS", code.ifBlank { "TRADING_WHOLESALE" }, Color(0xFF10B981), Color(0xFF6EE7B7))
+            code == "RESTAURANT_FOOD" || code.contains("RESTAURANT") ->
+                // Restaurant · S `#EA580C` / H `#FCD34D` (RST-PULSE-v12)
+                base("BUSINESS", code, Color(0xFFEA580C), Color(0xFFFCD34D))
+            code == "RETAIL_STORE" || code == "RETAIL_CONSUMER" || code.contains("RETAIL") ->
+                base("BUSINESS", code, Color(0xFFF43F5E), Color(0xFFFB7185))
+            code == "CONSUMER_SERVICE" || (code.contains("SERVICE") && !code.contains("CAMPAIGN")) ->
+                base("BUSINESS", code, Color(0xFF0D9488), Color(0xFF84CC16))
+            code == "STANDARD_PRODUCTION" || code == "MANUFACTURING_PRODUCTION" || code == "MADE_TO_ORDER"
+                || code.contains("MANUFACTURING") ->
+                base("BUSINESS", code, Color(0xFFF59E0B), Color(0xFFFBBF24))
+            code == "OWN_BUSINESS_CAMPAIGN" ->
+                base("BUSINESS", "OWN_BUSINESS_CAMPAIGN", Color(0xFFD946EF), Color(0xFFE879F9))
+            code == "CLIENT_CAMPAIGN" || code.contains("MARKETING") ->
+                base("BUSINESS", code.ifBlank { "CLIENT_CAMPAIGN" }, Color(0xFF6366F1), Color(0xFF818CF8))
+            code.contains("RUNWAY") -> base("BUSINESS", "BUSINESS_RUNWAY", Color(0xFF10B981), Color(0xFF6EE7B7))
             code.contains("TEAM") -> base("BUSINESS", "TEAM_OPERATIONS", Color(0xFF818CF8), Color(0xFFA5B4FC))
-            else -> base("BUSINESS", "BUSINESS_OPERATIONS", Color(0xFF818CF8), Color(0xFFFB923C))
+            else -> base("BUSINESS", "BUSINESS_OPERATIONS", Color(0xFF818CF8), Color(0xFFA5B4FC))
         }
     }
 

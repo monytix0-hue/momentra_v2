@@ -201,6 +201,9 @@ struct AppShellView: View {
             selection: bottomTabSelection,
             accent: momentAccent,
             context: model.selectedContext,
+            businessMomentTypeCode: model.selectedContext == .business
+                ? model.selectedMomentTypeCode
+                : nil,
             content: { tabNavigationRoot }
         )
         .background(Color(hex: "#14121B").ignoresSafeArea())

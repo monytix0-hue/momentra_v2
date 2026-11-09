@@ -68,6 +68,10 @@ class SetupDocumentSpecTest {
             listOf("Finance", "Approver", "Operations", "Contributor"),
             SetupDocumentSpec.inviteRoles(SetupDocumentSpec.TRADING).map { it.label },
         )
+        assertEquals(
+            listOf("Manager", "Warehouse", "Route lead", "Salesman"),
+            SetupDocumentSpec.inviteRoles(SetupDocumentSpec.DISTRIBUTION).map { it.label },
+        )
         // The catalog's chip set and the sheet's own list must never drift apart.
         assertEquals(
             BusinessInviteRoles.map { it.first }.sorted(),

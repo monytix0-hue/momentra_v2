@@ -44,7 +44,17 @@ final class BusinessOperatingModel: ObservableObject {
     var financeVisible: Bool { projection?.financeVisible ?? false }
     var title: String {
         if let title = projection?.title, !title.isEmpty { return title }
-        return vertical == .trading ? "Trading" : "Distribution"
+        switch vertical {
+        case .trading: return "Trading"
+        case .distribution: return "Distribution"
+        case .standardProduction: return "Manufacturing"
+        case .madeToOrder: return "Make to order"
+        case .clientCampaign: return "Client Campaign"
+        case .ownBusinessCampaign: return "Own Business Campaign"
+        case .retailStore: return "Retail"
+        case .restaurantFood: return "Restaurant"
+        case .consumerService: return "Service"
+        }
     }
 
     /// Masters grouped by kind, so a tab lists only what it owns.
@@ -72,11 +82,21 @@ final class BusinessOperatingModel: ObservableObject {
 
     // MARK: - Loading
 
+    /// Optional view-all period / status filters (`DST-SHEET` chips) re-project from the API.
+    var periodFilter: String?
+    var statusFilter: String?
+
     func load() async {
         loadTask?.cancel()
         if projection == nil { phase = .loading }
         do {
-            let payload = try await repo.loadProjection(momentId: momentId)
+            let payload = try await repo.loadProjection(
+                momentId: momentId,
+                period: periodFilter,
+                status: statusFilter,
+                from: nil,
+                to: nil
+            )
             projection = payload
             phase = payload.retired == true ? .empty : .ready
         } catch is CancellationError {
@@ -85,6 +105,27 @@ final class BusinessOperatingModel: ObservableObject {
             phase = .error(Self.describe(error))
         }
         await loadMasters()
+    }
+
+    /// Remap Figma period chip labels onto the API `period` query.
+    func applySheetPeriod(_ label: String) async {
+        switch label {
+        case "Last month": periodFilter = "last_month"
+        case "Custom range ›": periodFilter = "custom"
+        default: periodFilter = "this_month"
+        }
+        await load()
+    }
+
+    func applySheetStatus(_ label: String) async {
+        switch label.lowercased() {
+        case "open": statusFilter = "open"
+        case "done": statusFilter = "done"
+        case "overdue": statusFilter = "overdue"
+        case "settled": statusFilter = "settled"
+        default: statusFilter = "all"
+        }
+        await load()
     }
 
     /// Masters are company-scoped and optional: a failed master read must not blank the tab.

@@ -101,6 +101,13 @@ fun RestaurantQuickAddHub(
             onSheet = { sheet = it },
         )
 
+        EmberGridSectionHeader("Utilities · 3", "Hold · move · reprint")
+        HubGrid(
+            tiles = RestaurantUtilityTiles,
+            allowed = allowed,
+            onSheet = { sheet = it },
+        )
+
         EmberWhyNote(
             "Boundaries: order→prep→ready→fulfil→bill posted→collect. Spoilage and aggregator fees " +
                 "must not duplicate facts. Empty = Unavailable.",
@@ -292,6 +299,12 @@ private val RestaurantSupportTiles = listOf(
     HubTile("Issue", "Update · approval", RestaurantTileIcons.issue, kind = RestaurantSheetKind.Issue, requires = "UPDATE", wide = true),
 )
 
+private val RestaurantUtilityTiles = listOf(
+    HubTile("Hold", "Park order", RestaurantTileIcons.hold, kind = RestaurantSheetKind.Hold, requires = "ORDER"),
+    HubTile("Transfer", "Between stores", RestaurantTileIcons.transfer, kind = RestaurantSheetKind.Transfer, requires = "STOCK"),
+    HubTile("Reprint", "Receipt · bill", RestaurantTileIcons.reprint, kind = RestaurantSheetKind.Reprint, requires = "SALE"),
+)
+
 /** 3-column grid; the two `wide` tiles pair two-up at 177pt, as in the frame. */
 @Composable
 private fun HubGrid(
@@ -375,6 +388,9 @@ internal enum class RestaurantSheetKind(
     Status("Status / Assignment", "ORDER", "ORDER", RestaurantTileIcons.status),
     Budget("Revise Budget", "BUDGET", "BUDGET", RestaurantTileIcons.budget),
     Issue("Issue / Update", "ISSUE", "ISSUE", RestaurantTileIcons.issue),
+    Hold("Hold / release", "ORDER", "HOLD", RestaurantTileIcons.hold),
+    Transfer("Transfer stock", "STOCK", "TRANSFER", RestaurantTileIcons.transfer),
+    Reprint("Reprint receipt", "SALE", "REPRINT", RestaurantTileIcons.reprint),
 }
 
 // ---------------------------------------------------------------------------------

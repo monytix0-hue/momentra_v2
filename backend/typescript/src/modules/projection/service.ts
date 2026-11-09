@@ -2137,11 +2137,13 @@ export async function listBusinessMoments(
      LEFT JOIN collaboration.moment_participant mp
        ON mp.moment_id = bmc.moment_id AND mp.user_id = $1 AND mp.status = 'ACTIVE'
      WHERE (
+         bmc.status = 'ACTIVE'
+         OR (bmc.status = 'DRAFT' AND m.created_by_user_id = $1)
+       )
+       AND (
          cm.company_membership_id IS NOT NULL
-         OR (
-           bmc.company_id IS NULL
-           AND (mp.participant_id IS NOT NULL OR m.created_by_user_id = $1)
-         )
+         OR mp.participant_id IS NOT NULL
+         OR m.created_by_user_id = $1
        )
        AND ${statusClause} ${cursorClause}
      ORDER BY m.updated_at DESC

@@ -257,4 +257,56 @@ describe('business setup draft preferences', () => {
       )
     );
   });
+
+  it('accepts a marketing draft flip Client → Own and clears clientFee on Own activate', () => {
+    const draftFlip = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      {
+        subtype: 'OWN_BUSINESS_CAMPAIGN',
+        identityName: 'Spring launch',
+        partyName: 'Northstar',
+        monthlyBudget: '50000',
+        startDate: '2026-11-01',
+        clientFee: '15000',
+        channels: ['Paid Social'],
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(draftFlip.subtype, 'OWN_BUSINESS_CAMPAIGN');
+    assert.equal(draftFlip.clientFee, '');
+
+    const client = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      {
+        subtype: 'CLIENT_CAMPAIGN',
+        identityName: 'Brightline Q2',
+        partyName: 'Brightline',
+        monthlyBudget: '200000',
+        startDate: '2026-11-01',
+        clientFee: '15000',
+        channels: ['Paid Social', 'Search Ads'],
+      },
+      creator
+    );
+    assert.equal(client.subtype, 'CLIENT_CAMPAIGN');
+    assert.match(client.clientFee, /^15000(\.0+)?$/);
+    assert.equal(client.partyName, 'Brightline');
+
+    assert.throws(
+      () =>
+        normalizeOperatingPreferences(
+          'MARKETING_CAMPAIGNS',
+          {
+            subtype: 'CLIENT_CAMPAIGN',
+            identityName: 'Brightline Q2',
+            partyName: '',
+            monthlyBudget: '200000',
+            startDate: '2026-11-01',
+          },
+          creator
+        ),
+      /Client/i
+    );
+  });
 });

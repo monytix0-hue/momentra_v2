@@ -1,11 +1,12 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="14dp"
-    android:height="14dp"
-    android:viewportWidth="14"
-    android:viewportHeight="14">
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- TRD-PULSE-v12 Quick-adds FAB glyph (2566:29610) — white on accent bubble -->
     <path
-        android:pathData="M2.9162,7H11.0838M7,2.9162V11.0838"
-        android:strokeWidth="2"
+        android:pathData="M12,6V12M12,12V18M12,12H6M12,12H18"
+        android:strokeWidth="2.2"
         android:strokeColor="#FFFFFF"
         android:strokeLineCap="round"
         android:fillColor="#00000000" />

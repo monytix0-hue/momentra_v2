@@ -111,12 +111,24 @@ data class BusinessActiveTheme(
         )
 
         val Marketing = TeamOperations.copy(
-            accent = Color(0xFF818CF8),
-            typeLabel = "Marketing & Campaigns",
+            accent = Color(0xFF6366F1),
+            accentSolid = Color(0xFF4338CA),
+            accentLight = Color(0xFF818CF8),
+            accentSoft = Color(0x336366F1),
+            typeLabel = "Client Campaign",
             pulseTitle = "Campaign",
             momentsTitle = "Campaign",
             lifeTitle = "Campaign",
             memoryTitle = "Campaign",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))),
+        )
+        val MarketingOwn = Marketing.copy(
+            accent = Color(0xFFD946EF),
+            accentSolid = Color(0xFFA21CAF),
+            accentLight = Color(0xFFE879F9),
+            accentSoft = Color(0x33D946EF),
+            typeLabel = "Own Business Campaign",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFFD946EF), Color(0xFFF59E0B))),
         )
         val Trading = BusinessRunway.copy(
             bg = Color(0xFF090D16),
@@ -170,19 +182,22 @@ data class BusinessActiveTheme(
             lifeTitle = "Service",
             memoryTitle = "Service",
         )
+        // Domain Color System 3 Manufacturing · S `#F59E0B` / soft `#FBBF24` (MFG-PULSE-v12).
         val Manufacturing = BusinessOperations.copy(
-            accent = Color(0xFF38BDF8),
-            accentSolid = Color(0xFF0284C7),
-            accentLight = Color(0xFF7DD3FC),
+            accent = Color(0xFFF59E0B),
+            accentSolid = Color(0xFFB45309),
+            accentLight = Color(0xFFFBBF24),
             typeLabel = "Standard Production",
             pulseTitle = "Production",
             momentsTitle = "Production",
             lifeTitle = "Production",
             memoryTitle = "Production",
         )
+        // MTO shares manufacturing amber; soft amber leads for job-order chrome.
         val MadeToOrder = Manufacturing.copy(
-            accent = Manufacturing.accentLight,
-            accentSolid = Manufacturing.accent,
+            accent = Color(0xFFFBBF24),
+            accentSolid = Color(0xFFF59E0B),
+            accentLight = Color(0xFFFDE68A),
             typeLabel = "Made-to-Order",
             pulseTitle = "Made-to-Order",
             momentsTitle = "Made-to-Order",
@@ -206,9 +221,11 @@ data class BusinessActiveTheme(
                 "CONSUMER_SERVICE" -> ConsumerService
                 "STANDARD_PRODUCTION" -> Manufacturing
                 "MADE_TO_ORDER" -> MadeToOrder
-                "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN" -> Marketing
+                "CLIENT_CAMPAIGN" -> Marketing
+                "OWN_BUSINESS_CAMPAIGN" -> MarketingOwn
                 else -> when (OperatingMomentCatalog.kindForTypeCode(momentTypeCode)) {
-                    BusinessSetupKind.MARKETING_CAMPAIGNS -> Marketing
+                    BusinessSetupKind.MARKETING_CAMPAIGNS ->
+                        if (momentTypeCode?.uppercase()?.contains("OWN") == true) MarketingOwn else Marketing
                     BusinessSetupKind.TRADING_DISTRIBUTION -> Trading
                     BusinessSetupKind.RETAIL_CONSUMER -> Retail
                     BusinessSetupKind.MANUFACTURING_PRODUCTION -> Manufacturing

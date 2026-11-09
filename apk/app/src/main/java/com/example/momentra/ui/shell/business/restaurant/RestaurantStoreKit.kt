@@ -153,6 +153,13 @@ fun EmberContextChips(
                 style = RestaurantEmber.chipLabel(false).copy(color = Color.White),
                 maxLines = 1,
                 modifier = Modifier
+                    .shadow(
+                        elevation = 6.dp,
+                        shape = RestaurantEmber.rPill,
+                        clip = false,
+                        ambientColor = RestaurantEmber.ember.copy(alpha = 0.45f),
+                        spotColor = RestaurantEmber.ember.copy(alpha = 0.45f),
+                    )
                     .clip(RestaurantEmber.rPill)
                     .background(RestaurantEmber.ember)
                     .clickable(onClick = onQuickAdds)
@@ -871,6 +878,9 @@ object RestaurantTileIcons {
     val stations = R.drawable.ic_rest_tile_stations
     val invite = R.drawable.ic_rest_tile_invite
     val issue = R.drawable.ic_rest_tile_issue
+    val hold = R.drawable.qa_shield
+    val transfer = R.drawable.qa_truck
+    val reprint = R.drawable.qa_receipt
     val heroGlyph = R.drawable.ic_rest_hero_glyph
     val plus = R.drawable.ic_rest_plus
     val tabPulse = R.drawable.ic_rest_tab_pulse

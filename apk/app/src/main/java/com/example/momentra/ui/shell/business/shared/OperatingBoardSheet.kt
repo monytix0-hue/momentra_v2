@@ -16,8 +16,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +36,9 @@ import com.example.momentra.data.api.OperatingBoardSectionDto
 import com.example.momentra.data.api.OperatingPaymentDto
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.ui.theme.PlusJakartaSans
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * Shared palette for the Trading and Distribution view-all surfaces. Both verticals
@@ -64,10 +72,80 @@ data class OperatingSheetSpec(
     val emptyTitle: String,
     val emptyBody: String,
     val pulseSurface: Boolean = false,
-)
+) {
+    val figmaId: String get() = OperatingSheetChrome.figmaId(code)
+    val statusFilters: List<String> get() = OperatingSheetChrome.statusFilters(code)
+    val footerCta: String get() = OperatingSheetChrome.footerCta(code)
+    val periodFilters: List<String> get() = OperatingSheetChrome.periodFilters
+}
+
+/** Sticky-header chrome shared by every DST-SHEET / TRD-SHEET view-all surface. */
+object OperatingSheetChrome {
+    val periodFilters = listOf("This month", "Last month", "Custom range ›")
+
+    fun figmaId(code: String): String = when (code) {
+        "TARGET_BUDGET" -> "2561:29337"
+        "FINANCE" -> "2561:29430"
+        "PAYMENT_READINESS" -> "2561:29507"
+        "ATTENTION" -> "2561:29581"
+        "ACTIVITY" -> "2561:29673"
+        "GST" -> "2561:29759"
+        "orders" -> "2561:29845"
+        "stock" -> "2561:29941"
+        "network" -> "2561:30031"
+        "M4" -> "2561:30116"
+        "L1" -> "2561:30214"
+        "L2" -> "2561:30294"
+        "L3" -> "2561:30398"
+        "L4" -> "2561:30492"
+        "ME1" -> "2561:30588"
+        "ME2" -> "2561:30680"
+        "fulfilment" -> "2561:30773"
+        "ME4" -> "2561:30852"
+        else -> ""
+    }
+
+    fun statusFilters(code: String): List<String> = when (code) {
+        "FINANCE", "PAYMENT_READINESS", "ATTENTION", "orders", "M4", "L3" ->
+            listOf("Open", "Overdue", "Settled")
+        "ME1", "ME2", "fulfilment", "ME4" ->
+            listOf("All", "Open", "Settled")
+        else -> listOf("All", "Open", "Done")
+    }
+
+    fun footerCta(code: String): String = when (code) {
+        "PAYMENT_READINESS", "L3" -> "Record payment"
+        "ATTENTION" -> "Resolve all"
+        "orders", "M4" -> "Resolve commitments"
+        "ME1", "ME2", "fulfilment", "ME4" -> "Open Memory"
+        else -> "Open Quick Add"
+    }
+
+    fun footerAction(code: String): String = when (footerCta(code)) {
+        "Record payment" -> "PAYMENT"
+        "Resolve all", "Resolve commitments" -> "ATTENTION"
+        "Open Memory" -> "MEMORY"
+        else -> "QUICK_ADD"
+    }
+
+    fun matchesStatus(filter: String, badge: String?): Boolean {
+        if (filter == "All") return true
+        val b = badge.orEmpty().lowercase()
+        return when (filter) {
+            "Open" -> b.contains("open") || b.contains("alert") || b.contains("part") ||
+                b.contains("transit") || b.contains("unavailable") || b.isBlank()
+            "Done" -> b.contains("done") || b.contains("delivered")
+            "Settled" -> b.contains("settled") || b.contains("paid") || b.contains("done")
+            "Overdue" -> b.contains("overdue") || b.contains("critical")
+            else -> true
+        }
+    }
+}
 
 /** Which pulse surface a sheet reads when it is not backed by a board section. */
 enum class OperatingPulseSurface { TARGET_BUDGET, FINANCE, PAYMENT_READINESS, ATTENTION, ACTIVITY, GST }
+
+private val sheetMonthFmt = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH)
 
 @Composable
 fun OperatingSheetFrame(
@@ -76,59 +154,172 @@ fun OperatingSheetFrame(
     model: OperatingProjectionDto,
     theme: OperatingSheetTheme,
     onDismiss: () -> Unit,
-    content: @Composable () -> Unit,
+    sheetCode: String? = null,
+    visibleCount: (selectedStatus: String) -> Int = { 0 },
+    totalCount: Int = 0,
+    onFooterAction: ((String) -> Unit)? = null,
+    content: @Composable (selectedStatus: String) -> Unit,
 ) {
+    val filters = sheetCode?.let { OperatingSheetChrome.statusFilters(it) }.orEmpty()
+    var period by remember { mutableStateOf(OperatingSheetChrome.periodFilters.first()) }
+    var status by remember(sheetCode) { mutableStateOf(filters.firstOrNull() ?: "All") }
+    val month = runCatching {
+        YearMonth.parse(model.startDate?.take(7) ?: "").format(sheetMonthFmt)
+    }.getOrElse { "This month" }
+    val contextLine = "${model.title?.takeIf { it.isNotBlank() } ?: "Business"} · $month · full activity, newest first"
+    val footerCta = sheetCode?.let { OperatingSheetChrome.footerCta(it) }
+    val shown = visibleCount(status)
+
     OperatingSheetScrim(
         onDismiss = onDismiss,
         accent = theme.accent,
         surface = theme.canvas,
         border = theme.border,
     ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 17.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center) {
-                Box(
-                    Modifier
-                        .width(40.dp)
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(100.dp))
-                        .background(Color.White.copy(alpha = 0.2f)),
-                )
-            }
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 17.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    title,
-                    color = theme.ink,
-                    fontFamily = PlusJakartaSans,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 24.sp,
-                    modifier = Modifier.weight(1f),
+                Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center) {
+                    Box(
+                        Modifier
+                            .width(40.dp)
+                            .height(5.dp)
+                            .clip(RoundedCornerShape(100.dp))
+                            .background(Color.White.copy(alpha = 0.2f)),
+                    )
+                }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        title,
+                        color = theme.ink,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 24.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        "✕",
+                        color = theme.body,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 16.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .clickable(onClick = onDismiss)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                }
+                Text(contextLine, color = theme.body, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                if (eyebrow.isNotBlank()) {
+                    Text(eyebrow, color = theme.body, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                }
+                OperatingSheetChipRow(
+                    options = OperatingSheetChrome.periodFilters,
+                    selected = period,
+                    theme = theme,
+                    onSelect = { period = it },
                 )
-                Text(
-                    "Close",
-                    color = theme.body,
-                    fontFamily = PlusJakartaSans,
-                    fontSize = 13.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .clickable(onClick = onDismiss)
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                )
+                if (filters.isNotEmpty()) {
+                    OperatingSheetChipRow(
+                        options = filters,
+                        selected = status,
+                        theme = theme,
+                        onSelect = { status = it },
+                    )
+                }
             }
-            if (eyebrow.isNotBlank()) {
-                Text(eyebrow, color = theme.body, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            Column(
+                Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 17.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                content(status)
+                Spacer(Modifier.height(16.dp))
             }
-            content()
-            Spacer(Modifier.height(24.dp))
+            if (footerCta != null && sheetCode != null) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 17.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        "Showing $shown of $totalCount · tap a row for detail",
+                        color = theme.body,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 12.sp,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        footerCta,
+                        color = theme.canvas,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(theme.accent)
+                            .clickable {
+                                val action = OperatingSheetChrome.footerAction(sheetCode)
+                                if (onFooterAction != null) {
+                                    onFooterAction(action)
+                                } else {
+                                    when (action) {
+                                        "PAYMENT" -> OperatingChromeState.quickAddHint = "payment"
+                                        "MEMORY" -> OperatingChromeState.storyConfigOpen = true
+                                        "ATTENTION" -> OperatingChromeState.quickAddHint = "issue"
+                                        else -> OperatingChromeState.quickAddHint = "sale"
+                                    }
+                                }
+                                onDismiss()
+                            }
+                            .padding(vertical = 14.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OperatingSheetChipRow(
+    options: List<String>,
+    selected: String,
+    theme: OperatingSheetTheme,
+    onSelect: (String) -> Unit,
+) {
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        options.forEach { option ->
+            val on = option == selected
+            Text(
+                option,
+                color = if (on) theme.canvas else theme.body,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (on) theme.accent else theme.inset)
+                    .then(
+                        if (on) Modifier else Modifier.border(1.dp, theme.border, RoundedCornerShape(999.dp)),
+                    )
+                    .clickable { onSelect(option) }
+                    .padding(horizontal = 13.dp, vertical = 7.dp),
+            )
         }
     }
 }

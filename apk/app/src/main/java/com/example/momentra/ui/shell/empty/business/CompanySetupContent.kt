@@ -1424,7 +1424,7 @@ private fun coLaunchNextSteps(
             BusinessSetupKind.MARKETING_CAMPAIGNS -> CoLaunchNextStep(kind.title, kind.body, Color(0xFF818CF8))
             BusinessSetupKind.TRADING_DISTRIBUTION -> CoLaunchNextStep(kind.title, kind.body, CoAmber)
             BusinessSetupKind.RETAIL_CONSUMER -> CoLaunchNextStep(kind.title, kind.body, CoGreen)
-            BusinessSetupKind.MANUFACTURING_PRODUCTION -> CoLaunchNextStep(kind.title, kind.body, Color(0xFF38BDF8))
+            BusinessSetupKind.MANUFACTURING_PRODUCTION -> CoLaunchNextStep(kind.title, kind.body, Color(0xFFF59E0B))
         }
     }
     val intro = if (steps.size == 1) {

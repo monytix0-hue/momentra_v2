@@ -1,10 +1,14 @@
 package com.example.momentra.ui.shell.business.distribution
 
 import androidx.compose.runtime.Composable
+import com.example.momentra.data.api.OperatingActivityDto
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.ui.shell.business.shared.OperatingBoardSectionBody
+import com.example.momentra.ui.shell.business.shared.OperatingBoardRowRow
+import com.example.momentra.ui.shell.business.shared.OperatingPaymentRows
 import com.example.momentra.ui.shell.business.shared.OperatingPulseSurface
 import com.example.momentra.ui.shell.business.shared.OperatingPulseTiles
+import com.example.momentra.ui.shell.business.shared.OperatingSheetChrome
 import com.example.momentra.ui.shell.business.shared.OperatingSheetFrame
 import com.example.momentra.ui.shell.business.shared.OperatingSheetSpec
 import com.example.momentra.ui.shell.business.shared.OperatingSheetTheme
@@ -227,29 +231,102 @@ val DISTRIBUTION_SHEET_STATES: List<DistributionSheetState> = listOf(
     DistributionSheetState.PeoplePatterns,
 )
 
+private fun attentionChip(severity: String?): String = when (severity?.uppercase()) {
+    "CRITICAL" -> "Overdue"
+    "HIGH" -> "Alert"
+    "MEDIUM" -> "Unavailable"
+    else -> "Open"
+}
+
 @Composable
 fun DistributionBoardSheet(
     state: DistributionSheetState,
     model: OperatingProjectionDto,
     theme: OperatingSheetTheme,
     onDismiss: () -> Unit,
+    onFooterAction: ((String) -> Unit)? = null,
 ) {
     val spec = state.spec
+    val section = model.sectionByCode(spec.code)
+    val attention = model.attention
+    val payments = model.paymentReadiness
+    val activity = model.activity
+    val total = when (spec.code) {
+        "ATTENTION" -> attention.size
+        "PAYMENT_READINESS" -> payments.size
+        "ACTIVITY" -> activity.size
+        else -> section?.rows?.size
+            ?: model.pulseMetrics?.firstOrNull { it.code == spec.code }?.metrics?.size
+            ?: 0
+    }
     OperatingSheetFrame(
         title = spec.title,
         eyebrow = spec.eyebrow,
         model = model,
         theme = theme,
         onDismiss = onDismiss,
-    ) {
+        sheetCode = spec.code,
+        totalCount = total,
+        visibleCount = { status ->
+            when (spec.code) {
+                "ATTENTION" -> attention.count {
+                    OperatingSheetChrome.matchesStatus(status, attentionChip(it.severity))
+                }
+                "PAYMENT_READINESS" -> payments.count {
+                    OperatingSheetChrome.matchesStatus(status, it.dueBucket)
+                }
+                "ACTIVITY" -> activity.count {
+                    OperatingSheetChrome.matchesStatus(status, it.badge)
+                }
+                else -> section?.rows?.count {
+                    OperatingSheetChrome.matchesStatus(status, it.badge)
+                } ?: total
+            }
+        },
+        onFooterAction = onFooterAction,
+    ) { status ->
         if (spec.pulseSurface) {
             val surface = runCatching { OperatingPulseSurface.valueOf(spec.code) }.getOrNull()
             OperatingPulseTiles(surface ?: OperatingPulseSurface.ACTIVITY, model, theme)
             val group = model.pulseMetrics?.firstOrNull { it.code == spec.code }
             OperatingWhyFootnote(group?.why, theme)
+            when (spec.code) {
+                "ATTENTION" -> attention
+                    .filter { OperatingSheetChrome.matchesStatus(status, attentionChip(it.severity)) }
+                    .forEach { item ->
+                        OperatingBoardRowRow(
+                            row = OperatingActivityDto(
+                                id = item.id,
+                                eventType = item.kind,
+                                title = item.title,
+                                subtitle = item.counterpartyName,
+                                amount = item.amount,
+                                badge = attentionChip(item.severity),
+                            ),
+                            model = model,
+                            theme = theme,
+                        )
+                    }
+                "PAYMENT_READINESS" -> OperatingPaymentRows(
+                    rows = payments.filter {
+                        OperatingSheetChrome.matchesStatus(status, it.dueBucket)
+                    },
+                    model = model,
+                    theme = theme,
+                )
+                "ACTIVITY" -> activity
+                    .filter { OperatingSheetChrome.matchesStatus(status, it.badge) }
+                    .forEach { row -> OperatingBoardRowRow(row, model, theme) }
+                else -> Unit
+            }
         } else {
+            val filtered = section?.copy(
+                rows = section.rows.filter {
+                    OperatingSheetChrome.matchesStatus(status, it.badge)
+                },
+            )
             OperatingBoardSectionBody(
-                section = model.sectionByCode(spec.code),
+                section = filtered,
                 spec = spec,
                 model = model,
                 theme = theme,

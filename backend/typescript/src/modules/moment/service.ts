@@ -19,6 +19,7 @@ import {
   insertBusinessFamilyContext,
   insertBusinessSetupRow,
   insertPersonalSetupRow,
+  syncBusinessMomentTypeFromSubtype,
   updateBusinessSetupDraftRow,
 } from './setup-persistence';
 import { bindInviteToMoment } from '../collaboration/invite-service';
@@ -586,12 +587,22 @@ export async function activateMomentDraft(
        WHERE moment_id = $1`,
       [momentId]
     );
-    const setup = await client.query<{ family_code: string; title: string; company_id: string }>(
-      `SELECT family_code, title, company_id FROM business.business_system_setup
+    const setup = await client.query<{
+      family_code: string;
+      title: string;
+      company_id: string;
+      preferences: Record<string, unknown> | null;
+    }>(
+      `SELECT family_code, title, company_id, preferences
+       FROM business.business_system_setup
        WHERE moment_id = $1 AND status = 'DRAFT' LIMIT 1`,
       [momentId]
     );
     if (setup.rows[0]) {
+      const subtype = String(setup.rows[0].preferences?.subtype ?? '').trim();
+      if (subtype) {
+        await syncBusinessMomentTypeFromSubtype(client, momentId, subtype);
+      }
       await insertBusinessFamilyContext(
         client,
         momentId,
@@ -606,8 +617,11 @@ export async function activateMomentDraft(
     }
   }
 
-  const ver = await client.query<{ version: string }>(
-    `SELECT version::text FROM core.moment WHERE moment_id = $1`,
+  const ver = await client.query<{ version: string; moment_type_code: string }>(
+    `SELECT m.version::text, mt.code AS moment_type_code
+     FROM core.moment m
+     JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
+     WHERE m.moment_id = $1`,
     [momentId]
   );
 
@@ -628,7 +642,7 @@ export async function activateMomentDraft(
     title: m.title,
     status: 'ACTIVE',
     version: parseInt(ver.rows[0]!.version, 10),
-    momentTypeCode: m.moment_type_code,
+    momentTypeCode: ver.rows[0]!.moment_type_code,
   };
 }
 
@@ -1272,6 +1286,7 @@ export async function updateBusinessSetupDraft(
   title: string;
   status: string;
   version: number;
+  momentTypeCode: string;
   preferences: Record<string, unknown>;
 }> {
   await assertMomentLifecycleLeader(client, ctx, momentId);
@@ -1315,6 +1330,11 @@ export async function updateBusinessSetupDraft(
   const title =
     body.title ?? (String(preferences.identityName ?? '').trim() || found.title);
   const setupId = await updateBusinessSetupDraftRow(client, momentId, title, preferences);
+  const syncedType = await syncBusinessMomentTypeFromSubtype(
+    client,
+    momentId,
+    String(preferences.subtype ?? '')
+  );
   const updated = await client.query<{ version: string }>(
     `UPDATE core.moment
      SET title = $2, version = version + 1, updated_at = now()
@@ -1328,7 +1348,8 @@ export async function updateBusinessSetupDraft(
     title,
     status: 'DRAFT',
     version: parseInt(updated.rows[0]!.version, 10),
-    preferences,
+    momentTypeCode: syncedType ?? String(preferences.subtype ?? ''),
+    preferences: syncedType ? { ...preferences, subtype: syncedType } : preferences,
   };
 }
 
