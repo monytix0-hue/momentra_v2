@@ -1110,13 +1110,20 @@ struct OperatingMasterDraft {
 /// so both a test and the sheet can use the same one — a wrong literal is a rejected write.
 enum OperatingContractVocabulary {
     /// `SET` replaces the count, `ADD`/`REDUCE` move it, `TRANSFER` moves it between places.
+    /// Retail Figma chips use Set current / Add / Reduce; legacy IN / OUT / COUNT still map.
     static func stockAction(_ raw: String) -> String {
-        switch raw.trimmingCharacters(in: .whitespaces).uppercased() {
+        let key = raw.trimmingCharacters(in: .whitespaces).uppercased()
+        switch key {
         case "IN", "ADD", "RECEIVED": return "ADD"
         case "OUT", "REDUCE", "ISSUED": return "REDUCE"
-        case "SET", "COUNT": return "SET"
+        case "SET", "COUNT", "SET CURRENT", "SET CURRENT STOCK": return "SET"
         case "TRANSFER", "MOVE": return "TRANSFER"
-        default: return "ADD"
+        default:
+            if key.hasPrefix("SET") { return "SET" }
+            if key.hasPrefix("ADD") { return "ADD" }
+            if key.hasPrefix("REDUCE") { return "REDUCE" }
+            if key.hasPrefix("TRANSFER") { return "TRANSFER" }
+            return "ADD"
         }
     }
 
@@ -1125,8 +1132,8 @@ enum OperatingContractVocabulary {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }
         switch trimmed.lowercased() {
-        case "opening": return "opening"
-        case "stocktake", "count": return "stocktake"
+        case "opening", "opening count": return "opening"
+        case "stocktake", "count", "cycle count", "stock count": return "stocktake"
         case "damage", "damaged": return "damage"
         case "waste": return "waste"
         case "return", "returned": return "return"

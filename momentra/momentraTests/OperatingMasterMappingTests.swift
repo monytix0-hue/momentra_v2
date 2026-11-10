@@ -279,6 +279,10 @@ struct OperatingContractVocabularyTests {
         #expect(OperatingContractVocabulary.stockAction("Out") == "REDUCE")
         #expect(OperatingContractVocabulary.stockAction("Set") == "SET")
         #expect(OperatingContractVocabulary.stockAction("Transfer") == "TRANSFER")
+        #expect(OperatingContractVocabulary.stockAction("Set current") == "SET")
+        #expect(OperatingContractVocabulary.stockAction("Add") == "ADD")
+        #expect(OperatingContractVocabulary.stockAction("Reduce") == "REDUCE")
+        #expect(OperatingContractVocabulary.stockAction("COUNT") == "SET")
         // An unknown word must not reach the wire as itself.
         #expect(OperatingContractVocabulary.stockAction("Whatever") == "ADD")
     }

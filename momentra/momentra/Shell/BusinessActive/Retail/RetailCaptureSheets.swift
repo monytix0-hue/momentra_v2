@@ -65,7 +65,7 @@ private struct RetailCaptureForm: View {
         case "COLLECTION": return "\(brand) · AR settle"
         case "PAYMENT": return "\(brand) · settle supplier"
         case "SPEND": return "Store ops · \(brand) · cost"
-        case "STOCK": return "\(brand) · Reconcile qty · no invented buy/sell"
+        case "STOCK": return "Floor count · \(draft.location.isEmpty ? "Register aisle" : draft.location) · \(brand)"
         case "ORDER":
             return draft.orderSide == "Purchase order"
                 ? "Supplier commitment · \(brand) · not AP"
@@ -159,7 +159,7 @@ private struct RetailCaptureForm: View {
     }
 
     private var showsSharedMoreDetails: Bool {
-        !["PURCHASE", "COLLECTION", "PAYMENT", "SPEND", "ORDER", "STATUS", "BUDGET", "TARGET", "ISSUE", "UPDATE"].contains(upper)
+        !["PURCHASE", "COLLECTION", "PAYMENT", "SPEND", "ORDER", "STATUS", "BUDGET", "TARGET", "ISSUE", "UPDATE", "STOCK"].contains(upper)
     }
 
     private var saveLabel: String {
@@ -183,6 +183,8 @@ private struct RetailCaptureForm: View {
             return canSave ? "Post expense · \(money)" : "Post expense"
         case "ISSUE":
             return draft.revisionKind == "Issue" ? "Post issue" : "Submit \(draft.revisionKind)"
+        case "STOCK":
+            return "Post stock update"
         default:
             return "Save · \(title)"
         }
@@ -194,7 +196,7 @@ private struct RetailCaptureForm: View {
         case .collection: return "Allocates to open AR"
         case .payment: return "Settles open AP"
         case .order: return "Commitment · no revenue"
-        case .stock: return "Stock \(draft.stockAction)"
+        case .stock: return "Floor count · \(draft.location.isEmpty ? "Register" : draft.location)"
         case .purchase: return draft.tender
         case .spend: return draft.paymentChoice
         default: return "Draft · not yet saved"
@@ -212,7 +214,7 @@ private struct RetailCaptureForm: View {
         case .spend:
             return "Expense is cost; payment state is separate. Never invent stock from expense."
         case .stock:
-            return "Set current reconciles on-hand. Quick sales never move stock alone."
+            return "Quantity delta only — never invent unit cost or BOM. Damage uses Reduce + reason."
         case .order:
             return draft.orderSide == "Purchase order"
                 ? "Purchase order is commitment only — no AP, no stock, no GST posting. Cost + stock on goods receipt / posted Purchase."
@@ -585,25 +587,132 @@ private struct RetailCaptureForm: View {
         }
     }
 
+    // MARK: Stock Update `2399:30359` — Set current / Add / Reduce
+
     @ViewBuilder
     private var stockBody: some View {
-        RoseFieldLabel(text: "Stock action")
-        RoseChipRow(theme: theme, options: ["IN", "OUT", "COUNT"], selection: $draft.stockAction)
-        RoseFieldLabel(text: "Item")
-        RoseTextField(theme: theme, placeholder: "SKU or description", text: $draft.title)
-        skuSection
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 4) {
-                RoseFieldLabel(text: "Quantity")
-                RoseTextField(theme: theme, placeholder: "0", text: $draft.quantity, keyboard: .decimalPad)
+        RoseChipRow(theme: theme, options: ["Set current", "Add", "Reduce"], selection: $draft.stockAction)
+
+        RoseFieldLabel(text: "Scan SKU / barcode")
+        RoseScanField(theme: theme, placeholder: "HM-044  ·  tap to scan", query: $draft.scanQuery, actionLabel: "Scan") {
+            appendStockScanLine()
+        }
+
+        RoseLinesCard(
+            theme: theme,
+            title: "Count lines",
+            trailing: "\(filledLineCount) SKU\(filledLineCount == 1 ? "" : "s") · \(draft.stockReason.isEmpty ? "cycle count" : draft.stockReason.lowercased())"
+        ) {
+            ForEach($draft.lines) { $line in
+                stockLineEditor(line: $line)
             }
-            VStack(alignment: .leading, spacing: 4) {
-                RoseFieldLabel(text: "Unit")
-                RoseTextField(theme: theme, placeholder: "pc", text: $draft.unit)
+            HStack {
+                Button("+ Add SKU") { draft.lines.append(RetailLineDraft()) }
+                    .font(.plusJakarta(size: 13, weight: .bold))
+                    .foregroundStyle(theme.accent)
+                    .buttonStyle(.plain)
+                Spacer()
+                Text("Recent · Low stock")
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(OperatingV12.subtitle)
             }
         }
-        RoseFieldLabel(text: "Reason")
-        RoseTextField(theme: theme, placeholder: "Count · damage · correction", text: $draft.stockReason)
+
+        RosePickerRow(theme: theme, label: "Reason", value: draft.stockReason.isEmpty ? "Cycle count" : draft.stockReason) {
+            draft.stockReason = nextStockReason(draft.stockReason)
+        }
+        RosePickerRow(theme: theme, label: "Location", value: draft.location) {
+            draft.location = nextStockLocation(draft.location)
+        }
+        RosePickerRow(theme: theme, label: "Counted by", value: draft.staff.isEmpty ? "Select…" : draft.staff) {
+            // Cycles a short floor roster; free-text still accepted via more details note.
+            draft.staff = nextCountedBy(draft.staff)
+        }
+
+        RoseMoreDetails(title: "More details") {
+            Text("Transfer stock · between locations")
+                .font(.plusJakarta(size: 11))
+                .foregroundStyle(OperatingV12.subtitle)
+            SetupDateTimeField(label: "Count date", isoValue: $draft.occurredAt)
+            RoseFieldLabel(text: "Note")
+            RoseTextField(theme: theme, placeholder: "Optional reference", text: $draft.note)
+            RoseFieldLabel(text: "Counted by (custom)")
+            RoseTextField(theme: theme, placeholder: "Name · role", text: $draft.staff)
+        }
+    }
+
+    @ViewBuilder
+    private func stockLineEditor(line: Binding<RetailLineDraft>) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(line.wrappedValue.sku.isEmpty ? "SKU" : line.wrappedValue.sku)
+                    .font(.plusJakarta(size: 10, weight: .bold))
+                    .foregroundStyle(theme.accent)
+                RoseTextField(theme: theme, placeholder: "Item", text: line.name)
+                Text(
+                    [
+                        draft.location.isEmpty ? nil : draft.location,
+                        line.wrappedValue.unit.isEmpty ? nil : line.wrappedValue.unit,
+                    ].compactMap { $0 }.joined(separator: " · ")
+                )
+                .font(.plusJakarta(size: 11))
+                .foregroundStyle(OperatingV12.subtitle)
+            }
+            let qty = Int(line.wrappedValue.qty) ?? 0
+            RoseStepper(theme: theme, quantity: qty, onDecrement: {
+                if qty > 0 {
+                    line.wrappedValue.qty = String(qty - 1)
+                } else if draft.lines.count > 1 {
+                    draft.lines.removeAll { $0.id == line.wrappedValue.id }
+                }
+            }, onIncrement: {
+                line.wrappedValue.qty = String(qty + 1)
+            })
+            Text("→ \(line.wrappedValue.qty)")
+                .font(.plusJakarta(size: 13, weight: .bold))
+                .foregroundStyle(OperatingV12.title)
+        }
+    }
+
+    private func appendStockScanLine() {
+        let q = draft.scanQuery.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return }
+        let sku = String(q.prefix(8)).uppercased()
+        if let match = model.masters.first(where: {
+            $0.name.localizedCaseInsensitiveContains(q) || ($0.code?.localizedCaseInsensitiveContains(q) ?? false)
+        }) {
+            if let idx = draft.lines.firstIndex(where: { $0.name.isEmpty }) {
+                draft.lines[idx].name = match.name
+                draft.lines[idx].sku = match.code ?? sku
+                draft.lines[idx].unit = match.unit ?? "pcs"
+            } else {
+                draft.lines.append(RetailLineDraft(sku: match.code ?? sku, name: match.name, unit: match.unit ?? "pcs"))
+            }
+        } else if let idx = draft.lines.firstIndex(where: { $0.name.isEmpty }) {
+            draft.lines[idx].name = q
+            draft.lines[idx].sku = sku
+        } else {
+            draft.lines.append(RetailLineDraft(name: q, sku: sku))
+        }
+        draft.scanQuery = ""
+    }
+
+    private func nextStockReason(_ current: String) -> String {
+        let options = ["Cycle count", "Opening count", "Stocktake", "Damage", "Waste", "Return", "Correction"]
+        let idx = options.firstIndex(of: current.isEmpty ? "Cycle count" : current) ?? 0
+        return options[(idx + 1) % options.count]
+    }
+
+    private func nextStockLocation(_ current: String) -> String {
+        let options = ["Aisle 3", "Back store", "Register", "Floor"]
+        let idx = options.firstIndex(of: current) ?? 0
+        return options[(idx + 1) % options.count]
+    }
+
+    private func nextCountedBy(_ current: String) -> String {
+        let options = ["Ravi · floor", "Counter · shift", "Owner"]
+        let idx = options.firstIndex(of: current) ?? -1
+        return options[(idx + 1) % options.count]
     }
 
     // MARK: Order PO/SO `2443:29784` / `2399:30418` — D1-A
@@ -1174,6 +1283,12 @@ private struct RetailCaptureForm: View {
         if upper == "ISSUE" || upper == "UPDATE", draft.revisionKind == "Budget" {
             draft.revisionKind = "Issue"
         }
+        if upper == "STOCK" {
+            if draft.stockAction == "IN" { draft.stockAction = "Set current" }
+            if draft.location == "Back store" { draft.location = "Aisle 3" }
+            if draft.stockReason.isEmpty { draft.stockReason = "Cycle count" }
+            if draft.staff.isEmpty { draft.staff = "Ravi · floor" }
+        }
         if draft.periodChip.isEmpty { draft.periodChip = periodDefault }
     }
 
@@ -1277,8 +1392,8 @@ private struct RetailCaptureDraft {
     var paymentChoice = "Fully Paid"
     var entryMode = "Quick receive"
     var goodsStatus = "Deliver Later"
-    var stockAction = "IN"
-    var stockReason = ""
+    var stockAction = "Set current"
+    var stockReason = "Cycle count"
     var orderSide = "Sales order"
     var statusChoice = "Ready to pick"
     var statusMode = "Dispatch"
@@ -1333,6 +1448,14 @@ private struct RetailCaptureEventBuilder {
             return !draft.counterparty.trimmingCharacters(in: .whitespaces).isEmpty
                 && !filledLines.isEmpty
                 && (Decimal(string: draft.amount).map { $0 > 0 } ?? false)
+        case "STOCK":
+            // Contract validates a single qty + reason; multi-line UI posts the first filled line.
+            guard let first = filledLines.first else { return false }
+            let qty = Decimal(string: first.qty) ?? -1
+            let action = OperatingContractVocabulary.stockAction(draft.stockAction)
+            let reasonOk = OperatingContractVocabulary.stockReason(draft.stockReason) != nil
+            if action == "SET" { return qty >= 0 && reasonOk }
+            return qty > 0 && reasonOk
         default:
             return !draft.title.trimmingCharacters(in: .whitespaces).isEmpty
                 || !draft.amount.trimmingCharacters(in: .whitespaces).isEmpty
@@ -1361,8 +1484,21 @@ private struct RetailCaptureEventBuilder {
         )
 
         if layout == .stock {
-            contract.stockAction = draft.stockAction == "OUT" ? "REDUCE" : "IN"
-            contract.stockReason = draft.stockReason.isEmpty ? draft.stockAction : draft.stockReason
+            let action = OperatingContractVocabulary.stockAction(draft.stockAction)
+            contract.stockAction = action
+            contract.stockReason = OperatingContractVocabulary.stockReason(
+                draft.stockReason.isEmpty ? "Cycle count" : draft.stockReason
+            )
+            contract.locationName = draft.location.isEmpty ? nil : draft.location
+            contract.staffName = draft.staff.isEmpty ? nil : draft.staff
+            if let first = filledLines.first {
+                input.title = first.name
+                input.quantity = first.qty
+                input.unit = first.unit.isEmpty ? nil : first.unit
+                if action == "SET" { contract.declaredQuantity = first.qty }
+            } else if action == "SET", !draft.quantity.isEmpty {
+                contract.declaredQuantity = draft.quantity
+            }
         }
 
         if layout == .sale {
@@ -1472,6 +1608,9 @@ private struct RetailCaptureEventBuilder {
             return "Budget · \(draft.revisionKind)"
         case "STATUS":
             return trimmed.isEmpty ? "Status update" : trimmed
+        case "STOCK":
+            if let first = filledLines.first { return first.name }
+            return "Stock · \(draft.stockAction)"
         default:
             return trimmed
         }
@@ -1547,6 +1686,14 @@ private struct RetailCaptureEventBuilder {
             parts.append("Mode: \(draft.statusMode)")
             parts.append("Due: \(draft.dueLabel)")
             parts.append("Notify: \(draft.notify)")
+        }
+        if upper == "STOCK" {
+            parts.append("Action: \(draft.stockAction)")
+            if !draft.location.isEmpty { parts.append("Location: \(draft.location)") }
+            if !draft.staff.isEmpty { parts.append("Counted by: \(draft.staff)") }
+            if filledLines.count > 1 {
+                parts.append("SKUs: \(filledLines.map(\.name).joined(separator: ", "))")
+            }
         }
         if upper == "BUDGET" || upper == "TARGET" {
             let period = draft.periodChip == "Custom" ? draft.periodCustom : draft.periodChip

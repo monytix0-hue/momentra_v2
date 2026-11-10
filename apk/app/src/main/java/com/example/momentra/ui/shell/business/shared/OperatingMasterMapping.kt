@@ -82,7 +82,7 @@ object OperatingStockReasons {
         if (key.isBlank()) return null
         return when (key) {
             "opening", "opening count" -> "opening"
-            "stocktake", "count", "stock count" -> "stocktake"
+            "stocktake", "count", "stock count", "cycle count" -> "stocktake"
             "damage", "damaged" -> "damage"
             "waste" -> "waste"
             "return", "returned" -> "return"
@@ -95,11 +95,16 @@ object OperatingStockReasons {
     /** A transfer's own reason, or the closest accepted code. */
     fun contractCode(label: String): String? = reasonCode(label)
 
-    fun stockAction(label: String): String = when (label.trim().lowercase()) {
-        "out", "reduce", "issued" -> "REDUCE"
-        "set", "count" -> "SET"
-        "transfer", "move" -> "TRANSFER"
-        else -> "ADD"
+    /** Retail Figma chips use Set current / Add / Reduce; legacy IN / OUT / COUNT still map. */
+    fun stockAction(label: String): String {
+        val key = label.trim().lowercase()
+        return when {
+            key == "out" || key == "reduce" || key == "issued" || key.startsWith("reduce") -> "REDUCE"
+            key == "set" || key == "count" || key.startsWith("set") -> "SET"
+            key == "transfer" || key == "move" || key.startsWith("transfer") -> "TRANSFER"
+            key == "in" || key == "add" || key == "received" || key.startsWith("add") -> "ADD"
+            else -> "ADD"
+        }
     }
 
     fun ownership(label: String): String =

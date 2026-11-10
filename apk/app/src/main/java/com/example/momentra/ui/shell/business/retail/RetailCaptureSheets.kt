@@ -34,6 +34,7 @@ import com.example.momentra.data.api.OperatingMasterDto
 import com.example.momentra.data.api.OperatingPaymentDto
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
+import com.example.momentra.ui.shell.business.shared.OperatingStockReasons
 import com.example.momentra.ui.theme.RetailRose
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -624,64 +625,218 @@ private fun RetailExpenseSheet(
     }
 }
 
-/** `2399:30359` Stock update */
+/** `2399:30359` Stock update — Set current / Add / Reduce */
 @Composable
 private fun RetailStockUpdateSheet(
     model: OperatingProjectionDto,
     onDismiss: () -> Unit,
     onSubmit: (RetailEventDraft) -> Unit,
 ) {
-    var action by remember { mutableStateOf("COUNT") }
-    var sku by remember { mutableStateOf("") }
-    var qty by remember { mutableStateOf("") }
-    var reason by remember { mutableStateOf("") }
+    var action by remember { mutableStateOf("Set current") }
+    var scanQuery by remember { mutableStateOf("") }
+    var reason by remember { mutableStateOf("Cycle count") }
+    var location by remember { mutableStateOf("Aisle 3") }
+    var countedBy by remember { mutableStateOf("Ravi · floor") }
+    var note by remember { mutableStateOf("") }
+    var moreOpen by remember { mutableStateOf(false) }
+    val lines = remember { mutableStateListOf(newCaptureLine(1), newCaptureLine(2)) }
     val skus = retailCatalogMasters(model)
-    val postable = sku.isNotBlank() && qty.toBigDecimalOrNull() != null
+    val filled = lines.filter { it.name.isNotBlank() }
+    val first = filled.firstOrNull()
+    val qtyValue = first?.qty?.toBigDecimalOrNull()
+    val stockActionCode = OperatingStockReasons.stockAction(action)
+    val stockReasonCode = OperatingStockReasons.reasonCode(reason)
+    val postable = first != null && stockReasonCode != null && qtyValue != null &&
+        (stockActionCode == "SET" && qtyValue.signum() >= 0 || stockActionCode != "SET" && qtyValue.signum() > 0)
+    val brand = model.title?.takeIf { it.isNotBlank() } ?: "Retail"
 
     retailCaptureScaffold(
         title = "Stock Update",
-        subtitle = "Count · damage · adjust",
+        subtitle = "Floor count · $location · $brand",
         onDismiss = onDismiss,
-        why = "Stock posts quantity delta only — not a sale or purchase.",
-        cta = "Post stock",
+        why = "Quantity delta only — never invent unit cost or BOM. Damage uses Reduce + reason.",
+        cta = "Post stock update",
         enabled = postable,
         hideFooter = true,
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("COUNT", "DAMAGE", "ADJUST").forEach { mode ->
-                RoseModeChip(mode, mode == action, onClick = { action = mode })
+        RoseChipRow(
+            label = null,
+            options = listOf("Set current", "Add", "Reduce"),
+            selected = action,
+        ) { action = it }
+
+        RoseFieldLabel("Scan SKU / barcode")
+        RoseScanField(
+            query = scanQuery,
+            placeholder = "HM-044  ·  tap to scan",
+            onQueryChange = { scanQuery = it },
+            onScan = {
+                val q = scanQuery.trim()
+                if (q.isBlank()) return@RoseScanField
+                val match = skus.firstOrNull {
+                    it.name.contains(q, true) || (it.code?.contains(q, true) == true)
+                }
+                val sku = (match?.code ?: q.take(8)).uppercase()
+                val name = match?.name ?: q
+                val unit = match?.unit ?: "pcs"
+                val blank = lines.indexOfFirst { it.name.isBlank() }
+                if (blank >= 0) {
+                    lines[blank] = lines[blank].copy(name = name, sku = sku, unit = unit)
+                } else {
+                    lines.add(newCaptureLine().copy(name = name, sku = sku, unit = unit))
+                }
+                scanQuery = ""
+            },
+        )
+
+        RoseSectionCard("Count lines") {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${filled.size} SKU${if (filled.size == 1) "" else "s"} · ${reason.lowercase()}",
+                    style = RetailRose.rowCaption(),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            lines.forEachIndexed { index, line ->
+                stockCountLineRow(
+                    line = line,
+                    location = location,
+                    onChange = { lines[index] = it },
+                    onRemove = { if (lines.size > 1) lines.removeAt(index) },
+                )
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "+ Add SKU",
+                    style = RetailRose.viewAll(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { lines.add(newCaptureLine()) },
+                )
+                Text("Recent · Low stock", style = RetailRose.rowCaption())
             }
         }
-        RoseSectionCard("SKU") {
-            RoseTextField(sku, "Item", onValueChange = { sku = it })
-            skus.take(4).forEach { master ->
-                RosePickerRow(master.name, master.unit ?: "pcs", onClick = { sku = master.name })
-            }
-            RoseFieldLabel("Quantity delta")
-            RoseTextField(qty, "+/− units", onValueChange = { qty = it.filter { ch -> ch.isDigit() || ch == '-' || ch == '.' }.take(9) })
-            RoseTextField(reason, "Reason", onValueChange = { reason = it })
+
+        RosePickerRow("Reason", reason, onClick = {
+            reason = nextStockReason(reason)
+        })
+        RosePickerRow("Location", location, onClick = {
+            location = nextStockLocation(location)
+        })
+        RosePickerRow("Counted by", countedBy, onClick = {
+            countedBy = nextCountedBy(countedBy)
+        })
+
+        RoseMoreDetails(expanded = moreOpen, onToggle = { moreOpen = !moreOpen }) {
+            Text("Transfer stock · between locations", style = RetailRose.rowCaption())
+            RoseTextField(countedBy, "Counted by (custom)", onValueChange = { countedBy = it })
+            RoseTextField(note, "Optional reference", onValueChange = { note = it }, singleLine = false)
         }
+
         RoseStickyFooter(
-            label = "Post stock move",
+            label = "Post stock update",
             enabled = postable,
-            caveat = "Signed delta on hand",
+            caveat = "Draft preserved if you close or open a picker",
             onClick = {
-                val item = skus.firstOrNull { it.name.equals(sku, true) }
+                val primary = filled.firstOrNull() ?: return@RoseStickyFooter
+                val extras = filled.drop(1).map { it.name }.filter { it.isNotBlank() }
+                val noteParts = listOfNotNull(
+                    note.takeIf { it.isNotBlank() },
+                    "Action: $action",
+                    "Location: $location",
+                    countedBy.takeIf { it.isNotBlank() }?.let { "Counted by: $it" },
+                    extras.takeIf { it.isNotEmpty() }?.let { "SKUs: ${it.joinToString(", ")}" },
+                )
                 onSubmit(
                     RetailEventDraft(
                         eventType = "STOCK",
-                        title = "Stock · $action · $sku",
+                        title = primary.name,
                         amount = null,
-                        note = reason.takeIf { it.isNotBlank() },
-                        quantity = qty,
-                        unit = item?.unit,
-                        itemName = sku,
-                        contract = OperatingContractBody(stockAction = action, stockReason = reason.takeIf { it.isNotBlank() }),
+                        note = noteParts.joinToString(" · ").ifBlank { null },
+                        quantity = primary.qty,
+                        unit = primary.unit.takeIf { it.isNotBlank() },
+                        itemName = primary.name,
+                        contract = OperatingContractBody(
+                            stockAction = stockActionCode,
+                            stockReason = stockReasonCode,
+                            locationName = location.takeIf { it.isNotBlank() },
+                            staffName = countedBy.takeIf { it.isNotBlank() },
+                            declaredQuantity = if (stockActionCode == "SET") primary.qty else null,
+                        ),
+                        lines = filled.map {
+                            OperatingLineBody(
+                                itemName = it.name,
+                                quantity = it.qty,
+                                unit = it.unit.takeIf { u -> u.isNotBlank() },
+                                unitPrice = null,
+                            )
+                        },
                     ),
                 )
             },
         )
     }
+}
+
+@Composable
+private fun stockCountLineRow(
+    line: CaptureLineDraft,
+    location: String,
+    onChange: (CaptureLineDraft) -> Unit,
+    onRemove: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(RetailRose.field)
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(line.sku.ifBlank { "SKU" }, style = RetailRose.rowCaption(RetailRose.amber))
+            RoseTextField(line.name, "Item", onValueChange = { onChange(line.copy(name = it)) })
+            Text(
+                listOfNotNull(
+                    location.takeIf { it.isNotBlank() },
+                    line.unit.takeIf { it.isNotBlank() },
+                ).joinToString(" · ").ifBlank { "Set qty" },
+                style = RetailRose.rowCaption(),
+            )
+        }
+        val qtyInt = line.qty.toIntOrNull() ?: 0
+        RoseStepper(
+            quantity = qtyInt,
+            onDecrement = {
+                if (qtyInt > 0) onChange(line.copy(qty = (qtyInt - 1).toString()))
+                else onRemove()
+            },
+            onIncrement = { onChange(line.copy(qty = (qtyInt + 1).toString())) },
+        )
+        Text("→ ${line.qty}", style = RetailRose.rowValue())
+    }
+}
+
+private fun nextStockReason(current: String): String {
+    val options = listOf("Cycle count", "Opening count", "Stocktake", "Damage", "Waste", "Return", "Correction")
+    val idx = options.indexOf(current).let { if (it < 0) 0 else it }
+    return options[(idx + 1) % options.size]
+}
+
+private fun nextStockLocation(current: String): String {
+    val options = listOf("Aisle 3", "Back store", "Register", "Floor")
+    val idx = options.indexOf(current).let { if (it < 0) 0 else it }
+    return options[(idx + 1) % options.size]
+}
+
+private fun nextCountedBy(current: String): String {
+    val options = listOf("Ravi · floor", "Counter · shift", "Owner")
+    val idx = options.indexOf(current)
+    return options[(idx + 1) % options.size]
 }
 
 private enum class OrderSheetMode { SalesOrder, PurchaseOrder }
