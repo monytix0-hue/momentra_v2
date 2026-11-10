@@ -11,6 +11,8 @@ struct MomentStoryViewerView: View {
     @State private var page = 0
     @State private var sharing = false
     @State private var shareNotice: String?
+    @State private var showSaved = false
+    @State private var justGenerated = false
 
     private var chapters: [String] {
         Self.resolveChapters(story: story)
@@ -58,33 +60,44 @@ struct MomentStoryViewerView: View {
                 }
                 .padding(16)
 
-                if phase == "loading" || phase == "generating" {
-                    Spacer()
-                    ProgressView().tint(Color(hex: "#E8621A"))
-                    if phase == "generating" {
-                        Text("Generating your Moment Story…")
-                            .foregroundStyle(chromeDark ? Color(hex: "#F5F0FF") : Color(hex: "#25231F"))
-                            .padding(.top, 12)
-                    }
-                    Spacer()
-                } else if phase == "failed" || phase == "error" {
-                    Spacer()
-                    Text(message ?? "Could not load Story")
-                        .foregroundStyle(chromeDark ? Color(hex: "#F5F0FF") : Color(hex: "#25231F"))
-                        .padding()
-                    Button("Retry") { Task { await generate() } }
-                        .foregroundStyle(Color(hex: "#E8621A"))
-                        .accessibilityHint("Generates the Moment Story again")
-                    Spacer()
+                if showSaved && phase == "ready" {
+                    StorySavedPanel(
+                        versionLabel: "Version \(story?.storyVersion ?? 1) · immutable snapshot",
+                        onShare: {
+                            showSaved = false
+                            Task { await share() }
+                        },
+                        onBack: {
+                            showSaved = false
+                            onClose()
+                        }
+                    )
+                } else if phase == "loading" {
+                    StoryStateBody(spec: StoryStateSpecs.loading())
+                } else if phase == "generating" {
+                    StoryStateBody(spec: StoryStateSpecs.generating())
+                } else if phase == "failed" {
+                    StoryStateBody(
+                        spec: StoryStateSpecs.generatingFailed(message),
+                        onPrimary: { Task { await generate() } },
+                        onSecondary: onClose
+                    )
+                } else if phase == "error" {
+                    let unauthorized = (message ?? "").localizedCaseInsensitiveContains("denied")
+                        || (message ?? "").contains("401")
+                        || (message ?? "").contains("403")
+                    StoryStateBody(
+                        spec: unauthorized ? StoryStateSpecs.unauthorized() : StoryStateSpecs.loadError(message),
+                        onPrimary: unauthorized ? onClose : { Task { await generate() } },
+                        onSecondary: onClose
+                    )
                 } else if phase == "not_started" {
-                    Spacer()
-                    Text(message ?? "No Story yet — complete the moment to unlock it.")
-                        .foregroundStyle(chromeDark ? Color(hex: "#F5F0FF") : Color(hex: "#25231F"))
-                        .padding()
-                    Button("Generate") { Task { await generate() } }
-                        .foregroundStyle(Color(hex: "#E8621A"))
-                        .accessibilityHint("Creates the Moment Story for everyone in this moment")
-                    Spacer()
+                    StoryStateBody(
+                        spec: StoryStateSpecs.notStarted(
+                            completed: !(message ?? "").localizedCaseInsensitiveContains("complete the moment")
+                        ),
+                        onPrimary: { Task { await generate() } }
+                    )
                 } else {
                     TabView(selection: $page) {
                         ForEach(Array(chapters.enumerated()), id: \.offset) { idx, chapter in
@@ -1005,6 +1018,10 @@ struct MomentStoryViewerView: View {
             }
             story = try await APIClient.shared.getMomentStory(momentId: momentId)
             phase = "ready"
+            if justGenerated {
+                showSaved = true
+                justGenerated = false
+            }
         } catch {
             phase = "error"
             message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -1015,11 +1032,13 @@ struct MomentStoryViewerView: View {
     private func generate() async {
         phase = "generating"
         message = nil
+        justGenerated = true
         do {
             try await APIClient.shared.createMomentStory(momentId: momentId)
             await load()
         } catch {
             phase = "failed"
+            justGenerated = false
             message = (error as? LocalizedError)?.errorDescription ?? "Could not generate Story"
         }
     }

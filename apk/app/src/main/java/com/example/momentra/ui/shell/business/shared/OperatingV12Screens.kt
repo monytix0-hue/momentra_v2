@@ -418,9 +418,20 @@ fun OperatingV12MomentsScreen(
     onViewAll: (String) -> Unit,
     onOpenRow: ((OperatingActivityDto) -> Unit)? = null,
 ) {
-    val network = model.sectionByCode("network")
+    // Manufacturing emits M3 (Business Network), not trading `network`.
+    val network = if (theme.isManufacturing) {
+        model.sectionByCode("M3")
+    } else {
+        model.sectionByCode("network")
+    }
     val commitments = model.sectionByCode("M4")
     val title = model.title.orEmpty().ifBlank { theme.label }
+    val peopleCount = when {
+        theme.isManufacturing ->
+            model.participants.size.takeIf { it > 0 }
+                ?: network?.rows.orEmpty().size
+        else -> null
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         OperatingV12Hero(
@@ -438,7 +449,9 @@ fun OperatingV12MomentsScreen(
             kpis = listOf(
                 OperatingV12KpiSpec(
                     "People · ${theme.partyNoun}",
-                    OperatingV12Metric.value(network, "buyers", model.currency) ?: "—",
+                    peopleCount?.toString()
+                        ?: OperatingV12Metric.value(network, "buyers", model.currency)
+                        ?: "—",
                 ),
                 OperatingV12KpiSpec(
                     "AR open",
@@ -448,16 +461,59 @@ fun OperatingV12MomentsScreen(
             ),
         )
         OperatingV12QuickActions(theme = theme, onOpen = onCapture)
-        sectionCard(model, theme, "M4", "Open Commitments", "What is still open · not alarms",
+        val openTitle = when {
+            theme.isMadeToOrder -> "Open Jobs"
+            theme.isManufacturing -> "Open Commitments"
+            else -> "Open Commitments"
+        }
+        val openOrdersLabel = if (theme.isMadeToOrder) "Jobs" else "Open orders"
+        sectionCard(model, theme, "M4", openTitle, "What is still open · not alarms",
             listOf("toCollect", "toPay", "openOrders"),
-            mapOf("AR" to "AR", "toCollect" to "AR", "toPay" to "AP", "openOrders" to "Open orders"),
+            mapOf("AR" to "AR", "toCollect" to "AR", "toPay" to "AP", "openOrders" to openOrdersLabel),
             onViewAll, onOpenRow)
-        sectionCard(model, theme, "orders", "Orders & Commitments", "Open buyer & supplier orders · commitment only",
+        val ordersTitle = when {
+            theme.isMadeToOrder -> "Current Jobs"
+            theme.isManufacturing -> "Work Orders & Commitments"
+            else -> "Orders & Commitments"
+        }
+        val ordersSub = when {
+            theme.isMadeToOrder -> "Confirmed jobs · commitment only · not revenue"
+            theme.isManufacturing -> "Plant work orders · commitment only"
+            else -> "Open buyer & supplier orders · commitment only"
+        }
+        sectionCard(model, theme, "orders", ordersTitle, ordersSub,
             listOf("openOrders", "inTransit", "netSales"), emptyMap(), onViewAll, onOpenRow)
-        sectionCard(model, theme, "stock", "Stock & Products", "Physical movements · warehouse + routes",
+        if (theme.isManufacturing) {
+            // Backend familyMomentSections(MANUFACTURING_PRODUCTION): orders / production / stock.
+            val productionTitle = if (theme.isMadeToOrder) "Job Output" else "Production"
+            val productionSub = if (theme.isMadeToOrder) {
+                "Recorded vs accepted against open jobs"
+            } else {
+                "Recorded vs accepted plant output"
+            }
+            sectionCard(
+                model, theme, "production", productionTitle, productionSub,
+                listOf("recorded", "accepted", "pending"), emptyMap(), onViewAll, onOpenRow,
+            )
+        }
+        val stockTitle = when {
+            theme.isMadeToOrder -> "Job Operations"
+            theme.isManufacturing -> "Stock & Products"
+            else -> "Stock & Products"
+        }
+        val stockSub = when {
+            theme.isMadeToOrder -> "WIP against open jobs · materials & FG"
+            theme.isManufacturing -> "Material · WIP · finished goods"
+            else -> "Physical movements · warehouse + routes"
+        }
+        sectionCard(model, theme, "stock", stockTitle, stockSub,
             listOf("onHand", "stockMoves", "low"), emptyMap(), onViewAll, onOpenRow)
-        sectionCard(model, theme, "network", "People & Network", "Bound suppliers, buyers & routes",
-            listOf("buyers", "suppliers", "channels"), emptyMap(), onViewAll, onOpenRow)
+        if (!theme.isManufacturing) {
+            sectionCard(
+                model, theme, "network", "People & Network", "Bound suppliers, buyers & routes",
+                listOf("buyers", "suppliers", "channels"), emptyMap(), onViewAll, onOpenRow,
+            )
+        }
     }
 }
 
@@ -510,17 +566,39 @@ fun OperatingV12LifeScreen(
                 ),
             ),
         )
-        sectionCard(model, theme, "L1", "Current Business", "As-of today · ${OperatingV12Date.today()}",
+        val lifeBusiness = when {
+            theme.isMadeToOrder -> "Current Jobs Today"
+            // Projection widget label for MANUFACTURING_PRODUCTION L1.
+            theme.isManufacturing -> "Current Production / Business"
+            else -> "Current Business"
+        }
+        sectionCard(model, theme, "L1", lifeBusiness, "As-of today · ${OperatingV12Date.today()}",
             listOf("sales", "stockMoves", "issues"), emptyMap(), onViewAll, onOpenRow)
+        val lifeL2Title = when {
+            theme.isMadeToOrder -> "Jobs & Customers"
+            theme.isManufacturing -> "Orders / Buyers"
+            theme.isTrading -> "Buyers & Channels"
+            else -> "Dealers & Channels"
+        }
+        val lifeL2Sub = when {
+            theme.isMadeToOrder -> "Attributed work by customer and channel"
+            theme.isManufacturing -> "Attributed plant sales by buyer and channel"
+            else -> "Channel / territory mix · this month"
+        }
         sectionCard(
             model, theme, "L2",
-            if (theme.isTrading) "Buyers & Channels" else "Dealers & Channels",
-            "Channel / territory mix · this month",
+            lifeL2Title,
+            lifeL2Sub,
             listOf("channels", "buyers", "sales"), emptyMap(), onViewAll, onOpenRow,
         )
         sectionCard(model, theme, "L3", "Money Moving", "Cash in / out · cash basis",
             listOf("collected", "paid", "net"), emptyMap(), onViewAll, onOpenRow)
-        sectionCard(model, theme, "L4", "People & Activity", "Assigned follow-ups",
+        // Projection widget label for MANUFACTURING_PRODUCTION L4 is Production Operations.
+        val lifePeople = when {
+            theme.isManufacturing -> "Production Operations"
+            else -> "People & Activity"
+        }
+        sectionCard(model, theme, "L4", lifePeople, "Assigned follow-ups",
             listOf("stockMoves", "issues", "updates"), emptyMap(), onViewAll, onOpenRow)
     }
 }
@@ -559,11 +637,26 @@ fun OperatingV12MemoryScreen(
             ),
         )
         storyCta(theme, period, onStory)
-        sectionCard(model, theme, "ME1", "Monthly Memory", "Closed periods · target v2 ($period)",
+        val me1Sub = when {
+            theme.isMadeToOrder -> "Closed periods · jobs & invoices ($period)"
+            theme.isManufacturing -> "Closed periods · plant target v2 ($period)"
+            else -> "Closed periods · target v2 ($period)"
+        }
+        sectionCard(model, theme, "ME1", "Monthly Memory", me1Sub,
             listOf("netSales", "months", "records"), emptyMap(), onViewAll, onOpenRow)
         sectionCard(model, theme, "ME2", "Money Memory", "Settled chains · FY 2026–27",
             listOf("collected", "paid", "credits"), emptyMap(), onViewAll, onOpenRow)
-        sectionCard(model, theme, "fulfilment", "Fulfilment Memory", "Order → dispatch → route delivery",
+        val fulfilTitle = when {
+            theme.isMadeToOrder -> "Job Fulfilment Memory"
+            theme.isManufacturing -> "Fulfilment Memory"
+            else -> "Fulfilment Memory"
+        }
+        val fulfilSub = when {
+            theme.isMadeToOrder -> "Job → produce → invoice → dispatch"
+            theme.isManufacturing -> "Order → produce → dispatch"
+            else -> "Order → dispatch → route delivery"
+        }
+        sectionCard(model, theme, "fulfilment", fulfilTitle, fulfilSub,
             listOf("delivered", "received", "returns"), emptyMap(), onViewAll, onOpenRow)
         sectionCard(model, theme, "ME4", "People & Patterns", "Repeat behaviour · 6 months",
             listOf("issues", "approvals"), emptyMap(), onViewAll, onOpenRow, columns = 2)

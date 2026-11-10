@@ -176,13 +176,58 @@ fun ServiceStoryConfigSheet(
                 }
             }
 
+            val hasActivity = model.activity.isNotEmpty()
+            if (!hasActivity) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(ServicesTeal.field)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("⚠", color = ServicesTeal.amber, fontFamily = PlusJakartaSans, fontSize = 18.sp)
+                    Text(
+                        "No verified activity in this period",
+                        color = ServicesTeal.textPrimary,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                    )
+                    Text(
+                        "We found no reconciled records for $month. We won’t show zeros for data we don’t have.",
+                        color = ServicesTeal.textBody,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 12.sp,
+                    )
+                    listOf("Activity" to "Not recorded", "Money" to "Not recorded", "Network" to "Not recorded").forEach { (label, value) ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(label, color = ServicesTeal.textBody, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                            Text(value, color = ServicesTeal.amber, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
             Row(
                 Modifier
                     .fillMaxWidth()
                     .clip(ServicesTeal.rCardTight)
-                    .background(ServicesTeal.teal)
-                    .shadow(14.dp, ServicesTeal.rCardTight, clip = false, ambientColor = ServicesTeal.teal.copy(alpha = 0.45f), spotColor = ServicesTeal.teal.copy(alpha = 0.45f))
-                    .clickable(enabled = !generating) {
+                    .background(if (hasActivity) ServicesTeal.teal else ServicesTeal.field)
+                    .then(
+                        if (hasActivity) {
+                            Modifier.shadow(
+                                14.dp,
+                                ServicesTeal.rCardTight,
+                                clip = false,
+                                ambientColor = ServicesTeal.teal.copy(alpha = 0.45f),
+                                spotColor = ServicesTeal.teal.copy(alpha = 0.45f),
+                            )
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .clickable(enabled = !generating && hasActivity) {
                         scope.launch {
                             generating = true
                             error = null
@@ -202,9 +247,10 @@ fun ServiceStoryConfigSheet(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val labelColor = if (hasActivity) Color.White else ServicesTeal.textBody
                 if (generating) {
                     CircularProgressIndicator(
-                        color = Color.White,
+                        color = labelColor,
                         strokeWidth = 2.dp,
                         modifier = Modifier.size(16.dp),
                     )
@@ -213,14 +259,18 @@ fun ServiceStoryConfigSheet(
                     Icon(
                         painterResource(R.drawable.qa_plus),
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = labelColor,
                         modifier = Modifier.size(16.dp),
                     )
                     Spacer(Modifier.size(8.dp))
                 }
                 Text(
-                    if (generating) "Composing…" else "Generate story",
-                    color = Color.White,
+                    when {
+                        generating -> "Composing…"
+                        !hasActivity -> "Generate · needs activity"
+                        else -> "Generate story"
+                    },
+                    color = labelColor,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,

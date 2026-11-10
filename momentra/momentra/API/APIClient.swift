@@ -67,6 +67,14 @@ struct OperatingActivityPayload: Decodable, Identifiable {
     let status: String?
     let orderSide: String?
     let estimatedAmount: String?
+    /// Restaurant floor table on ORDER / SALE activity rows.
+    let tableNumber: String?
+    /// Restaurant covers / party size.
+    let covers: String?
+    /// Kitchen station (ORDER) or stock location.
+    let locationName: String?
+    /// Client ticket key (e.g. KOT-442).
+    let clientKey: String?
     /// Open / Part / Overdue / Settled / Done — the Figma status chip (V099+).
     let badge: String?
     /// One line of context under the row title (V099+).
@@ -450,6 +458,12 @@ struct OperatingContractInput: Encodable {
     var transferToMasterId: String? = nil
     var transferFromName: String? = nil
     var transferToName: String? = nil
+    /// Stock / kitchen station name.
+    var locationName: String? = nil
+    /// Restaurant floor table label on SALE / ORDER.
+    var tableNumber: String? = nil
+    /// Restaurant covers / party size.
+    var covers: String? = nil
 }
 
 struct MeBootstrap: Decodable {

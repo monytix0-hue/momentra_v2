@@ -176,13 +176,58 @@ fun RetailStoryConfigSheet(
                 }
             }
 
+            val hasActivity = model.activity.isNotEmpty()
+            if (!hasActivity) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(RetailRose.field)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("⚠", color = RetailRose.amber, fontFamily = PlusJakartaSans, fontSize = 18.sp)
+                    Text(
+                        "No verified activity in this period",
+                        color = RetailRose.textPrimary,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                    )
+                    Text(
+                        "We found no reconciled records for $month. We won’t show zeros for data we don’t have.",
+                        color = RetailRose.textBody,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 12.sp,
+                    )
+                    listOf("Activity" to "Not recorded", "Money" to "Not recorded", "Network" to "Not recorded").forEach { (label, value) ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(label, color = RetailRose.textBody, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                            Text(value, color = RetailRose.amber, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
             Row(
                 Modifier
                     .fillMaxWidth()
                     .clip(RetailRose.rCardTight)
-                    .background(RetailRose.rose)
-                    .shadow(14.dp, RetailRose.rCardTight, clip = false, ambientColor = RetailRose.rose.copy(alpha = 0.45f), spotColor = RetailRose.rose.copy(alpha = 0.45f))
-                    .clickable(enabled = !generating) {
+                    .background(if (hasActivity) RetailRose.rose else RetailRose.field)
+                    .then(
+                        if (hasActivity) {
+                            Modifier.shadow(
+                                14.dp,
+                                RetailRose.rCardTight,
+                                clip = false,
+                                ambientColor = RetailRose.rose.copy(alpha = 0.45f),
+                                spotColor = RetailRose.rose.copy(alpha = 0.45f),
+                            )
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .clickable(enabled = !generating && hasActivity) {
                         scope.launch {
                             generating = true
                             error = null
@@ -202,9 +247,10 @@ fun RetailStoryConfigSheet(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val labelColor = if (hasActivity) Color.White else RetailRose.textBody
                 if (generating) {
                     CircularProgressIndicator(
-                        color = Color.White,
+                        color = labelColor,
                         strokeWidth = 2.dp,
                         modifier = Modifier.size(16.dp),
                     )
@@ -213,14 +259,18 @@ fun RetailStoryConfigSheet(
                     Icon(
                         painterResource(R.drawable.ic_retail_plus),
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = labelColor,
                         modifier = Modifier.size(16.dp),
                     )
                     Spacer(Modifier.size(8.dp))
                 }
                 Text(
-                    if (generating) "Composing…" else "Generate story",
-                    color = Color.White,
+                    when {
+                        generating -> "Composing…"
+                        !hasActivity -> "Generate · needs activity"
+                        else -> "Generate story"
+                    },
+                    color = labelColor,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,

@@ -98,3 +98,4 @@ V097__operating_event_allocation.sql
 V098__operating_event_idempotency.sql
 V099__operating_master.sql
 V100__gst_state_codes.sql
+V101__operating_moment_capabilities.sql

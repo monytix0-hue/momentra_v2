@@ -169,13 +169,47 @@ data class OperatingV12Theme(
             verticalKey = "madeToOrder",
         )
 
+        /** Client campaign — indigo `#6366F1` (MKT-PULSE-v12). */
+        fun marketingClient() = OperatingV12Theme(
+            accent = Color(0xFF6366F1),
+            canvas = Color(0xFF09121F),
+            heroStart = Color(0xFF6366F1),
+            heroEnd = Color(0xFF8B5CF6),
+            label = "Client Campaign",
+            partyNoun = "Clients",
+            motionLine = "Plan. Launch. Measure.",
+            isTrading = false,
+            verticalKey = "marketingClient",
+        )
+
+        /** Own business campaign — magenta `#D946EF` (MKT-OWN-PULSE-v12). */
+        fun marketingOwn() = OperatingV12Theme(
+            accent = Color(0xFFD946EF),
+            canvas = Color(0xFF12081A),
+            heroStart = Color(0xFFD946EF),
+            heroEnd = Color(0xFFF59E0B),
+            label = "Own Business Campaign",
+            partyNoun = "Vendors",
+            motionLine = "Plan. Launch. Measure.",
+            isTrading = false,
+            verticalKey = "marketingOwn",
+        )
+
         fun forSubtype(subtype: String?): OperatingV12Theme = when (subtype?.uppercase()) {
             "DISTRIBUTION_DEALERSHIP" -> distribution()
             "STANDARD_PRODUCTION" -> manufacturing()
             "MADE_TO_ORDER" -> madeToOrder()
+            "CLIENT_CAMPAIGN" -> marketingClient()
+            "OWN_BUSINESS_CAMPAIGN" -> marketingOwn()
             else -> trading()
         }
     }
+
+    val isMarketing: Boolean
+        get() = verticalKey == "marketingClient" || verticalKey == "marketingOwn"
+
+    val isMarketingOwn: Boolean
+        get() = verticalKey == "marketingOwn"
 }
 
 /** Compact money: `₹9.4L`, `₹86k`, `₹1.8Cr`. Counts keep their raw text. */
@@ -277,6 +311,20 @@ object OperatingV12Tiles {
 
 fun OperatingProjectionDto.pulseGroup(code: String) =
     pulseMetrics?.firstOrNull { it.code == code }
+
+/**
+ * True when Pulse has setup or live signal worth showing (budget / target / GST /
+ * feeds) instead of the Obsidian "No pulse yet" takeover. Fresh ACTIVE moments with
+ * setup prefs must keep the normal Pulse chrome even before the first sale.
+ */
+fun OperatingProjectionDto.hasUsefulPulseChrome(): Boolean {
+    if (activity.isNotEmpty() || attention.isNotEmpty()) return true
+    if (paymentReadiness.isNotEmpty()) return true
+    if (budget?.configured == true) return true
+    if (target?.configured == true) return true
+    if (gstTracking.equals("YES", ignoreCase = true)) return true
+    return false
+}
 
 @Composable
 fun OperatingV12Card(
@@ -724,20 +772,22 @@ fun OperatingV12ActionTile(
     icon: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    locked: String? = null,
 ) {
+    val enabled = locked == null
     Column(
         modifier
             .height(112.dp)
             .shadow(
-                6.dp,
+                if (enabled) 6.dp else 0.dp,
                 RoundedCornerShape(16.dp),
                 ambientColor = Color.Black.copy(alpha = 0.4f),
                 spotColor = theme.accent.copy(alpha = if (theme.isTrading) 0.25f else 0.4f),
             )
             .clip(RoundedCornerShape(16.dp))
             .background(OperatingV12.surface)
-            .border(1.dp, theme.accent.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
+            .border(1.dp, theme.accent.copy(alpha = if (enabled) 0.35f else 0.15f), RoundedCornerShape(16.dp))
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -745,20 +795,38 @@ fun OperatingV12ActionTile(
             Modifier
                 .size(32.dp)
                 .shadow(
-                    6.dp,
+                    if (enabled) 6.dp else 0.dp,
                     RoundedCornerShape(10.dp),
                     ambientColor = theme.accent.copy(alpha = 0.5f),
                     spotColor = theme.accent.copy(alpha = 0.55f),
                 )
                 .clip(RoundedCornerShape(10.dp))
-                .background(theme.accent.copy(alpha = 0.16f))
-                .border(1.dp, theme.accent.copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
+                .background(theme.accent.copy(alpha = if (enabled) 0.16f else 0.08f))
+                .border(1.dp, theme.accent.copy(alpha = if (enabled) 0.45f else 0.2f), RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(icon), contentDescription = null, tint = theme.accent, modifier = Modifier.size(16.dp))
+            Icon(
+                painterResource(icon),
+                contentDescription = null,
+                tint = if (enabled) theme.accent else OperatingV12.subtitle,
+                modifier = Modifier.size(16.dp),
+            )
         }
-        Text(title, color = OperatingV12.title, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 2)
-        Text(subtitle, color = OperatingV12.subtitle, fontFamily = PlusJakartaSans, fontSize = 10.sp, maxLines = 2)
+        Text(
+            title,
+            color = if (enabled) OperatingV12.title else OperatingV12.subtitle,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            maxLines = 2,
+        )
+        Text(
+            locked ?: subtitle,
+            color = OperatingV12.subtitle,
+            fontFamily = PlusJakartaSans,
+            fontSize = 10.sp,
+            maxLines = 2,
+        )
     }
 }
 

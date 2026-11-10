@@ -39,7 +39,7 @@ class MomentraAnalytics private constructor(
         sessionActive = true
         sessionStartedAtMs.set(System.currentTimeMillis())
         BackendTelemetry.get().onSessionStart()
-        logEvent("session_start", bundleOf("platform" to "android"))
+        logEvent("app_session_start", bundleOf("platform" to "android"))
         currentScreen.get()?.let { resumeScreenTicks(it) }
     }
 
@@ -221,7 +221,7 @@ class MomentraAnalytics private constructor(
     }
 
     private fun logSessionStart() {
-        logEvent("session_start", bundleOf("platform" to "android"))
+        logEvent("app_session_start", bundleOf("platform" to "android"))
     }
 
     private fun logEvent(name: String, params: Bundle) {

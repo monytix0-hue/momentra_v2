@@ -58,8 +58,12 @@ fun BusinessAppStateBody(
     val errorAccent = BusinessAppStateTokens.ErrorRing
     val tone = if (spec.phase == BusinessAppStatePhase.Error) AppStateTone.Error else AppStateTone.Normal
 
+    val scroll = rememberScrollState()
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val viewportHeight = maxHeight
+        // Parent verticalScroll/LazyColumn measures children with infinity max height.
+        // Nesting another verticalScroll there is a hard crash — only scroll when bounded.
+        val canScroll = constraints.hasBoundedHeight
 
         // Figma root background for every App States frame.
         Box(
@@ -85,8 +89,13 @@ fun BusinessAppStateBody(
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .heightIn(min = viewportHeight)
+                .then(
+                    if (canScroll) {
+                        Modifier.verticalScroll(scroll).heightIn(min = viewportHeight)
+                    } else {
+                        Modifier
+                    },
+                )
                 .padding(horizontal = BusinessAppStateTokens.ScreenHorizontalPadding)
                 .padding(vertical = 24.dp),
         ) {
@@ -164,8 +173,10 @@ fun BusinessAppStateLoadingBody(
     modifier: Modifier = Modifier,
 ) {
     val accentColor = accent.color
+    val scroll = rememberScrollState()
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val viewportHeight = maxHeight
+        val canScroll = constraints.hasBoundedHeight
 
         Box(
             modifier = Modifier
@@ -186,8 +197,13 @@ fun BusinessAppStateLoadingBody(
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .heightIn(min = viewportHeight)
+                .then(
+                    if (canScroll) {
+                        Modifier.verticalScroll(scroll).heightIn(min = viewportHeight)
+                    } else {
+                        Modifier
+                    },
+                )
                 .padding(horizontal = BusinessAppStateTokens.ScreenHorizontalPadding)
                 .padding(vertical = 24.dp),
         ) {
@@ -230,9 +246,11 @@ fun BusinessAppStateHubBody(
     val spec = BusinessAppStateSpecs.spec(BusinessAppStateScreen.Hub, BusinessAppStatePhase.Empty)
     val tiles = BusinessAppStateSpecs.hubTileLabels(vertical)
     val accentColor = accent.color
+    val scroll = rememberScrollState()
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val viewportHeight = maxHeight
+        val canScroll = constraints.hasBoundedHeight
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -252,8 +270,13 @@ fun BusinessAppStateHubBody(
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .heightIn(min = viewportHeight)
+                .then(
+                    if (canScroll) {
+                        Modifier.verticalScroll(scroll).heightIn(min = viewportHeight)
+                    } else {
+                        Modifier
+                    },
+                )
                 .padding(horizontal = BusinessAppStateTokens.ScreenHorizontalPadding)
                 .padding(vertical = 24.dp),
         ) {

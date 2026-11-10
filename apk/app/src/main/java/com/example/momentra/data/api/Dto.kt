@@ -1233,6 +1233,14 @@ data class OperatingActivityDto(
     val status: String? = null,
     val orderSide: String? = null,
     val estimatedAmount: String? = null,
+    /** Restaurant floor table on ORDER / SALE activity rows. */
+    val tableNumber: String? = null,
+    /** Restaurant covers / party size. */
+    val covers: String? = null,
+    /** Kitchen station (ORDER) or stock location. */
+    val locationName: String? = null,
+    /** Client ticket key (e.g. KOT-442). */
+    val clientKey: String? = null,
     /** Figma status chip: Open / Part / Overdue / Settled / Done / Transit / On hold. */
     val badge: String? = null,
     val subtitle: String? = null,
@@ -1624,6 +1632,10 @@ data class OperatingContractBody(
     val transferFromName: String? = null,
     val transferToName: String? = null,
     val locationName: String? = null,
+    /** Restaurant floor table label on SALE / ORDER. */
+    val tableNumber: String? = null,
+    /** Restaurant covers / party size. */
+    val covers: String? = null,
 )
 
 data class RecordOperatingEventBody(

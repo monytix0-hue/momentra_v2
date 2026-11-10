@@ -519,6 +519,10 @@ struct OperatingPulseScreen: View {
 // MARK: - Moments
 
 /// `TRD-MOMENTS-v12` / `DST-MOMENTS-v12`. Hero, captures, then the four commitment surfaces.
+///
+/// Retail-family kits bind `sales` / `purchases` / `stock` / `channels` (or service
+/// `services` / `appointments` / `customers`) — never trading `orders` / `network`.
+/// Manufacturing / MTO kits bind `orders` / `production` / `stock` — never trading `network`.
 struct OperatingMomentsScreen: View {
     @ObservedObject var model: BusinessOperatingModel
     let theme: OperatingTheme
@@ -526,7 +530,17 @@ struct OperatingMomentsScreen: View {
     var onViewAll: (String) -> Void
     var onOpenRow: ((OperatingActivityPayload) -> Void)? = nil
 
-    private var network: OperatingBoardSectionPayload? { model.section(code: "network") }
+    private var network: OperatingBoardSectionPayload? {
+        if model.vertical.isRetailFamily {
+            let code = model.vertical == .consumerService ? "customers" : "channels"
+            return model.section(code: code) ?? model.section(code: "M3")
+        }
+        if model.vertical.isManufacturing {
+            // Manufacturing boards emit `M3` (Business Network), not trading `network`.
+            return model.section(code: "M3")
+        }
+        return model.section(code: "network")
+    }
     private var commitments: OperatingBoardSectionPayload? { model.section(code: "M4") }
 
     var body: some View {
@@ -543,18 +557,7 @@ struct OperatingMomentsScreen: View {
                         dot: true
                     ),
                 ],
-                kpis: [
-                    .init(
-                        label: "People · \(model.vertical.partyNoun)",
-                        value: OperatingV12Metric.value(network, key: "buyers", currency: model.currency) ?? "—",
-                        tone: OperatingV12.title
-                    ),
-                    .init(
-                        label: "AR open",
-                        value: OperatingV12Metric.value(commitments, key: "toCollect", currency: model.currency) ?? "—",
-                        tone: theme.accent
-                    ),
-                ]
+                kpis: momentsHeroKpis
             )
             .padding(.horizontal, 16)
 
@@ -564,32 +567,184 @@ struct OperatingMomentsScreen: View {
             VStack(alignment: .leading, spacing: 16) {
                 sectionCard(
                     code: "M4",
-                    title: "Open Commitments",
+                    title: momentsOpenTitle,
                     subtitle: "What is still open · not alarms",
                     keys: ["toCollect", "toPay", "openOrders"],
-                    labels: ["AR": "AR", "toCollect": "AR", "toPay": "AP", "openOrders": "Open orders"]
+                    labels: [
+                        "AR": "AR",
+                        "toCollect": "AR",
+                        "toPay": "AP",
+                        "openOrders": model.vertical.isMadeToOrder ? "Jobs" : "Open orders",
+                    ],
+                    fallbackMetrics: retailOpenCommitmentMetrics
                 )
-                sectionCard(
-                    code: "orders",
-                    title: "Orders & Commitments",
-                    subtitle: "Open buyer & supplier orders · commitment only",
-                    keys: ["openOrders", "inTransit", "netSales"]
-                )
-                sectionCard(
-                    code: "stock",
-                    title: "Stock & Products",
-                    subtitle: "Physical movements · warehouse + routes",
-                    keys: ["onHand", "stockMoves", "low"]
-                )
-                sectionCard(
-                    code: "network",
-                    title: "People & Network",
-                    subtitle: "Bound suppliers, buyers & routes",
-                    keys: ["buyers", "suppliers", "channels"]
-                )
+                ForEach(momentsBoardSlots, id: \.code) { slot in
+                    sectionCard(
+                        code: slot.code,
+                        title: slot.title,
+                        subtitle: slot.subtitle,
+                        keys: slot.keys
+                    )
+                }
             }
             .padding(.horizontal, 16)
         }
+    }
+
+    private struct BoardSlot {
+        let code: String
+        let title: String
+        let subtitle: String
+        let keys: [String]
+    }
+
+    /// Projection section codes the Moments tab actually renders after Open Commitments.
+    private var momentsBoardSlots: [BoardSlot] {
+        switch model.vertical {
+        case .retailStore, .restaurantFood:
+            return [
+                BoardSlot(code: "sales", title: "Sales & Orders", subtitle: "Posted sales · orders are commitment only", keys: ["netSales", "openOrders", "tickets"]),
+                BoardSlot(code: "purchases", title: "Purchases", subtitle: "Goods received · payable until settled", keys: ["purchases", "received", "open"]),
+                BoardSlot(code: "stock", title: "Stock & Supplies", subtitle: "On-hand · counts · low stock", keys: ["onHand", "stockMoves", "low"]),
+                BoardSlot(code: "channels", title: "People & Network", subtitle: "Customers, suppliers & channels", keys: ["buyers", "suppliers", "channels"]),
+            ]
+        case .consumerService:
+            return [
+                BoardSlot(code: "services", title: "Services", subtitle: "Finalized charges · revenue once", keys: ["netSales", "finalized", "pending"]),
+                BoardSlot(code: "appointments", title: "Appointments / Jobs", subtitle: "Bookings · not revenue until charged", keys: ["open", "completed", "today"]),
+                BoardSlot(code: "sales", title: "Sales", subtitle: "Posted retail sales alongside service", keys: ["netSales", "tickets"]),
+                BoardSlot(code: "customers", title: "Customers & Network", subtitle: "Named clients & channels", keys: ["buyers", "suppliers", "channels"]),
+            ]
+        case .standardProduction, .madeToOrder:
+            // Backend `familyMomentSections(MANUFACTURING_PRODUCTION)` emits orders / production / stock.
+            return [
+                BoardSlot(code: "orders", title: momentsOrdersTitle, subtitle: momentsOrdersSubtitle, keys: ["openOrders", "inTransit", "netSales"]),
+                BoardSlot(code: "production", title: momentsProductionTitle, subtitle: momentsProductionSubtitle, keys: ["recorded", "accepted", "pending"]),
+                BoardSlot(code: "stock", title: momentsStockTitle, subtitle: momentsStockSubtitle, keys: ["onHand", "stockMoves", "low"]),
+            ]
+        default:
+            return [
+                BoardSlot(code: "orders", title: momentsOrdersTitle, subtitle: momentsOrdersSubtitle, keys: ["openOrders", "inTransit", "netSales"]),
+                BoardSlot(code: "stock", title: momentsStockTitle, subtitle: momentsStockSubtitle, keys: ["onHand", "stockMoves", "low"]),
+                BoardSlot(code: "network", title: momentsNetworkTitle, subtitle: momentsNetworkSubtitle, keys: ["buyers", "suppliers", "channels"]),
+            ]
+        }
+    }
+
+    private var momentsHeroKpis: [OperatingV12KpiSpec] {
+        if model.vertical.isRetailFamily || model.vertical.isManufacturing {
+            let people = model.projection?.participants?.count
+                ?? network?.rows?.count
+                ?? 0
+            let peopleLabel = model.vertical.isManufacturing
+                ? "People · \(model.vertical.partyNoun)"
+                : "People · Staff"
+            let ar = model.financeVisible
+                ? (OperatingV12Metric.value(commitments, key: "toCollect", currency: model.currency)
+                    ?? OperatingV12Money.amount(model.projection?.finance?.outstanding, currency: model.currency))
+                : "—"
+            return [
+                OperatingV12KpiSpec(label: peopleLabel, value: "\(people)", tone: OperatingV12.title),
+                OperatingV12KpiSpec(label: "AR open", value: ar, tone: theme.accent),
+            ]
+        }
+        return [
+            OperatingV12KpiSpec(
+                label: "People · \(model.vertical.partyNoun)",
+                value: OperatingV12Metric.value(network, key: "buyers", currency: model.currency) ?? "—",
+                tone: OperatingV12.title
+            ),
+            OperatingV12KpiSpec(
+                label: "AR open",
+                value: OperatingV12Metric.value(commitments, key: "toCollect", currency: model.currency) ?? "—",
+                tone: theme.accent
+            ),
+        ]
+    }
+
+    /// Retail boards rarely carry structured M4 metrics — fall back to finance figures.
+    private var retailOpenCommitmentMetrics: [OperatingBoardMetricPayload]? {
+        guard model.vertical.isRetailFamily else { return nil }
+        let section = commitments
+        if let metrics = section?.metrics, !metrics.isEmpty { return nil }
+        let finance = model.projection?.finance
+        return [
+            OperatingBoardMetricPayload(
+                key: "toPay",
+                label: "AP",
+                value: model.financeVisible
+                    ? OperatingV12Money.amount(finance?.payable, currency: model.currency)
+                    : "—",
+                unit: nil,
+                tone: "WARNING"
+            ),
+            OperatingBoardMetricPayload(
+                key: "toCollect",
+                label: "AR",
+                value: model.financeVisible
+                    ? OperatingV12Money.amount(finance?.outstanding, currency: model.currency)
+                    : "—",
+                unit: nil,
+                tone: "POSITIVE"
+            ),
+            OperatingBoardMetricPayload(
+                key: "openOrders",
+                label: model.vertical == .consumerService ? "Bookings" : "Orders",
+                value: "\(section?.rows?.count ?? 0)",
+                unit: nil,
+                tone: "NORMAL"
+            ),
+        ]
+    }
+
+    private var momentsOpenTitle: String {
+        model.vertical.isMadeToOrder ? "Open Jobs" : "Open Commitments"
+    }
+
+    private var momentsOrdersTitle: String {
+        switch model.vertical {
+        case .madeToOrder: return "Current Jobs"
+        case .standardProduction: return "Work Orders & Commitments"
+        default: return "Orders & Commitments"
+        }
+    }
+
+    private var momentsOrdersSubtitle: String {
+        switch model.vertical {
+        case .madeToOrder: return "Confirmed jobs · commitment only · not revenue"
+        case .standardProduction: return "Plant work orders · commitment only"
+        default: return "Open buyer & supplier orders · commitment only"
+        }
+    }
+
+    private var momentsStockTitle: String {
+        model.vertical.isMadeToOrder ? "Job Operations" : "Stock & Products"
+    }
+
+    private var momentsStockSubtitle: String {
+        switch model.vertical {
+        case .madeToOrder: return "WIP against open jobs · materials & FG"
+        case .standardProduction: return "Material · WIP · finished goods"
+        default: return "Physical movements · warehouse + routes"
+        }
+    }
+
+    private var momentsProductionTitle: String {
+        model.vertical.isMadeToOrder ? "Job Output" : "Production"
+    }
+
+    private var momentsProductionSubtitle: String {
+        model.vertical.isMadeToOrder
+            ? "Recorded vs accepted against open jobs"
+            : "Recorded vs accepted plant output"
+    }
+
+    private var momentsNetworkTitle: String {
+        "People & Network"
+    }
+
+    private var momentsNetworkSubtitle: String {
+        "Bound suppliers, buyers & routes"
     }
 
     private func sectionCard(
@@ -597,10 +752,14 @@ struct OperatingMomentsScreen: View {
         title: String,
         subtitle: String,
         keys: [String],
-        labels: [String: String] = [:]
+        labels: [String: String] = [:],
+        fallbackMetrics: [OperatingBoardMetricPayload]? = nil
     ) -> some View {
         let section = model.section(code: code)
-        let metrics = OperatingV12Tiles.ordered(section, keys: keys, limit: 3, currency: model.currency)
+        var metrics = OperatingV12Tiles.ordered(section, keys: keys, limit: 3, currency: model.currency)
+        if metrics.isEmpty, let fallbackMetrics, !fallbackMetrics.isEmpty {
+            metrics = Array(fallbackMetrics.prefix(3))
+        }
         let rows = Array((section?.rows ?? []).prefix(3))
         return OperatingV12Card(theme: theme) {
             OperatingV12WidgetHeader(
@@ -624,7 +783,7 @@ struct OperatingMomentsScreen: View {
                 currency: model.currency
             )
             if rows.isEmpty {
-                Text("Not recorded yet.")
+                Text(quietLine(for: section))
                     .font(.plusJakarta(size: 12))
                     .foregroundStyle(OperatingV12.subtitle)
             } else {
@@ -649,6 +808,13 @@ struct OperatingMomentsScreen: View {
             }
             OperatingV12Why(text: section?.why)
         }
+    }
+
+    private func quietLine(for section: OperatingBoardSectionPayload?) -> String {
+        if let detail = section?.detail.trimmingCharacters(in: .whitespacesAndNewlines), !detail.isEmpty {
+            return detail
+        }
+        return "Not recorded yet."
     }
 
     private func rowTitle(_ row: OperatingActivityPayload) -> String {
@@ -703,7 +869,7 @@ struct OperatingLifeScreen: View {
                     .init(label: "Done", value: "\(doneCount)", tone: OperatingV12.green),
                     .init(
                         label: "Money in motion",
-                        value: OperatingV12Metric.value(money, key: "net", currency: model.currency) ?? "—",
+                        value: lifeMoneyInMotion,
                         tone: OperatingV12.title
                     ),
                 ]
@@ -713,14 +879,14 @@ struct OperatingLifeScreen: View {
             VStack(alignment: .leading, spacing: 16) {
                 sectionCard(
                     code: "L1",
-                    title: "Current Business",
+                    title: lifeBusinessTitle,
                     subtitle: "As-of today · \(OperatingV12Date.today())",
                     keys: ["sales", "stockMoves", "issues"]
                 )
                 sectionCard(
                     code: "L2",
-                    title: model.vertical == .trading ? "Buyers & Channels" : "Dealers & Channels",
-                    subtitle: "Channel / territory mix · this month",
+                    title: lifeL2Title,
+                    subtitle: lifeL2Subtitle,
                     keys: ["channels", "buyers", "sales"]
                 )
                 sectionCard(
@@ -731,13 +897,63 @@ struct OperatingLifeScreen: View {
                 )
                 sectionCard(
                     code: "L4",
-                    title: "People & Activity",
+                    title: lifePeopleTitle,
                     subtitle: "Assigned follow-ups",
                     keys: ["stockMoves", "issues", "updates"]
                 )
             }
             .padding(.horizontal, 16)
         }
+    }
+
+    private var lifeBusinessTitle: String {
+        switch model.vertical {
+        case .madeToOrder: return "Current Jobs Today"
+        // Projection widget label for MANUFACTURING_PRODUCTION L1.
+        case .standardProduction: return "Current Production / Business"
+        case .retailStore, .restaurantFood, .consumerService: return "Current Business"
+        default: return "Current Business"
+        }
+    }
+
+    private var lifeL2Title: String {
+        switch model.vertical {
+        case .madeToOrder: return "Jobs & Customers"
+        case .standardProduction: return "Orders / Buyers"
+        case .trading: return "Buyers & Channels"
+        case .retailStore, .restaurantFood: return "Sales & Orders"
+        case .consumerService: return "Channel Activity"
+        default: return "Dealers & Channels"
+        }
+    }
+
+    private var lifeL2Subtitle: String {
+        switch model.vertical {
+        case .madeToOrder: return "Attributed work by customer and channel"
+        case .standardProduction: return "Attributed plant sales by buyer and channel"
+        case .retailStore, .restaurantFood: return "Tickets · credit · holds · this period"
+        case .consumerService: return "Attributed charges by channel"
+        default: return "Channel / territory mix · this month"
+        }
+    }
+
+    private var lifePeopleTitle: String {
+        switch model.vertical {
+        // Projection widget label for MANUFACTURING_PRODUCTION L4.
+        case .standardProduction, .madeToOrder: return "Production Operations"
+        case .retailStore, .restaurantFood, .consumerService: return "Operations"
+        default: return "People & Activity"
+        }
+    }
+
+    private var lifeMoneyInMotion: String {
+        if let net = OperatingV12Metric.value(money, key: "net", currency: model.currency) {
+            return net
+        }
+        if model.vertical.isRetailFamily, model.financeVisible {
+            return OperatingV12Money.amount(model.projection?.finance?.received, currency: model.currency)
+        }
+        return "—"
     }
 
     /// `Open` and `Done` count the money rows the moment is actually carrying, so the hero never
@@ -777,7 +993,12 @@ struct OperatingLifeScreen: View {
                 currency: model.currency
             )
             if rows.isEmpty {
-                Text("Not recorded yet.")
+                Text({
+                    if let detail = section?.detail.trimmingCharacters(in: .whitespacesAndNewlines), !detail.isEmpty {
+                        return detail
+                    }
+                    return "Not recorded yet."
+                }())
                     .font(.plusJakarta(size: 12))
                     .foregroundStyle(OperatingV12.subtitle)
             } else {
@@ -818,7 +1039,7 @@ struct OperatingLifeScreen: View {
 // MARK: - Memory
 
 /// `TRD-MEMORY-v12` / `DST-MEMORY-v12`. The period hero and its one call to action, then the
-/// four memory surfaces.
+/// four memory surfaces. Retail family has no `fulfilment` board — use People & Activity (ME3).
 struct OperatingMemoryScreen: View {
     @ObservedObject var model: BusinessOperatingModel
     let theme: OperatingTheme
@@ -831,6 +1052,55 @@ struct OperatingMemoryScreen: View {
     private var money: OperatingBoardSectionPayload? { model.section(code: "ME2") }
     private var period: String {
         OperatingV12Date.monthYear(model.projection?.startDate) ?? "This month"
+    }
+
+    private var memoryMonthlySubtitle: String {
+        switch model.vertical {
+        case .madeToOrder: return "Closed periods · jobs & invoices (\(period))"
+        case .standardProduction: return "Closed periods · plant target v2 (\(period))"
+        case .retailStore, .restaurantFood, .consumerService:
+            return "Closed periods · recorded activity (\(period))"
+        default: return "Closed periods · target v2 (\(period))"
+        }
+    }
+
+    private var memoryThirdCode: String {
+        model.vertical.isRetailFamily ? "ME3" : "fulfilment"
+    }
+
+    private var memoryThirdTitle: String {
+        if model.vertical.isRetailFamily { return "People & Activity" }
+        return model.vertical.isMadeToOrder ? "Job Fulfilment Memory" : "Fulfilment Memory"
+    }
+
+    private var memoryThirdSubtitle: String {
+        switch model.vertical {
+        case .madeToOrder: return "Job → produce → invoice → dispatch"
+        case .standardProduction: return "Order → produce → dispatch"
+        case .retailStore, .restaurantFood, .consumerService:
+            return "Who recorded what across the period"
+        default: return "Order → dispatch → route delivery"
+        }
+    }
+
+    private var memorySalesValue: String {
+        if let value = OperatingV12Metric.value(monthly, key: "netSales", currency: model.currency) {
+            return value
+        }
+        if model.vertical.isRetailFamily, model.financeVisible {
+            return OperatingV12Money.amount(model.projection?.finance?.sales, currency: model.currency)
+        }
+        return "—"
+    }
+
+    private var memoryCollectedValue: String {
+        if let value = OperatingV12Metric.value(money, key: "collected", currency: model.currency) {
+            return value
+        }
+        if model.vertical.isRetailFamily, model.financeVisible {
+            return OperatingV12Money.amount(model.projection?.finance?.received, currency: model.currency)
+        }
+        return "—"
     }
 
     var body: some View {
@@ -850,17 +1120,18 @@ struct OperatingMemoryScreen: View {
                 kpis: [
                     .init(
                         label: "Sales",
-                        value: OperatingV12Metric.value(monthly, key: "netSales", currency: model.currency) ?? "—",
+                        value: memorySalesValue,
                         tone: .white
                     ),
                     .init(
                         label: "Records",
-                        value: OperatingV12Metric.value(monthly, key: "records", currency: model.currency) ?? "—",
+                        value: OperatingV12Metric.value(monthly, key: "records", currency: model.currency)
+                            ?? "\(monthly?.rows?.count ?? 0)",
                         tone: OperatingV12.cyan
                     ),
                     .init(
                         label: "Collected",
-                        value: OperatingV12Metric.value(money, key: "collected", currency: model.currency) ?? "—",
+                        value: memoryCollectedValue,
                         tone: theme.accent
                     ),
                 ]
@@ -874,25 +1145,31 @@ struct OperatingMemoryScreen: View {
                 sectionCard(
                     code: "ME1",
                     title: "Monthly Memory",
-                    subtitle: "Closed periods · target v2 (\(period))",
+                    subtitle: memoryMonthlySubtitle,
                     keys: ["netSales", "months", "records"]
                 )
                 sectionCard(
                     code: "ME2",
                     title: "Money Memory",
-                    subtitle: "Settled chains · FY 2026–27",
+                    subtitle: model.vertical.isRetailFamily
+                        ? "Collections, payments and returns"
+                        : "Settled chains · FY 2026–27",
                     keys: ["collected", "paid", "credits"]
                 )
                 sectionCard(
-                    code: "fulfilment",
-                    title: "Fulfilment Memory",
-                    subtitle: "Order → dispatch → route delivery",
-                    keys: ["delivered", "received", "returns"]
+                    code: memoryThirdCode,
+                    title: memoryThirdTitle,
+                    subtitle: memoryThirdSubtitle,
+                    keys: model.vertical.isRetailFamily
+                        ? ["issues", "updates", "records"]
+                        : ["delivered", "received", "returns"]
                 )
                 sectionCard(
                     code: "ME4",
-                    title: "People & Patterns",
-                    subtitle: "Repeat behaviour · 6 months",
+                    title: model.vertical.isRetailFamily ? "Patterns & Decisions" : "People & Patterns",
+                    subtitle: model.vertical.isRetailFamily
+                        ? "What repeats and what is waiting on approval"
+                        : "Repeat behaviour · 6 months",
                     keys: ["issues", "approvals"]
                 )
             }
@@ -941,7 +1218,12 @@ struct OperatingMemoryScreen: View {
                 currency: model.currency
             )
             if rows.isEmpty {
-                Text("Not recorded yet.")
+                Text({
+                    if let detail = section?.detail.trimmingCharacters(in: .whitespacesAndNewlines), !detail.isEmpty {
+                        return detail
+                    }
+                    return "Not recorded yet."
+                }())
                     .font(.plusJakarta(size: 12))
                     .foregroundStyle(OperatingV12.subtitle)
             } else {

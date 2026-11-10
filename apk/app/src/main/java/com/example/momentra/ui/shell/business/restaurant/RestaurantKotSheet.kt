@@ -40,13 +40,9 @@ import com.example.momentra.ui.theme.RestaurantEmber
  * Kitchen ticket — Figma `RST-QA-01-ALT · KOT · Send` `2449:29655`,
  * `· Fire` `2449:29769`, `· Reprint` `2449:29859`.
  *
- * Send posts an `ORDER` with `orderStatus = PLACED` and real `lines[]` — an order is
- * never revenue, which is exactly what the frame says. Fire revises that same ORDER to
- * `PREPARING` through `PATCH …/operating-events/:eventId`, keeping the ticket's lines.
- * Reprint has no ticket-PDF endpoint, so it is absent rather than mocked.
- *
- * Station routing (Tandoor / Hot / Cold / Bar) persists as `STATION` masters and is echoed
- * in the ticket note; there is no per-line station field on the contract.
+ * Send posts `ORDER` with `orderStatus = PLACED`, dining `channelName`, station on
+ * `contract.locationName`, and optional `tableNumber` / `covers`. Fire revises open
+ * tickets PLACED → PREPARING (and PREPARING → READY). Reprint stays locked — no PDF endpoint.
  */
 @Composable
 internal fun RestaurantKotSheet(
@@ -64,17 +60,25 @@ internal fun RestaurantKotSheet(
             .filter { it.kind.uppercase() == "MENU_DISH" }
             .sortedBy { it.name.lowercase() }
     }
+    val channels = remember(model) {
+        model.life?.channels.orEmpty().filter { it.isNotBlank() }
+            .ifEmpty { listOf("In-dining", "Cloud", "Takeaway") }
+    }
     val tickets = remember(model.activity) { openOrders(model).sortedByDescending { it.occurredAt } }
 
     var tab by remember { mutableStateOf(KotTab.Send) }
     var ticketId by remember { mutableStateOf<String?>(tickets.firstOrNull()?.id) }
+    var mode by remember { mutableStateOf(channels.first()) }
     var station by remember { mutableStateOf(stations.firstOrNull()?.name.orEmpty()) }
     var dishQuery by remember { mutableStateOf("") }
     var guest by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+    var tableNumber by remember { mutableStateOf("") }
+    var covers by remember { mutableStateOf("") }
     val lines = remember { mutableStateListOf<KotLine>() }
 
     val selectedTicket = tickets.firstOrNull { it.id == ticketId }
+    val fireTarget = selectedTicket?.let { nextFireStatus(it.status) }
 
     Column(
         Modifier
@@ -99,13 +103,16 @@ internal fun RestaurantKotSheet(
         Text(
             when (tab) {
                 KotTab.Send -> "Send posts an order. An order is never revenue — only a posted bill is."
-                KotTab.Fire -> "Fire revises that same order to Preparing, so the kitchen sees one ticket, not two."
+                KotTab.Fire -> "Fire revises that same order (Sent → Preparing → Ready), so the kitchen sees one ticket."
             },
             style = RestaurantEmber.rowCaption(RestaurantEmber.textFaint).copy(fontSize = 10.sp),
         )
 
         if (tab == KotTab.Send) {
             SendBody(
+                channels = channels,
+                mode = mode,
+                onMode = { mode = it },
                 stations = stations,
                 menuDishes = menuDishes,
                 station = station,
@@ -116,6 +123,10 @@ internal fun RestaurantKotSheet(
                 onGuest = { guest = it },
                 note = note,
                 onNote = { note = it },
+                tableNumber = tableNumber,
+                onTable = { tableNumber = it },
+                covers = covers,
+                onCovers = { covers = it },
                 lines = lines,
             )
         } else {
@@ -124,12 +135,13 @@ internal fun RestaurantKotSheet(
                 selectedTicket = selectedTicket,
                 selectedId = ticketId,
                 onSelect = { ticketId = it },
+                fireTarget = fireTarget,
             )
         }
 
         EmberWhyNote(
             when (tab) {
-                KotTab.Send -> "Station rides on the ticket note. The contract has no per-line station field."
+                KotTab.Send -> "Station persists as locationName. Dining mode is the required channel."
                 KotTab.Fire -> "Fire never reposts revenue. The bill posts separately once served."
             },
             tinted = true,
@@ -138,12 +150,16 @@ internal fun RestaurantKotSheet(
         EmberSheetFooter(
             label = when (tab) {
                 KotTab.Send -> "Send ticket"
-                KotTab.Fire -> "Fire ticket"
+                KotTab.Fire -> when (fireTarget) {
+                    "PREPARING" -> "Fire ticket"
+                    "READY" -> "Mark ready"
+                    else -> "Fire ticket"
+                }
             },
             enabled = if (tab == KotTab.Send) {
-                lines.isNotEmpty() && station.isNotBlank()
+                lines.isNotEmpty() && station.isNotBlank() && mode.isNotBlank()
             } else {
-                selectedTicket != null && selectedTicket.status?.uppercase() != "PREPARING"
+                selectedTicket != null && fireTarget != null
             },
             caveat = "Draft preserved if you close the sheet",
             onClick = {
@@ -157,31 +173,40 @@ internal fun RestaurantKotSheet(
                             masterId = it.masterId,
                         )
                     }
+                    val table = tableNumber.trim()
+                    val coverCount = covers.trim()
+                    val title = when {
+                        table.isNotBlank() -> "Table $table"
+                        guest.isNotBlank() -> "Ticket · $guest"
+                        else -> "Ticket · ${lines.size} item${if (lines.size == 1) "" else "s"}"
+                    }
                     onSubmit(
                         RestaurantEventDraft(
                             eventType = "ORDER",
-                            title = if (guest.isNotBlank()) {
-                                "Ticket · $guest"
-                            } else {
-                                "Ticket · ${lines.size} item${if (lines.size == 1) "" else "s"}"
-                            },
+                            title = title,
                             amount = null,
                             note = listOf(
                                 station.takeIf { it.isNotBlank() }?.let { "Station: $it" },
                                 note.takeIf { it.isNotBlank() },
                             ).filterNotNull().joinToString(" · ").takeIf { it.isNotBlank() },
-                            channelName = station.takeIf { it.isNotBlank() },
+                            channelName = mode,
                             counterpartyName = guest.takeIf { it.isNotBlank() },
                             paymentStatus = "NONE",
+                            quantity = coverCount.takeIf { it.isNotBlank() },
                             contract = OperatingContractBody(
                                 orderStatus = "PLACED",
                                 taxMode = "NOT_CONFIGURED",
+                                locationName = station.takeIf { it.isNotBlank() },
+                                tableNumber = table.takeIf { it.isNotBlank() },
+                                covers = coverCount.takeIf { it.isNotBlank() },
+                                clientKey = "KOT-${System.currentTimeMillis() % 100_000}",
                             ),
                             lines = ticketLines,
                         ),
                     )
                 } else {
                     val ticket = selectedTicket ?: return@EmberSheetFooter
+                    val next = fireTarget ?: return@EmberSheetFooter
                     onSubmit(
                         RestaurantEventDraft(
                             eventType = "ORDER",
@@ -191,8 +216,15 @@ internal fun RestaurantKotSheet(
                             channelName = ticket.channelName,
                             counterpartyName = ticket.counterpartyName,
                             paymentStatus = "NONE",
+                            quantity = ticket.quantity,
                             revisesEventId = ticket.id,
-                            contract = OperatingContractBody(orderStatus = "PREPARING"),
+                            contract = OperatingContractBody(
+                                orderStatus = next,
+                                tableNumber = ticket.tableNumber,
+                                covers = ticket.covers,
+                                locationName = ticket.locationName,
+                                clientKey = ticket.clientKey,
+                            ),
                         ),
                     )
                 }
@@ -204,8 +236,18 @@ internal fun RestaurantKotSheet(
 
 private enum class KotTab { Send, Fire }
 
+/** PLACED → PREPARING (Fire); PREPARING → READY (Mark ready). Later states are no-ops here. */
+private fun nextFireStatus(status: String?): String? = when (status?.uppercase()) {
+    null, "", "PLACED" -> "PREPARING"
+    "PREPARING" -> "READY"
+    else -> null
+}
+
 @Composable
 private fun SendBody(
+    channels: List<String>,
+    mode: String,
+    onMode: (String) -> Unit,
     stations: List<com.example.momentra.data.api.OperatingMasterDto>,
     menuDishes: List<com.example.momentra.data.api.OperatingMasterDto>,
     station: String,
@@ -216,8 +258,34 @@ private fun SendBody(
     onGuest: (String) -> Unit,
     note: String,
     onNote: (String) -> Unit,
+    tableNumber: String,
+    onTable: (String) -> Unit,
+    covers: String,
+    onCovers: (String) -> Unit,
     lines: MutableList<KotLine>,
 ) {
+    EmberFieldLabel("Mode")
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        channels.take(3).forEach { channel ->
+            EmberModeChip(text = channel, selected = channel == mode, onClick = { onMode(channel) })
+        }
+    }
+
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            EmberFieldLabel("Table")
+            EmberTextField(value = tableNumber, placeholder = "12", onValueChange = { onTable(it.take(40)) })
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            EmberFieldLabel("Covers")
+            EmberTextField(
+                value = covers,
+                placeholder = "4",
+                onValueChange = { onCovers(it.filter { ch -> ch.isDigit() || ch == '.' }.take(8)) },
+            )
+        }
+    }
+
     EmberFieldLabel("Station")
     if (stations.isEmpty()) {
         EmberEmpty(
@@ -305,23 +373,9 @@ private fun SendBody(
     EmberFieldLabel("Guest / table reference")
     EmberTextField(
         value = guest,
-        placeholder = "Walk-in or covers reference",
+        placeholder = "Walk-in or guest name",
         onValueChange = onGuest,
     )
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf("Table", "Covers", "KOT no.").forEach { label ->
-            Text(
-                label,
-                style = RestaurantEmber.chipLabel(false).copy(color = RestaurantEmber.textFaint),
-                maxLines = 1,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(RestaurantEmber.chip.copy(alpha = 0.5f))
-                    .border(1.dp, RestaurantEmber.hairline.copy(alpha = 0.5f), RoundedCornerShape(999.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            )
-        }
-    }
     EmberFieldLabel("Kitchen note")
     EmberTextField(
         value = note,
@@ -336,6 +390,7 @@ private fun FireBody(
     selectedTicket: OperatingActivityDto?,
     selectedId: String?,
     onSelect: (String) -> Unit,
+    fireTarget: String?,
 ) {
     EmberFieldLabel("Open tickets")
     if (tickets.isEmpty()) {
@@ -345,7 +400,6 @@ private fun FireBody(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         tickets.take(6).forEach { ticket ->
             val status = ticket.status?.uppercase().orEmpty()
-            val fired = status == "PREPARING"
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -373,8 +427,11 @@ private fun FireBody(
                     )
                     Text(
                         listOfNotNull(
+                            ticket.tableNumber?.takeIf { it.isNotBlank() }?.let { "Table $it" },
+                            ticket.covers?.takeIf { it.isNotBlank() }?.let { "$it covers" },
+                            ticket.locationName?.takeIf { it.isNotBlank() },
                             ticket.channelName?.takeIf { it.isNotBlank() },
-                            ticket.counterpartyName?.takeIf { it.isNotBlank() },
+                            ticket.clientKey?.takeIf { it.isNotBlank() },
                             RestaurantFormat.shortDay(ticket.occurredAt)?.let { "Sent $it" },
                         ).joinToString(" · ").ifBlank { "Order" },
                         style = RestaurantEmber.rowCaption().copy(fontSize = 10.sp),
@@ -383,15 +440,24 @@ private fun FireBody(
                 }
                 EmberSeverityChip(
                     label = restaurantOrderStatusLabel(ticket.status),
-                    color = if (fired) RestaurantEmber.amber else RestaurantEmber.ember,
+                    color = when (status) {
+                        "PREPARING" -> RestaurantEmber.amber
+                        "READY" -> RestaurantEmber.gold
+                        else -> RestaurantEmber.ember
+                    },
                 )
             }
         }
     }
-    if (selectedTicket?.status?.uppercase() == "PREPARING") {
-        EmberEmpty(
-            "Already firing",
-            "This ticket was fired. Nothing to do until the kitchen marks it ready.",
+    when {
+        selectedTicket == null -> Unit
+        fireTarget == null -> EmberEmpty(
+            "Already advanced",
+            "This ticket is ${restaurantOrderStatusLabel(selectedTicket.status)}. Fire only moves Sent → Preparing → Ready.",
+        )
+        fireTarget == "READY" -> Text(
+            "Mark ready when the pass finishes prep. Billing still posts separately.",
+            style = RestaurantEmber.rowCaption(RestaurantEmber.textFaint).copy(fontSize = 10.sp),
         )
     }
 }

@@ -9,6 +9,7 @@ private final class RecordingGateway: BusinessOperatingGateway, @unchecked Senda
     var masters: [OperatingMasterPayload] = []
 
     var projectionReads = 0
+    var lastProjectionQuery: (period: String?, status: String?, from: String?, to: String?)?
     var lastRecordedEvent: OperatingEventInput?
     var lastDecision: (eventId: String, decision: String)?
     var lastCreatedMaster: OperatingMasterCreateBody?
@@ -32,6 +33,7 @@ private final class RecordingGateway: BusinessOperatingGateway, @unchecked Senda
         to: String?
     ) async throws -> OperatingProjectionPayload {
         projectionReads += 1
+        lastProjectionQuery = (period, status, from, to)
         if let failure { throw failure }
         return projection
     }
@@ -130,6 +132,36 @@ private final class RecordingGateway: BusinessOperatingGateway, @unchecked Senda
 }
 
 /// A stand-in for the server's projection body, decoded from the same JSON shape iOS receives.
+private func makeQuietProjection(
+    budgetConfigured: Bool = false,
+    targetConfigured: Bool = false,
+    gstTracking: String = "NO"
+) throws -> OperatingProjectionPayload {
+    let budget = budgetConfigured
+        ? #"{ "amount": "500000", "spent": "0", "remaining": "500000", "configured": true }"#
+        : #"{ "amount": "0", "spent": "0", "remaining": "0", "configured": false }"#
+    let target = targetConfigured
+        ? #"{ "metric": "REVENUE", "value": "1000000", "progress": "0", "configured": true }"#
+        : #"{ "metric": "REVENUE", "value": "0", "progress": "0", "configured": false }"#
+    let json = """
+    {
+      "retired": false,
+      "familyCode": "TRADING",
+      "subtype": "TRADING_WHOLESALE",
+      "title": "skanda Trading",
+      "financeVisible": true,
+      "currency": "INR",
+      "activity": [],
+      "attention": [],
+      "paymentReadiness": [],
+      "budget": \(budget),
+      "target": \(target),
+      "gstTracking": "\(gstTracking)"
+    }
+    """
+    return try JSONDecoder().decode(OperatingProjectionPayload.self, from: Data(json.utf8))
+}
+
 private func makeProjection(
     subtype: String = "TRADING_WHOLESALE",
     title: String = "Sharma Wholesale",
@@ -273,6 +305,13 @@ struct BusinessOperatingModelTests {
         #expect(model.phase == .empty)
     }
 
+    @Test func freshSetupWithBudgetKeepsPulseChrome() throws {
+        #expect(try makeQuietProjection().hasUsefulPulseChrome == false)
+        #expect(try makeQuietProjection(budgetConfigured: true).hasUsefulPulseChrome == true)
+        #expect(try makeQuietProjection(targetConfigured: true).hasUsefulPulseChrome == true)
+        #expect(try makeQuietProjection(gstTracking: "YES").hasUsefulPulseChrome == true)
+    }
+
     @Test func aFailedLoadSurfacesAReadableMessage() async throws {
         let gateway = RecordingGateway(projection: try makeProjection())
         gateway.failure = APIErrorKind.network("offline")
@@ -285,6 +324,51 @@ struct BusinessOperatingModelTests {
             return
         }
         #expect(message.lowercased().contains("offline"))
+    }
+
+    @Test func customSheetPeriodDefaultsFromAndToThenReloads() async throws {
+        let gateway = RecordingGateway(projection: try makeProjection())
+        let model = BusinessOperatingModel(momentId: "m1", companyId: "c1", subtype: "TRADING_WHOLESALE", repo: gateway)
+
+        await model.applySheetPeriod("Custom range ›")
+
+        #expect(model.periodFilter == "custom")
+        #expect(model.periodFrom?.count == 10)
+        #expect(model.periodTo?.count == 10)
+        #expect(gateway.lastProjectionQuery?.period == "custom")
+        #expect(gateway.lastProjectionQuery?.from == model.periodFrom)
+        #expect(gateway.lastProjectionQuery?.to == model.periodTo)
+        #expect(gateway.projectionReads == 1)
+    }
+
+    @Test func thisMonthClearsCustomBounds() async throws {
+        let gateway = RecordingGateway(projection: try makeProjection())
+        let model = BusinessOperatingModel(momentId: "m1", companyId: "c1", subtype: "TRADING_WHOLESALE", repo: gateway)
+        await model.applySheetPeriod("Custom range ›")
+
+        await model.applySheetPeriod("This month")
+
+        #expect(model.periodFilter == "this_month")
+        #expect(model.periodFrom == nil)
+        #expect(model.periodTo == nil)
+        #expect(gateway.lastProjectionQuery?.period == "this_month")
+        #expect(gateway.lastProjectionQuery?.from == nil)
+        #expect(gateway.lastProjectionQuery?.to == nil)
+    }
+
+    @Test func changingACustomBoundReloadsWithBothEnds() async throws {
+        let gateway = RecordingGateway(projection: try makeProjection())
+        let model = BusinessOperatingModel(momentId: "m1", companyId: "c1", subtype: "TRADING_WHOLESALE", repo: gateway)
+        await model.applySheetPeriod("Custom range ›")
+        let keptTo = model.periodTo
+
+        await model.applyCustomPeriod(from: "2026-02-01")
+
+        #expect(model.periodFilter == "custom")
+        #expect(model.periodFrom == "2026-02-01")
+        #expect(model.periodTo == keptTo)
+        #expect(gateway.lastProjectionQuery?.from == "2026-02-01")
+        #expect(gateway.lastProjectionQuery?.to == keptTo)
     }
 
     @Test func mastersFallBackToTheProjectionWhenTheReadFails() async throws {
@@ -592,7 +676,7 @@ struct BusinessSetupDocSpecTests {
         #expect(BusinessSetupDocSpec.roles(.distribution).map(\.code) == expected)
         #expect(BusinessSetupDocSpec.roles(.trading).map(\.label) == ["Finance", "Approver", "Operations", "Contributor"])
         #expect(BusinessSetupDocSpec.roles(.distribution).map(\.label) == ["Manager", "Warehouse", "Route lead", "Salesman"])
-        #expect(OperatingSheetCatalog.all.count == 18)
+        #expect(OperatingSheetCatalog.all.count == 30)
         #expect(OperatingSheetChrome.figmaId(for: "FINANCE") == "2561:29430")
         #expect(OperatingSheetChrome.footerCta(for: "ME4") == "Open Memory")
         #expect(OperatingSheetChrome.footerAction(for: "PAYMENT_READINESS") == "PAYMENT")

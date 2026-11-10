@@ -175,19 +175,45 @@ struct OperatingStoryConfigSheet: View {
                     Text("Period follows the moment's recorded window — regenerating covers that range only.")
                         .font(.plusJakarta(size: 10))
                         .foregroundStyle(theme.body)
+                    let hasActivity = !(model.projection?.activity ?? []).isEmpty
+                    if !hasActivity {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("⚠")
+                                .font(.plusJakarta(size: 18))
+                                .foregroundStyle(theme.warning)
+                            Text("No verified activity in this period")
+                                .font(.plusJakarta(size: 15, weight: .bold))
+                                .foregroundStyle(theme.ink)
+                            Text("We found no reconciled records for \(month). We won’t show zeros for data we don’t have.")
+                                .font(.plusJakarta(size: 12))
+                                .foregroundStyle(theme.body)
+                            ForEach(["Activity", "Money", "Network"], id: \.self) { label in
+                                HStack {
+                                    Text(label).foregroundStyle(theme.body)
+                                    Spacer()
+                                    Text("Not recorded").foregroundStyle(theme.warning)
+                                }
+                                .font(.plusJakarta(size: 12))
+                            }
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(theme.inset)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
                     Button {
                         Task { await generate() }
                     } label: {
-                        Text(generating ? "Composing…" : "Generate story")
+                        Text(generating ? "Composing…" : (hasActivity ? "Generate story" : "Generate · needs activity"))
                             .font(.plusJakarta(size: 15, weight: .semibold))
-                            .foregroundStyle(theme.onAccent)
+                            .foregroundStyle(hasActivity ? theme.onAccent : theme.body)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(theme.accent)
+                            .background(hasActivity ? theme.accent : theme.inset)
                             .clipShape(RoundedRectangle(cornerRadius: 13))
                     }
                     .buttonStyle(.plain)
-                    .disabled(generating)
+                    .disabled(generating || !hasActivity)
                     if let error {
                         Text(error)
                             .font(.plusJakarta(size: 11))

@@ -44,7 +44,11 @@ import { accumulateGstPosition, type GstPosition } from './operating-gst';
 import { normalizeGstState, gstStateCodeOf } from './operating-gst-states';
 import { validateGstin } from './operating-gstin';
 import type { OperatingMasterRecord } from './operating-masters';
-import { applyTradingBoardMetrics, tradingPulseMetrics } from './operating-board-metrics';
+import {
+  applyManufacturingBoardMetrics,
+  applyTradingBoardMetrics,
+  tradingPulseMetrics,
+} from './operating-board-metrics';
 import {
   channelCoverage,
   isMarketingSubtype,
@@ -815,6 +819,10 @@ export interface OperatingProjection {
     status: string | null;
     orderSide: string | null;
     estimatedAmount: string | null;
+    tableNumber: string | null;
+    covers: string | null;
+    locationName: string | null;
+    clientKey: string | null;
   }>;
   life: { channels: string[]; openCommitments: number; resultProgress: string };
   memory: { revisions: Array<{ id: string; title: string; occurredAt: string }> };
@@ -1553,6 +1561,10 @@ export function projectOperatingMoment(args: {
       status: row.contract?.appointmentStatus ?? row.contract?.orderStatus ?? null,
       orderSide: row.contract?.orderSide ?? null,
       estimatedAmount: row.eventType === 'ORDER' ? row.contract?.estimatedAmount ?? null : null,
+      tableNumber: row.contract?.tableNumber ?? null,
+      covers: row.contract?.covers ?? null,
+      locationName: row.contract?.locationName ?? null,
+      clientKey: row.contract?.clientKey ?? null,
     })),
     life: {
       channels: args.prefs.channels,
@@ -1955,11 +1967,19 @@ function operatingBoards(args: {
     applyTradingBoardMetrics({ moments, life, memory }, args.events, visible, currency, args.asOf);
   }
   if (isMarketingSubtype(args.subtype)) decorateMarketingBoards(moments, life, memory, args.prefs, args.events);
-  if (isManufacturingSubtype(args.subtype)) decorateManufacturingBoards(moments, args.events);
+  if (isManufacturingSubtype(args.subtype)) {
+    decorateManufacturingBoards(moments, args.events, visible, currency);
+    applyManufacturingBoardMetrics({ moments, life, memory }, args.events, visible, currency, args.asOf);
+  }
   return { moments, life, memory };
 }
 
-function decorateManufacturingBoards(moments: OperatingBoardSection[], events: OperatingEventRow[]): void {
+function decorateManufacturingBoards(
+  moments: OperatingBoardSection[],
+  events: OperatingEventRow[],
+  visible: boolean,
+  currency: string
+): void {
   const stock = moments.find((section) => section.code === 'stock');
   const positions = manufacturingStock(events.map(toManufacturing));
   if (stock && positions.length > 0) {
@@ -1980,6 +2000,45 @@ function decorateManufacturingBoards(moments: OperatingBoardSection[], events: O
     production.detail = rows.length
       ? `Recorded output ${Number(recorded.toFixed(2))}${acceptedKnown ? ` · accepted ${Number(accepted.toFixed(2))}` : ''}`
       : production.detail;
+  }
+  // Primary Open Commitments surface is M4 — clear the duplicate family board.
+  const duplicate = moments.find((section) => section.code === 'commitments');
+  if (duplicate) {
+    duplicate.detail = 'See Open Commitments above.';
+    duplicate.rows = [];
+  }
+  const commitments = moments.find((section) => section.code === 'M4');
+  if (commitments) {
+    const rows = events.flatMap((row) => {
+      if (!effective(row)) return [];
+      if (row.eventType === 'SALE' || row.eventType === 'INVOICE') {
+        const open = obligationRemaining(row, events, new Set(['COLLECTION']));
+        if (!(open > 0)) return [];
+        return [{ ...boardRow(row, visible), title: `To collect · ${row.counterpartyName || row.title}`, amount: visible ? money(open) : null }];
+      }
+      if (PAYABLE_TYPES.has(row.eventType)) {
+        const open = obligationRemaining(row, events, new Set(['PAYMENT']));
+        if (!(open > 0)) return [];
+        return [{ ...boardRow(row, visible), title: `To pay · ${row.counterpartyName || row.title}`, amount: visible ? money(open) : null }];
+      }
+      if (
+        (row.eventType === 'ORDER' || row.eventType === 'CUSTOMER_ORDER') &&
+        row.contract?.orderStatus !== 'COMPLETED' &&
+        row.contract?.orderStatus !== 'CANCELLED'
+      ) {
+        return [{ ...boardRow(row, visible), title: `Open order · ${displayTitle(row)}` }];
+      }
+      if (
+        (row.eventType === 'SHIPMENT' || row.eventType === 'DELIVERY') &&
+        row.contract?.shipmentStatus !== 'DELIVERED' &&
+        row.contract?.shipmentStatus !== 'CANCELLED'
+      ) {
+        return [{ ...boardRow(row, visible), title: `In transit · ${displayTitle(row)}` }];
+      }
+      return [];
+    });
+    commitments.detail = rows.length > 0 ? `${rows.length} open` : 'Nothing recorded yet.';
+    commitments.rows = rows;
   }
 }
 

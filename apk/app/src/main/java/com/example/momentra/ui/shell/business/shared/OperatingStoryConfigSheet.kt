@@ -133,12 +133,44 @@ internal fun OperatingStoryConfigSheet(
                 fontFamily = PlusJakartaSans,
                 fontSize = 10.sp,
             )
+            val hasActivity = model.activity.isNotEmpty()
+            if (!hasActivity) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(theme.inset)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("⚠", color = theme.warning, fontFamily = PlusJakartaSans, fontSize = 18.sp)
+                    Text(
+                        "No verified activity in this period",
+                        color = theme.ink,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                    )
+                    Text(
+                        "We found no reconciled records for $month. We won’t show zeros for data we don’t have.",
+                        color = theme.body,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 12.sp,
+                    )
+                    listOf("Activity" to "Not recorded", "Money" to "Not recorded", "Network" to "Not recorded").forEach { (label, value) ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(label, color = theme.body, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                            Text(value, color = theme.warning, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
             Row(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(theme.accent)
-                    .clickable(enabled = !generating) {
+                    .background(if (hasActivity) theme.accent else theme.inset)
+                    .clickable(enabled = !generating && hasActivity) {
                         scope.launch {
                             generating = true
                             error = null
@@ -161,12 +193,16 @@ internal fun OperatingStoryConfigSheet(
                 if (generating) {
                     CircularProgressIndicator(color = theme.canvas, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
                 } else {
-                    Text("+", color = theme.canvas, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("+", color = if (hasActivity) theme.canvas else theme.body, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    if (generating) "Composing…" else "Generate story",
-                    color = theme.canvas,
+                    when {
+                        generating -> "Composing…"
+                        !hasActivity -> "Generate · needs activity"
+                        else -> "Generate story"
+                    },
+                    color = if (hasActivity) theme.canvas else theme.body,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,

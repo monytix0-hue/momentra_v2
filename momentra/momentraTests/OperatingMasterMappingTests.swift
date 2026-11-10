@@ -8,8 +8,17 @@ struct OperatingCatalogTests {
 
     // MARK: Surface catalogue
 
-    @Test func catalogueHasTheEighteenSurfaces() {
-        #expect(OperatingSheetCatalog.all.count == 18)
+    @Test func catalogueCoversTradingEighteenPlusMarketingAndRetailBoardCodes() {
+        // 6 pulse + 12 trading/dist board + 5 marketing (M1, M2, M3, L5, ME3)
+        // + 6 retail-family (sales, purchases, channels, customers, services, appointments)
+        // + 1 manufacturing (`production`).
+        #expect(OperatingSheetCatalog.all.count == 30)
+        let codes = Set(OperatingSheetCatalog.all.map(\.code))
+        #expect(Set(["M1", "M2", "M3", "L5", "ME3"]).isSubset(of: codes))
+        #expect(codes.contains("orders"))
+        #expect(codes.contains("fulfilment"))
+        #expect(codes.contains("production"))
+        #expect(Set(["sales", "purchases", "channels", "customers", "services", "appointments"]).isSubset(of: codes))
     }
 
     @Test func everySurfaceCodeIsUnique() {
@@ -21,7 +30,7 @@ struct OperatingCatalogTests {
         let pulse = OperatingSheetCatalog.all.filter(\.pulseSurface).map(\.code)
         #expect(Set(pulse) == OperatingSheetCatalog.pulseCodes)
         #expect(pulse.count == 6)
-        #expect(OperatingSheetCatalog.all.filter { !$0.pulseSurface }.count == 12)
+        #expect(OperatingSheetCatalog.all.filter { !$0.pulseSurface }.count == 24)
     }
 
     @Test func everySurfaceCarriesCopyAndAnEmptyState() {
@@ -34,10 +43,52 @@ struct OperatingCatalogTests {
     }
 
     @Test func boardCodesRouteBackToThemselves() {
-        for code in ["orders", "stock", "network", "M4", "L1", "L2", "L3", "L4", "ME1", "ME2", "fulfilment", "ME4"] {
+        for code in [
+            "orders", "stock", "network", "production", "M4", "L1", "L2", "L3", "L4", "ME1", "ME2", "fulfilment", "ME4",
+            "sales", "purchases", "channels", "customers", "services", "appointments",
+        ] {
             #expect(OperatingSheetCatalog.code(forSection: code) == code)
             #expect(OperatingSheetCatalog.spec(forCode: code) != nil)
         }
+    }
+
+    @Test func retailFamilyViewAllCopyBindsProjectionSectionCodes() {
+        let sales = OperatingSheetCatalog.spec(forCode: "sales", vertical: .retailStore)
+        #expect(sales?.title == "Sales & Orders")
+        let services = OperatingSheetCatalog.spec(forCode: "services", vertical: .consumerService)
+        #expect(services?.title == "Services")
+        let stock = OperatingSheetCatalog.spec(forCode: "stock", vertical: .restaurantFood)
+        #expect(stock?.title == "Stock & Supplies")
+        let life = OperatingSheetCatalog.spec(forCode: "L2", vertical: .retailStore)
+        #expect(life?.title == "Sales & Orders")
+        let serviceLife = OperatingSheetCatalog.spec(forCode: "L2", vertical: .consumerService)
+        #expect(serviceLife?.title == "Bookings & Services")
+        let retailOps = OperatingSheetCatalog.spec(forCode: "L4", vertical: .retailStore)
+        #expect(retailOps?.title == "Operations / Stock")
+        let serviceOps = OperatingSheetCatalog.spec(forCode: "L4", vertical: .consumerService)
+        #expect(serviceOps?.title == "Rooms & Staff")
+        let restaurantCurrent = OperatingSheetCatalog.spec(forCode: "L1", vertical: .restaurantFood)
+        #expect(restaurantCurrent?.title == "Current Service")
+        let network = OperatingSheetCatalog.spec(forCode: "channels", vertical: .retailStore)
+        #expect(network?.title == "Business Network")
+        let clients = OperatingSheetCatalog.spec(forCode: "customers", vertical: .consumerService)
+        #expect(clients?.title == "Clients & Services")
+        let memory = OperatingSheetCatalog.spec(forCode: "ME3", vertical: .consumerService)
+        #expect(memory?.title == "People & Activity")
+        let patterns = OperatingSheetCatalog.spec(forCode: "ME4", vertical: .retailStore)
+        #expect(patterns?.title == "Patterns & Decisions")
+    }
+
+    @Test func manufacturingViewAllCopyBindsProjectionSectionCodes() {
+        let production = OperatingSheetCatalog.spec(forCode: "production", vertical: .standardProduction)
+        #expect(production?.title == "Production")
+        let jobOutput = OperatingSheetCatalog.spec(forCode: "production", vertical: .madeToOrder)
+        #expect(jobOutput?.title == "Job Output")
+        let plantLife = OperatingSheetCatalog.spec(forCode: "L1", vertical: .standardProduction)
+        #expect(plantLife?.title == "Current Production / Business")
+        let plantOps = OperatingSheetCatalog.spec(forCode: "L4", vertical: .standardProduction)
+        #expect(plantOps?.title == "Production Operations")
+        #expect(OperatingSheetCatalog.spec(forCode: "network", vertical: .standardProduction)?.code == "network")
     }
 
     @Test func unknownCodeHasNoSheet() {
@@ -84,8 +135,39 @@ struct OperatingCatalogTests {
         #expect(BusinessOperatingVertical.forSubtype("STANDARD_PRODUCTION") == .standardProduction)
         #expect(BusinessOperatingVertical.forSubtype("MADE_TO_ORDER") == .madeToOrder)
         #expect(BusinessOperatingVertical.forSubtype("RETAIL_STORE") == .retailStore)
+        #expect(BusinessOperatingVertical.forSubtype("RESTAURANT_FOOD") == .restaurantFood)
+        #expect(BusinessOperatingVertical.forSubtype("CONSUMER_SERVICE") == .consumerService)
         #expect(BusinessOperatingVertical.forSubtype(nil) == nil)
         #expect(BusinessOperatingVertical.forSubtype("SOMETHING_ELSE") == nil)
+    }
+
+    @Test func operatingKitMatrixRoutesRetailFamilyOffTrading() {
+        #expect(BusinessOperatingVertical.trading.kit == .tradingV12)
+        #expect(BusinessOperatingVertical.distribution.kit == .distributionV12)
+        #expect(BusinessOperatingVertical.standardProduction.kit == .manufacturing)
+        #expect(BusinessOperatingVertical.madeToOrder.kit == .madeToOrder)
+        #expect(BusinessOperatingVertical.madeToOrder.isMadeToOrder)
+        #expect(BusinessOperatingVertical.clientCampaign.kit == .marketing)
+        #expect(BusinessOperatingVertical.retailStore.kit == .retail)
+        #expect(BusinessOperatingVertical.restaurantFood.kit == .restaurant)
+        #expect(BusinessOperatingVertical.consumerService.kit == .service)
+        #expect(BusinessOperatingVertical.retailStore.isRetailFamily)
+        #expect(BusinessOperatingVertical.restaurantFood.isRetailFamily)
+        #expect(BusinessOperatingVertical.consumerService.isRetailFamily)
+        #expect(!BusinessOperatingVertical.trading.isRetailFamily)
+    }
+
+    @Test func retailFamilyHubTileCataloguesMatchAndroidParity() {
+        #expect(RetailHubScreen.core.count == 9)
+        #expect(RetailHubScreen.support.count == 5)
+        #expect(RetailHubScreen.utilities.count == 3)
+        #expect(RestaurantHubScreen.core.first?.title == "Sale")
+        #expect(RestaurantHubScreen.core.contains { if case let .capture(code, _, _, _, _, _) = $0 { return code == "POS" }; return false })
+        #expect(RestaurantHubScreen.core.contains { if case let .capture(code, _, _, _, _, _) = $0 { return code == "KOT" }; return false })
+        #expect(ServiceHubScreen.core.first?.title == "Finalize Charge")
+        #expect(ServiceHubScreen.core.contains { if case let .capture(code, title, _, _, _, _) = $0 { return code == "APPOINTMENT" && title == "Booking" }; return false })
+        #expect(OperatingCaptureLayout.forMode("APPOINTMENT") == .order)
+        #expect(OperatingCaptureLayout.forMode("SERVICE") == .sale)
     }
 
     @Test func verticalsUseTheirOwnNoun() {

@@ -17,6 +17,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.momentra.data.api.OperatingProjectionDto
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateBody
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStatePhase
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateScreen
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateSpecs
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingTab
 import com.example.momentra.ui.shell.business.shared.OperatingV12LifeScreen
@@ -24,6 +29,7 @@ import com.example.momentra.ui.shell.business.shared.OperatingV12MemoryScreen
 import com.example.momentra.ui.shell.business.shared.OperatingV12MomentsScreen
 import com.example.momentra.ui.shell.business.shared.OperatingV12PulseScreen
 import com.example.momentra.ui.shell.business.shared.OperatingV12Theme
+import com.example.momentra.ui.shell.business.shared.hasUsefulPulseChrome
 
 // Domain palette "trading" in design/tokens/business.tokens.json (TRD-PULSE-v12 2566:29337).
 internal val TradeBg = Color(0xFF090D16)
@@ -60,6 +66,18 @@ fun TradingActive(
     Box(modifier.fillMaxSize().background(TradeBg)) {
         if (tab == OperatingTab.QUICK_ADD) {
             TradingQuickAddHub(model, onRecord, onDecide)
+        } else if (tab == OperatingTab.PULSE && !model.hasUsefulPulseChrome()) {
+            // Keep empty Pulse outside verticalScroll — BusinessAppStateBody scrolls itself.
+            // Only take over when setup has no budget/target/GST and feeds are quiet.
+            BusinessAppStateBody(
+                spec = BusinessAppStateSpecs.spec(
+                    BusinessAppStateScreen.Pulse,
+                    BusinessAppStatePhase.Empty,
+                ),
+                accent = BusinessAppStateAccent.Emerald,
+                onPrimary = { openCapture("SALE") },
+                onSecondary = onOpenQuickAdd,
+            )
         } else {
             Column(
                 Modifier

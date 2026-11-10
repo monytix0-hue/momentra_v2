@@ -84,8 +84,17 @@ struct OperatingMastersView: View {
                         existing: nil,
                         parents: parentCandidates,
                         onSave: { draft in
-                            _ = await model.createMaster(draft)
-                            return model.writeError == nil
+                            let created = await model.createMaster(draft)
+                            let ok = model.writeError == nil
+                            if ok, model.vertical.isMadeToOrder {
+                                MtoToastHost.shared.show(
+                                    MtoToastCatalog.forMasterCreated(
+                                        kind: draft.kind,
+                                        entity: draft.name.isEmpty ? "this record" : draft.name
+                                    )
+                                )
+                            }
+                            return created != nil && ok
                         }
                     )
                 case let .edit(master):
@@ -95,15 +104,34 @@ struct OperatingMastersView: View {
                         existing: master,
                         parents: parentCandidates,
                         onSave: { draft in
-                            _ = await model.updateMaster(
+                            let updated = await model.updateMaster(
                                 id: master.id,
                                 draft: draft,
                                 expectedVersion: master.version ?? 1
                             )
-                            return model.writeError == nil
+                            let ok = model.writeError == nil
+                            if ok, model.vertical.isMadeToOrder {
+                                MtoToastHost.shared.show(
+                                    MtoToastCatalog.forMasterCreated(
+                                        kind: draft.kind,
+                                        entity: draft.name.isEmpty ? "this record" : draft.name
+                                    )
+                                )
+                            }
+                            return updated != nil && ok
                         },
                         onArchive: {
-                            await model.archiveMaster(id: master.id, expectedVersion: master.version ?? 1)
+                            let ok = await model.archiveMaster(
+                                id: master.id,
+                                expectedVersion: master.version ?? 1
+                            )
+                            if ok, model.vertical.isMadeToOrder {
+                                MtoToastHost.shared.show(
+                                    .deleted,
+                                    entity: master.name.isEmpty ? "this record" : master.name
+                                )
+                            }
+                            return ok
                         }
                     )
                 case .priceList:

@@ -141,6 +141,22 @@ enum BusinessOperatingVertical: String, CaseIterable {
         self == .retailStore || self == .restaurantFood || self == .consumerService
     }
 
+    var isMadeToOrder: Bool { self == .madeToOrder }
+
+    /// Host kit selection — retail-family, marketing, and MTO own hubs; MFG stays on manufacturing kit.
+    var kit: OperatingKit {
+        switch self {
+        case .trading: return .tradingV12
+        case .distribution: return .distributionV12
+        case .standardProduction: return .manufacturing
+        case .madeToOrder: return .madeToOrder
+        case .clientCampaign, .ownBusinessCampaign: return .marketing
+        case .retailStore: return .retail
+        case .restaurantFood: return .restaurant
+        case .consumerService: return .service
+        }
+    }
+
     /// The eight chapters the backend composes for this vertical.
     var storyPages: [String] {
         switch self {
@@ -148,7 +164,7 @@ enum BusinessOperatingVertical: String, CaseIterable {
             return ["Moment", "Motion", "Orders", "Money", "Stock", "Network", "Attention", "So far"]
         case .distribution: return ["Moment", "Motion", "Dealers", "Money", "Stock", "Network", "Attention", "So far"]
         case .madeToOrder:
-            return ["Jobs", "One job", "Confirmed", "Money", "Production", "Network", "Attention", "So far"]
+            return ["Jobs", "One job", "Confirmed", "Money", "Production", "Customers", "Attention", "So far"]
         case .clientCampaign, .ownBusinessCampaign:
             return ["Moment", "Motion", "Spend", "Results", "Creative", "Network", "Attention", "So far"]
         case .retailStore, .restaurantFood, .consumerService:
@@ -167,6 +183,18 @@ enum BusinessOperatingVertical: String, CaseIterable {
         if code.contains("SERVICE") && !code.contains("CAMPAIGN") { return .consumerService }
         return nil
     }
+}
+
+/// Experience kit the host mounts for a subtype. Keeps later vertical swaps off ad-hoc `if` trees.
+enum OperatingKit: String, CaseIterable, Equatable {
+    case tradingV12
+    case distributionV12
+    case manufacturing
+    case madeToOrder
+    case marketing
+    case retail
+    case restaurant
+    case service
 }
 
 // MARK: - Sheet catalogue
@@ -222,10 +250,12 @@ enum OperatingSheetChrome {
 
     static func statusFilters(for code: String) -> [String] {
         switch code {
-        case "FINANCE", "PAYMENT_READINESS", "ATTENTION", "orders", "M4", "L3":
+        case "FINANCE", "PAYMENT_READINESS", "ATTENTION", "orders", "sales", "purchases", "services", "appointments", "M4", "L3":
             return ["Open", "Overdue", "Settled"]
-        case "ME1", "ME2", "fulfilment", "ME4":
+        case "ME1", "ME2", "ME3", "fulfilment", "ME4":
             return ["All", "Open", "Settled"]
+        case "production":
+            return ["All", "Open", "Done"]
         default:
             return ["All", "Open", "Done"]
         }
@@ -235,8 +265,9 @@ enum OperatingSheetChrome {
         switch code {
         case "PAYMENT_READINESS", "L3": return "Record payment"
         case "ATTENTION": return "Resolve all"
-        case "orders", "M4": return "Resolve commitments"
-        case "ME1", "ME2", "fulfilment", "ME4": return "Open Memory"
+        case "orders", "sales", "purchases", "services", "appointments", "M4": return "Resolve commitments"
+        case "production": return "Open Quick Add"
+        case "ME1", "ME2", "ME3", "fulfilment", "ME4": return "Open Memory"
         default: return "Open Quick Add"
         }
     }
@@ -252,8 +283,11 @@ enum OperatingSheetChrome {
     }
 }
 
-/// The eighteen surfaces in Figma order — identical codes for both verticals, because the board
-/// contract is shared. Copy lives in the vertical, not the code.
+/// Shared view-all surface catalogue.
+/// Trading/Distribution keep the original eighteen (6 pulse + 12 board). Marketing adds five
+/// board codes (`M1`/`M2`/`M3`/`L5`/`ME3`) that the campaign projection already emits.
+/// Manufacturing adds `production` (plant/job output) in place of trading `network`.
+/// Copy still lives in the vertical via `spec(forCode:vertical:)`.
 enum OperatingSheetCatalog {
     static let all: [OperatingSheetSpec] = [
         OperatingSheetSpec(
@@ -326,6 +360,76 @@ enum OperatingSheetCatalog {
             emptyBody: "Named dealers, principals, and routes appear as you record them."
         ),
         OperatingSheetSpec(
+            code: "production",
+            title: "Production",
+            eyebrow: "Recorded vs accepted output",
+            emptyTitle: "No production yet",
+            emptyBody: "Production batches and accepted output appear here."
+        ),
+        OperatingSheetSpec(
+            code: "sales",
+            title: "Sales & Orders",
+            eyebrow: "Posted sales — orders stay commitment until billed",
+            emptyTitle: "No sales yet",
+            emptyBody: "Posted sales and customer orders will show here."
+        ),
+        OperatingSheetSpec(
+            code: "purchases",
+            title: "Purchases",
+            eyebrow: "Goods received · payable until settled",
+            emptyTitle: "No purchases yet",
+            emptyBody: "Supplier purchases and receipts will show here."
+        ),
+        OperatingSheetSpec(
+            code: "channels",
+            title: "People & Network",
+            eyebrow: "Customers, suppliers and channels",
+            emptyTitle: "No network yet",
+            emptyBody: "Named customers, suppliers, and channels appear as you record them."
+        ),
+        OperatingSheetSpec(
+            code: "customers",
+            title: "Customers & Network",
+            eyebrow: "Named clients and channels",
+            emptyTitle: "No customers yet",
+            emptyBody: "Named clients and channels appear as you record them."
+        ),
+        OperatingSheetSpec(
+            code: "services",
+            title: "Services",
+            eyebrow: "Finalized charges — revenue once",
+            emptyTitle: "No services yet",
+            emptyBody: "Finalized service charges will show here."
+        ),
+        OperatingSheetSpec(
+            code: "appointments",
+            title: "Appointments / Jobs",
+            eyebrow: "Bookings are not revenue until charged",
+            emptyTitle: "No appointments yet",
+            emptyBody: "Bookings and job slots will show here."
+        ),
+        OperatingSheetSpec(
+            code: "M1",
+            title: "Campaign / Moment",
+            eyebrow: "The campaign identity this period",
+            emptyTitle: "No campaign moment yet",
+            emptyBody: "Campaign name, client / brand, and brief appear here."
+        ),
+        OperatingSheetSpec(
+            code: "M2",
+            title: "People",
+            eyebrow: "Who is on this campaign",
+            emptyTitle: "No people yet",
+            emptyBody: "Named participants appear as you invite them."
+        ),
+        OperatingSheetSpec(
+            code: "M3",
+            title: "Channels & Network",
+            eyebrow: "Channels and counterparties in play",
+            emptyTitle: "No channels yet",
+            emptyBody: "Named channels and partners appear as you record them."
+        ),
+        OperatingSheetSpec(
             code: "M4",
             title: "Open Commitments",
             eyebrow: "What is still owed in either direction",
@@ -361,6 +465,13 @@ enum OperatingSheetCatalog {
             emptyBody: "Stock moves, issues, and updates will show here."
         ),
         OperatingSheetSpec(
+            code: "L5",
+            title: "People Today",
+            eyebrow: "Who recorded what today",
+            emptyTitle: "No activity today",
+            emptyBody: "Today's updates and issues will show here."
+        ),
+        OperatingSheetSpec(
             code: "ME1",
             title: "Monthly Memory",
             eyebrow: "Each month this business has recorded",
@@ -373,6 +484,13 @@ enum OperatingSheetCatalog {
             eyebrow: "Collected, paid, and returned",
             emptyTitle: "No money memory",
             emptyBody: "Settlements and returns will show here."
+        ),
+        OperatingSheetSpec(
+            code: "ME3",
+            title: "People & Activity",
+            eyebrow: "Who recorded what across the period",
+            emptyTitle: "No people memory",
+            emptyBody: "People and activity history will show here."
         ),
         OperatingSheetSpec(
             code: "fulfilment",
@@ -397,9 +515,253 @@ enum OperatingSheetCatalog {
         all.first { $0.code == code }
     }
 
-    /// Plant vs job-order copy for the shared eighteen codes.
+    /// Plant vs job-order / marketing copy for the shared board codes.
     static func spec(forCode code: String, vertical: BusinessOperatingVertical) -> OperatingSheetSpec? {
         guard var spec = spec(forCode: code) else { return nil }
+        if vertical.isMarketing {
+            switch code {
+            case "M1":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Campaign / Moment",
+                    eyebrow: "The campaign identity this period",
+                    emptyTitle: "No campaign moment yet",
+                    emptyBody: "Campaign name, client / brand, and brief appear here.",
+                    pulseSurface: false
+                )
+            case "M3":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Channels & Network",
+                    eyebrow: "Channels and counterparties in play",
+                    emptyTitle: "No channels yet",
+                    emptyBody: "Named channels and partners appear as you record them.",
+                    pulseSurface: false
+                )
+            case "M4":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Open Commitments",
+                    eyebrow: "Open activities still in flight",
+                    emptyTitle: "No open commitments",
+                    emptyBody: "Open activities and unsettled money appear here.",
+                    pulseSurface: false
+                )
+            case "L1":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Current Campaign",
+                    eyebrow: "As-of today · live position",
+                    emptyTitle: "Nothing recorded yet",
+                    emptyBody: "Campaign progress and coverage will show here.",
+                    pulseSurface: false
+                )
+            case "L2":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Channel Activity",
+                    eyebrow: "Attributed results by channel",
+                    emptyTitle: "No channels recorded",
+                    emptyBody: "Channel-attributed results appear once a channel is chosen.",
+                    pulseSurface: false
+                )
+            case "L4":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Execution",
+                    eyebrow: "Activities, progress, results, updates",
+                    emptyTitle: "No activity yet",
+                    emptyBody: "Activities, updates, and issues will show here.",
+                    pulseSurface: false
+                )
+            case "L5":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "People Today",
+                    eyebrow: "Who recorded what today",
+                    emptyTitle: "No activity today",
+                    emptyBody: "Today's updates and issues will show here.",
+                    pulseSurface: false
+                )
+            case "ME1":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Monthly Memory",
+                    eyebrow: "Each month this campaign has recorded",
+                    emptyTitle: "No month recorded",
+                    emptyBody: "Months appear once records exist in them.",
+                    pulseSurface: false
+                )
+            case "ME2":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Money Memory",
+                    eyebrow: vertical == .clientCampaign
+                        ? "Invoices, collections, and spend"
+                        : "Spend and settlements — no client AR",
+                    emptyTitle: "No money memory",
+                    emptyBody: "Settlements will show here.",
+                    pulseSurface: false
+                )
+            case "ME3":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "People & Activity",
+                    eyebrow: "Who recorded what across the campaign",
+                    emptyTitle: "No people memory",
+                    emptyBody: "People and activity history will show here.",
+                    pulseSurface: false
+                )
+            case "ME4":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Patterns & Decisions",
+                    eyebrow: "What repeats and what is waiting on approval",
+                    emptyTitle: "No pattern yet",
+                    emptyBody: "Repeated issues and pending approvals will show here.",
+                    pulseSurface: false
+                )
+            case "TARGET_BUDGET":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Target & Budget",
+                    eyebrow: "Results toward target · budget use",
+                    emptyTitle: "No target set",
+                    emptyBody: "Set a results target and period budget to measure the campaign.",
+                    pulseSurface: true
+                )
+            case "FINANCE":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Finance",
+                    eyebrow: vertical == .clientCampaign
+                        ? "Invoices, collections, eligible cost"
+                        : "Attributed sales, spend, ROAS",
+                    emptyTitle: "No finance recorded",
+                    emptyBody: vertical == .clientCampaign
+                        ? "Client invoices and collections appear once recorded."
+                        : "Spend and attributed sales appear once recorded.",
+                    pulseSurface: true
+                )
+            case "ACTIVITY":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Activity",
+                    eyebrow: "Everything recorded in this campaign",
+                    emptyTitle: "Nothing recorded yet",
+                    emptyBody: "Spend, results, and approvals will show here.",
+                    pulseSurface: true
+                )
+            default:
+                break
+            }
+            return spec
+        }
+        if vertical.isRetailFamily {
+            switch code {
+            case "stock":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Stock & Supplies",
+                    eyebrow: "On-hand · counts · low stock",
+                    emptyTitle: "No stock recorded",
+                    emptyBody: "Stock counts, purchases, and adjustments build the on-hand position.",
+                    pulseSurface: false
+                )
+            case "sales":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: vertical == .consumerService ? "Sales" : "Sales & Orders",
+                    eyebrow: vertical == .consumerService
+                        ? "Posted retail sales alongside service"
+                        : "Posted sales — orders stay commitment until billed",
+                    emptyTitle: "No sales yet",
+                    emptyBody: "Posted sales and customer orders will show here.",
+                    pulseSurface: false
+                )
+            case "channels":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Business Network",
+                    eyebrow: "Suppliers and credit buyers",
+                    emptyTitle: "No network yet",
+                    emptyBody: "Suppliers and credit buyers you record will show here.",
+                    pulseSurface: false
+                )
+            case "customers":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Clients & Services",
+                    eyebrow: "Named clients and channels",
+                    emptyTitle: "No network yet",
+                    emptyBody: "Suppliers and credit buyers you record will show here.",
+                    pulseSurface: false
+                )
+            case "M2":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "People",
+                    eyebrow: "Staff on this moment",
+                    emptyTitle: "No people yet",
+                    emptyBody: "Invite the shop floor, billing and approvers.",
+                    pulseSurface: false
+                )
+            case "L1":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: vertical == .restaurantFood ? "Current Service" : "Current Business",
+                    eyebrow: "As-of today · live position",
+                    emptyTitle: "Nothing recorded yet",
+                    emptyBody: vertical == .restaurantFood
+                        ? "Today's kitchen tickets and posted bills will show here."
+                        : "Today's posted sales and stock moves will show here.",
+                    pulseSurface: false
+                )
+            case "L2":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: vertical == .consumerService ? "Bookings & Services" : "Sales & Orders",
+                    eyebrow: vertical == .consumerService
+                        ? "Bookings · charges · holds · this period"
+                        : "Tickets · credit · holds · this period",
+                    emptyTitle: "Nothing recorded yet",
+                    emptyBody: "Channel and ticket activity will show here.",
+                    pulseSurface: false
+                )
+            case "L4":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: vertical == .consumerService ? "Rooms & Staff" : "Operations / Stock",
+                    eyebrow: vertical == .consumerService
+                        ? "Rooms, roster, receipts and alerts"
+                        : "Receipts, counts, adjustments and alerts",
+                    emptyTitle: "No activity yet",
+                    emptyBody: "Stock moves, issues, and updates will show here.",
+                    pulseSurface: false
+                )
+            case "ME3":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "People & Activity",
+                    eyebrow: "Who recorded what across the period",
+                    emptyTitle: "No people memory",
+                    emptyBody: "People and activity history will show here.",
+                    pulseSurface: false
+                )
+            case "ME4":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Patterns & Decisions",
+                    eyebrow: "What repeats and what is waiting on approval",
+                    emptyTitle: "No pattern yet",
+                    emptyBody: "Repeated issues and pending approvals will show here.",
+                    pulseSurface: false
+                )
+            default:
+                break
+            }
+            return spec
+        }
         guard vertical.isManufacturing else { return spec }
         if vertical == .madeToOrder {
             switch code {
@@ -410,6 +772,15 @@ enum OperatingSheetCatalog {
                     eyebrow: spec.eyebrow,
                     emptyTitle: "No jobs yet",
                     emptyBody: "Confirmed jobs and their operations will show here.",
+                    pulseSurface: spec.pulseSurface
+                )
+            case "production":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Job Output",
+                    eyebrow: "Recorded vs accepted against open jobs",
+                    emptyTitle: "No job output yet",
+                    emptyBody: "Accepted production against confirmed jobs appears here.",
                     pulseSurface: spec.pulseSurface
                 )
             case "stock":
@@ -430,6 +801,15 @@ enum OperatingSheetCatalog {
                     emptyBody: spec.emptyBody,
                     pulseSurface: spec.pulseSurface
                 )
+            case "L1":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Current Jobs Today",
+                    eyebrow: "As-of today · live job position",
+                    emptyTitle: spec.emptyTitle,
+                    emptyBody: spec.emptyBody,
+                    pulseSurface: spec.pulseSurface
+                )
             case "L2":
                 spec = OperatingSheetSpec(
                     code: spec.code,
@@ -439,25 +819,82 @@ enum OperatingSheetCatalog {
                     emptyBody: spec.emptyBody,
                     pulseSurface: spec.pulseSurface
                 )
+            case "L4":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Production Operations",
+                    eyebrow: "Job execution · issues · stock signals",
+                    emptyTitle: spec.emptyTitle,
+                    emptyBody: spec.emptyBody,
+                    pulseSurface: spec.pulseSurface
+                )
+            case "fulfilment":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Job Fulfilment Memory",
+                    eyebrow: "Job → produce → invoice → dispatch",
+                    emptyTitle: spec.emptyTitle,
+                    emptyBody: spec.emptyBody,
+                    pulseSurface: spec.pulseSurface
+                )
+            default:
+                break
+            }
+        } else if vertical == .standardProduction {
+            switch code {
+            case "orders":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Work Orders & Commitments",
+                    eyebrow: "Commitments are not revenue until billed",
+                    emptyTitle: "No work orders yet",
+                    emptyBody: "Work orders and their dispatches will show here.",
+                    pulseSurface: spec.pulseSurface
+                )
+            case "production":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Production",
+                    eyebrow: "Recorded vs accepted plant output",
+                    emptyTitle: "No production yet",
+                    emptyBody: "Production batches and accepted output appear here.",
+                    pulseSurface: spec.pulseSurface
+                )
+            case "L1":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Current Production / Business",
+                    eyebrow: "As-of today · live plant position",
+                    emptyTitle: spec.emptyTitle,
+                    emptyBody: spec.emptyBody,
+                    pulseSurface: spec.pulseSurface
+                )
+            case "L2":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Orders / Buyers",
+                    eyebrow: "Attributed plant sales by buyer and channel",
+                    emptyTitle: spec.emptyTitle,
+                    emptyBody: spec.emptyBody,
+                    pulseSurface: spec.pulseSurface
+                )
+            case "L4":
+                spec = OperatingSheetSpec(
+                    code: spec.code,
+                    title: "Production Operations",
+                    eyebrow: "Plant execution · issues · stock signals",
+                    emptyTitle: spec.emptyTitle,
+                    emptyBody: spec.emptyBody,
+                    pulseSurface: spec.pulseSurface
+                )
             default:
                 break
             }
         }
-        if code == "network" {
-            spec = OperatingSheetSpec(
-                code: spec.code,
-                title: "Vendors, Buyers & Lines",
-                eyebrow: "Who the network runs through",
-                emptyTitle: "No people yet",
-                emptyBody: "Named vendors, buyers, and lines appear as you record them.",
-                pulseSurface: spec.pulseSurface
-            )
-        }
         return spec
     }
 
-    /// Board section code → the surface it opens. The Pulse surfaces are opened by their own
-    /// buttons, so only the twelve board codes route here.
+    /// Board section code → the surface it opens. Pulse surfaces are opened by their own buttons.
     static func code(forSection sectionCode: String) -> String? {
         guard all.contains(where: { $0.code == sectionCode }) else { return nil }
         return sectionCode
@@ -515,7 +952,9 @@ enum OperatingCaptureLayout: String, CaseIterable {
         case "BUDGET", "TARGET": return .budget
         case "UPDATE", "ISSUE": return .update
         case "APPROVAL": return .approval
-        case "ORDER", "CUSTOMER_ORDER", "PRODUCTION": return .order
+        case "ORDER", "CUSTOMER_ORDER", "PRODUCTION", "APPOINTMENT", "BOOKING", "STATUS",
+             "CONFIRM", "QUOTE_REVISE", "OPEN_JOB", "JOB_STATUS": return .order
+        case "REWORK": return .stock
         case "SHIPMENT", "DELIVERY": return .shipment
         default: return nil
         }

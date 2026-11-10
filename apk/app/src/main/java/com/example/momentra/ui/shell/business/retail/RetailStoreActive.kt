@@ -41,9 +41,15 @@ import com.example.momentra.data.api.OperatingAttentionDto
 import com.example.momentra.data.api.OperatingBoardSectionDto
 import com.example.momentra.data.api.OperatingPaymentDto
 import com.example.momentra.data.api.OperatingProjectionDto
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateBody
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStatePhase
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateScreen
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateSpecs
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.OperatingTab
+import com.example.momentra.ui.shell.business.shared.hasUsefulPulseChrome
 import com.example.momentra.ui.shell.business.shared.operatingAttentionCtaLabel
 import com.example.momentra.ui.shell.business.shared.openOperatingAttention
 import com.example.momentra.ui.theme.RetailRose
@@ -72,13 +78,27 @@ fun RetailStoreActive(
     var storyConfig by remember { mutableStateOf(false) }
 
     RoseScreenBackground(modifier) {
-        when (tab) {
-            OperatingTab.QUICK_ADD -> RetailQuickAddHub(
+        when {
+            tab == OperatingTab.QUICK_ADD -> RetailQuickAddHub(
                 model = model,
                 onRecord = onRecord,
                 onDecide = onDecide,
                 momentId = momentId,
             )
+
+            tab == OperatingTab.PULSE && !model.hasUsefulPulseChrome() -> {
+                // Keep empty Pulse outside verticalScroll — BusinessAppStateBody scrolls itself.
+                // Only take over when setup has no budget/target/GST and feeds are quiet.
+                BusinessAppStateBody(
+                    spec = BusinessAppStateSpecs.spec(
+                        BusinessAppStateScreen.Pulse,
+                        BusinessAppStatePhase.Empty,
+                    ),
+                    accent = BusinessAppStateAccent.Emerald,
+                    onPrimary = onOpenQuickAdd,
+                    onSecondary = onOpenQuickAdd,
+                )
+            }
 
             else -> Column(
                 Modifier

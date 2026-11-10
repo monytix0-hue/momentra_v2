@@ -297,6 +297,29 @@ internal class CaptureForm(
         parentId = row.parentEventId.orEmpty()
     }
 
+    fun applyBrowserSelection(selection: OperatingBrowserSelection, mode: String, model: OperatingProjectionDto) {
+        itemName = selection.name
+        purpose = selection.name
+        productMasterId = selection.id.takeUnless { it.startsWith("local-") || it.startsWith("seed-") }
+        masterId = productMasterId
+        if (quantity.isBlank()) quantity = "1"
+        selection.unit?.takeIf { it.isNotBlank() }?.let { unit = OperatingSeedUoms.canonical(it) }
+        selection.unitPrice?.takeIf { it.isNotBlank() && unitPrice.isBlank() }?.let { unitPrice = it }
+        model.masters.orEmpty().firstOrNull { it.id == selection.id }?.let { master ->
+            displayGstRate(master.gstRate)?.let { gstRate = it }
+            when (master.priceIncludesGst) {
+                "YES" -> taxMode = "Inclusive"
+                "NO" -> taxMode = "Exclusive"
+            }
+            if (mode == "PURCHASE") {
+                master.purchasePrice?.removePrefix("₹")?.trim()?.takeIf { it.isNotBlank() && unitPrice.isBlank() }
+                    ?.let { unitPrice = it }
+            } else if (unitPrice.isBlank()) {
+                master.sellPrice?.removePrefix("₹")?.trim()?.takeIf { it.isNotBlank() }?.let { unitPrice = it }
+            }
+        }
+    }
+
     fun applyLov(kind: String, option: OperatingLovOption, mode: String, model: OperatingProjectionDto) {
         when (kind) {
             "PRODUCT" -> {
@@ -304,11 +327,23 @@ internal class CaptureForm(
                 if (mode == "STOCK") purpose = option.name
                 productMasterId = option.id.takeUnless { it.startsWith("local-") || it.startsWith("seed-") }
                 OperatingSeedUoms.canonical(option.unit).takeIf { it.isNotBlank() }?.let { unit = it }
+                if (quantity.isBlank()) quantity = "1"
                 model.masters.orEmpty().firstOrNull { it.id == option.id }?.let { master ->
                     displayGstRate(master.gstRate)?.let { gstRate = it }
                     when (master.priceIncludesGst) {
                         "YES" -> taxMode = "Inclusive"
                         "NO" -> taxMode = "Exclusive"
+                    }
+                    if (mode == "PURCHASE") {
+                        master.purchasePrice?.removePrefix("₹")?.trim()?.takeIf { it.isNotBlank() && unitPrice.isBlank() }
+                            ?.let { unitPrice = it }
+                    } else if (unitPrice.isBlank()) {
+                        listOfNotNull(master.sellPrice, master.mrp)
+                            .firstOrNull { !it.isNullOrBlank() }
+                            ?.removePrefix("₹")
+                            ?.trim()
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { unitPrice = it }
                     }
                 }
             }
@@ -475,6 +510,18 @@ fun OperatingCaptureSheet(
         val row = seed ?: return@LaunchedEffect
         form.applySeed(row)
     }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        OperatingChromeState.captureOpen = true
+        onDispose { OperatingChromeState.captureOpen = false }
+    }
+    LaunchedEffect(OperatingChromeState.browserSelection?.id, mode) {
+        val selection = OperatingChromeState.browserSelection ?: return@LaunchedEffect
+        // Only absorb when this capture matches the browser's intended Quick Add
+        // (avoids a stale Parts pick prefilling an unrelated Payment sheet).
+        if (!mode.equals(selection.captureHint, ignoreCase = true)) return@LaunchedEffect
+        form.applyBrowserSelection(selection, mode, model)
+        OperatingChromeState.browserSelection = null
+    }
     val scope = rememberCoroutineScope()
 
     Box(Modifier.fillMaxSize()) {
@@ -584,7 +631,7 @@ fun OperatingCaptureSheet(
                 "APPOINTMENT" -> AppointmentCapture(form, model, actor, service, seed)
                 "UPDATE", "DELIVERY", "DELIVERABLE", "COMPLETE", "RESULT", "PRODUCTION" -> ActivityCapture(form, mode, model, currency, channels, channelLabel, actor, production, lovTrade, trading, distribution, marketing, restaurant, service, eventType)
                 "ISSUE" -> IssueCapture(form, actor, production, trading, distribution, marketing, restaurant, service)
-                "STOCK" -> StockCapture(form, actor, production, contractFamily, lovTrade, trading, distribution, restaurant, service)
+                "STOCK" -> StockCapture(form, model, actor, production, contractFamily, lovTrade, trading, distribution, restaurant, service)
                 "RETURN" -> ReturnCapture(form, model, currency)
                 "PERSON", "ROLE", "INVITE" -> PersonCapture(form, production, trading, distribution, marketing, restaurant, service)
                 "SUPPLIER", "PARTNER" -> SupplierPartnerCapture(form, mode, currency, channels, production, trading, distribution, marketing, restaurant, service, client, own)
@@ -593,6 +640,9 @@ fun OperatingCaptureSheet(
                 "HOLD" -> HoldCaptureLayout(form, model)
                 "TRANSFER" -> TransferCaptureLayout(form, model, actor)
                 "REPRINT" -> ReprintCaptureLayout(form, model, currency)
+                "CONFIRM", "QUOTE_REVISE" -> MtoQuoteLifecycleCapture(form, mode, model, currency)
+                "OPEN_JOB", "JOB_STATUS" -> MtoJobLifecycleCapture(form, mode, model)
+                "REWORK" -> ReworkScrapCapture(form, model, actor)
                 else -> FallbackNoteCapture(form)
             }
             if (form.error != null) Text(form.error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans, fontSize = 12.sp)
@@ -1623,6 +1673,7 @@ private fun IssueCapture(
 @Composable
 private fun StockCapture(
     form: CaptureForm,
+    model: OperatingProjectionDto,
     actor: String,
     production: Boolean,
     contractFamily: Boolean,
@@ -1643,6 +1694,13 @@ private fun StockCapture(
         if (trading || distribution) {
             ChoiceBlock("Ownership", listOf("Owned", "Consignment"), form.ownership) { form.ownership = it }
         }
+        // FEFO binds projection batch identity only — never invent an expiry date.
+        ReadField(
+            "FEFO / nearest expiry",
+            fefoFactLabel(
+                model.masters.orEmpty().firstOrNull { it.id == form.productMasterId || it.name.equals(form.purpose, true) },
+            ),
+        )
         EditField("Reorder point", form.detail, "Optional") { form.detail = it }
         Text("Set replaces the count. Add and reduce move it. This is not a purchase.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     } else if (production) {
@@ -1653,6 +1711,12 @@ private fun StockCapture(
             EditField("Quantity", form.quantity, "Required", Modifier.weight(1f)) { form.quantity = it }
             EditField("Unit", form.unit, "kg", Modifier.weight(1f)) { form.unit = it }
         }
+        ReadField(
+            "FEFO / nearest expiry",
+            fefoFactLabel(
+                model.masters.orEmpty().firstOrNull { it.id == form.productMasterId || it.name.equals(form.purpose, true) },
+            ),
+        )
         Text("Damage is not an expense or a sale.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     } else {
         EditField(if (distribution) "Availability context" else "Stock context", form.purpose, "What changed") { form.purpose = it }
@@ -2061,6 +2125,11 @@ private fun CaptureSheetFooter(
             production && mode == "SALE" -> form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && (form.choice == "Received" || form.party.isNotBlank() || form.channel.isNotBlank())
             production && mode == "PURCHASE" -> form.party.isNotBlank() && form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
             production && mode == "ORDER" -> form.party.isNotBlank() && form.quantity.isNotBlank()
+            production && mode == "CONFIRM" -> form.party.isNotBlank() && form.quantity.isNotBlank()
+            production && mode == "QUOTE_REVISE" -> form.parentId.isNotBlank() && form.party.isNotBlank() && form.quantity.isNotBlank()
+            production && mode == "OPEN_JOB" -> form.parentId.isNotBlank() && form.purpose.isNotBlank()
+            production && mode == "JOB_STATUS" -> form.parentId.isNotBlank() && form.purpose.isNotBlank()
+            production && mode == "REWORK" -> form.quantity.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && form.purpose.isNotBlank()
             production && mode == "DELIVERY" -> form.parentId.isNotBlank() && (form.entryMode != "Itemized" || form.quantity.isNotBlank())
             production && mode == "STOCK" -> form.purpose.isNotBlank() && form.quantity.isNotBlank()
             production && mode == "PRODUCTION" -> form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && form.detail.isNotBlank() && (form.entryMode != "Detailed batch" || form.purpose.isNotBlank())
@@ -2490,6 +2559,11 @@ private fun footerLine(mode: String, restaurant: Boolean = false, service: Boole
     "REPRINT" -> "Read only · Reprinting never posts a new record"
     "DELIVERABLE" -> if (marketing) "Assigned work only" else "Draft · Nothing saved yet"
     "PRODUCTION" -> "Draft · Not yet saved"
+    "CONFIRM" -> "Draft · Commitment only · No revenue until invoice"
+    "QUOTE_REVISE" -> "Draft · Quote status change · No AR"
+    "OPEN_JOB" -> "Draft · Opens a job · No output or stock"
+    "JOB_STATUS" -> "Draft · Operational signal only"
+    "REWORK" -> "Draft · Distinct event · Scrap never becomes finished stock"
     "DELIVERY" -> if (production && job) "Draft · No evidence attached · Not yet saved" else if (production) "Draft · Operational signal, not an inventory ledger" else "Draft · Nothing saved yet"
     else -> "Draft · Nothing saved yet"
 }
@@ -2518,6 +2592,11 @@ private fun actionLabel(mode: String, choice: String, restaurant: Boolean = fals
     "ISSUE" -> "Save issue"
     "STOCK" -> if (distribution) "Save availability update" else "Save stock update"
     "PRODUCTION" -> "Save production"
+    "CONFIRM" -> "Confirm order"
+    "QUOTE_REVISE" -> "Save quote revise"
+    "OPEN_JOB" -> "Open job"
+    "JOB_STATUS" -> "Save job status"
+    "REWORK" -> "Post action"
     "RESULT" -> if (marketing) "Save Result" else "Save result"
     "PERSON", "ROLE", "INVITE" -> "Save person"
     "SUPPLIER", "PARTNER" -> when {
@@ -2726,8 +2805,9 @@ private fun manufacturingDraft(
                 ),
             )
         }
-        "ORDER" -> {
+        "ORDER", "CONFIRM", "QUOTE_REVISE" -> {
             if (party.isBlank() || quantity.isBlank()) return null
+            if (mode == "QUOTE_REVISE" && parentId.isBlank()) return null
             draft(
                 "CUSTOMER_ORDER",
                 party,
@@ -2735,12 +2815,86 @@ private fun manufacturingDraft(
                 qty = quantity,
                 savedUnit = unit.ifBlank { null },
                 payment = "NONE",
+                parent = parentId.ifBlank { null },
                 contract = com.example.momentra.data.api.OperatingContractBody(
                     orderStatus = if (quotationStatus == null || quotationStatus == "ACCEPTED") "PLACED" else null,
                     estimatedAmount = amount.ifBlank { null },
                     quotationStatus = quotationStatus,
                 ),
+            ).copy(revisesEventId = if (mode == "QUOTE_REVISE" || mode == "CONFIRM") parentId.ifBlank { null } else null)
+        }
+        "OPEN_JOB" -> {
+            if (parentId.isBlank() || purpose.isBlank()) return null
+            draft(
+                "UPDATE",
+                purpose,
+                null,
+                qty = quantity.ifBlank { null },
+                savedUnit = unit.ifBlank { null },
+                parent = parentId,
+                contract = com.example.momentra.data.api.OperatingContractBody(
+                    productionStatus = "PLANNED",
+                ),
+            ).copy(note = note.ifBlank { "Open production job against confirmed order" })
+        }
+        "JOB_STATUS" -> {
+            if (parentId.isBlank() || purpose.isBlank()) return null
+            draft(
+                "UPDATE",
+                purpose.ifBlank { "Job status · $choice" },
+                null,
+                parent = parentId,
+                contract = com.example.momentra.data.api.OperatingContractBody(
+                    productionStatus = when (choice) {
+                        "Open" -> "PLANNED"
+                        "On hold" -> "IN_PROGRESS"
+                        "Complete" -> "COMPLETED"
+                        "Cancelled" -> "COMPLETED"
+                        else -> "IN_PROGRESS"
+                    },
+                ),
             )
+        }
+        "REWORK" -> {
+            val qty = quantity.toBigDecimalOrNull()
+            if (qty == null || qty <= BigDecimal.ZERO || purpose.isBlank()) return null
+            if (choice.equals("Scrap", true)) {
+                draft(
+                    "STOCK",
+                    purpose.ifBlank { "Scrap" },
+                    null,
+                    qty = quantity,
+                    savedUnit = unit.ifBlank { "pcs" },
+                    parent = parentId.ifBlank { null },
+                    item = link.ifBlank { null },
+                    contract = com.example.momentra.data.api.OperatingContractBody(
+                        stockAction = "REDUCE",
+                        stockReason = "waste",
+                        ownership = "OWNED",
+                    ),
+                    rejected = quantity,
+                ).copy(
+                    note = note.ifBlank { "Scrap — does not become finished stock" },
+                    counterpartyName = party.ifBlank { null },
+                )
+            } else {
+                draft(
+                    "UPDATE",
+                    purpose.ifBlank { choice.ifBlank { "Rework" } },
+                    null,
+                    qty = quantity,
+                    savedUnit = unit.ifBlank { "pcs" },
+                    parent = parentId.ifBlank { null },
+                    rejected = quantity,
+                ).copy(
+                    note = listOfNotNull(
+                        note.takeIf { it.isNotBlank() },
+                        link.takeIf { it.isNotBlank() }?.let { "Batch $it" },
+                        "Rework/job-work — no finished stock posted",
+                    ).joinToString(" · "),
+                    counterpartyName = party.ifBlank { null },
+                )
+            }
         }
         "DELIVERY" -> {
             if (parentId.isBlank()) return null
@@ -3005,17 +3159,23 @@ private fun buildDraft(
     }
     val marketing = client || own
     val production = standard || job
-    if (production && mode in setOf("PRODUCTION", "PURCHASE", "SPEND", "SALE", "ORDER", "DELIVERY", "PAYMENT", "COLLECTION", "STOCK", "BUDGET", "UPDATE", "ISSUE")) {
+    if (production && mode in setOf(
+            "PRODUCTION", "PURCHASE", "SPEND", "SALE", "ORDER", "DELIVERY", "PAYMENT", "COLLECTION",
+            "STOCK", "BUDGET", "UPDATE", "ISSUE", "CONFIRM", "QUOTE_REVISE", "OPEN_JOB", "JOB_STATUS", "REWORK",
+        )
+    ) {
         val postedTax = if (gstOn && mode in setOf("SALE", "PURCHASE", "SPEND")) when (taxModeLabel.lowercase()) {
             "inclusive" -> "INCLUSIVE"
             "exclusive" -> "EXCLUSIVE"
             else -> null
         } else null
-        val quote = if (job && mode == "ORDER") when (goodsStatusLabel) {
-            "Draft" -> "DRAFT"
-            "Sent" -> "SENT"
-            "Rejected" -> "REJECTED"
-            "Expired" -> "EXPIRED"
+        val quote = if (job && mode in setOf("ORDER", "CONFIRM", "QUOTE_REVISE")) when {
+            mode == "CONFIRM" -> "ACCEPTED"
+            goodsStatusLabel == "Draft" -> "DRAFT"
+            goodsStatusLabel == "Sent" -> "SENT"
+            goodsStatusLabel == "Rejected" -> "REJECTED"
+            goodsStatusLabel == "Expired" -> "EXPIRED"
+            goodsStatusLabel == "Accepted" -> "ACCEPTED"
             else -> "ACCEPTED"
         } else null
         return manufacturingDraft(
@@ -3669,18 +3829,38 @@ private fun lovOptions(
     channels: List<String>,
     local: List<OperatingLovOption>,
 ): List<OperatingLovOption> {
+    val productKinds = setOf("PRODUCT", "SKU", "BATCH", "PART", "MATERIAL", "RAW", "BOM")
     val fromMasters = masters
         .filter { master ->
             val masterKind = master.kind.uppercase()
-            masterKind == kind || (kind == "BUYER" && masterKind == "CUSTOMER")
+            when {
+                kind == "PRODUCT" -> masterKind in productKinds || masterKind.isBlank()
+                kind == "BUYER" -> masterKind == "BUYER" || masterKind == "CUSTOMER"
+                else -> masterKind == kind
+            }
         }
         .map { master ->
+            val masterKind = master.kind.uppercase()
+            val unitLabel = if (kind == "PRODUCT" || kind == "UOM") {
+                OperatingSeedUoms.canonical(master.unit ?: if (kind == "UOM") master.name else null).ifBlank { null }
+            } else {
+                master.unit
+            }
+            val subtitle = when (kind) {
+                "PRODUCT" -> listOfNotNull(
+                    unitLabel?.let { "Base unit: $it" },
+                    master.code?.takeIf { it.isNotBlank() },
+                    // Bind batch identity; FEFO expiry math is Unavailable until the API exposes it.
+                    if (masterKind == "BATCH") fefoFactLabel(master) else null,
+                ).joinToString(" · ").ifBlank { null }
+                else -> null
+            }
             OperatingLovOption(
                 id = master.id,
                 name = master.name,
                 kind = kind,
-                unit = if (kind == "PRODUCT" || kind == "UOM") OperatingSeedUoms.canonical(master.unit ?: if (kind == "UOM") master.name else null).ifBlank { null } else master.unit,
-                subtitle = master.unit?.takeIf { it.isNotBlank() && kind == "PRODUCT" }?.let { "Base unit: ${OperatingSeedUoms.canonical(it)}" },
+                unit = unitLabel,
+                subtitle = subtitle,
             )
         }
     val seeds = when (kind) {

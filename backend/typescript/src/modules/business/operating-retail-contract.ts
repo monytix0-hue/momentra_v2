@@ -79,6 +79,10 @@ export interface OperatingContract {
   transferToName?: string | null;
   /** Which location a stock record belongs to. Empty means the single default store. */
   locationName?: string | null;
+  /** Restaurant floor table label on SALE / ORDER tickets. */
+  tableNumber?: string | null;
+  /** Restaurant covers / party size on SALE / ORDER tickets. */
+  covers?: string | null;
   expenseCategory?: string | null;
   appointmentStatus?: 'BOOKED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | null;
   appointmentAction?: 'RESCHEDULE' | 'CANCEL' | 'NO_SHOW' | 'START' | 'COMPLETE' | null;
@@ -292,6 +296,8 @@ export function parseOperatingContract(raw: unknown): OperatingContract | null {
     transferFromName: rec.transferFromName == null ? null : String(rec.transferFromName),
     transferToName: rec.transferToName == null ? null : String(rec.transferToName),
     locationName: rec.locationName == null ? null : String(rec.locationName),
+    tableNumber: rec.tableNumber == null ? null : String(rec.tableNumber).trim() || null,
+    covers: rec.covers == null ? null : String(rec.covers).trim() || null,
     expenseCategory: rec.expenseCategory == null ? null : String(rec.expenseCategory),
     appointmentStatus:
       rec.appointmentStatus === 'BOOKED' ||
@@ -676,6 +682,15 @@ function validateOrderRevision(
   const status = contract.orderStatus ?? current.contract?.orderStatus ?? 'PLACED';
   if (!['PLACED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'].includes(status)) return fail('Choose an order status.');
   contract.orderStatus = status;
+  // Status bumps often send only `orderStatus` — keep floor / station ticket fields.
+  const prior = current.contract;
+  if (prior) {
+    if (contract.tableNumber == null) contract.tableNumber = prior.tableNumber ?? null;
+    if (contract.covers == null) contract.covers = prior.covers ?? null;
+    if (contract.locationName == null) contract.locationName = prior.locationName ?? null;
+    if (contract.clientKey == null) contract.clientKey = prior.clientKey ?? null;
+    if (contract.estimatedAmount == null) contract.estimatedAmount = prior.estimatedAmount ?? null;
+  }
   return {
     ok: true,
     paymentStatus: 'NONE',

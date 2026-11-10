@@ -22,53 +22,69 @@ struct OperatingHubScreen: View {
         let glyph: String
         /// `nil` for a capture; the masters tab for a management surface.
         let master: OperatingMasterTab?
+        /// Projection `quickAdds` codes that unlock this tile. Empty = always open (masters).
+        let requires: [String]
 
-        init(id: String, title: String, subtitle: String, glyph: String, master: OperatingMasterTab? = nil) {
+        init(
+            id: String,
+            title: String,
+            subtitle: String,
+            glyph: String,
+            master: OperatingMasterTab? = nil,
+            requires: [String] = []
+        ) {
             self.id = id
             self.title = title
             self.subtitle = subtitle
             self.glyph = glyph
             self.master = master
+            self.requires = requires.map { $0.uppercased() }
         }
     }
 
+    /// Role capability codes from the projection. Empty ⇒ leave tiles open (still loading).
+    private var allowed: Set<String> {
+        Set((model.projection?.quickAdds ?? []).map { $0.code.uppercased() })
+    }
+
     /// The nine core captures. Codes are the capture sheet's own modes, so a tile can never ask
-    /// for a layout the sheet does not have.
+    /// for a layout the sheet does not have. MFG uses plant `MFG-HUB-v3` order; MTO uses its own hub.
     private var core: [Tile] {
-        if model.vertical.isManufacturing {
-            let mto = model.vertical == .madeToOrder
+        if model.vertical == .standardProduction {
             return [
-                Tile(
-                    id: "PRODUCTION",
-                    title: "Production",
-                    subtitle: mto ? "Against job · accepted qty" : "Output · batch · scrap",
-                    glyph: "hammer"
-                ),
-                Tile(id: "SALE", title: "Sale", subtitle: "Invoice · buyer · GST", glyph: "doc.text"),
-                Tile(id: "PURCHASE", title: "Purchase", subtitle: "Material · GRN", glyph: "cart"),
-                Tile(
-                    id: "CUSTOMER_ORDER",
-                    title: mto ? "Job order" : "Customer order",
-                    subtitle: "Confirm · accept",
-                    glyph: "list.bullet.rectangle"
-                ),
-                Tile(id: "DELIVERY", title: "Delivery", subtitle: "Dispatch · POD", glyph: "truck.box"),
-                Tile(id: "COLLECTION", title: "Collection", subtitle: "Allocate open AR", glyph: "arrow.down.circle"),
-                Tile(id: "PAYMENT", title: "Payment", subtitle: "Settle open AP", glyph: "creditcard"),
-                Tile(id: "STOCK", title: "Stock", subtitle: "Material · WIP · FG", glyph: "shippingbox"),
-                Tile(id: "BUDGET", title: "Budget", subtitle: "Versioned revise", glyph: "target"),
+                Tile(id: "SALE", title: "Sale", subtitle: "Invoice · buyer · GST", glyph: "doc.text", requires: ["SALE"]),
+                Tile(id: "PURCHASE", title: "Purchase", subtitle: "Material · GRN", glyph: "cart", requires: ["PURCHASE"]),
+                Tile(id: "COLLECTION", title: "Collection", subtitle: "Allocate open AR", glyph: "arrow.down.circle", requires: ["COLLECTION"]),
+                Tile(id: "PAYMENT", title: "Payment", subtitle: "Settle open AP", glyph: "creditcard", requires: ["PAYMENT"]),
+                Tile(id: "SPEND", title: "Expense", subtitle: "Running plant cost", glyph: "wallet.pass", requires: ["SPEND"]),
+                Tile(id: "STOCK", title: "Stock", subtitle: "Material · WIP · FG", glyph: "shippingbox", requires: ["STOCK"]),
+                Tile(id: "ORDER", title: "Order", subtitle: "Customer · commitment", glyph: "list.bullet.rectangle", requires: ["ORDER", "CUSTOMER_ORDER"]),
+                Tile(id: "PRODUCTION", title: "Production", subtitle: "Output · batch · scrap", glyph: "hammer", requires: ["PRODUCTION"]),
+                Tile(id: "BUDGET", title: "Budget", subtitle: "Versioned revise", glyph: "target", requires: ["BUDGET"]),
             ]
         }
         return [
-            Tile(id: "SALE", title: "Sale", subtitle: "Invoice · buyer · GST", glyph: "doc.text"),
-            Tile(id: "PURCHASE", title: "Purchase", subtitle: "Supplier · GRN", glyph: "cart"),
-            Tile(id: "COLLECTION", title: "Collection", subtitle: "Allocate open AR", glyph: "arrow.down.circle"),
-            Tile(id: "PAYMENT", title: "Payment", subtitle: "Settle open AP", glyph: "creditcard"),
-            Tile(id: "SPEND", title: "Expense", subtitle: "Route · van · depot", glyph: "wallet.pass"),
-            Tile(id: "STOCK", title: "Stock", subtitle: "Adjust · count · batch", glyph: "shippingbox"),
-            Tile(id: "ORDER", title: "Order", subtitle: "SO · PO commitment", glyph: "list.bullet.rectangle"),
-            Tile(id: "SHIPMENT", title: "Delivery", subtitle: "Dispatch · POD", glyph: "truck.box"),
-            Tile(id: "BUDGET", title: "Budget", subtitle: "Versioned revise", glyph: "target"),
+            Tile(id: "SALE", title: "Sale", subtitle: "Invoice · buyer · GST", glyph: "doc.text", requires: ["SALE"]),
+            Tile(id: "PURCHASE", title: "Purchase", subtitle: "Supplier · GRN", glyph: "cart", requires: ["PURCHASE"]),
+            Tile(id: "COLLECTION", title: "Collection", subtitle: "Allocate open AR", glyph: "arrow.down.circle", requires: ["COLLECTION"]),
+            Tile(id: "PAYMENT", title: "Payment", subtitle: "Settle open AP", glyph: "creditcard", requires: ["PAYMENT"]),
+            Tile(id: "SPEND", title: "Expense", subtitle: "Route · van · depot", glyph: "wallet.pass", requires: ["SPEND"]),
+            Tile(id: "STOCK", title: "Stock", subtitle: "Adjust · count · batch", glyph: "shippingbox", requires: ["STOCK"]),
+            Tile(id: "ORDER", title: "Order", subtitle: "SO · PO commitment", glyph: "list.bullet.rectangle", requires: ["ORDER", "CUSTOMER_ORDER"]),
+            Tile(id: "SHIPMENT", title: "Delivery", subtitle: "Dispatch · POD", glyph: "truck.box", requires: ["SHIPMENT", "DELIVERY"]),
+            Tile(id: "BUDGET", title: "Budget", subtitle: "Versioned revise", glyph: "target", requires: ["BUDGET"]),
+        ]
+    }
+
+    private var utilities: [Tile] {
+        guard model.vertical == .standardProduction else { return [] }
+        return [
+            Tile(id: "REWORK", title: "Rework / Scrap", subtitle: "Rework · scrap · job work", glyph: "wrench.and.screwdriver", requires: ["STOCK"]),
+            Tile(id: "HOLD", title: "Hold", subtitle: "Park work order", glyph: "pause.circle", requires: ["ORDER", "CUSTOMER_ORDER"]),
+            Tile(id: "TRANSFER", title: "WIP transfer", subtitle: "Between lines · stores", glyph: "arrow.left.arrow.right", requires: ["STOCK"]),
+            Tile(id: "REPRINT", title: "Reprint", subtitle: "Invoice · job card", glyph: "printer", requires: ["SALE"]),
+            Tile(id: "RETURN", title: "Return", subtitle: "Credit · goods outcome", glyph: "arrow.uturn.left", requires: ["RETURN"]),
+            Tile(id: "DELIVERY", title: "Delivery", subtitle: "Dispatch · POD", glyph: "truck.box", requires: ["DELIVERY", "SHIPMENT"]),
         ]
     }
 
@@ -80,7 +96,7 @@ struct OperatingHubScreen: View {
         let catalogueSubtitle: String
         let locationsTitle: String
         let locationsSubtitle: String
-        if model.vertical.isManufacturing {
+        if model.vertical == .standardProduction {
             principalsTitle = "Vendors & buyers"
             principalsSubtitle = "Vendors · customers"
             catalogueTitle = "Parts & BOM"
@@ -131,7 +147,13 @@ struct OperatingHubScreen: View {
                 glyph: "qrcode",
                 master: .invite
             ),
-            Tile(id: "UPDATE", title: "Issue", subtitle: "Update · blocker · risk", glyph: "exclamationmark.triangle"),
+            Tile(
+                id: "UPDATE",
+                title: "Issue",
+                subtitle: "Update · blocker · risk",
+                glyph: "exclamationmark.triangle",
+                requires: ["UPDATE", "ISSUE"]
+            ),
         ]
     }
 
@@ -142,6 +164,9 @@ struct OperatingHubScreen: View {
                 searchBar
                 grid(title: "Core actions · 9", trailing: "Tap to record", tiles: filtered(core))
                 grid(title: "Support & management · 5", trailing: "Role-gated", tiles: filtered(support))
+                if !utilities.isEmpty {
+                    grid(title: "Utilities · \(utilities.count)", trailing: "Hold · rework · reprint", tiles: filtered(utilities))
+                }
                 whyCard
             }
             .padding(.horizontal, 16)
@@ -168,24 +193,49 @@ struct OperatingHubScreen: View {
             Text(identityLine)
                 .font(.plusJakarta(size: 12, weight: .medium))
                 .foregroundStyle(OperatingV12.subtitle)
-            hubButton(
-                title: "Dispatch",
-                glyph: "truck.box",
-                filled: true
-            ) {
-                onCapture("SHIPMENT")
+            if model.vertical == .standardProduction {
+                hubButton(
+                    title: "Record Production",
+                    glyph: "hammer",
+                    filled: true,
+                    locked: heroLocked(["PRODUCTION"])
+                ) {
+                    onCapture("PRODUCTION")
+                }
+                hubButton(
+                    title: "Record Sale",
+                    glyph: "doc.text",
+                    filled: false,
+                    locked: heroLocked(["SALE"])
+                ) {
+                    onCapture("SALE")
+                }
+                Text("Accepted production posts finished stock once. Sale raises the \(model.vertical.partyNoun.dropLast().lowercased()) invoice — scrap never becomes sellable qty.")
+                    .font(.plusJakarta(size: 11, weight: .medium))
+                    .foregroundStyle(OperatingV12.subtitle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                hubButton(
+                    title: "Dispatch",
+                    glyph: "truck.box",
+                    filled: true,
+                    locked: heroLocked(["SHIPMENT", "DELIVERY"])
+                ) {
+                    onCapture("SHIPMENT")
+                }
+                hubButton(
+                    title: "Record Sale",
+                    glyph: "doc.text",
+                    filled: false,
+                    locked: heroLocked(["SALE"])
+                ) {
+                    onCapture("SALE")
+                }
+                Text("Dispatch moves goods on a route; Record Sale raises the \(model.vertical.partyNoun.dropLast().lowercased()) invoice.")
+                    .font(.plusJakarta(size: 11, weight: .medium))
+                    .foregroundStyle(OperatingV12.subtitle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            hubButton(
-                title: "Record Sale",
-                glyph: "doc.text",
-                filled: false
-            ) {
-                onCapture("SALE")
-            }
-            Text("Dispatch moves goods on a route; Record Sale raises the \(model.vertical.partyNoun.dropLast().lowercased()) invoice.")
-                .font(.plusJakarta(size: 11, weight: .medium))
-                .foregroundStyle(OperatingV12.subtitle)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 24)
@@ -220,32 +270,49 @@ struct OperatingHubScreen: View {
         (model.projection?.gstTracking ?? "").uppercased() == "YES"
     }
 
+    private func heroLocked(_ codes: [String]) -> String? {
+        if allowed.isEmpty { return nil }
+        return codes.contains(where: { allowed.contains($0) }) ? nil : "Role locked"
+    }
+
+    private func lockedReason(_ tile: Tile) -> String? {
+        guard tile.master == nil, !tile.requires.isEmpty, !allowed.isEmpty else { return nil }
+        guard !tile.requires.contains(where: { allowed.contains($0) }) else { return nil }
+        return tile.id == "RETURN" ? "Unavailable" : "Role locked"
+    }
+
     private func hubButton(
         title: String,
         glyph: String,
         filled: Bool,
+        locked: String? = nil,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        let enabled = locked == nil
+        return Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: glyph)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(filled ? Color.white : theme.accent)
-                Text(title)
+                    .foregroundStyle(enabled ? (filled ? Color.white : theme.accent) : OperatingV12.subtitle)
+                Text(locked ?? title)
                     .font(.plusJakarta(size: 15, weight: .bold))
-                    .foregroundStyle(filled ? Color.white : OperatingV12.title)
+                    .foregroundStyle(enabled ? (filled ? Color.white : OperatingV12.title) : OperatingV12.subtitle)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 52)
-            .background(filled ? theme.accent : Color.white.opacity(0.06))
+            .background(enabled ? (filled ? theme.accent : Color.white.opacity(0.06)) : Color.white.opacity(0.04))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(filled ? Color.clear : theme.accent.opacity(0.4), lineWidth: 1)
+                    .strokeBorder(
+                        enabled ? (filled ? Color.clear : theme.accent.opacity(0.4)) : theme.accent.opacity(0.15),
+                        lineWidth: 1
+                    )
             )
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: filled ? theme.accent.opacity(0.5) : .clear, radius: 20)
+            .shadow(color: filled && enabled ? theme.accent.opacity(0.5) : .clear, radius: 20)
         }
         .buttonStyle(.plain)
+        .disabled(!enabled)
     }
 
     // MARK: Search
@@ -302,12 +369,15 @@ struct OperatingHubScreen: View {
                     spacing: 8
                 ) {
                     ForEach(tiles) { tile in
+                        let locked = lockedReason(tile)
                         OperatingV12ActionTile(
                             theme: theme,
                             title: tile.title,
                             subtitle: tile.subtitle,
-                            glyph: tile.glyph
+                            glyph: tile.glyph,
+                            lockedReason: locked
                         ) {
+                            guard locked == nil else { return }
                             open(tile)
                         }
                     }

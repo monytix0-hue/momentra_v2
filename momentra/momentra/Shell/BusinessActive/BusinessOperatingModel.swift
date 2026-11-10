@@ -85,17 +85,21 @@ final class BusinessOperatingModel: ObservableObject {
     /// Optional view-all period / status filters (`DST-SHEET` chips) re-project from the API.
     var periodFilter: String?
     var statusFilter: String?
+    /// ISO `yyyy-MM-dd` bounds for `period=custom` (`from` / `to` query params).
+    var periodFrom: String?
+    var periodTo: String?
 
     func load() async {
         loadTask?.cancel()
         if projection == nil { phase = .loading }
         do {
+            let custom = periodFilter == "custom"
             let payload = try await repo.loadProjection(
                 momentId: momentId,
                 period: periodFilter,
                 status: statusFilter,
-                from: nil,
-                to: nil
+                from: custom ? periodFrom : nil,
+                to: custom ? periodTo : nil
             )
             projection = payload
             phase = payload.retired == true ? .empty : .ready
@@ -110,10 +114,34 @@ final class BusinessOperatingModel: ObservableObject {
     /// Remap Figma period chip labels onto the API `period` query.
     func applySheetPeriod(_ label: String) async {
         switch label {
-        case "Last month": periodFilter = "last_month"
-        case "Custom range ›": periodFilter = "custom"
-        default: periodFilter = "this_month"
+        case "Last month":
+            periodFilter = "last_month"
+            periodFrom = nil
+            periodTo = nil
+        case "Custom range ›":
+            periodFilter = "custom"
+            if (periodFrom ?? "").isEmpty {
+                periodFrom = Self.isoDay(Self.startOfYear())
+            }
+            if (periodTo ?? "").isEmpty {
+                periodTo = Self.isoDay(Date())
+            }
+        default:
+            periodFilter = "this_month"
+            periodFrom = nil
+            periodTo = nil
         }
+        // Period bounds are not @Published; notify so From/To chips refresh before reload.
+        objectWillChange.send()
+        await load()
+    }
+
+    /// Update one custom-range bound and reload with `period=custom&from&to`.
+    func applyCustomPeriod(from: String? = nil, to: String? = nil) async {
+        if let from { periodFrom = from }
+        if let to { periodTo = to }
+        periodFilter = "custom"
+        objectWillChange.send()
         await load()
     }
 
@@ -290,5 +318,34 @@ final class BusinessOperatingModel: ObservableObject {
         }
         let text = error.localizedDescription
         return text.isEmpty ? "That did not go through." : text
+    }
+
+    private static func isoDay(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    private static func startOfYear(_ date: Date = Date()) -> Date {
+        let calendar = Calendar(identifier: .gregorian)
+        let year = calendar.component(.year, from: date)
+        return calendar.date(from: DateComponents(year: year, month: 1, day: 1)) ?? date
+    }
+}
+
+extension OperatingProjectionPayload {
+    /// True when Pulse has setup or live signal worth showing (budget / target / GST /
+    /// feeds) instead of the Obsidian "No pulse yet" takeover. Fresh ACTIVE moments with
+    /// setup prefs must keep the normal Pulse chrome even before the first sale.
+    var hasUsefulPulseChrome: Bool {
+        if !(activity ?? []).isEmpty || !(attention ?? []).isEmpty { return true }
+        if !(paymentReadiness ?? []).isEmpty { return true }
+        if budget?.configured == true { return true }
+        if target?.configured == true { return true }
+        if gstTracking?.caseInsensitiveCompare("YES") == .orderedSame { return true }
+        return false
     }
 }

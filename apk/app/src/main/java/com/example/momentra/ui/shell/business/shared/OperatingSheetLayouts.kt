@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -354,6 +355,197 @@ internal fun ReprintCaptureLayout(
         fontFamily = PlusJakartaSans,
         fontSize = 12.sp,
     )
+}
+
+/**
+ * `MTO-QA · Create Quotation` / Accept / Quote revise — shared lifecycle fields.
+ * Mode chips: Quotation · Revise · Accept · Cancel map onto `CONFIRM` / `QUOTE_REVISE` /
+ * `ORDER` capture modes from the MTO hub.
+ */
+@Composable
+internal fun MtoQuoteLifecycleCapture(
+    form: CaptureForm,
+    mode: String,
+    model: OperatingProjectionDto,
+    currency: String,
+) {
+    val quotes = model.activity.filter { it.eventType == "CUSTOMER_ORDER" }
+    when (mode) {
+        "CONFIRM" -> {
+            if (form.goodsStatusLabel.isBlank()) form.goodsStatusLabel = "Accepted"
+            Text("Accepted quote", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            quotes.take(8).forEach { row ->
+                TextButton(onClick = {
+                    form.parentId = row.id
+                    form.party = row.counterpartyName.orEmpty().ifBlank { row.title }
+                    form.amount = row.amount.orEmpty()
+                    form.quantity = row.quantity.orEmpty()
+                }) {
+                    Text(
+                        if (form.parentId == row.id) "Selected ${row.title}" else row.title,
+                        color = Color.White,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+            AmountBlock("Confirmed value (ex tax)", currency, form.amount, "Commitment · not revenue") { form.amount = it }
+            EditField("Customer", form.party, "Required") { form.party = it }
+            EditField("Quantity", form.quantity, "Required") { form.quantity = it }
+            EditField("Unit", form.unit, "pcs") { form.unit = it }
+            Text(
+                "Acceptance creates the confirmed order and turns on job pickers. Still no revenue, AR or GST.",
+                color = SheetMuted,
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
+        }
+        else -> {
+            if (form.goodsStatusLabel.isBlank()) form.goodsStatusLabel = "Expired"
+            Text("Quote to revise", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            quotes.take(8).forEach { row ->
+                TextButton(onClick = {
+                    form.parentId = row.id
+                    form.party = row.counterpartyName.orEmpty().ifBlank { row.title }
+                    form.amount = row.amount.orEmpty()
+                    form.quantity = row.quantity.orEmpty()
+                }) {
+                    Text(
+                        if (form.parentId == row.id) "Revising ${row.title}" else row.title,
+                        color = Color.White,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+            ChoiceBlock(
+                "Status",
+                listOf("Draft", "Sent", "Accepted", "Rejected", "Expired"),
+                form.goodsStatusLabel,
+            ) { form.goodsStatusLabel = it }
+            AmountBlock("Revised quote value", currency, form.amount, "Preview only · no AR") { form.amount = it }
+            EditField("Customer", form.party, "Required") { form.party = it }
+            EditField("Quantity", form.quantity, "Required") { form.quantity = it }
+            Text(
+                "A revise replaces the prior quote status. It still creates no revenue until an invoice posts.",
+                color = SheetMuted,
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
+        }
+    }
+}
+
+/** `MTO-QA · Open Production Job` / Job status change. */
+@Composable
+internal fun MtoJobLifecycleCapture(
+    form: CaptureForm,
+    mode: String,
+    model: OperatingProjectionDto,
+) {
+    val orders = model.activity.filter { it.eventType == "CUSTOMER_ORDER" }
+    Text(
+        if (mode == "OPEN_JOB") "Confirmed order" else "Open job / order",
+        color = SheetMuted,
+        fontFamily = PlusJakartaSans,
+        fontSize = 12.sp,
+    )
+    orders.take(8).forEach { row ->
+        TextButton(onClick = {
+            form.parentId = row.id
+            form.party = row.counterpartyName.orEmpty()
+            form.quantity = row.quantity.orEmpty()
+        }) {
+            Text(
+                if (form.parentId == row.id) "Selected ${row.title}" else row.title,
+                color = Color.White,
+                fontFamily = PlusJakartaSans,
+                fontSize = 13.sp,
+            )
+        }
+    }
+    if (mode == "OPEN_JOB") {
+        EditField("Job ID", form.purpose, "e.g. J-07") { form.purpose = it }
+        EditField("Job target qty", form.quantity, "From confirmed order") { form.quantity = it }
+        EditField("Unit", form.unit, "pcs") { form.unit = it }
+        NoteField("BOM / notes", form.note, "Optional") { form.note = it }
+        Text(
+            "A job carries the confirmed order target. Opening it posts no output, stock or sale.",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+    } else {
+        ChoiceBlock(
+            "Job status",
+            listOf("Open", "In progress", "On hold", "Complete", "Cancelled"),
+            form.choice.ifBlank { "In progress" },
+        ) { form.choice = it }
+        NoteField("Status note", form.purpose, "Required") { form.purpose = it }
+        Text(
+            "Status is an operational signal. It never posts production output or revenue.",
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
+    }
+}
+
+/**
+ * `MFG-QA-14 · Rework / Scrap / Job Work` — first-class modes, not a buried scrap qty on production.
+ * Scrap reduces sellable stock (waste). Rework and job-work-out are operational updates — they
+ * never invent finished goods.
+ */
+@Composable
+internal fun ReworkScrapCapture(
+    form: CaptureForm,
+    model: OperatingProjectionDto,
+    actor: String,
+) {
+    ChoiceBlock("Mode", listOf("Rework", "Scrap", "Job work out"), form.choice.ifBlank { "Rework" }) {
+        form.choice = it
+    }
+    ChoiceBlock(
+        "Action",
+        when (form.choice) {
+            "Scrap" -> listOf("Scrap to waste", "Scrap & quarantine")
+            "Job work out" -> listOf("Send to vendor", "Receive from vendor")
+            else -> listOf("Send to rework", "Return from rework")
+        },
+        form.purpose.ifBlank {
+            when (form.choice) {
+                "Scrap" -> "Scrap to waste"
+                "Job work out" -> "Send to vendor"
+                else -> "Send to rework"
+            }
+        },
+    ) { form.purpose = it }
+    model.activity.filter { it.eventType == "PRODUCTION" || it.eventType == "CUSTOMER_ORDER" }.take(6).forEach { row ->
+        TextButton(onClick = { form.parentId = row.id }) {
+            Text(
+                if (form.parentId == row.id) "Source ${row.title}" else row.title,
+                color = Color.White,
+                fontFamily = PlusJakartaSans,
+                fontSize = 13.sp,
+            )
+        }
+    }
+    EditField("Source batch / job", form.link, "Optional reference") { form.link = it }
+    FieldRow {
+        EditField("Qty", form.quantity, "Required", Modifier.weight(1f)) { form.quantity = it }
+        EditField("Unit", form.unit, "pcs", Modifier.weight(1f)) { form.unit = it }
+    }
+    if (form.choice == "Job work out" || form.choice == "Rework") {
+        EditField("Vendor", form.party, "Optional") { form.party = it }
+    }
+    NoteField("Notes", form.note, "Optional") { form.note = it }
+    Text(
+        "Distinct canonical events — never silent overwrite of accepted stock. Scrap does not become finished stock.",
+        color = SheetMuted,
+        fontFamily = PlusJakartaSans,
+        fontSize = 12.sp,
+    )
+    Text("Recorded by ${actor.substringBefore(" ·")}", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 11.sp)
 }
 
 /**

@@ -14,6 +14,19 @@ struct OperatingViewAllSheet: View {
 
     @State private var period = OperatingSheetChrome.periodFilters[0]
     @State private var statusFilter: String = ""
+    @State private var pickingCustomBound: CustomPeriodBound?
+
+    private enum CustomPeriodBound: String, Identifiable {
+        case from
+        case to
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .from: return "Custom range · from"
+            case .to: return "Custom range · to"
+            }
+        }
+    }
 
     private var filters: [String] { spec.statusFilters }
     private var selectedStatus: String {
@@ -41,6 +54,27 @@ struct OperatingViewAllSheet: View {
         .background(theme.canvas.ignoresSafeArea())
         .onAppear {
             if statusFilter.isEmpty { statusFilter = filters.first ?? "All" }
+            period = Self.periodLabel(for: model.periodFilter)
+        }
+        .sheet(item: $pickingCustomBound) { bound in
+            OperatingCustomPeriodPicker(
+                theme: theme,
+                title: bound.title,
+                initial: bound == .from ? model.periodFrom : model.periodTo
+            ) { day in
+                pickingCustomBound = nil
+                Task {
+                    if bound == .from {
+                        await model.applyCustomPeriod(from: day)
+                    } else {
+                        await model.applyCustomPeriod(to: day)
+                    }
+                }
+            } onCancel: {
+                pickingCustomBound = nil
+            }
+            .presentationDetents([.medium])
+            .preferredColorScheme(.dark)
         }
     }
 
@@ -67,6 +101,9 @@ struct OperatingViewAllSheet: View {
                 period = next
                 Task { await model.applySheetPeriod(next) }
             }
+            if period == "Custom range ›" {
+                customRangeRow
+            }
             chipRow(filters, selection: selectedStatus) { next in
                 // Status chips filter the already-loaded sheet body locally.
                 statusFilter = next
@@ -76,6 +113,39 @@ struct OperatingViewAllSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(theme.canvas)
+    }
+
+    private var customRangeRow: some View {
+        HStack(spacing: 8) {
+            customBoundChip(label: "From", value: model.periodFrom, bound: .from)
+            customBoundChip(label: "To", value: model.periodTo, bound: .to)
+        }
+    }
+
+    private func customBoundChip(label: String, value: String?, bound: CustomPeriodBound) -> some View {
+        Button {
+            pickingCustomBound = bound
+        } label: {
+            Text("\(label) \(value ?? "…")")
+                .font(.plusJakarta(size: 12, weight: .semibold))
+                .foregroundStyle(theme.ink)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(theme.inset)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(theme.border, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private static func periodLabel(for filter: String?) -> String {
+        switch filter {
+        case "last_month": return "Last month"
+        case "custom": return "Custom range ›"
+        default: return OperatingSheetChrome.periodFilters[0]
+        }
     }
 
     private func chipRow(_ options: [String], selection: String, onSelect: @escaping (String) -> Void) -> some View {
@@ -543,5 +613,54 @@ struct OperatingRecordSheet: View {
                     .foregroundStyle(theme.accent)
             }
         }
+    }
+}
+
+/// Day picker for view-all `period=custom` From / To chips (mirrors Android `OperatingPickerSheet`).
+private struct OperatingCustomPeriodPicker: View {
+    let theme: OperatingTheme
+    let title: String
+    let initial: String?
+    let onPick: (String) -> Void
+    let onCancel: () -> Void
+
+    @State private var draft: Date
+
+    init(
+        theme: OperatingTheme,
+        title: String,
+        initial: String?,
+        onPick: @escaping (String) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.theme = theme
+        self.title = title
+        self.initial = initial
+        self.onPick = onPick
+        self.onCancel = onCancel
+        _draft = State(initialValue: SetupDateTimeUtils.dateFromIso(initial))
+    }
+
+    var body: some View {
+        NavigationStack {
+            DatePicker("", selection: $draft, displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .labelsHidden()
+                .tint(theme.accent)
+                .padding()
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel", action: onCancel)
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("OK") {
+                            onPick(SetupDateTimeUtils.localDateString(from: draft))
+                        }
+                    }
+                }
+        }
+        .background(theme.canvas.ignoresSafeArea())
     }
 }

@@ -549,7 +549,15 @@ private fun OperatingMasterForm(
                         scope.launch {
                             saving = true
                             repo.archiveMaster(context.companyId.orEmpty(), existing.id, existing.version).fold(
-                                onSuccess = { onSaved() },
+                                onSuccess = {
+                                    if (model.subtype.equals("MADE_TO_ORDER", ignoreCase = true)) {
+                                        com.example.momentra.ui.shell.business.mto.MtoToastHost.show(
+                                            com.example.momentra.ui.shell.business.mto.MtoToastKind.Deleted,
+                                            entity = existing.name.ifBlank { "this record" },
+                                        )
+                                    }
+                                    onSaved()
+                                },
                                 onFailure = { localError = it.message; saving = false },
                             )
                         }
@@ -596,7 +604,17 @@ private fun OperatingMasterForm(
                             repo.updateMaster(companyId, existing.id, draft.toUpdateBody(existing.version))
                         }
                         result.fold(
-                            onSuccess = { onSaved() },
+                            onSuccess = {
+                                if (model.subtype.equals("MADE_TO_ORDER", ignoreCase = true)) {
+                                    com.example.momentra.ui.shell.business.mto.MtoToastHost.show(
+                                        com.example.momentra.ui.shell.business.mto.MtoToastCatalog.forMasterCreated(
+                                            kind = kind,
+                                            entity = name.ifBlank { "this record" },
+                                        ),
+                                    )
+                                }
+                                onSaved()
+                            },
                             onFailure = { localError = it.message; onError(it.message ?: "Could not save"); saving = false },
                         )
                     }

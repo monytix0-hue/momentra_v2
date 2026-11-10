@@ -10,6 +10,7 @@ import com.example.momentra.ui.shell.business.manufacturing.ManufacturingSheetSt
 import com.example.momentra.ui.shell.business.manufacturing.manufacturingSheetForCode
 import com.example.momentra.ui.shell.business.manufacturing.specFor
 import com.example.momentra.ui.shell.business.shared.OperatingV12Theme
+import com.example.momentra.ui.shell.business.shared.hasUsefulPulseChrome
 import com.example.momentra.ui.shell.business.shared.sectionByCode
 import com.example.momentra.ui.shell.business.trading.TRADING_PULSE_CODES
 import com.example.momentra.ui.shell.business.trading.TRADING_SHEET_STATES
@@ -52,10 +53,12 @@ class TradingSheetStateTest {
     fun manufacturingListsExactlyEighteenSurfaces() {
         assertEquals(18, MANUFACTURING_SHEET_STATES.size)
         assertEquals(18, MANUFACTURING_SHEET_STATES.map { it.spec.code }.toSet().size)
-        assertEquals(
-            TRADING_SHEET_STATES.map { it.spec.code }.toSet(),
-            MANUFACTURING_SHEET_STATES.map { it.spec.code }.toSet(),
-        )
+        // Manufacturing boards emit `production` instead of trading `network`.
+        val trading = TRADING_SHEET_STATES.map { it.spec.code }.toSet()
+        val manufacturing = MANUFACTURING_SHEET_STATES.map { it.spec.code }.toSet()
+        assertTrue(manufacturing.contains("production"))
+        assertFalse(manufacturing.contains("network"))
+        assertEquals(trading - setOf("network") + setOf("production"), manufacturing)
     }
 
     @Test
@@ -63,9 +66,11 @@ class TradingSheetStateTest {
         val orders = ManufacturingSheetState.OrdersCommitments.specFor("MADE_TO_ORDER")
         assertEquals("Current Jobs", orders.title)
         assertEquals(
-            "Orders & Commitments",
+            "Work Orders & Commitments",
             ManufacturingSheetState.OrdersCommitments.specFor("STANDARD_PRODUCTION").title,
         )
+        assertEquals("Job Output", ManufacturingSheetState.Production.specFor("MADE_TO_ORDER").title)
+        assertEquals("Production", ManufacturingSheetState.Production.specFor("STANDARD_PRODUCTION").title)
     }
 
     @Test
@@ -143,6 +148,8 @@ class TradingSheetStateTest {
         assertEquals(DistributionSheetState.PeoplePatterns, distributionSheetForCode("ME4"))
 
         assertEquals(ManufacturingSheetState.OrdersCommitments, manufacturingSheetForCode("orders"))
+        assertEquals(ManufacturingSheetState.Production, manufacturingSheetForCode("production"))
+        assertNull(manufacturingSheetForCode("network"))
         assertEquals(ManufacturingSheetState.FulfilmentMemory, manufacturingSheetForCode("fulfilment"))
         assertEquals(ManufacturingSheetState.PeoplePatterns, manufacturingSheetForCode("ME4"))
     }
@@ -194,5 +201,34 @@ class TradingSheetStateTest {
         val tile = OperatingBoardMetricDto(key = "received", label = "Received", value = "Not recorded")
         assertNotNull(tile.value)
         assertFalse(tile.value == "0")
+    }
+
+    @Test
+    fun freshSetupWithBudgetKeepsPulseChrome() {
+        val blank = OperatingProjectionDto()
+        assertFalse(blank.hasUsefulPulseChrome())
+
+        val withBudget = OperatingProjectionDto(
+            budget = com.example.momentra.data.api.OperatingMoneyDto(
+                amount = "500000",
+                spent = "0",
+                remaining = "500000",
+                configured = true,
+            ),
+        )
+        assertTrue(withBudget.hasUsefulPulseChrome())
+
+        val withTarget = OperatingProjectionDto(
+            target = com.example.momentra.data.api.OperatingTargetDto(
+                metric = "REVENUE",
+                value = "1000000",
+                progress = "0",
+                configured = true,
+            ),
+        )
+        assertTrue(withTarget.hasUsefulPulseChrome())
+
+        val withGst = OperatingProjectionDto(gstTracking = "YES")
+        assertTrue(withGst.hasUsefulPulseChrome())
     }
 }
