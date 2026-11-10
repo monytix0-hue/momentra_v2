@@ -262,8 +262,23 @@ struct OperatingExperienceHost: View {
             RestaurantPosSheet(theme: theme, model: model)
         } else if kit == .restaurant, upper == "KOT" {
             RestaurantKotSheet(theme: theme, model: model)
+        } else if kit == .retail, upper == "SALE" {
+            RetailPosSheet(theme: theme, model: model)
+        } else if kit == .retail, [OperatingCaptureLayout.holdMode, OperatingCaptureLayout.transferMode, OperatingCaptureLayout.reprintMode].contains(upper) {
+            RetailUtilitySheet(theme: theme, mode: code, model: model)
+        } else if kit == .retail {
+            RetailCaptureSheet(theme: theme, mode: code, model: model, browserPrefill: prefill)
+                .onAppear { pendingBrowserPrefill = nil }
         } else {
-            OperatingCaptureSheet(theme: theme, mode: code, model: model, browserPrefill: prefill)
+            OperatingCaptureSheet(
+                theme: theme,
+                mode: code,
+                model: model,
+                browserPrefill: prefill,
+                onRouteToMode: { target in
+                    sheet = .capture(target.uppercased())
+                }
+            )
                 .onAppear { pendingBrowserPrefill = nil }
         }
     }

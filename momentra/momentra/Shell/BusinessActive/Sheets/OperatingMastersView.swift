@@ -27,7 +27,11 @@ struct OperatingMastersView: View {
 
     private var rows: [OperatingMasterPayload] {
         if tab == .priceLists { return [] }
-        let kinds = tab.kinds
+        var kinds = tab.kinds
+        // Retail stock items post as MATERIAL/CONSUMABLE — include them on Catalogue.
+        if model.vertical == .retailStore, tab == .catalogue {
+            kinds.formUnion(["MATERIAL", "CONSUMABLE", "ITEM"])
+        }
         let filtered = model.masters.filter { kinds.contains($0.kind.uppercased()) }
         return filtered.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
@@ -77,26 +81,63 @@ struct OperatingMastersView: View {
         .sheet(item: $sheet) { route in
             Group {
                 switch route {
-                case .create:
-                    OperatingMasterFormView(
-                        theme: theme,
-                        tab: tab,
-                        existing: nil,
-                        parents: parentCandidates,
-                        onSave: { draft in
-                            let created = await model.createMaster(draft)
-                            let ok = model.writeError == nil
-                            if ok, model.vertical.isMadeToOrder {
-                                MtoToastHost.shared.show(
-                                    MtoToastCatalog.forMasterCreated(
-                                        kind: draft.kind,
-                                        entity: draft.name.isEmpty ? "this record" : draft.name
+                case .create, .createStockItem:
+                    if model.vertical == .retailStore {
+                        let retailKind: RetailMasterFormKind? = {
+                            if case .createStockItem = route { return .stockItem }
+                            return RetailMasterFormKind.from(tab: tab)
+                        }()
+                        if let retailKind {
+                            RetailMasterFormSheet(
+                                theme: theme,
+                                kind: retailKind,
+                                model: model,
+                                onSave: { draft in
+                                    let created = await model.createMaster(draft)
+                                    return created != nil && model.writeError == nil
+                                },
+                                onUpdate: { id, draft, version in
+                                    let updated = await model.updateMaster(
+                                        id: id,
+                                        draft: draft,
+                                        expectedVersion: version
                                     )
-                                )
-                            }
-                            return created != nil && ok
+                                    return updated != nil && model.writeError == nil
+                                }
+                            )
+                        } else {
+                            OperatingMasterFormView(
+                                theme: theme,
+                                tab: tab,
+                                existing: nil,
+                                parents: parentCandidates,
+                                onSave: { draft in
+                                    let created = await model.createMaster(draft)
+                                    return created != nil && model.writeError == nil
+                                }
+                            )
                         }
-                    )
+                    } else {
+                        OperatingMasterFormView(
+                            theme: theme,
+                            tab: tab,
+                            existing: nil,
+                            parents: parentCandidates,
+                            onSave: { draft in
+                                let created = await model.createMaster(draft)
+                                let ok = model.writeError == nil
+                                if ok, model.vertical.isMadeToOrder {
+                                    MtoToastHost.shared.show(
+                                        MtoToastCatalog.forMasterCreated(
+                                            kind: draft.kind,
+                                            entity: draft.name.isEmpty ? "this record" : draft.name
+                                        )
+                                    )
+                                }
+                                return created != nil && ok
+                            }
+                        )
+                    }
                 case let .edit(master):
                     OperatingMasterFormView(
                         theme: theme,
@@ -201,7 +242,9 @@ struct OperatingMastersView: View {
             Button {
                 sheet = .create
             } label: {
-                Text("＋ New \(tab.singular)")
+                Text(model.vertical == .retailStore && tab == .catalogue
+                     ? "＋ New product / SKU"
+                     : "＋ New \(tab.singular)")
                     .font(.plusJakarta(size: 14, weight: .semibold))
                     .foregroundStyle(theme.onAccent)
                     .frame(maxWidth: .infinity)
@@ -210,6 +253,20 @@ struct OperatingMastersView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 13))
             }
             .buttonStyle(.plain)
+            if model.vertical == .retailStore, tab == .catalogue {
+                Button {
+                    sheet = .createStockItem
+                } label: {
+                    Text("＋ New stock item")
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(theme.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(theme.inset)
+                        .clipShape(RoundedRectangle(cornerRadius: 13))
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -272,12 +329,15 @@ struct OperatingMastersView: View {
 /// another `.sheet` modifier on the same view.
 private enum OperatingMastersSheet: Identifiable {
     case create
+    /// Retail catalogue: dedicated stock-item form (not Product toggle-only).
+    case createStockItem
     case edit(OperatingMasterPayload)
     case priceList
 
     var id: String {
         switch self {
         case .create: return "create"
+        case .createStockItem: return "createStockItem"
         case let .edit(master): return "edit:\(master.id)"
         case .priceList: return "priceList"
         }
@@ -302,6 +362,7 @@ struct OperatingMasterFormView: View {
     @State private var draft: OperatingMasterDraft
     @State private var saving = false
     @State private var statePickerOpen = false
+    @State private var unitCategory: String
 
     init(
         theme: OperatingTheme,
@@ -317,11 +378,13 @@ struct OperatingMasterFormView: View {
         self.parents = parents
         self.onSave = onSave
         self.onArchive = onArchive
+        let initialUnit = existing?.unit ?? ""
         _draft = State(initialValue: OperatingMasterDraft(
             kind: existing?.kind.uppercased() ?? tab.defaultKind,
             name: existing?.name ?? "",
             code: existing?.code ?? "",
-            unit: existing?.unit ?? "",
+            unit: initialUnit,
+            conversionToBase: existing?.conversionToBase ?? "",
             sellPrice: existing?.sellPrice ?? "",
             purchasePrice: existing?.purchasePrice ?? "",
             mrp: existing?.mrp ?? "",
@@ -331,6 +394,11 @@ struct OperatingMasterFormView: View {
             billingState: existing?.billingState ?? "",
             parentMasterId: existing?.parentMasterId ?? ""
         ))
+        let matched = BusinessSetupDocSpec.unitMaster.first {
+            $0.label.caseInsensitiveCompare(initialUnit) == .orderedSame
+                || $0.code.caseInsensitiveCompare(initialUnit) == .orderedSame
+        }?.category
+        _unitCategory = State(initialValue: matched ?? BusinessSetupDocSpec.unitCategories[0])
     }
 
     private var isSku: Bool { draft.kind == "SKU" || draft.kind == "PRODUCT" }
@@ -338,13 +406,94 @@ struct OperatingMasterFormView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text(existing == nil ? "New \(tab.singular)" : "Edit \(existing?.name ?? "")")
+                Text(
+                    tab == .principals
+                        ? (existing == nil ? "Add Business Contact" : "Edit \(existing?.name ?? "")")
+                        : (existing == nil ? "New \(tab.singular)" : "Edit \(existing?.name ?? "")")
+                )
                     .font(.plusJakarta(size: 22, weight: .semibold))
                     .foregroundStyle(theme.ink)
-                field("Name", text: $draft.name)
+                if tab == .principals {
+                    // QA-01 / CF-02 — Supplier / Customer / Both on one identity.
+                    Text("Contact role")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(theme.body)
+                    HStack(spacing: 6) {
+                        ForEach([("Supplier", "SUPPLIER"), ("Customer", "CUSTOMER"), ("Both", "PRINCIPAL")], id: \.0) { label, kind in
+                            let on = draft.kind == kind
+                            Button {
+                                draft.kind = kind
+                            } label: {
+                                Text(label)
+                                    .font(.plusJakarta(size: 13, weight: .semibold))
+                                    .foregroundStyle(on ? theme.canvas : theme.ink)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(on ? theme.accent : theme.inset)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(on ? theme.accent : theme.border, lineWidth: 1)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                field(tab == .principals ? "Business / Contact Name" : "Name", text: $draft.name)
                 field("Code (optional)", text: $draft.code)
                 if isSku {
-                    field("Unit", text: $draft.unit)
+                    Text("Unit category")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(theme.body)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(BusinessSetupDocSpec.unitCategories, id: \.self) { category in
+                                let on = unitCategory == category
+                                Button {
+                                    unitCategory = category
+                                } label: {
+                                    Text(category)
+                                        .font(.plusJakarta(size: 12, weight: .semibold))
+                                        .foregroundStyle(on ? theme.canvas : theme.ink)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 7)
+                                        .background(on ? theme.accent : theme.inset)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    Text("Unit")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(theme.body)
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(BusinessSetupDocSpec.units(forCategory: unitCategory)) { entry in
+                            let on = draft.unit == entry.label || draft.unit.caseInsensitiveCompare(entry.code) == .orderedSame
+                            Button {
+                                draft.unit = entry.label
+                            } label: {
+                                Text(entry.label)
+                                    .font(.plusJakarta(size: 13))
+                                    .foregroundStyle(on ? theme.canvas : theme.ink)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 8)
+                                    .background(on ? theme.accent : theme.inset)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(on ? theme.accent : theme.border, lineWidth: 1)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    field("Packaging conversion to base", text: $draft.conversionToBase, decimal: true)
+                    Text("How many base units this packaging holds (e.g. 12 for a dozen). Leave blank when already base.")
+                        .font(.plusJakarta(size: 11))
+                        .foregroundStyle(theme.body)
                     field("Sell price", text: $draft.sellPrice, decimal: true)
                     field("Purchase price", text: $draft.purchasePrice, decimal: true)
                     field("MRP (optional)", text: $draft.mrp, decimal: true)

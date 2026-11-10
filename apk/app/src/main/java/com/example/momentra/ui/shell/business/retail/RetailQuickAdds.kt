@@ -21,7 +21,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +54,7 @@ fun RetailQuickAddHub(
     onRecord: suspend (RetailEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
     momentId: String? = null,
+    companyId: String? = null,
     onDismiss: () -> Unit = {},
 ) {
     val allowed = model.quickAdds.map { it.code }.toSet()
@@ -59,6 +62,8 @@ fun RetailQuickAddHub(
     var mastersOpen by remember { mutableStateOf<MastersTab?>(null) }
     var approvalOpen by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val holdSession = remember { RetailHoldSession() }
 
     Column(
         Modifier
@@ -122,22 +127,76 @@ fun RetailQuickAddHub(
     }
 
     sheet?.let { open ->
-        OperatingSheetScrim(onDismiss = { sheet = null }, accent = RetailRose.rose) {
-            OperatingCaptureSheet(
-                title = open.title,
-                icon = open.icon,
-                eventType = open.eventType,
-                mode = open.mode,
-                model = model,
-                channelLabel = if (open == RetailSheet.SALE || open == RetailSheet.COLLECTION) "Sales channel" else "Channel",
-                variant = "standard",
-                onDismiss = { sheet = null },
-                onSubmit = { draft ->
-                    runCatching { onRecord(draft.toRetail()) }
-                        .onFailure { error = it.message }
-                    sheet = null
-                },
-            )
+        OperatingSheetScrim(
+            onDismiss = { sheet = null },
+            accent = RetailRose.rose,
+            surface = RetailRose.cardSlate,
+            border = RetailRose.roseBorder.copy(alpha = 0.45f),
+        ) {
+            when (open) {
+                RetailSheet.SALE -> RetailPosSheet(
+                    model = model,
+                    holdSession = holdSession,
+                    onDismiss = { sheet = null },
+                    onSubmit = { draft ->
+                        scope.launch {
+                            runCatching { onRecord(draft) }.onFailure { error = it.message }
+                            sheet = null
+                        }
+                    },
+                )
+                RetailSheet.HOLD -> RetailParkBillSheet(
+                    model = model,
+                    holdSession = holdSession,
+                    onDismiss = { sheet = null },
+                    onNavigate = { dest ->
+                        sheet = when (dest) {
+                            RetailUtilityNav.HOLD -> RetailSheet.HOLD
+                            RetailUtilityNav.TRANSFER -> RetailSheet.TRANSFER
+                            RetailUtilityNav.REPRINT -> RetailSheet.REPRINT
+                        }
+                    },
+                )
+                RetailSheet.TRANSFER -> RetailStockTransferSheet(
+                    model = model,
+                    onDismiss = { sheet = null },
+                    onNavigate = { dest ->
+                        sheet = when (dest) {
+                            RetailUtilityNav.HOLD -> RetailSheet.HOLD
+                            RetailUtilityNav.TRANSFER -> RetailSheet.TRANSFER
+                            RetailUtilityNav.REPRINT -> RetailSheet.REPRINT
+                        }
+                    },
+                    onSubmit = { draft ->
+                        scope.launch {
+                            runCatching { onRecord(draft) }.onFailure { error = it.message }
+                            sheet = null
+                        }
+                    },
+                )
+                RetailSheet.REPRINT -> RetailReprintSheet(
+                    model = model,
+                    onDismiss = { sheet = null },
+                    onNavigate = { dest ->
+                        sheet = when (dest) {
+                            RetailUtilityNav.HOLD -> RetailSheet.HOLD
+                            RetailUtilityNav.TRANSFER -> RetailSheet.TRANSFER
+                            RetailUtilityNav.REPRINT -> RetailSheet.REPRINT
+                        }
+                    },
+                )
+                else -> RetailCaptureSheet(
+                    sheet = open,
+                    model = model,
+                    onDismiss = { sheet = null },
+                    onSubmit = { draft ->
+                        scope.launch {
+                            runCatching { onRecord(draft) }.onFailure { error = it.message }
+                            sheet = null
+                        }
+                    },
+                )
+            }
         }
     }
 
@@ -147,6 +206,7 @@ fun RetailQuickAddHub(
                 tab = open,
                 model = model,
                 momentId = momentId,
+                companyId = companyId,
                 onClose = { mastersOpen = null },
                 onRecord = onRecord,
                 onError = { error = it },
@@ -320,11 +380,13 @@ private fun RetailMastersSheet(
     tab: MastersTab,
     model: OperatingProjectionDto,
     momentId: String?,
+    companyId: String?,
     onClose: () -> Unit,
     onRecord: suspend (RetailEventDraft) -> Unit,
     onError: (String) -> Unit,
 ) {
-    var createOpen by remember { mutableStateOf(false) }
+    var createKind by remember { mutableStateOf<RetailMasterFormKind?>(null) }
+    val scope = rememberCoroutineScope()
     Column(
         Modifier
             .fillMaxSize()
@@ -353,32 +415,57 @@ private fun RetailMastersSheet(
         }
         when (tab) {
             MastersTab.Invite -> InviteAndQr(model, momentId, onError)
+            MastersTab.Catalogue -> {
+                MasterList(
+                    tab = tab,
+                    model = model,
+                    onCreate = { createKind = RetailMasterFormKind.Product },
+                    createLabel = "New product / SKU",
+                )
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RetailRose.rCardTight)
+                        .background(RetailRose.chip)
+                        .clickable { createKind = RetailMasterFormKind.StockItem }
+                        .padding(vertical = 14.dp),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Text("New stock item", style = RetailRose.storyCtaTitle().copy(color = RetailRose.textPrimary), maxLines = 1)
+                }
+            }
             else -> MasterList(
                 tab = tab,
                 model = model,
-                onCreate = { createOpen = true },
+                onCreate = {
+                    createKind = when (tab) {
+                        MastersTab.Suppliers -> RetailMasterFormKind.Supplier
+                        MastersTab.Locations -> RetailMasterFormKind.Location
+                        else -> null
+                    }
+                },
             )
         }
         Spacer(Modifier.height(20.dp))
     }
 
-    if (createOpen) {
-        OperatingSheetScrim(onDismiss = { createOpen = false }, accent = RetailRose.rose) {
-            OperatingCaptureSheet(
-                title = "New ${tab.title.trimEnd('s')}",
-                icon = when (tab) {
-                    MastersTab.Suppliers -> RetailTileIcons.suppliers
-                    MastersTab.Catalogue -> RetailTileIcons.catalogue
-                    MastersTab.Locations -> RetailTileIcons.locations
-                    MastersTab.Invite -> RetailTileIcons.invite
-                },
-                eventType = "UPDATE",
-                mode = "MASTERS",
+    createKind?.let { formKind ->
+        OperatingSheetScrim(
+            onDismiss = { createKind = null },
+            accent = RetailRose.rose,
+            surface = RetailRose.cardSlate,
+            border = RetailRose.roseBorder.copy(alpha = 0.45f),
+        ) {
+            RetailMasterFormSheet(
+                kind = formKind,
                 model = model,
-                onDismiss = { createOpen = false },
+                companyId = companyId,
+                onDismiss = { createKind = null },
                 onSubmit = { draft ->
-                    runCatching { onRecord(draft.toRetail()) }.onFailure { onError(it.message ?: "Could not save") }
-                    createOpen = false
+                    scope.launch {
+                        runCatching { onRecord(draft) }.onFailure { onError(it.message ?: "Could not save") }
+                        createKind = null
+                    }
                 },
             )
         }
@@ -390,12 +477,13 @@ private fun MasterList(
     tab: MastersTab,
     model: OperatingProjectionDto,
     onCreate: () -> Unit,
+    createLabel: String? = null,
 ) {
     val rows = model.masters.orEmpty().filter { master ->
         when (tab) {
             MastersTab.Suppliers -> master.kind.equals("SUPPLIER", true)
-            MastersTab.Catalogue -> master.kind in setOf("PRODUCT", "ITEM", "SKU", "MATERIAL")
-            MastersTab.Locations -> master.kind in setOf("LOCATION", "STORE", "CHANNEL")
+            MastersTab.Catalogue -> master.kind in setOf("PRODUCT", "ITEM", "SKU", "MATERIAL", "CONSUMABLE")
+            MastersTab.Locations -> master.kind in setOf("LOCATION", "STORE", "CHANNEL", "WAREHOUSE")
             MastersTab.Invite -> false
         }
     }
@@ -409,7 +497,7 @@ private fun MasterList(
         horizontalArrangement = Arrangement.Center,
     ) {
         Text(
-            "New ${tab.title.trimEnd('s').lowercase()}",
+            createLabel ?: "New ${tab.title.trimEnd('s').lowercase()}",
             style = RetailRose.storyCtaTitle(),
             maxLines = 1,
         )
@@ -481,9 +569,9 @@ data class RetailEventDraft(
     val title: String,
     val amount: String?,
     val note: String?,
-    val channelName: String?,
-    val counterpartyName: String?,
-    val paymentStatus: String?,
+    val channelName: String? = null,
+    val counterpartyName: String? = null,
+    val paymentStatus: String? = null,
     val occurredAt: String? = null,
     val quantity: String? = null,
     val unit: String? = null,
@@ -495,6 +583,8 @@ data class RetailEventDraft(
     val dueAt: String? = null,
     val contract: com.example.momentra.data.api.OperatingContractBody? = null,
     val lines: List<com.example.momentra.data.api.OperatingLineBody>? = null,
+    val master: com.example.momentra.data.api.OperatingMasterBody? = null,
+    val activityStatus: String? = null,
 )
 
 internal fun OperatingCaptureDraft.toRetail() = RetailEventDraft(
