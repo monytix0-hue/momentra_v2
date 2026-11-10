@@ -24,6 +24,21 @@ object OperatingChromeState {
     /** Masters sheet tab name, so Quick Add can deep-link into `Create SKU`. */
     var mastersOpen by mutableStateOf<String?>(null)
 
+    /**
+     * Parts / Materials browser (`MTO-SHEET` / `MFG-SHEET`).
+     * Values: `"parts"` or `"materials"`.
+     */
+    var partsBrowserOpen by mutableStateOf<String?>(null)
+
+    /**
+     * Master chosen in the Parts/Materials browser. Capture sheets consume this on open
+     * (name / id / qty defaults); hubs open the matching Quick Add when no capture is up.
+     */
+    var browserSelection by mutableStateOf<OperatingBrowserSelection?>(null)
+
+    /** True while an `OperatingCaptureSheet` is mounted and can absorb [browserSelection]. */
+    var captureOpen by mutableStateOf(false)
+
     /** `Switch Moment` sheet (TRD-SWITCH 2566:33577). */
     var switchMomentOpen by mutableStateOf(false)
 
@@ -33,8 +48,41 @@ object OperatingChromeState {
     /** Bumped after a master write so the open projection reloads. */
     var refresh by mutableStateOf(0)
 
+    /**
+     * View-all sheet period chip → API `period` query (`this_month` / `last_month` / `custom`).
+     * Null keeps the historic unscoped load until the operator taps a chip.
+     */
+    var periodFilter by mutableStateOf<String?>(null)
+
+    /** ISO dates for `period=custom` (`from` / `to` query params). */
+    var periodFrom by mutableStateOf<String?>(null)
+    var periodTo by mutableStateOf<String?>(null)
+
     /** The moment chrome sheets act on; set by `OperatingMomentPage` before rendering. */
     var momentId by mutableStateOf<String?>(null)
+
+    /** Remap Figma period chip labels onto the operating projection query and reload. */
+    fun applySheetPeriod(label: String) {
+        when (label) {
+            "Last month" -> {
+                periodFilter = "last_month"
+                periodFrom = null
+                periodTo = null
+            }
+            "Custom range ›" -> {
+                periodFilter = "custom"
+                val today = java.time.LocalDate.now()
+                if (periodFrom.isNullOrBlank()) periodFrom = today.withDayOfYear(1).toString()
+                if (periodTo.isNullOrBlank()) periodTo = today.toString()
+            }
+            else -> {
+                periodFilter = "this_month"
+                periodFrom = null
+                periodTo = null
+            }
+        }
+        refresh += 1
+    }
 
     /** Vertical accent/surface for the shared chrome sheets. */
     var storyAccent by mutableStateOf(Color(0xFF10B981))

@@ -97,6 +97,7 @@ private enum class ManufacturingCapture(
     HOLD("Hold / release work order", "ORDER", false, false, false, null),
     TRANSFER("Transfer stock / WIP", "STOCK", false, false, false, null),
     REPRINT("Reprint invoice / job card", "SALE", false, false, false, null),
+    REWORK("Rework / Scrap / Job Work", "STOCK", false, false, false, null),
 }
 
 @Composable
@@ -131,6 +132,11 @@ fun ManufacturingQuickAddHub(
                 "spend", "expense" -> ManufacturingCapture.SPEND
                 "order" -> ManufacturingCapture.ORDER
                 "update", "issue" -> ManufacturingCapture.UPDATE
+                "rework", "scrap" -> ManufacturingCapture.REWORK
+                "hold" -> ManufacturingCapture.HOLD
+                "transfer" -> ManufacturingCapture.TRANSFER
+                "reprint" -> ManufacturingCapture.REPRINT
+                "return" -> ManufacturingCapture.RETURN
                 else -> null
             }
         OperatingChromeState.quickAddHint = null
@@ -150,7 +156,13 @@ fun ManufacturingQuickAddHub(
                     sheet = ManufacturingCapture.entries.firstOrNull { it.captureMode == code || it.eventType == code }
                         ?: ManufacturingCapture.UPDATE
                 },
-                onOpenMasters = { tabName -> OperatingChromeState.mastersOpen = tabName },
+                onOpenMasters = { tabName ->
+                    if (tabName.equals("Catalogue", ignoreCase = true)) {
+                        OperatingChromeState.partsBrowserOpen = "parts"
+                    } else {
+                        OperatingChromeState.mastersOpen = tabName
+                    }
+                },
             )
             if (error != null) {
                 Text(error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans, fontSize = 13.sp)
@@ -245,6 +257,7 @@ private val ManufacturingCapture.hubIcon: Int
         ManufacturingCapture.INVITE -> R.drawable.qa_qr
         ManufacturingCapture.SUPPLIER -> R.drawable.qa_network
         ManufacturingCapture.HOLD -> R.drawable.qa_shield
+        ManufacturingCapture.REWORK -> R.drawable.qa_alert
     }
 
 private val ManufacturingCapture.captureMode: String
@@ -255,7 +268,7 @@ private val ManufacturingCapture.captureMode: String
         ManufacturingCapture.SPEND -> "SPEND"
         ManufacturingCapture.PAYMENT -> "PAYMENT"
         ManufacturingCapture.COLLECTION -> "COLLECTION"
-        ManufacturingCapture.CUSTOMER_ORDER -> "CUSTOMER_ORDER"
+        ManufacturingCapture.CUSTOMER_ORDER -> "ORDER"
         ManufacturingCapture.DELIVERY -> "DELIVERY"
         ManufacturingCapture.BUDGET -> "BUDGET"
         ManufacturingCapture.TARGET -> "TARGET"
@@ -273,6 +286,7 @@ private val ManufacturingCapture.captureMode: String
         ManufacturingCapture.HOLD -> "HOLD"
         ManufacturingCapture.TRANSFER -> "TRANSFER"
         ManufacturingCapture.REPRINT -> "REPRINT"
+        ManufacturingCapture.REWORK -> "REWORK"
     }
 
 private fun OperatingCaptureDraft.toManufacturing() = ManufacturingEventDraft(
@@ -309,5 +323,5 @@ private fun OperatingCaptureDraft.toManufacturing() = ManufacturingEventDraft(
     masterDeliveryState = masterDeliveryState,
     masterGstin = masterGstin,
     lines = lines,
-    rejectedQuantity = null,
+    rejectedQuantity = rejectedQuantity,
 )

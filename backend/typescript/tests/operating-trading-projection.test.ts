@@ -227,6 +227,25 @@ describe('structured board metrics for both verticals', () => {
     assert.match(String(target?.why ?? ''), /target and budget/i);
   });
 
+  it('fresh ACTIVE with setup prefs still emits budget, target, GST, and boards with zero events', () => {
+    const view = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: { ...prefs('TRADING_WHOLESALE'), gstTracking: 'YES', gstState: 'Karnataka' },
+      role: 'OWNER_ADMIN',
+      events: [],
+      asOf: AS_OF,
+    });
+    assert.equal(view.activity.length, 0);
+    assert.equal(view.attention.length, 0);
+    assert.equal(view.budget?.configured, true);
+    assert.equal(view.target?.configured, true);
+    assert.equal(view.gstTracking, 'YES');
+    assert.ok((view.pulseMetrics ?? []).some((group) => group.code === 'TARGET_BUDGET'));
+    assert.ok(view.boards.moments.length > 0);
+    assert.ok(view.boards.life.length > 0);
+    assert.ok(view.boards.memory.length > 0);
+  });
+
   it('badges rows with the Figma status chips', () => {
     const view = projectOperatingMoment({
       familyCode: 'TRADING_DISTRIBUTION',

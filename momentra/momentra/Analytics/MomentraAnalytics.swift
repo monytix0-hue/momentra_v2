@@ -16,7 +16,7 @@ final class MomentraAnalytics {
     private var stuckReported = false
 
     private init() {
-        logEvent("session_start", ["platform": "ios"])
+        logEvent("app_session_start", ["platform": "ios"])
     }
 
     func onAppForeground() {
@@ -24,7 +24,7 @@ final class MomentraAnalytics {
         sessionActive = true
         sessionStartedAt = Date()
         BackendTelemetry.shared.onSessionStart()
-        logEvent("session_start", ["platform": "ios"])
+        logEvent("app_session_start", ["platform": "ios"])
         if let screen = currentScreen {
             resumeScreenTicks(screenName: screen)
         }

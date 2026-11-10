@@ -10,12 +10,15 @@ struct OperatingCaptureSheet: View {
     let theme: OperatingTheme
     let mode: String
     @ObservedObject var model: BusinessOperatingModel
+    /// Master chosen from Parts/Materials browser — applied once on appear.
+    var browserPrefill: OperatingBrowserItem? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var draft = Draft()
     @State private var saving = false
     @State private var document: OperatingDocumentPayload?
     @State private var documentError: String?
+    @State private var didApplyBrowserPrefill = false
 
     /// The twelve frames collect the same primitives; which ones are visible depends on the mode.
     struct Draft {
@@ -42,6 +45,7 @@ struct OperatingCaptureSheet: View {
         var reprintKind = "INVOICE"
         var reprintSourceId = ""
         var revisionKind = ""
+        var parentEventId: String?
         var itemName = ""
         var itemQuantity = ""
         var itemUnit = ""
@@ -57,6 +61,16 @@ struct OperatingCaptureSheet: View {
         case OperatingCaptureLayout.holdMode: return "Hold a record"
         case OperatingCaptureLayout.transferMode: return "Transfer stock"
         case OperatingCaptureLayout.reprintMode: return "Reprint a document"
+        case "SERVICE": return "Finalize Charge"
+        case "APPOINTMENT", "BOOKING": return "Booking"
+        case "STATUS": return "Status / Assignment"
+        case "CONFIRM": return "Accept / Confirm Order"
+        case "QUOTE_REVISE": return "Quote revise / expire"
+        case "OPEN_JOB": return "Open Production Job"
+        case "JOB_STATUS": return "Job status change"
+        case "REWORK": return "Rework / Scrap / Job Work"
+        case "PRODUCTION": return "Record Production"
+        case "ORDER": return model.vertical.isMadeToOrder ? "Create Quotation" : (layout?.label ?? "Order")
         default: return layout?.label ?? mode.capitalized
         }
     }
@@ -101,6 +115,18 @@ struct OperatingCaptureSheet: View {
                 && !draft.transferToId.isNilOrEmpty
                 && draft.transferFromId != draft.transferToId
                 && !draft.quantity.trimmingCharacters(in: .whitespaces).isEmpty
+        case "CONFIRM":
+            return !draft.counterparty.trimmingCharacters(in: .whitespaces).isEmpty
+                && !draft.quantity.trimmingCharacters(in: .whitespaces).isEmpty
+        case "QUOTE_REVISE":
+            return !(draft.parentEventId ?? "").isEmpty
+                && !draft.counterparty.trimmingCharacters(in: .whitespaces).isEmpty
+        case "OPEN_JOB", "JOB_STATUS":
+            return !(draft.parentEventId ?? "").isEmpty
+                && !draft.title.trimmingCharacters(in: .whitespaces).isEmpty
+        case "REWORK":
+            return !draft.quantity.trimmingCharacters(in: .whitespaces).isEmpty
+                && !draft.title.trimmingCharacters(in: .whitespaces).isEmpty
         default: return !draft.title.trimmingCharacters(in: .whitespaces).isEmpty && (!needsAmount || !draft.amount.isEmpty)
         }
     }
@@ -122,6 +148,8 @@ struct OperatingCaptureSheet: View {
                     transferBody
                 } else if mode.uppercased() == OperatingCaptureLayout.holdMode {
                     holdBody
+                } else if ["CONFIRM", "QUOTE_REVISE", "OPEN_JOB", "JOB_STATUS", "REWORK"].contains(mode.uppercased()) {
+                    mtoPlantSpecialBody
                 } else {
                     standardBody
                 }
@@ -137,6 +165,112 @@ struct OperatingCaptureSheet: View {
             .padding(18)
         }
         .background(theme.canvas.ignoresSafeArea())
+        .onAppear { applyBrowserPrefillIfNeeded() }
+    }
+
+    // MARK: - MTO / MFG special QAs
+
+    @ViewBuilder
+    private var mtoPlantSpecialBody: some View {
+        let upper = mode.uppercased()
+        switch upper {
+        case "CONFIRM", "QUOTE_REVISE":
+            field("Customer", text: $draft.counterparty)
+            field("Quote / order value", text: $draft.amount, decimal: true)
+            HStack(spacing: 10) {
+                field("Quantity", text: $draft.quantity, decimal: true)
+                field("Unit", text: $draft.unit)
+            }
+            if upper == "QUOTE_REVISE" {
+                segmented(
+                    "Status",
+                    options: ["Draft", "Sent", "Accepted", "Rejected", "Expired"],
+                    selection: $draft.revisionKind
+                )
+            } else {
+                Text("Acceptance confirms the order. It does not post revenue, a receivable, or GST.")
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(theme.muted)
+            }
+            parentPicker(label: upper == "CONFIRM" ? "Accepted quote" : "Quote to revise", types: ["CUSTOMER_ORDER", "ORDER"])
+            field("Note (optional)", text: $draft.note)
+        case "OPEN_JOB":
+            parentPicker(label: "Confirmed order", types: ["CUSTOMER_ORDER", "ORDER"])
+            field("Job ID", text: $draft.title)
+            HStack(spacing: 10) {
+                field("Job target qty", text: $draft.quantity, decimal: true)
+                field("Unit", text: $draft.unit)
+            }
+            field("BOM / notes (optional)", text: $draft.note)
+            Text("A job carries the confirmed order target. Opening it posts no output, stock or sale.")
+                .font(.plusJakarta(size: 12))
+                .foregroundStyle(theme.muted)
+        case "JOB_STATUS":
+            parentPicker(label: "Open job / order", types: ["CUSTOMER_ORDER", "ORDER", "UPDATE"])
+            segmented(
+                "Job status",
+                options: ["Open", "In progress", "On hold", "Complete", "Cancelled"],
+                selection: $draft.revisionKind
+            )
+            field("Status note", text: $draft.title)
+            field("Note (optional)", text: $draft.note)
+        case "REWORK":
+            segmented(
+                "Mode",
+                options: ["Rework", "Scrap", "Job work out"],
+                selection: Binding(
+                    get: { draft.revisionKind.isEmpty ? "Rework" : draft.revisionKind },
+                    set: { draft.revisionKind = $0 }
+                )
+            )
+            field("Action", text: $draft.title)
+            parentPicker(label: "Source batch / job", types: ["PRODUCTION", "CUSTOMER_ORDER", "ORDER"])
+            HStack(spacing: 10) {
+                field("Qty", text: $draft.quantity, decimal: true)
+                field("Unit", text: $draft.unit)
+            }
+            field("Vendor (optional)", text: $draft.counterparty)
+            field("Notes (optional)", text: $draft.note)
+            Text("Distinct canonical events — scrap never becomes finished stock.")
+                .font(.plusJakarta(size: 12))
+                .foregroundStyle(theme.muted)
+        default:
+            standardBody
+        }
+    }
+
+    @ViewBuilder
+    private func parentPicker(label: String, types: [String]) -> some View {
+        let rows = (model.projection?.activity ?? []).filter { types.contains($0.eventType.uppercased()) }
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.plusJakarta(size: 11))
+                .foregroundStyle(theme.muted)
+            if rows.isEmpty {
+                Text("Nothing recorded yet to link.")
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(theme.muted)
+            } else {
+                ForEach(rows.prefix(8)) { row in
+                    Button {
+                        draft.parentEventId = row.id
+                        if draft.counterparty.isEmpty {
+                            draft.counterparty = row.counterpartyName ?? ""
+                        }
+                        if draft.title.isEmpty { draft.title = row.title }
+                    } label: {
+                        Text(draft.parentEventId == row.id ? "Selected \(row.title)" : row.title)
+                            .font(.plusJakarta(size: 13, weight: .medium))
+                            .foregroundStyle(theme.ink)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                            .background(draft.parentEventId == row.id ? theme.accent.opacity(0.16) : theme.inset)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 
     // MARK: - Standard layouts
@@ -163,6 +297,19 @@ struct OperatingCaptureSheet: View {
         if layout == .stock {
             segmented("Stock action", options: ["IN", "OUT", "TRANSFER"], selection: $draft.stockAction)
             field("Reason", text: $draft.stockReason)
+            // FEFO binds projection batch identity only — never invents an expiry date.
+            VStack(alignment: .leading, spacing: 4) {
+                Text("FEFO / nearest expiry")
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(theme.muted)
+                Text(fefoFactLabel(master: selectedMaster))
+                    .font(.plusJakarta(size: 13, weight: .medium))
+                    .foregroundStyle(theme.ink)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(theme.inset)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         if layout == .collection || layout == .payment {
             segmented("Payment", options: ["PAID", "PARTIAL", "UNPAID"], selection: $draft.paymentStatus)
@@ -212,8 +359,14 @@ struct OperatingCaptureSheet: View {
         return model.masters.first { $0.id == id }?.name
     }
 
+    private var selectedMaster: OperatingMasterPayload? {
+        guard let id = draft.masterId, !id.isEmpty else { return nil }
+        return model.masters.first { $0.id == id }
+    }
+
     private var skuPicker: some View {
-        let skus = model.masters.filter { ["SKU", "PRODUCT"].contains($0.kind.uppercased()) }
+        let kinds: Set<String> = ["SKU", "PRODUCT", "BATCH", "PART", "MATERIAL", "RAW", "BOM"]
+        let skus = model.masters.filter { kinds.contains($0.kind.uppercased()) || $0.kind.isEmpty }
         return Group {
             if !skus.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
@@ -226,14 +379,26 @@ struct OperatingCaptureSheet: View {
                                 Button {
                                     draft.masterId = sku.id
                                     draft.sku = sku.name
+                                    draft.itemName = sku.name
+                                    if draft.title.isEmpty { draft.title = sku.name }
+                                    if draft.quantity.isEmpty { draft.quantity = "1" }
                                     if draft.unit.isEmpty { draft.unit = sku.unit ?? "" }
-                                    if draft.itemPrice.isEmpty { draft.itemPrice = sku.sellPrice ?? "" }
+                                    if draft.itemPrice.isEmpty {
+                                        draft.itemPrice = sku.sellPrice ?? sku.purchasePrice ?? ""
+                                    }
                                 } label: {
-                                    OperatingPill(
-                                        theme: theme,
-                                        label: sku.name,
-                                        accent: draft.masterId == sku.id
-                                    )
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        OperatingPill(
+                                            theme: theme,
+                                            label: sku.name,
+                                            accent: draft.masterId == sku.id
+                                        )
+                                        if sku.kind.uppercased() == "BATCH" {
+                                            Text(fefoFactLabel(master: sku))
+                                                .font(.plusJakarta(size: 10))
+                                                .foregroundStyle(theme.warning)
+                                        }
+                                    }
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -241,6 +406,20 @@ struct OperatingCaptureSheet: View {
                     }
                 }
             }
+        }
+    }
+
+    private func applyBrowserPrefillIfNeeded() {
+        guard !didApplyBrowserPrefill, let item = browserPrefill else { return }
+        didApplyBrowserPrefill = true
+        draft.masterId = item.id
+        draft.sku = item.name
+        draft.itemName = item.name
+        if draft.title.isEmpty { draft.title = item.name }
+        if draft.quantity.isEmpty { draft.quantity = "1" }
+        if draft.unit.isEmpty, let unit = item.unit, !unit.isEmpty { draft.unit = unit }
+        if draft.itemPrice.isEmpty, let price = item.unitPrice, !price.isEmpty {
+            draft.itemPrice = price
         }
     }
 
@@ -460,6 +639,12 @@ struct OperatingCaptureSheet: View {
         switch mode.uppercased() {
         case OperatingCaptureLayout.reprintMode: return "Load document"
         case OperatingCaptureLayout.holdMode: return draft.holdChoice == "No hold" ? "Release hold" : "Hold record"
+        case "CONFIRM": return "Confirm order"
+        case "QUOTE_REVISE": return "Save quote revise"
+        case "OPEN_JOB": return "Open job"
+        case "JOB_STATUS": return "Save job status"
+        case "REWORK": return "Post action"
+        case "ORDER" where model.vertical.isMadeToOrder: return "Send quotation"
         default: return "Record"
         }
     }
@@ -504,7 +689,21 @@ struct OperatingCaptureSheet: View {
             saving = true
             defer { saving = false }
             let ok = await model.record(eventInput())
-            if ok { dismiss() }
+            if ok {
+                if model.vertical.isMadeToOrder {
+                    let entity = draft.title.isEmpty
+                        ? (draft.counterparty.isEmpty ? model.title : draft.counterparty)
+                        : draft.title
+                    MtoToastHost.shared.show(
+                        MtoToastCatalog.forCaptureSuccess(
+                            mode: mode,
+                            eventType: eventType,
+                            entity: entity.isEmpty ? "this job" : entity
+                        )
+                    )
+                }
+                dismiss()
+            }
         }
     }
 
@@ -537,10 +736,59 @@ struct OperatingCaptureSheet: View {
         if layout == .collection || layout == .payment {
             input.paymentStatus = draft.paymentStatus
         }
-        if layout == .stock {
+        let upper = mode.uppercased()
+        // REWORK owns its own stock/update mapping — do not inherit generic STOCK IN defaults.
+        if layout == .stock && upper != "REWORK" {
             contract.stockAction = OperatingContractVocabulary.stockAction(draft.stockAction)
             contract.stockReason = OperatingContractVocabulary.stockReason(draft.stockReason)
             contract.ownership = OperatingContractVocabulary.ownership(draft.ownership)
+        }
+        if upper == "CONFIRM" || upper == "QUOTE_REVISE" || (upper == "ORDER" && model.vertical.isManufacturing) {
+            let status: String = {
+                if upper == "CONFIRM" { return "ACCEPTED" }
+                switch draft.revisionKind {
+                case "Draft": return "DRAFT"
+                case "Sent": return "SENT"
+                case "Rejected": return "REJECTED"
+                case "Expired": return "EXPIRED"
+                case "Accepted": return "ACCEPTED"
+                default: return upper == "QUOTE_REVISE" ? "SENT" : "DRAFT"
+                }
+            }()
+            contract.quotationStatus = status
+            if status == "ACCEPTED" { contract.orderStatus = "PLACED" }
+            contract.estimatedAmount = draft.amount.isEmpty ? nil : draft.amount
+            input.parentEventId = draft.parentEventId
+            if upper == "CONFIRM" || upper == "QUOTE_REVISE" {
+                input.revisesEventId = draft.parentEventId
+            }
+            if input.title.isEmpty {
+                input.title = draft.counterparty.isEmpty ? "Customer order" : draft.counterparty
+            }
+        }
+        if upper == "OPEN_JOB" || upper == "JOB_STATUS" {
+            input.parentEventId = draft.parentEventId
+            contract.productionStatus = {
+                switch draft.revisionKind {
+                case "Open": return "PLANNED"
+                case "Complete", "Cancelled": return "COMPLETED"
+                default: return "IN_PROGRESS"
+                }
+            }()
+        }
+        if upper == "REWORK" {
+            input.parentEventId = draft.parentEventId
+            // Scrap / rework qty is the rejectedQuantity the manufacturing projection keys on.
+            let qty = draft.quantity.trimmingCharacters(in: .whitespaces)
+            if !qty.isEmpty { input.rejectedQuantity = qty }
+            if draft.revisionKind == "Scrap" {
+                contract.stockAction = "REDUCE"
+                contract.stockReason = "waste"
+                contract.ownership = "OWNED"
+            }
+            if input.note == nil {
+                input.note = "Rework/scrap — scrap never becomes finished stock"
+            }
         }
         if mode.uppercased() == OperatingCaptureLayout.transferMode {
             contract.stockAction = "TRANSFER"
@@ -567,6 +815,24 @@ struct OperatingCaptureSheet: View {
     }
 
     private var eventType: String {
+        switch mode.uppercased() {
+        case "SERVICE": return "SERVICE"
+        case "APPOINTMENT", "BOOKING": return "APPOINTMENT"
+        case "STATUS":
+            // Service status rides on appointments; retail / restaurant status rides on orders.
+            return theme.vertical == .consumerService ? "APPOINTMENT" : "ORDER"
+        case "CONFIRM", "QUOTE_REVISE":
+            return "CUSTOMER_ORDER"
+        case "ORDER" where model.vertical.isManufacturing:
+            return "CUSTOMER_ORDER"
+        case "OPEN_JOB", "JOB_STATUS":
+            return "UPDATE"
+        case "REWORK":
+            return draft.revisionKind == "Scrap" ? "STOCK" : "UPDATE"
+        case "PRODUCTION":
+            return "PRODUCTION"
+        default: break
+        }
         switch layout {
         case .sale: return "SALE"
         case .purchase: return "PURCHASE"
@@ -578,7 +844,7 @@ struct OperatingCaptureSheet: View {
         case .budget: return "BUDGET"
         case .update: return "UPDATE"
         case .approval: return "APPROVAL"
-        case .order: return "ORDER"
+        case .order: return model.vertical.isManufacturing ? "CUSTOMER_ORDER" : "ORDER"
         case .shipment: return "SHIPMENT"
         case nil: return "UPDATE"
         }

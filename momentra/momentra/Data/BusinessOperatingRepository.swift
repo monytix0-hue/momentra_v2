@@ -54,6 +54,8 @@ struct OperatingEventInput {
     var resultSource: String? = nil
     var attributedSales: String? = nil
     var effectiveFrom: String? = nil
+    /// Manufacturing / MTO detailed production + scrap/rework qty the API persists separately.
+    var rejectedQuantity: String? = nil
 
     struct OperatingLineItem {
         var itemName: String
@@ -123,10 +125,11 @@ final class BusinessOperatingRepository: BusinessOperatingGateway {
             activityStatus: input.activityStatus,
             attributedSales: input.attributedSales,
             revisionKind: input.revisionKind,
+            rejectedQuantity: input.rejectedQuantity,
             creativeVersion: input.creativeVersion,
             resultSource: input.resultSource,
-            effectiveFrom: input.effectiveFrom,
-            idempotencyKey: key
+            idempotencyKey: key,
+            effectiveFrom: input.effectiveFrom
         )
         idempotency.clear(draftKey: draftKey)
         return RecordOperatingEventResult(eventId: result.eventId, approvalStatus: result.approvalStatus)

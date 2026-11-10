@@ -36,6 +36,7 @@ import com.example.momentra.data.api.OperatingBoardSectionDto
 import com.example.momentra.data.api.OperatingPaymentDto
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.ui.theme.PlusJakartaSans
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -161,14 +162,25 @@ fun OperatingSheetFrame(
     content: @Composable (selectedStatus: String) -> Unit,
 ) {
     val filters = sheetCode?.let { OperatingSheetChrome.statusFilters(it) }.orEmpty()
-    var period by remember { mutableStateOf(OperatingSheetChrome.periodFilters.first()) }
+    var period by remember {
+        mutableStateOf(
+            when (OperatingChromeState.periodFilter) {
+                "last_month" -> "Last month"
+                "custom" -> "Custom range ›"
+                else -> OperatingSheetChrome.periodFilters.first()
+            },
+        )
+    }
     var status by remember(sheetCode) { mutableStateOf(filters.firstOrNull() ?: "All") }
+    var pickingCustomBound by remember { mutableStateOf<String?>(null) }
     val month = runCatching {
         YearMonth.parse(model.startDate?.take(7) ?: "").format(sheetMonthFmt)
     }.getOrElse { "This month" }
     val contextLine = "${model.title?.takeIf { it.isNotBlank() } ?: "Business"} · $month · full activity, newest first"
     val footerCta = sheetCode?.let { OperatingSheetChrome.footerCta(it) }
     val shown = visibleCount(status)
+    val customFrom = OperatingChromeState.periodFrom
+    val customTo = OperatingChromeState.periodTo
 
     OperatingSheetScrim(
         onDismiss = onDismiss,
@@ -176,6 +188,7 @@ fun OperatingSheetFrame(
         surface = theme.canvas,
         border = theme.border,
     ) {
+        Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             Column(
                 Modifier
@@ -224,8 +237,46 @@ fun OperatingSheetFrame(
                     options = OperatingSheetChrome.periodFilters,
                     selected = period,
                     theme = theme,
-                    onSelect = { period = it },
+                    onSelect = { next ->
+                        period = next
+                        OperatingChromeState.applySheetPeriod(next)
+                    },
                 )
+                if (period == "Custom range ›") {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            "From ${customFrom ?: "…"}",
+                            color = theme.ink,
+                            fontFamily = PlusJakartaSans,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(theme.inset)
+                                .border(1.dp, theme.border, RoundedCornerShape(999.dp))
+                                .clickable { pickingCustomBound = "from" }
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                        )
+                        Text(
+                            "To ${customTo ?: "…"}",
+                            color = theme.ink,
+                            fontFamily = PlusJakartaSans,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(theme.inset)
+                                .border(1.dp, theme.border, RoundedCornerShape(999.dp))
+                                .clickable { pickingCustomBound = "to" }
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                        )
+                    }
+                }
                 if (filters.isNotEmpty()) {
                     OperatingSheetChipRow(
                         options = filters,
@@ -288,6 +339,37 @@ fun OperatingSheetFrame(
                     )
                 }
             }
+        }
+        pickingCustomBound?.let { bound ->
+            val initial = runCatching {
+                LocalDate.parse(
+                    if (bound == "from") customFrom else customTo,
+                )
+            }.getOrElse { LocalDate.now() }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(theme.canvas),
+            ) {
+                OperatingPickerSheet(
+                    mode = OperatingPickerMode.DAY,
+                    initial = initial,
+                    theme = theme,
+                    title = if (bound == "from") "Custom range · from" else "Custom range · to",
+                    onDismiss = { pickingCustomBound = null },
+                    onDay = { day ->
+                        if (bound == "from") {
+                            OperatingChromeState.periodFrom = day.toString()
+                        } else {
+                            OperatingChromeState.periodTo = day.toString()
+                        }
+                        OperatingChromeState.periodFilter = "custom"
+                        OperatingChromeState.refresh += 1
+                        pickingCustomBound = null
+                    },
+                )
+            }
+        }
         }
     }
 }

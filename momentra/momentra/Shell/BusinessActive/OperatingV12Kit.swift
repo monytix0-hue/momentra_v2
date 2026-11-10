@@ -238,7 +238,7 @@ struct OperatingV12StatusChip: View {
 /// every v12 widget carries. The whole stack is the tap target for `View all`.
 struct OperatingV12WidgetHeader: View {
     let title: String
-    let subtitle: String?
+    var subtitle: String? = nil
     var onViewAll: (() -> Void)? = nil
 
     var body: some View {
@@ -464,7 +464,8 @@ struct OperatingV12Why: View {
 /// The four capture shortcuts every operating tab carries under its hero.
 ///
 /// Pulse tints each plate by action (sale and money emerald, purchase cyan); the other tabs keep
-/// them dark under one accent hairline. Codes match the capture sheet's modes exactly.
+/// them dark under one accent hairline. Codes match the capture sheet's modes exactly — retail
+/// family swaps the primary pair (POS/KOT, Finalize/Booking) so Pulse never opens trading sheets.
 struct OperatingV12QuickActions: View {
     let theme: OperatingTheme
     var tinted: Bool = false
@@ -479,14 +480,38 @@ struct OperatingV12QuickActions: View {
         var id: String { code }
     }
 
-    // DST/TRD-PULSE-v12: thin SF Symbols (not emoji); Sale carries the selected accent dot.
+    // DST/TRD-PULSE-v12: thin SF Symbols (not emoji); first plate carries the selected accent dot.
     private var actions: [Action] {
-        [
-            Action(code: "SALE", systemImage: "camera", label: "Sale", cyan: false),
-            Action(code: "PURCHASE", systemImage: "bubble.left.and.bubble.right", label: "Purchase", cyan: true),
-            Action(code: "COLLECTION", systemImage: "list.clipboard", label: "Collection", cyan: false),
-            Action(code: "PAYMENT", systemImage: "creditcard", label: "Payment", cyan: false),
-        ]
+        switch theme.vertical {
+        case .restaurantFood:
+            return [
+                Action(code: "POS", systemImage: "fork.knife", label: "POS", cyan: false),
+                Action(code: "KOT", systemImage: "flame", label: "KOT", cyan: true),
+                Action(code: "COLLECTION", systemImage: "list.clipboard", label: "Collection", cyan: false),
+                Action(code: "PAYMENT", systemImage: "creditcard", label: "Payment", cyan: false),
+            ]
+        case .consumerService:
+            return [
+                Action(code: "SERVICE", systemImage: "checkmark.seal", label: "Charge", cyan: false),
+                Action(code: "APPOINTMENT", systemImage: "calendar", label: "Booking", cyan: true),
+                Action(code: "COLLECTION", systemImage: "list.clipboard", label: "Collection", cyan: false),
+                Action(code: "PAYMENT", systemImage: "creditcard", label: "Payment", cyan: false),
+            ]
+        case .retailStore:
+            return [
+                Action(code: "SALE", systemImage: "bag", label: "Sale", cyan: false),
+                Action(code: "PURCHASE", systemImage: "cart", label: "Purchase", cyan: true),
+                Action(code: "COLLECTION", systemImage: "list.clipboard", label: "Collection", cyan: false),
+                Action(code: "PAYMENT", systemImage: "creditcard", label: "Payment", cyan: false),
+            ]
+        default:
+            return [
+                Action(code: "SALE", systemImage: "camera", label: "Sale", cyan: false),
+                Action(code: "PURCHASE", systemImage: "bubble.left.and.bubble.right", label: "Purchase", cyan: true),
+                Action(code: "COLLECTION", systemImage: "list.clipboard", label: "Collection", cyan: false),
+                Action(code: "PAYMENT", systemImage: "creditcard", label: "Payment", cyan: false),
+            ]
+        }
     }
 
     var body: some View {
@@ -707,33 +732,43 @@ struct OperatingV12Ring: View {
 // MARK: - Hub tile
 
 /// `tile · Sale` from `TRD-HUB-v11`: 112 pt tall, three up, accent icon plate.
+/// Pass `lockedReason` (or legacy `unavailable`) for honest non-actionable tiles — visible, never opens a capture.
 struct OperatingV12ActionTile: View {
     let theme: OperatingTheme
     let title: String
     let subtitle: String
     let glyph: String
+    var unavailable: Bool = false
+    /// When set, tile stays visible but disabled; caption becomes this reason (`Role locked` / `Unavailable`).
+    var lockedReason: String? = nil
     let action: () -> Void
 
+    private var locked: String? {
+        if let lockedReason { return lockedReason }
+        return unavailable ? "Unavailable" : nil
+    }
+
     var body: some View {
-        Button(action: action) {
+        let isLocked = locked != nil
+        return Button(action: action) {
             VStack(alignment: .leading, spacing: 6) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(theme.accent.opacity(0.16))
+                        .fill(theme.accent.opacity(isLocked ? 0.08 : 0.16))
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(theme.accent.opacity(0.45), lineWidth: 1)
+                        .stroke(theme.accent.opacity(isLocked ? 0.25 : 0.45), lineWidth: 1)
                     Image(systemName: glyph)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(theme.accent)
+                        .foregroundStyle(isLocked ? OperatingV12.subtitle : theme.accent)
                 }
                 .frame(width: 32, height: 32)
-                .shadow(color: theme.accent.opacity(0.5), radius: 6)
+                .shadow(color: theme.accent.opacity(isLocked ? 0 : 0.5), radius: 6)
                 Text(title)
                     .font(.plusJakarta(size: 14, weight: .bold))
-                    .foregroundStyle(OperatingV12.title)
+                    .foregroundStyle(isLocked ? OperatingV12.subtitle : OperatingV12.title)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                Text(subtitle)
+                Text(locked ?? subtitle)
                     .font(.plusJakarta(size: 10))
                     .foregroundStyle(OperatingV12.subtitle)
                     .lineLimit(2)
@@ -744,13 +779,15 @@ struct OperatingV12ActionTile: View {
             .background(OperatingV12.surface)
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(theme.accent.opacity(0.35), lineWidth: 1)
+                    .stroke(theme.accent.opacity(isLocked ? 0.2 : 0.35), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 4)
+            .shadow(color: .black.opacity(isLocked ? 0.15 : 0.4), radius: 6, x: 0, y: 4)
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .opacity(isLocked ? 0.72 : 1)
         }
         .buttonStyle(.plain)
+        .disabled(isLocked)
     }
 }
 

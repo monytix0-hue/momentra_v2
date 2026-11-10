@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.data.api.OperatingActivityDto
 import com.example.momentra.data.api.OperatingContractBody
 import com.example.momentra.data.api.OperatingLineBody
 import com.example.momentra.data.api.OperatingProjectionDto
@@ -42,18 +43,10 @@ import java.math.RoundingMode
  * POS bill — Figma `RST-QA-01-ALT · POS · In-dining` `2446:29655`, `· Cloud` `2446:29802`,
  * `· Takeaway` `2448:29655`.
  *
- * Honest mapping onto the strict operating contract:
- * - the three mode chips set `channelName`, which `validateSale` requires;
- * - each cart line posts as a real `lines[]` entry (`itemName`, `quantity`, `unit`,
- *   `unitPrice`) and the bill posts `SALE` with `entryMode = ITEMIZED`;
- * - the tender chips collapse to the single `paymentState` one bill carries;
- * - `GST` and `Service` have no client-settable field here, so they print `Unavailable`
- *   with the reason instead of a fabricated `₹0` line;
- * - Table / covers / KOT number have no field on `.strict()`, so they render disabled
- *   with the reason printed rather than pretending to save.
- *
- * `MENU_DISH` masters carry no price column, so the price is typed on the ticket line —
- * the same way the backend derives the bill amount from `lines[]`.
+ * Posts a real `SALE` with `entryMode = ITEMIZED` and `lines[]`. Mode chips set
+ * `channelName`. Table / covers persist on `contract.tableNumber` / `contract.covers`.
+ * Optional open KOT links via `parentEventId`. GST / Service / Split / PDF reprint stay
+ * Unavailable — no client tax engine, split tender model, or document endpoint.
  */
 @Composable
 internal fun RestaurantPosSheet(
@@ -71,14 +64,23 @@ internal fun RestaurantPosSheet(
         model.life?.channels.orEmpty().filter { it.isNotBlank() }
             .ifEmpty { listOf("In-dining", "Cloud", "Takeaway") }
     }
+    val openKots = remember(model.activity) {
+        openOrders(model)
+            .filter { it.status?.uppercase() !in setOf("COMPLETED", "CANCELLED") }
+            .sortedByDescending { it.occurredAt }
+    }
 
     var mode by remember { mutableStateOf(channels.first()) }
     var tender by remember { mutableStateOf("UPI") }
     var dishQuery by remember { mutableStateOf("") }
     var guest by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+    var tableNumber by remember { mutableStateOf("") }
+    var covers by remember { mutableStateOf("") }
+    var parentKotId by remember { mutableStateOf<String?>(null) }
     val cart = remember { mutableStateListOf<PosLine>() }
 
+    val linkedKot = openKots.firstOrNull { it.id == parentKotId }
     val subtotal = cart.fold(BigDecimal.ZERO) { total, line -> total + line.amount() }
     val subtotalText = RestaurantFormat.exact(currency, subtotal.stripTrailingZeros().toPlainString())
     val pricedLines = cart.filter { it.unitPrice.toBigDecimalOrNull()?.signum() == 1 }
@@ -97,11 +99,11 @@ internal fun RestaurantPosSheet(
             subtitle = listOfNotNull(
                 model.title?.takeIf { it.isNotBlank() },
                 "${cart.size} line${if (cart.size == 1) "" else "s"}",
+                linkedKot?.let { "KOT linked" },
             ).joinToString(" · "),
             onClose = onDismiss,
         )
 
-        // Mode chips → `channelName`. `validateSale` rejects a bill without one.
         EmberFieldLabel("Mode")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             channels.take(3).forEach { channel ->
@@ -113,9 +115,81 @@ internal fun RestaurantPosSheet(
             }
         }
 
-        // Table / covers / KOT — no field on the strict contract.
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("Table", "Covers", "KOT").forEach { LockedChip(it) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                EmberFieldLabel("Table")
+                EmberTextField(
+                    value = tableNumber,
+                    placeholder = "12",
+                    onValueChange = { tableNumber = it.take(40) },
+                )
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                EmberFieldLabel("Covers")
+                EmberTextField(
+                    value = covers,
+                    placeholder = "4",
+                    onValueChange = { covers = it.filter { ch -> ch.isDigit() || ch == '.' }.take(8) },
+                )
+            }
+        }
+
+        if (openKots.isNotEmpty()) {
+            EmberFieldLabel("Bill from KOT")
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                openKots.take(4).forEach { ticket ->
+                    val selected = ticket.id == parentKotId
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (selected) RestaurantEmber.ember.copy(alpha = 0.16f)
+                                else RestaurantEmber.surfaceWell,
+                            )
+                            .border(
+                                1.dp,
+                                if (selected) RestaurantEmber.ember else Color.White.copy(alpha = 0.06f),
+                                RoundedCornerShape(10.dp),
+                            )
+                            .clickable {
+                                if (selected) {
+                                    parentKotId = null
+                                } else {
+                                    parentKotId = ticket.id
+                                    applyKotContext(
+                                        ticket = ticket,
+                                        onMode = { if (channels.contains(it)) mode = it },
+                                        onTable = { tableNumber = it },
+                                        onCovers = { covers = it },
+                                        onGuest = { if (guest.isBlank()) guest = it },
+                                    )
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                ticket.title.ifBlank { "Kitchen ticket" },
+                                style = RestaurantEmber.rowTitle(),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                kotMetaLine(ticket),
+                                style = RestaurantEmber.rowCaption().copy(fontSize = 10.sp),
+                                maxLines = 1,
+                            )
+                        }
+                        EmberSeverityChip(
+                            label = restaurantOrderStatusLabel(ticket.status),
+                            color = RestaurantEmber.ember,
+                        )
+                    }
+                }
+            }
         }
 
         EmberFieldLabel("Add from menu")
@@ -131,9 +205,8 @@ internal fun RestaurantPosSheet(
                     onValueChange = { dishQuery = it },
                 )
             }
-            val addLabel = "Add"
             Text(
-                addLabel,
+                "Add",
                 style = RestaurantEmber.chipLabel(true).copy(
                     color = if (menuDishes.isEmpty()) RestaurantEmber.textFaint else Color.White,
                 ),
@@ -185,6 +258,12 @@ internal fun RestaurantPosSheet(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f),
                             )
+                            dish.sellPrice?.takeIf { it.isNotBlank() }?.let {
+                                Text(
+                                    RestaurantFormat.exact(currency, it),
+                                    style = RestaurantEmber.rowCaption(RestaurantEmber.gold).copy(fontSize = 10.sp),
+                                )
+                            }
                             dish.gstRate?.takeIf { it.isNotBlank() }?.let {
                                 EmberSeverityChip("GST $it%", RestaurantEmber.gold, bordered = false)
                             }
@@ -207,7 +286,7 @@ internal fun RestaurantPosSheet(
         if (cart.isEmpty()) {
             EmberEmpty(
                 "Nothing on the bill",
-                "Pick a saved dish above, then type its price. Every line posts as an itemized sale line.",
+                "Pick a saved dish above, then confirm its price. Every line posts as an itemized sale line.",
             )
         } else {
             Column(
@@ -241,7 +320,6 @@ internal fun RestaurantPosSheet(
             }
         }
 
-        // Totals — GST and service have no client-settable field in the strict contract.
         Column(
             Modifier
                 .fillMaxWidth()
@@ -298,11 +376,6 @@ internal fun RestaurantPosSheet(
             style = RestaurantEmber.rowCaption(RestaurantEmber.textFaint).copy(fontSize = 10.sp),
         )
 
-        EmberLockedField(
-            label = "Table · covers",
-            value = "Not captured",
-            reason = "The strict contract has no table, section or covers field — the bill still posts.",
-        )
         EmberFieldLabel("Guest")
         EmberTextField(
             value = guest,
@@ -336,24 +409,35 @@ internal fun RestaurantPosSheet(
                         masterId = it.masterId,
                     )
                 }
+                val table = tableNumber.trim()
+                val coverCount = covers.trim()
+                val title = when {
+                    guest.isNotBlank() -> "Bill · ${guest.trim()}"
+                    table.isNotBlank() -> "Bill · Table $table"
+                    else -> "Bill · ${cart.size} item${if (cart.size == 1) "" else "s"}"
+                }
+                val noteParts = listOfNotNull(
+                    "Tender: $tender",
+                    note.takeIf { it.isNotBlank() },
+                )
                 onSubmit(
                     RestaurantEventDraft(
                         eventType = "SALE",
-                        title = if (guest.isNotBlank()) {
-                            "Bill · $guest"
-                        } else {
-                            "Bill · ${cart.size} item${if (cart.size == 1) "" else "s"}"
-                        },
+                        title = title,
                         amount = subtotal.stripTrailingZeros().toPlainString(),
-                        note = note.takeIf { it.isNotBlank() },
+                        note = noteParts.joinToString(" · "),
                         channelName = mode,
                         counterpartyName = guest.takeIf { it.isNotBlank() },
                         paymentStatus = "COLLECTED",
+                        parentEventId = parentKotId,
+                        quantity = coverCount.takeIf { it.isNotBlank() },
                         contract = OperatingContractBody(
                             entryMode = "ITEMIZED",
                             paymentState = "RECEIVED",
                             receivedAmount = subtotal.stripTrailingZeros().toPlainString(),
                             taxMode = "NOT_CONFIGURED",
+                            tableNumber = table.takeIf { it.isNotBlank() },
+                            covers = coverCount.takeIf { it.isNotBlank() },
                         ),
                         lines = lines,
                     ),
@@ -363,6 +447,28 @@ internal fun RestaurantPosSheet(
         Spacer(Modifier.height(16.dp))
     }
 }
+
+private fun applyKotContext(
+    ticket: OperatingActivityDto,
+    onMode: (String) -> Unit,
+    onTable: (String) -> Unit,
+    onCovers: (String) -> Unit,
+    onGuest: (String) -> Unit,
+) {
+    ticket.channelName?.takeIf { it.isNotBlank() }?.let(onMode)
+    ticket.tableNumber?.takeIf { it.isNotBlank() }?.let(onTable)
+    (ticket.covers ?: ticket.quantity)?.takeIf { it.isNotBlank() }?.let(onCovers)
+    ticket.counterpartyName?.takeIf { it.isNotBlank() }?.let(onGuest)
+}
+
+private fun kotMetaLine(ticket: OperatingActivityDto): String =
+    listOfNotNull(
+        ticket.tableNumber?.takeIf { it.isNotBlank() }?.let { "Table $it" },
+        ticket.covers?.takeIf { it.isNotBlank() }?.let { "$it covers" },
+        ticket.channelName?.takeIf { it.isNotBlank() },
+        ticket.clientKey?.takeIf { it.isNotBlank() },
+        ticket.counterpartyName?.takeIf { it.isNotBlank() },
+    ).joinToString(" · ").ifBlank { "Open order" }
 
 @Composable
 private fun LockedChip(label: String) {
@@ -464,12 +570,11 @@ private data class PosLine(
         .setScale(2, RoundingMode.HALF_UP)
 
     companion object {
-        /** Dish masters carry no price, so the ticket line starts blank and is filled in. */
         fun of(master: com.example.momentra.data.api.OperatingMasterDto) = PosLine(
             masterId = master.id,
             name = master.name,
             unit = master.unit?.takeIf { it.isNotBlank() } ?: "plate",
-            unitPrice = "",
+            unitPrice = master.sellPrice?.takeIf { it.isNotBlank() }.orEmpty(),
             quantity = 1,
         )
     }

@@ -869,7 +869,7 @@ async function renderEvents(parent: HTMLElement): Promise<void> {
   parent.appendChild(el('p', 'page-sub', 'Click a card to peek at raw properties. Chip filters update instantly.'));
 
   const chips = el('div', 'chip-row');
-  const filters = ['all', 'screen_enter', 'screen_tick', 'screen_stuck', 'widget_interaction', 'session_start', 'auth_success'];
+  const filters = ['all', 'screen_enter', 'screen_tick', 'screen_stuck', 'widget_interaction', 'app_session_start', 'auth_success'];
   let activeFilter = 'all';
 
   const eventFilter = el('input') as HTMLInputElement;

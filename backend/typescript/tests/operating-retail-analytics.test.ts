@@ -718,6 +718,98 @@ describe('consumer service analytics CS / CS-L', () => {
     assert.equal(view.finance?.sales ?? '0.0000', '0.0000');
   });
 
+  it('restaurant POS/KOT persist table, covers, and station on write + projection', () => {
+    const kot = validateRetailWrite(
+      write({
+        eventType: 'ORDER',
+        title: 'Table 12',
+        channelName: 'In-dining',
+        quantity: '4',
+        lines: [{ itemName: 'Butter chicken', quantity: '1', unit: 'plate', unitPrice: null }],
+        contract: {
+          orderStatus: 'PLACED',
+          tableNumber: '12',
+          covers: '4',
+          locationName: 'Tandoor',
+          clientKey: 'KOT-442',
+        },
+      }),
+      []
+    );
+    assert.equal(kot.ok, true);
+    if (!kot.ok) return;
+    assert.equal(kot.contract.tableNumber, '12');
+    assert.equal(kot.contract.covers, '4');
+    assert.equal(kot.contract.locationName, 'Tandoor');
+    assert.equal(kot.contract.clientKey, 'KOT-442');
+
+    const orderRow = event('ord', 'ORDER', {
+      title: 'Table 12',
+      channelName: 'In-dining',
+      quantity: '4',
+      lines: [{ itemName: 'Butter chicken', quantity: '1', unit: 'plate' }],
+      contract: kot.contract,
+    });
+    const fired = validateRetailWrite(
+      write({
+        eventType: 'ORDER',
+        title: 'Table 12',
+        channelName: 'In-dining',
+        revisingId: 'ord',
+        contract: { orderStatus: 'PREPARING' },
+      }),
+      asRetail([orderRow])
+    );
+    assert.equal(fired.ok, true);
+    if (!fired.ok) return;
+    assert.equal(fired.contract.orderStatus, 'PREPARING');
+    assert.equal(fired.contract.tableNumber, '12');
+    assert.equal(fired.contract.covers, '4');
+    assert.equal(fired.contract.locationName, 'Tandoor');
+    assert.equal(fired.contract.clientKey, 'KOT-442');
+
+    const bill = validateRetailWrite(
+      write({
+        eventType: 'SALE',
+        title: 'Bill · Table 12',
+        amount: '420',
+        channelName: 'In-dining',
+        parentEventId: 'ord',
+        contract: {
+          entryMode: 'ITEMIZED',
+          paymentState: 'RECEIVED',
+          tableNumber: '12',
+          covers: '4',
+        },
+        lines: [{ itemName: 'Butter chicken', quantity: '1', unit: 'plate', unitPrice: '420' }],
+      }),
+      asRetail([orderRow])
+    );
+    assert.equal(bill.ok, true);
+    if (!bill.ok) return;
+    assert.equal(bill.contract.tableNumber, '12');
+    assert.equal(bill.contract.covers, '4');
+
+    const view = projectOperatingMoment({
+      familyCode: 'RETAIL_CONSUMER',
+      prefs: prefs('RESTAURANT_FOOD'),
+      role: 'FINANCE',
+      events: [
+        event('ord', 'ORDER', {
+          title: 'Table 12',
+          channelName: 'In-dining',
+          contract: fired.contract,
+        }),
+      ],
+    });
+    const activity = view.activity.find((row) => row.id === 'ord');
+    assert.equal(activity?.tableNumber, '12');
+    assert.equal(activity?.covers, '4');
+    assert.equal(activity?.locationName, 'Tandoor');
+    assert.equal(activity?.clientKey, 'KOT-442');
+    assert.equal(activity?.status, 'PREPARING');
+  });
+
   it('ALL-05: quick amount never moves stock', () => {
     const sale = event('sale', 'SALE', {
       amount: '500.0000',

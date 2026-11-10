@@ -180,19 +180,58 @@ fun RestaurantStoryConfigSheet(
                 }
             }
 
+            val hasActivity = model.activity.isNotEmpty()
+            if (!hasActivity) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(RestaurantEmber.field)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("⚠", color = RestaurantEmber.amber, fontFamily = com.example.momentra.ui.theme.PlusJakartaSans, fontSize = 18.sp)
+                    Text(
+                        "No verified activity in this period",
+                        color = RestaurantEmber.textPrimary,
+                        fontFamily = com.example.momentra.ui.theme.PlusJakartaSans,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                    )
+                    Text(
+                        "We found no reconciled records for $month. We won’t show zeros for data we don’t have.",
+                        color = RestaurantEmber.textBody,
+                        fontFamily = com.example.momentra.ui.theme.PlusJakartaSans,
+                        fontSize = 12.sp,
+                    )
+                    listOf("Activity" to "Not recorded", "Money" to "Not recorded", "Network" to "Not recorded").forEach { (label, value) ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(label, color = RestaurantEmber.textBody, fontFamily = com.example.momentra.ui.theme.PlusJakartaSans, fontSize = 12.sp)
+                            Text(value, color = RestaurantEmber.amber, fontFamily = com.example.momentra.ui.theme.PlusJakartaSans, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
             Row(
                 Modifier
                     .fillMaxWidth()
                     .clip(RestaurantEmber.rCardTight)
-                    .background(RestaurantEmber.ember)
-                    .shadow(
-                        14.dp,
-                        RestaurantEmber.rCardTight,
-                        clip = false,
-                        ambientColor = RestaurantEmber.ember.copy(alpha = 0.45f),
-                        spotColor = RestaurantEmber.ember.copy(alpha = 0.45f),
+                    .background(if (hasActivity) RestaurantEmber.ember else RestaurantEmber.field)
+                    .then(
+                        if (hasActivity) {
+                            Modifier.shadow(
+                                14.dp,
+                                RestaurantEmber.rCardTight,
+                                clip = false,
+                                ambientColor = RestaurantEmber.ember.copy(alpha = 0.45f),
+                                spotColor = RestaurantEmber.ember.copy(alpha = 0.45f),
+                            )
+                        } else {
+                            Modifier
+                        },
                     )
-                    .clickable(enabled = !generating) {
+                    .clickable(enabled = !generating && hasActivity) {
                         scope.launch {
                             generating = true
                             error = null
@@ -212,9 +251,10 @@ fun RestaurantStoryConfigSheet(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val labelColor = if (hasActivity) Color.White else RestaurantEmber.textBody
                 if (generating) {
                     CircularProgressIndicator(
-                        color = Color.White,
+                        color = labelColor,
                         strokeWidth = 2.dp,
                         modifier = Modifier.size(16.dp),
                     )
@@ -223,14 +263,18 @@ fun RestaurantStoryConfigSheet(
                     Icon(
                         painterResource(RestaurantTileIcons.plus),
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = labelColor,
                         modifier = Modifier.size(16.dp),
                     )
                     Spacer(Modifier.size(8.dp))
                 }
                 Text(
-                    if (generating) "Composing…" else "Generate story",
-                    color = Color.White,
+                    when {
+                        generating -> "Composing…"
+                        !hasActivity -> "Generate · needs activity"
+                        else -> "Generate story"
+                    },
+                    color = labelColor,
                     fontFamily = com.example.momentra.ui.theme.PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,

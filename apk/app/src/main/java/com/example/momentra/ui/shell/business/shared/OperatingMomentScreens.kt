@@ -38,6 +38,7 @@ import com.example.momentra.domain.BottomDestination
 import com.example.momentra.ui.shell.business.distribution.DistributionActive
 import com.example.momentra.ui.shell.business.marketing.MarketingActive
 import com.example.momentra.ui.shell.business.manufacturing.ManufacturingActive
+import com.example.momentra.ui.shell.business.mto.MadeToOrderActive
 import com.example.momentra.ui.shell.business.restaurant.RestaurantActive
 import com.example.momentra.ui.shell.business.trading.TradingActive
 import com.example.momentra.ui.shell.business.service.ConsumerServiceActive
@@ -104,6 +105,12 @@ fun OperatingMomentPage(
     var error by remember(momentId) { mutableStateOf<String?>(null) }
     var tick by remember(momentId) { mutableIntStateOf(0) }
     val repo = remember { BusinessSliceRepository() }
+    // Period chips are sheet-scoped; switching moments must not keep another moment's range.
+    LaunchedEffect(momentId) {
+        OperatingChromeState.periodFilter = null
+        OperatingChromeState.periodFrom = null
+        OperatingChromeState.periodTo = null
+    }
     val activeMomentId = momentId
     androidx.compose.runtime.SideEffect {
         OperatingChromeState.momentId = activeMomentId
@@ -141,8 +148,21 @@ fun OperatingMomentPage(
             )
         }
     }
-    LaunchedEffect(momentId, refreshToken, tick, OperatingChromeState.refresh) {
-        repo.getOperating(momentId).fold(
+    LaunchedEffect(
+        momentId,
+        refreshToken,
+        tick,
+        OperatingChromeState.refresh,
+        OperatingChromeState.periodFilter,
+        OperatingChromeState.periodFrom,
+        OperatingChromeState.periodTo,
+    ) {
+        repo.getOperating(
+            momentId = momentId,
+            period = OperatingChromeState.periodFilter,
+            from = OperatingChromeState.periodFrom,
+            to = OperatingChromeState.periodTo,
+        ).fold(
             onSuccess = {
                 OperatingProjectionCache.put(momentId, it)
                 projection = it
@@ -154,7 +174,7 @@ fun OperatingMomentPage(
             },
         )
     }
-    // The shared chrome sheets (masters, story, pickers) take the vertical's palette.
+    // The shared chrome sheets (masters, story, browsers, pickers) take the vertical's palette.
     androidx.compose.runtime.SideEffect {
         when (projection?.subtype) {
             "DISTRIBUTION_DEALERSHIP" -> {
@@ -163,6 +183,41 @@ fun OperatingMomentPage(
                 OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.distribution.DistBorder
                 OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.distribution.DistInk
                 OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.distribution.DistSecondary
+            }
+            "STANDARD_PRODUCTION", "MADE_TO_ORDER" -> {
+                OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.manufacturing.MfgBrand
+                OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.manufacturing.MfgBg
+                OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.manufacturing.MfgBorder
+                OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.manufacturing.MfgInk
+                OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.manufacturing.MfgSecondary
+            }
+            "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN" -> {
+                OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.marketing.CampBrand
+                OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.marketing.CampBg
+                OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.marketing.CampBorder
+                OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.marketing.CampInk
+                OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.marketing.CampSecondary
+            }
+            "RETAIL_STORE" -> {
+                OperatingChromeState.storyAccent = com.example.momentra.ui.theme.RetailRose.rose
+                OperatingChromeState.storySurface = com.example.momentra.ui.theme.RetailRose.screenBottom
+                OperatingChromeState.storyBorder = com.example.momentra.ui.theme.RetailRose.roseBorder
+                OperatingChromeState.storyInk = com.example.momentra.ui.theme.RetailRose.textPrimary
+                OperatingChromeState.storyBody = com.example.momentra.ui.theme.RetailRose.textBody
+            }
+            "RESTAURANT_FOOD" -> {
+                OperatingChromeState.storyAccent = com.example.momentra.ui.theme.RestaurantEmber.ember
+                OperatingChromeState.storySurface = com.example.momentra.ui.theme.RestaurantEmber.screenBottom
+                OperatingChromeState.storyBorder = com.example.momentra.ui.theme.RestaurantEmber.ember
+                OperatingChromeState.storyInk = com.example.momentra.ui.theme.RestaurantEmber.textPrimary
+                OperatingChromeState.storyBody = com.example.momentra.ui.theme.RestaurantEmber.textBody
+            }
+            "CONSUMER_SERVICE" -> {
+                OperatingChromeState.storyAccent = com.example.momentra.ui.theme.ServicesTeal.teal
+                OperatingChromeState.storySurface = com.example.momentra.ui.theme.ServicesTeal.screenBottom
+                OperatingChromeState.storyBorder = com.example.momentra.ui.theme.ServicesTeal.teal
+                OperatingChromeState.storyInk = com.example.momentra.ui.theme.ServicesTeal.textPrimary
+                OperatingChromeState.storyBody = com.example.momentra.ui.theme.ServicesTeal.textBody
             }
             else -> {
                 OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.trading.TradeBrand
@@ -340,7 +395,57 @@ fun OperatingMomentPage(
         )
         return
     }
-    if (model != null && (model.subtype == "STANDARD_PRODUCTION" || model.subtype == "MADE_TO_ORDER")) {
+    if (model != null && model.subtype == "MADE_TO_ORDER") {
+        MadeToOrderActive(
+            model = model,
+            tab = tab,
+            onOpenQuickAdd = onOpenQuickAdd,
+            onRecord = { draft ->
+                repo.recordOperatingEvent(
+                    momentId,
+                    draft.eventType,
+                    draft.title,
+                    draft.amount,
+                    draft.note,
+                    draft.channelName,
+                    draft.counterpartyName,
+                    draft.paymentStatus,
+                    draft.occurredAt,
+                    draft.parentEventId,
+                    draft.quantity,
+                    draft.unit,
+                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
+                        com.example.momentra.data.api.OperatingLineBody(
+                            draft.itemName,
+                            draft.quantity,
+                            draft.unit,
+                            draft.unitPrice,
+                        ),
+                    ),
+                    draft.masterKind?.let {
+                        com.example.momentra.data.api.OperatingMasterBody(it, draft.title, draft.unit)
+                    },
+                    draft.revisesEventId,
+                    draft.dueAt,
+                    draft.contract,
+                    rejectedQuantity = draft.rejectedQuantity,
+                ).fold(
+                    onSuccess = { tick += 1 },
+                    onFailure = { error = it.message },
+                )
+            },
+            onDecide = { eventId, decision ->
+                repo.decideOperatingEvent(momentId, eventId, decision).fold(
+                    onSuccess = { tick += 1 },
+                    onFailure = { error = it.message },
+                )
+            },
+            companyId = companyId,
+            modifier = modifier,
+        )
+        return
+    }
+    if (model != null && model.subtype == "STANDARD_PRODUCTION") {
         ManufacturingActive(
             model = model,
             tab = tab,
@@ -929,6 +1034,44 @@ internal fun OperatingChromeSheets(model: OperatingProjectionDto, companyId: Str
         }
     }
 
+    // Parts / Materials browsers — Quote/Job/PO chrome (`2706:37762`, `2706:37822`, `2547:29629`).
+    val browserKind = when (OperatingChromeState.partsBrowserOpen?.lowercase()) {
+        "parts", "part", "sku" -> OperatingBrowserKind.Parts
+        "materials", "material", "bom" -> OperatingBrowserKind.Materials
+        else -> null
+    }
+    if (browserKind != null) {
+        OperatingSheetScrim(
+            onDismiss = { OperatingChromeState.partsBrowserOpen = null },
+            accent = OperatingChromeState.storyAccent,
+            surface = OperatingChromeState.storySurface,
+            border = OperatingChromeState.storyBorder,
+        ) {
+            OperatingPartsBrowserSheet(
+                model = model,
+                kind = browserKind,
+                theme = OperatingChromeState.storyTheme(),
+                contextLabel = model.title?.takeIf { it.isNotBlank() },
+                onAdd = { item ->
+                    val selection = item.toSelection(browserKind, model.subtype)
+                    OperatingChromeState.browserSelection = selection
+                    OperatingChromeState.partsBrowserOpen = null
+                    // Open capture absorbs the selection; otherwise open the matching Quick Add.
+                    // Hint alone is enough — Active surfaces already route `quickAddHint` into
+                    // the hub sheet when the operator is on Quick Add (or next opens it).
+                    if (!OperatingChromeState.captureOpen) {
+                        OperatingChromeState.quickAddHint = selection.captureHint.lowercase()
+                    }
+                },
+                onCreateNew = {
+                    OperatingChromeState.partsBrowserOpen = null
+                    OperatingChromeState.mastersOpen = OperatingMasterTab.Catalogue.name
+                },
+                onDismiss = { OperatingChromeState.partsBrowserOpen = null },
+            )
+        }
+    }
+
     // `Switch Moment` — `TRD-SWITCH 2566:33577`. Selecting a moment is delegated to the
     // shell so this sheet never navigates on its own.
     if (OperatingChromeState.switchMomentOpen) {
@@ -962,5 +1105,5 @@ internal val MANUFACTURING_STORY_PAGES = listOf(
     "Moment", "Motion", "Orders", "Money", "Stock", "Network", "Attention", "So far",
 )
 internal val MTO_STORY_PAGES = listOf(
-    "Jobs", "One job", "Confirmed", "Money", "Production", "Network", "Attention", "So far",
+    "Jobs", "One job", "Confirmed", "Money", "Production", "Customers", "Attention", "So far",
 )

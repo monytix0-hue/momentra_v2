@@ -156,6 +156,12 @@ export const recordOperatingEventSchema = z
         ownership: z.enum(['OWNED', 'CONSIGNMENT']).nullish(),
         shipmentStatus: z.enum(['PLACED', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED']).nullish(),
         promisedAt: z.string().max(40).nullish(),
+        /** Stock / kitchen station name (parsed historically; now accepted on write). */
+        locationName: z.string().max(160).nullish(),
+        /** Restaurant POS / KOT floor table label (e.g. "12", "Patio-3"). */
+        tableNumber: z.string().max(40).nullish(),
+        /** Restaurant covers / party size on the ticket or bill. */
+        covers: amountSchema.nullish(),
         taxMode: z.enum(['INCLUSIVE', 'EXCLUSIVE', 'NOT_CONFIGURED']).nullish(),
         taxAmount: amountSchema.nullish(),
         gstRate: amountSchema.nullish(),

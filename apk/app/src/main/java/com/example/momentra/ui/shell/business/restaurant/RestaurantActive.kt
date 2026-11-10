@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,16 +40,23 @@ import com.example.momentra.data.api.OperatingBoardSectionDto
 import com.example.momentra.data.api.OperatingMasterDto
 import com.example.momentra.data.api.OperatingPaymentDto
 import com.example.momentra.data.api.OperatingProjectionDto
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateBody
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStatePhase
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateScreen
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateSpecs
 import com.example.momentra.ui.shell.business.shared.OperatingChromeSheets
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
 import com.example.momentra.ui.shell.business.shared.OperatingTab
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
+import com.example.momentra.ui.shell.business.shared.hasUsefulPulseChrome
 import com.example.momentra.ui.shell.business.shared.openOperatingAttention
 import com.example.momentra.ui.theme.RestaurantEmber
 import java.math.BigDecimal
 import java.math.RoundingMode
+import kotlinx.coroutines.launch
 
 /**
  * Restaurant active experience — Figma `2487:37611` (`resuarant`).
@@ -58,8 +66,7 @@ import java.math.RoundingMode
  *
  * Every number is read from the operating projection. A metric the backend cannot
  * supply renders `Unavailable` — never a fabricated `0`, `0%` or `—`-as-zero.
- * Covers, tables and KOT ticket ids have no field on the strict operating contract,
- * so those frame values are replaced by the closest recorded fact instead of invented.
+ * Table / covers persist on SALE / ORDER contracts; Pulse "+ Record Sale" opens POS.
  */
 @Composable
 fun RestaurantActive(
@@ -75,6 +82,9 @@ fun RestaurantActive(
     var storyConfig by remember { mutableStateOf(false) }
     var picker by remember { mutableStateOf<RestaurantSheetRoute?>(null) }
     var pickerDate by remember { mutableStateOf(java.time.LocalDate.now()) }
+    var openPos by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val canSale = model.quickAdds.any { it.code.equals("SALE", ignoreCase = true) }
 
     EmberScreenBackground(modifier) {
         if (tab == OperatingTab.QUICK_ADD) {
@@ -83,6 +93,18 @@ fun RestaurantActive(
                 momentId = momentId,
                 onRecord = onRecord,
                 onDecide = onDecide,
+            )
+        } else if (tab == OperatingTab.PULSE && !model.hasUsefulPulseChrome()) {
+            // Keep empty Pulse outside verticalScroll — BusinessAppStateBody scrolls itself.
+            // Only take over when setup has no budget/target/GST and feeds are quiet.
+            BusinessAppStateBody(
+                spec = BusinessAppStateSpecs.spec(
+                    BusinessAppStateScreen.Pulse,
+                    BusinessAppStatePhase.Empty,
+                ),
+                accent = BusinessAppStateAccent.Emerald,
+                onPrimary = { if (canSale) openPos = true else onOpenQuickAdd() },
+                onSecondary = onOpenQuickAdd,
             )
         } else {
             Column(
@@ -101,7 +123,12 @@ fun RestaurantActive(
                     onQuickAdds = onOpenQuickAdd,
                 )
                 when (tab) {
-                    OperatingTab.PULSE -> RestaurantPulse(model, onOpenQuickAdd) { sheet = it }
+                    OperatingTab.PULSE -> RestaurantPulse(
+                        model = model,
+                        onOpenQuickAdd = onOpenQuickAdd,
+                        onOpenPos = { if (canSale) openPos = true else onOpenQuickAdd() },
+                        onOpenSheet = { sheet = it },
+                    )
                     OperatingTab.MOMENTS -> RestaurantMoments(model, onOpenQuickAdd) { sheet = it }
                     OperatingTab.LIFE -> RestaurantLife(model) { sheet = it }
                     OperatingTab.MEMORY -> RestaurantMemory(
@@ -142,6 +169,21 @@ fun RestaurantActive(
                 model = model,
                 momentId = momentId,
                 onDismiss = { storyConfig = false },
+            )
+        }
+    }
+
+    if (openPos) {
+        OperatingSheetScrim(onDismiss = { openPos = false }, accent = RestaurantEmber.ember) {
+            RestaurantPosSheet(
+                model = model,
+                onDismiss = { openPos = false },
+                onSubmit = { draft ->
+                    scope.launch {
+                        runCatching { onRecord(draft) }
+                        openPos = false
+                    }
+                },
             )
         }
     }
@@ -207,9 +249,10 @@ internal fun roleLabel(code: String?): String =
 private fun RestaurantPulse(
     model: OperatingProjectionDto,
     onOpenQuickAdd: () -> Unit,
+    onOpenPos: () -> Unit,
     onOpenSheet: (RestaurantSheetRoute) -> Unit,
 ) {
-    PulseHero(model, onOpenQuickAdd)
+    PulseHero(model, onOpenPos)
     AttentionCard(model, onOpenQuickAdd, onOpenSheet)
     TargetBudgetCard(model, onOpenSheet)
     PaymentReadinessCard(model, onOpenSheet)
@@ -220,10 +263,10 @@ private fun RestaurantPulse(
 
 /**
  * Ember hero: eyebrow, promise line, one-line position + 40dp glyph well.
- * `Covers 86` from the frame is omitted — the strict contract carries no covers field.
+ * Open-ticket count uses projected ORDER rows; "+ Record Sale" opens the POS sheet.
  */
 @Composable
-private fun PulseHero(model: OperatingProjectionDto, onOpenQuickAdd: () -> Unit) {
+private fun PulseHero(model: OperatingProjectionDto, onOpenPos: () -> Unit) {
     val sales = RestaurantFormat.compact(model.currency, model.finance?.sales ?: model.target?.progress, model.financeVisible)
     val targetValue = if (model.target?.configured == true) {
         RestaurantFormat.compact(model.currency, model.target?.value, model.financeVisible)
@@ -274,9 +317,9 @@ private fun PulseHero(model: OperatingProjectionDto, onOpenQuickAdd: () -> Unit)
                 overflow = TextOverflow.Ellipsis)
             Text(summary, style = RestaurantEmber.heroBody(), maxLines = 2,
                 modifier = Modifier.padding(end = 56.dp))
-            if (model.quickAdds.any { it.code == "SALE" }) {
+            if (model.quickAdds.any { it.code.equals("SALE", ignoreCase = true) }) {
                 Spacer(Modifier.height(4.dp))
-                EmberCta("+  Record Sale", onClick = onOpenQuickAdd)
+                EmberCta("+  Record Sale", onClick = onOpenPos)
             }
         }
         Box(

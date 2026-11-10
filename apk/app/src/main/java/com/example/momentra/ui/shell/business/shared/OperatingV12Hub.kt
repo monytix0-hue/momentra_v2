@@ -55,42 +55,46 @@ fun OperatingV12HubScreen(
         model.currency ?: "INR",
         if (gstOn) "GST on" else "GST off",
     ).joinToString(" · ")
+    // Empty capabilities ⇒ leave tiles open (projection still loading). Same honesty as Retail/MTO hubs.
+    val allowed = model.quickAdds.map { it.code.uppercase() }.toSet()
 
-    val core = if (theme.isManufacturing) {
+    // MFG-HUB-v3 `2396:29892` — plant journey only. MTO mounts MadeToOrderQuickAddHub, never this grid.
+    val plantHub = theme.verticalKey == "manufacturing"
+    val core = if (plantHub) {
         listOf(
-            HubTile("PRODUCTION", "Production", if (theme.isMadeToOrder) "Against job · accepted qty" else "Output · batch · scrap", R.drawable.qa_clipboard),
-            HubTile("SALE", "Sale", "Invoice · buyer · GST", R.drawable.qa_receipt),
-            HubTile("PURCHASE", "Purchase", "Material · GRN", R.drawable.qa_wallet),
-            HubTile("CUSTOMER_ORDER", if (theme.isMadeToOrder) "Job order" else "Customer order", "Confirm · accept", R.drawable.qa_clipboard),
-            HubTile("DELIVERY", "Delivery", "Dispatch · POD", R.drawable.qa_shipment),
-            HubTile("COLLECTION", "Collection", "Allocate open AR", R.drawable.qa_arrow_left_right),
-            HubTile("PAYMENT", "Payment", "Settle open AP", R.drawable.qa_credit_card),
-            HubTile("STOCK", "Stock", "Material · WIP · FG", R.drawable.qa_package),
-            HubTile("BUDGET", "Budget", "Versioned revise", R.drawable.qa_budget),
+            HubTile("SALE", "Sale", "Invoice · buyer · GST", R.drawable.qa_receipt, requires = listOf("SALE")),
+            HubTile("PURCHASE", "Purchase", "Material · GRN", R.drawable.qa_wallet, requires = listOf("PURCHASE")),
+            HubTile("COLLECTION", "Collection", "Allocate open AR", R.drawable.qa_arrow_left_right, requires = listOf("COLLECTION")),
+            HubTile("PAYMENT", "Payment", "Settle open AP", R.drawable.qa_credit_card, requires = listOf("PAYMENT")),
+            HubTile("SPEND", "Expense", "Running plant cost", R.drawable.qa_budget, requires = listOf("SPEND")),
+            HubTile("STOCK", "Stock", "Material · WIP · FG", R.drawable.qa_package, requires = listOf("STOCK")),
+            HubTile("ORDER", "Order", "Customer · commitment", R.drawable.qa_clipboard, requires = listOf("ORDER", "CUSTOMER_ORDER")),
+            HubTile("PRODUCTION", "Production", "Output · batch · scrap", R.drawable.qa_factory, requires = listOf("PRODUCTION")),
+            HubTile("BUDGET", "Budget", "Versioned revise", R.drawable.qa_budget, requires = listOf("BUDGET")),
         )
     } else {
         listOf(
-            HubTile("SALE", "Sale", "Invoice · buyer · GST", R.drawable.qa_receipt),
-            HubTile("PURCHASE", "Purchase", "Supplier · GRN", R.drawable.qa_wallet),
-            HubTile("COLLECTION", "Collection", "Allocate open AR", R.drawable.qa_arrow_left_right),
-            HubTile("PAYMENT", "Payment", "Settle open AP", R.drawable.qa_credit_card),
-            HubTile("SPEND", "Expense", "Route · van · depot", R.drawable.qa_budget),
-            HubTile("STOCK", "Stock", "Adjust · count · batch", R.drawable.qa_package),
-            HubTile("ORDER", "Order", "SO · PO commitment", R.drawable.qa_clipboard),
-            HubTile("SHIPMENT", "Delivery", "Dispatch · POD", R.drawable.qa_shipment),
-            HubTile("BUDGET", "Budget", "Versioned revise", R.drawable.qa_budget),
+            HubTile("SALE", "Sale", "Invoice · buyer · GST", R.drawable.qa_receipt, requires = listOf("SALE")),
+            HubTile("PURCHASE", "Purchase", "Supplier · GRN", R.drawable.qa_wallet, requires = listOf("PURCHASE")),
+            HubTile("COLLECTION", "Collection", "Allocate open AR", R.drawable.qa_arrow_left_right, requires = listOf("COLLECTION")),
+            HubTile("PAYMENT", "Payment", "Settle open AP", R.drawable.qa_credit_card, requires = listOf("PAYMENT")),
+            HubTile("SPEND", "Expense", "Route · van · depot", R.drawable.qa_budget, requires = listOf("SPEND")),
+            HubTile("STOCK", "Stock", "Adjust · count · batch", R.drawable.qa_package, requires = listOf("STOCK")),
+            HubTile("ORDER", "Order", "SO · PO commitment", R.drawable.qa_clipboard, requires = listOf("ORDER", "CUSTOMER_ORDER")),
+            HubTile("SHIPMENT", "Delivery", "Dispatch · POD", R.drawable.qa_shipment, requires = listOf("SHIPMENT", "DELIVERY")),
+            HubTile("BUDGET", "Budget", "Versioned revise", R.drawable.qa_budget, requires = listOf("BUDGET")),
         )
     }
     val support = listOf(
         HubTile(
             "PRINCIPALS",
             when {
-                theme.isManufacturing -> "Vendors & buyers"
+                plantHub -> "Vendors & buyers"
                 theme.isTrading -> "Suppliers & buyers"
                 else -> "Principals & dealers"
             },
             when {
-                theme.isManufacturing -> "Vendors · customers"
+                plantHub -> "Vendors · customers"
                 theme.isTrading -> "Suppliers · retailers"
                 else -> "Principals · dealers"
             },
@@ -99,25 +103,37 @@ fun OperatingV12HubScreen(
         ),
         HubTile(
             "CATALOGUE",
-            if (theme.isManufacturing) "Parts & BOM" else "Catalogue & SKU",
-            if (theme.isManufacturing) "Part · SKU · BOM" else "SKU · batch · price",
+            if (plantHub) "Parts & BOM" else "Catalogue & SKU",
+            if (plantHub) "Part · SKU · BOM" else "SKU · batch · price",
             R.drawable.qa_package,
             master = "Catalogue",
         ),
         HubTile(
             "LOCATIONS",
             when {
-                theme.isManufacturing -> "Lines & stores"
+                plantHub -> "Lines & stores"
                 theme.isTrading -> "Godowns & branches"
                 else -> "Warehouses & routes"
             },
-            if (theme.isManufacturing) "Lines · WIP · FG" else "Depots · beats",
+            if (plantHub) "Lines · WIP · FG" else "Depots · beats",
             R.drawable.qa_truck,
             master = "Locations",
         ),
         HubTile("INVITE", "Invite & QR", "Join · people · roles", R.drawable.qa_qr, master = "Invite"),
-        HubTile("UPDATE", "Issue", "Update · blocker · risk", R.drawable.qa_alert),
+        HubTile("UPDATE", "Issue", "Update · blocker · risk", R.drawable.qa_alert, requires = listOf("UPDATE", "ISSUE")),
     )
+    val utilities = if (plantHub) {
+        listOf(
+            HubTile("REWORK", "Rework / Scrap", "Rework · scrap · job work", R.drawable.qa_alert, requires = listOf("STOCK")),
+            HubTile("HOLD", "Hold", "Park work order", R.drawable.qa_shield, requires = listOf("ORDER", "CUSTOMER_ORDER")),
+            HubTile("TRANSFER", "WIP transfer", "Between lines · stores", R.drawable.qa_shipment, requires = listOf("STOCK")),
+            HubTile("REPRINT", "Reprint", "Invoice · job card", R.drawable.qa_receipt, requires = listOf("SALE")),
+            HubTile("RETURN", "Return", "Credit · goods outcome", R.drawable.qa_arrow_left_right, requires = listOf("RETURN")),
+            HubTile("DELIVERY", "Delivery", "Dispatch · POD", R.drawable.qa_shipment, requires = listOf("DELIVERY", "SHIPMENT")),
+        )
+    } else {
+        emptyList()
+    }
 
     fun filtered(tiles: List<HubTile>): List<HubTile> {
         val q = query.trim()
@@ -127,14 +143,25 @@ fun OperatingV12HubScreen(
         }
     }
 
+    fun lockedReason(tile: HubTile): String? {
+        if (tile.master != null || tile.requires.isEmpty() || allowed.isEmpty()) return null
+        if (tile.requires.any { it in allowed }) return null
+        return if (tile.id == "RETURN") "Unavailable" else "Role locked"
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        hubHero(theme, identity, onCapture)
+        hubHero(theme, identity, allowed, onCapture)
         searchBar(theme, query) { query = it }
-        tileGrid("Core actions · ${core.size}", "Tap to record", filtered(core), theme) { tile ->
+        tileGrid("Core actions · ${core.size}", "Tap to record", filtered(core), theme, ::lockedReason) { tile ->
             onCapture(tile.id)
         }
-        tileGrid("Support & management · ${support.size}", "Role-gated", filtered(support), theme) { tile ->
+        tileGrid("Support & management · ${support.size}", "Role-gated", filtered(support), theme, ::lockedReason) { tile ->
             if (tile.master != null) onOpenMasters(tile.master) else onCapture(tile.id)
+        }
+        if (utilities.isNotEmpty()) {
+            tileGrid("Utilities · ${utilities.size}", "Hold · rework · reprint", filtered(utilities), theme, ::lockedReason) { tile ->
+                onCapture(tile.id)
+            }
         }
         whyCard()
     }
@@ -146,14 +173,20 @@ private data class HubTile(
     val subtitle: String,
     val icon: Int,
     val master: String? = null,
+    val requires: List<String> = emptyList(),
 )
 
 @Composable
 private fun hubHero(
     theme: OperatingV12Theme,
     identity: String,
+    allowed: Set<String>,
     onCapture: (String) -> Unit,
 ) {
+    fun heroLocked(vararg codes: String): String? {
+        if (allowed.isEmpty()) return null
+        return if (codes.any { it in allowed }) null else "Role locked"
+    }
     Column(
         Modifier
             .fillMaxWidth()
@@ -175,15 +208,39 @@ private fun hubHero(
         Text("Quick Adds", color = Color.White, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 28.sp)
         Text(theme.motionLine, color = theme.accent, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         Text(identity, color = OperatingV12.subtitle, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Medium, fontSize = 12.sp)
-        hubButton("Dispatch", R.drawable.qa_shipment, filled = true, theme) { onCapture("SHIPMENT") }
-        hubButton("Record Sale", R.drawable.qa_receipt, filled = false, theme) { onCapture("SALE") }
-        Text(
-            "Dispatch moves goods on a route; Record Sale raises the ${theme.partyNoun.lowercase().dropLast(1)} invoice.",
-            color = OperatingV12.subtitle,
-            fontFamily = PlusJakartaSans,
-            fontWeight = FontWeight.Medium,
-            fontSize = 11.sp,
-        )
+        if (theme.verticalKey == "manufacturing") {
+            hubButton("Record Production", R.drawable.qa_factory, filled = true, theme, locked = heroLocked("PRODUCTION")) {
+                onCapture("PRODUCTION")
+            }
+            hubButton("Record Sale", R.drawable.qa_receipt, filled = false, theme, locked = heroLocked("SALE")) {
+                onCapture("SALE")
+            }
+            Text(
+                "Accepted production posts finished stock once. Sale raises the ${theme.partyNoun.lowercase().dropLast(1)} invoice — scrap never becomes sellable qty.",
+                color = OperatingV12.subtitle,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+            )
+        } else {
+            hubButton(
+                "Dispatch",
+                R.drawable.qa_shipment,
+                filled = true,
+                theme,
+                locked = heroLocked("SHIPMENT", "DELIVERY"),
+            ) { onCapture("SHIPMENT") }
+            hubButton("Record Sale", R.drawable.qa_receipt, filled = false, theme, locked = heroLocked("SALE")) {
+                onCapture("SALE")
+            }
+            Text(
+                "Dispatch moves goods on a route; Record Sale raises the ${theme.partyNoun.lowercase().dropLast(1)} invoice.",
+                color = OperatingV12.subtitle,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+            )
+        }
     }
 }
 
@@ -193,21 +250,38 @@ private fun hubButton(
     icon: Int,
     filled: Boolean,
     theme: OperatingV12Theme,
+    locked: String? = null,
     onClick: () -> Unit,
 ) {
+    val enabled = locked == null
     Row(
         Modifier
             .fillMaxWidth()
             .height(52.dp)
-            .shadow(if (filled) 20.dp else 0.dp, RoundedCornerShape(14.dp), ambientColor = theme.accent.copy(alpha = 0.5f), spotColor = theme.accent.copy(alpha = 0.5f))
+            .shadow(
+                if (filled && enabled) 20.dp else 0.dp,
+                RoundedCornerShape(14.dp),
+                ambientColor = theme.accent.copy(alpha = 0.5f),
+                spotColor = theme.accent.copy(alpha = 0.5f),
+            )
             .clip(RoundedCornerShape(14.dp))
-            .background(if (filled) theme.accent else Color.White.copy(alpha = 0.06f))
+            .background(
+                when {
+                    !enabled -> Color.White.copy(alpha = 0.04f)
+                    filled -> theme.accent
+                    else -> Color.White.copy(alpha = 0.06f)
+                },
+            )
             .border(
                 1.dp,
-                if (filled) Color.Transparent else theme.accent.copy(alpha = 0.4f),
+                when {
+                    !enabled -> theme.accent.copy(alpha = 0.15f)
+                    filled -> Color.Transparent
+                    else -> theme.accent.copy(alpha = 0.4f)
+                },
                 RoundedCornerShape(14.dp),
             )
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
@@ -215,12 +289,20 @@ private fun hubButton(
         Icon(
             painterResource(icon),
             contentDescription = null,
-            tint = if (filled) Color.White else theme.accent,
+            tint = when {
+                !enabled -> OperatingV12.subtitle
+                filled -> Color.White
+                else -> theme.accent
+            },
             modifier = Modifier.size(16.dp),
         )
         Text(
-            title,
-            color = if (filled) Color.White else OperatingV12.title,
+            locked ?: title,
+            color = when {
+                !enabled -> OperatingV12.subtitle
+                filled -> Color.White
+                else -> OperatingV12.title
+            },
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             fontSize = 15.sp,
@@ -265,6 +347,7 @@ private fun tileGrid(
     trailing: String,
     tiles: List<HubTile>,
     theme: OperatingV12Theme,
+    lockedReason: (HubTile) -> String?,
     onOpen: (HubTile) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -275,12 +358,14 @@ private fun tileGrid(
             tiles.chunked(3).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { tile ->
+                        val locked = lockedReason(tile)
                         OperatingV12ActionTile(
                             theme = theme,
                             title = tile.title,
                             subtitle = tile.subtitle,
                             icon = tile.icon,
-                            onClick = { onOpen(tile) },
+                            locked = locked,
+                            onClick = { if (locked == null) onOpen(tile) },
                             modifier = Modifier.weight(1f),
                         )
                     }

@@ -17,6 +17,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.momentra.data.api.OperatingProjectionDto
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateBody
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStatePhase
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateScreen
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateSpecs
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingTab
 import com.example.momentra.ui.shell.business.shared.OperatingV12LifeScreen
@@ -24,6 +29,7 @@ import com.example.momentra.ui.shell.business.shared.OperatingV12MemoryScreen
 import com.example.momentra.ui.shell.business.shared.OperatingV12MomentsScreen
 import com.example.momentra.ui.shell.business.shared.OperatingV12PulseScreen
 import com.example.momentra.ui.shell.business.shared.OperatingV12Theme
+import com.example.momentra.ui.shell.business.shared.hasUsefulPulseChrome
 
 // Domain palette "manufacturing" in design/tokens/business.tokens.json (MFG-PULSE-v12).
 internal val MfgBg = Color(0xFF18181B)
@@ -60,6 +66,18 @@ fun ManufacturingActive(
     Box(modifier.fillMaxSize().background(MfgBg)) {
         if (tab == OperatingTab.QUICK_ADD) {
             ManufacturingQuickAddHub(model, onRecord, onDecide)
+        } else if (tab == OperatingTab.PULSE && !model.hasUsefulPulseChrome()) {
+            // Keep empty Pulse outside verticalScroll — BusinessAppStateBody scrolls itself.
+            // Only take over when setup has no budget/target/GST and feeds are quiet.
+            BusinessAppStateBody(
+                spec = BusinessAppStateSpecs.spec(
+                    BusinessAppStateScreen.Pulse,
+                    BusinessAppStatePhase.Empty,
+                ),
+                accent = BusinessAppStateAccent.Emerald,
+                onPrimary = { openCapture("PRODUCTION") },
+                onSecondary = onOpenQuickAdd,
+            )
         } else {
             Column(
                 Modifier
@@ -131,7 +149,7 @@ internal val MfgSheetTheme = com.example.momentra.ui.shell.business.shared.Opera
 internal fun manufacturingSheetForCode(code: String): ManufacturingSheetState? = when (code) {
     "orders" -> ManufacturingSheetState.OrdersCommitments
     "stock" -> ManufacturingSheetState.StockProducts
-    "network" -> ManufacturingSheetState.PeopleNetwork
+    "production" -> ManufacturingSheetState.Production
     "M4" -> ManufacturingSheetState.OpenCommitments
     "L1" -> ManufacturingSheetState.LifeCurrentBusiness
     "L2" -> ManufacturingSheetState.LifeOrdersBuyers

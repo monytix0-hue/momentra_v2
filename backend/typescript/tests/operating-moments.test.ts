@@ -549,6 +549,25 @@ describe('operating moment catalog', () => {
     );
   });
 
+  it('accepts restaurant table, covers, and station on the operating contract', () => {
+    const parsed = recordOperatingEventSchema.parse({
+      eventType: 'ORDER',
+      title: 'Table 12',
+      channelName: 'In-dining',
+      contract: {
+        orderStatus: 'PLACED',
+        tableNumber: '12',
+        covers: '4',
+        locationName: 'Tandoor',
+        clientKey: 'KOT-442',
+      },
+    });
+    assert.equal(parsed.contract?.tableNumber, '12');
+    assert.equal(parsed.contract?.covers, '4');
+    assert.equal(parsed.contract?.locationName, 'Tandoor');
+    assert.equal(parsed.contract?.clientKey, 'KOT-442');
+  });
+
   it('rejects a client campaign without a channel', () => {
     assert.throws(
       () =>

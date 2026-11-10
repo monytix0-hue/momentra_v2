@@ -104,8 +104,20 @@ import java.util.UUID
 class BusinessSliceRepository(
     private val api: ApiService = ApiClient.apiService,
 ) {
-    suspend fun getOperating(momentId: String): Result<OperatingProjectionDto> = runCatching {
-        api.getOperatingMoment(momentId).data
+    suspend fun getOperating(
+        momentId: String,
+        period: String? = null,
+        status: String? = null,
+        from: String? = null,
+        to: String? = null,
+    ): Result<OperatingProjectionDto> = runCatching {
+        api.getOperatingMoment(
+            momentId = momentId,
+            period = period,
+            status = status,
+            from = from,
+            to = to,
+        ).data
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun recordOperatingEvent(

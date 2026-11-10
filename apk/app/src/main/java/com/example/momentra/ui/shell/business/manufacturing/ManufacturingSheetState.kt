@@ -16,8 +16,9 @@ import com.example.momentra.ui.shell.business.shared.OperatingWhyFootnote
 import com.example.momentra.ui.shell.business.shared.sectionByCode
 
 /**
- * The eighteen `View all ›` surfaces of STANDARD_PRODUCTION, one per MFG-SHEET
- * frame. Same skeleton as Trading, with plant and workshop copy.
+ * The eighteen `View all ›` surfaces of STANDARD_PRODUCTION / MADE_TO_ORDER.
+ * Same pulse + board count as Trading, but Moments bind projection codes
+ * `orders` / `production` / `stock` (not trading `network`).
  */
 sealed interface ManufacturingSheetState {
     val spec: OperatingSheetSpec
@@ -91,7 +92,7 @@ sealed interface ManufacturingSheetState {
     data object OrdersCommitments : ManufacturingSheetState {
         override val spec = OperatingSheetSpec(
             code = "orders",
-            title = "Orders & Commitments",
+            title = "Work Orders & Commitments",
             eyebrow = "Commitments are not revenue until billed",
             emptyTitle = "No work orders yet",
             emptyBody = "Work orders and their dispatches will show here.",
@@ -108,13 +109,14 @@ sealed interface ManufacturingSheetState {
         )
     }
 
-    data object PeopleNetwork : ManufacturingSheetState {
+    /** Projection `familyMomentSections` code — not trading `network`. */
+    data object Production : ManufacturingSheetState {
         override val spec = OperatingSheetSpec(
-            code = "network",
-            title = "Vendors, Buyers & Lines",
-            eyebrow = "Who the network runs through",
-            emptyTitle = "No people yet",
-            emptyBody = "Named vendors, buyers, and lines appear as you record them.",
+            code = "production",
+            title = "Production",
+            eyebrow = "Recorded vs accepted plant output",
+            emptyTitle = "No production yet",
+            emptyBody = "Production batches and accepted output appear here.",
         )
     }
 
@@ -131,8 +133,8 @@ sealed interface ManufacturingSheetState {
     data object LifeCurrentBusiness : ManufacturingSheetState {
         override val spec = OperatingSheetSpec(
             code = "L1",
-            title = "Current Business",
-            eyebrow = "The network today",
+            title = "Current Production / Business",
+            eyebrow = "As-of today · live plant position",
             emptyTitle = "Nothing recorded yet",
             emptyBody = "Board updates and the live position will show here.",
         )
@@ -142,7 +144,7 @@ sealed interface ManufacturingSheetState {
         override val spec = OperatingSheetSpec(
             code = "L2",
             title = "Orders / Buyers",
-            eyebrow = "Attributed sales by buyer and channel",
+            eyebrow = "Attributed plant sales by buyer and channel",
             emptyTitle = "No channels recorded",
             emptyBody = "Channel-attributed sales appear once a channel is chosen.",
         )
@@ -161,8 +163,8 @@ sealed interface ManufacturingSheetState {
     data object LifePeopleActivity : ManufacturingSheetState {
         override val spec = OperatingSheetSpec(
             code = "L4",
-            title = "People & Activity",
-            eyebrow = "Who recorded what",
+            title = "Production Operations",
+            eyebrow = "Plant execution · issues · stock signals",
             emptyTitle = "No activity yet",
             emptyBody = "Stock moves, issues, and updates will show here.",
         )
@@ -219,7 +221,7 @@ val MANUFACTURING_SHEET_STATES: List<ManufacturingSheetState> = listOf(
     ManufacturingSheetState.Gst,
     ManufacturingSheetState.OrdersCommitments,
     ManufacturingSheetState.StockProducts,
-    ManufacturingSheetState.PeopleNetwork,
+    ManufacturingSheetState.Production,
     ManufacturingSheetState.OpenCommitments,
     ManufacturingSheetState.LifeCurrentBusiness,
     ManufacturingSheetState.LifeOrdersBuyers,
@@ -248,6 +250,12 @@ fun ManufacturingSheetState.specFor(subtype: String?): OperatingSheetSpec {
             emptyTitle = "No jobs yet",
             emptyBody = "Confirmed jobs and their operations will show here.",
         )
+        ManufacturingSheetState.Production -> spec.copy(
+            title = "Job Output",
+            eyebrow = "Recorded vs accepted against open jobs",
+            emptyTitle = "No job output yet",
+            emptyBody = "Accepted production against confirmed jobs appears here.",
+        )
         ManufacturingSheetState.StockProducts -> spec.copy(
             title = "Job Operations",
             eyebrow = "WIP against open jobs",
@@ -255,9 +263,17 @@ fun ManufacturingSheetState.specFor(subtype: String?): OperatingSheetSpec {
             emptyBody = "Materials issued to jobs and finished goods appear here.",
         )
         ManufacturingSheetState.OpenCommitments -> spec.copy(title = "Open Jobs")
+        ManufacturingSheetState.LifeCurrentBusiness -> spec.copy(
+            title = "Current Jobs Today",
+            eyebrow = "As-of today · live job position",
+        )
         ManufacturingSheetState.LifeOrdersBuyers -> spec.copy(
             title = "Jobs & Customers",
             eyebrow = "Attributed work by customer and channel",
+        )
+        ManufacturingSheetState.LifePeopleActivity -> spec.copy(
+            title = "Production Operations",
+            eyebrow = "Job execution · issues · stock signals",
         )
         else -> spec
     }

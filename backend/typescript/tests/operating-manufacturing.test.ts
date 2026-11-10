@@ -615,6 +615,99 @@ describe('manufacturing and MTO v2.1', () => {
   });
 });
 
+describe('manufacturing / MTO structured board metrics', () => {
+  const BOARD_CODES = ['orders', 'production', 'stock', 'M4', 'L1', 'L2', 'L3', 'L4', 'ME1', 'ME2', 'ME4', 'fulfilment'];
+
+  function plantView(subtype: 'STANDARD_PRODUCTION' | 'MADE_TO_ORDER', events: OperatingEventRow[]) {
+    const prefs = normalizeOperatingPreferences(
+      'MANUFACTURING_PRODUCTION',
+      {
+        subtype,
+        identityName: subtype === 'MADE_TO_ORDER' ? 'Workshop' : 'Plant',
+        partyName: subtype === 'MADE_TO_ORDER' ? 'Workshop' : 'Plant',
+        monthlyBudget: '100000',
+        monthlyTarget: '100000',
+        targetMetric: 'REVENUE',
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+      },
+      { userId: 'u', displayName: 'Asha' }
+    );
+    return projectOperatingMoment({ familyCode: 'MANUFACTURING_PRODUCTION', prefs, role: 'OWNER_ADMIN', events });
+  }
+
+  it('STANDARD_PRODUCTION boards expose metrics tiles without inventing zeros', () => {
+    const standard = plantView('STANDARD_PRODUCTION', [
+      row('order', 'CUSTOMER_ORDER', {
+        quantity: '100',
+        amount: '200000',
+        paymentRelevance: 'RECEIVABLE',
+        paymentStatus: 'PENDING',
+        contract: { orderStatus: 'PLACED' },
+      }),
+      row('made', 'PRODUCTION', { quantity: '80', parentEventId: 'order', unit: 'pcs' }),
+      row('sold', 'SALE', {
+        amount: '50000',
+        paymentRelevance: 'RECEIVABLE',
+        paymentStatus: 'PENDING',
+        parentEventId: 'order',
+      }),
+    ]);
+
+    const byCode = new Map(
+      [...standard.boards.moments, ...standard.boards.life, ...standard.boards.memory].map((section) => [
+        section.code,
+        section,
+      ])
+    );
+    for (const code of BOARD_CODES) {
+      const section = byCode.get(code);
+      assert.ok(section, `missing ${code}`);
+      assert.ok(Array.isArray(section.metrics) && section.metrics.length >= 2, `${code} needs tiles`);
+    }
+
+    const production = byCode.get('production');
+    assert.equal(production?.metrics?.find((tile) => tile.key === 'recorded')?.value, '80');
+    assert.equal(production?.metrics?.find((tile) => tile.key === 'accepted')?.value, 'Not recorded');
+    assert.equal(production?.metrics?.find((tile) => tile.key === 'pending')?.value, '20');
+
+    const stock = byCode.get('stock');
+    assert.equal(stock?.metrics?.find((tile) => tile.key === 'onHand')?.value, 'Not recorded');
+    assert.equal(stock?.metrics?.find((tile) => tile.key === 'low')?.value, 'Not recorded');
+
+    const m4 = byCode.get('M4');
+    assert.ok(m4?.metrics?.some((tile) => tile.key === 'toCollect'));
+    assert.ok((m4?.rows.length ?? 0) > 0);
+
+    const dup = standard.boards.moments.find((section) => section.code === 'commitments');
+    assert.equal(dup?.rows.length, 0);
+    assert.match(String(dup?.detail ?? ''), /See Open Commitments/i);
+  });
+
+  it('MADE_TO_ORDER production metrics use accepted quantity when recorded', () => {
+    const projected = plantView('MADE_TO_ORDER', [
+      row('job', 'CUSTOMER_ORDER', {
+        quantity: '10',
+        amount: '50000',
+        contract: { orderStatus: 'PLACED' },
+      }),
+      row('run', 'PRODUCTION', {
+        quantity: '10',
+        parentEventId: 'job',
+        unit: 'pcs',
+        contract: { entryMode: 'ITEMIZED', acceptedQuantity: '9' },
+        title: 'Cabinet',
+      }),
+    ]);
+    const production = projected.boards.moments.find((section) => section.code === 'production');
+    assert.equal(production?.metrics?.find((tile) => tile.key === 'recorded')?.value, '10');
+    assert.equal(production?.metrics?.find((tile) => tile.key === 'accepted')?.value, '9');
+    assert.equal(production?.metrics?.find((tile) => tile.key === 'pending')?.value, '0');
+    const orders = projected.boards.moments.find((section) => section.code === 'orders');
+    assert.ok(orders?.metrics?.some((tile) => tile.key === 'openOrders'));
+  });
+});
+
 function asEvent(id: string, eventType: string): ManufacturingEvent {
   return {
     operatingEventId: id,

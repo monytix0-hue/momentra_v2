@@ -28,13 +28,26 @@ struct OperatingActiveView: View {
                 phaseNotice
                 switch destination {
                 case .pulse:
-                    OperatingPulseScreen(
-                        model: model,
-                        theme: theme,
-                        onCapture: capture,
-                        onViewAll: openSheet,
-                        onOpenRow: openRow
-                    )
+                    // Obsidian takeover only when setup has no budget/target/GST and feeds are quiet.
+                    if model.projection?.hasUsefulPulseChrome != true {
+                        BusinessAppStateBody(
+                            spec: BusinessAppStateSpecs.spec(.pulse, .empty),
+                            accent: .emerald,
+                            onPrimary: {
+                                capture(model.vertical.isMadeToOrder ? "ORDER" : "SALE")
+                            },
+                            onSecondary: onOpenQuickAdd
+                        )
+                        .frame(minHeight: 420)
+                    } else {
+                        OperatingPulseScreen(
+                            model: model,
+                            theme: theme,
+                            onCapture: capture,
+                            onViewAll: openSheet,
+                            onOpenRow: openRow
+                        )
+                    }
                 case .moments:
                     OperatingMomentsScreen(
                         model: model,
@@ -63,13 +76,23 @@ struct OperatingActiveView: View {
                 case .create:
                     // The hub lives in a sheet, so a tab that lands here shows the same grid
                     // inline rather than a second, shallower quick-add list.
-                    OperatingHubScreen(
-                        model: model,
-                        theme: theme,
-                        onCapture: capture,
-                        onOpenMasters: onOpenMasters,
-                        onOpenStory: onOpenStory
-                    )
+                    if model.vertical.isMadeToOrder {
+                        MadeToOrderHubScreen(
+                            model: model,
+                            theme: theme,
+                            onCapture: capture,
+                            onOpenMasters: onOpenMasters,
+                            onOpenStory: onOpenStory
+                        )
+                    } else {
+                        OperatingHubScreen(
+                            model: model,
+                            theme: theme,
+                            onCapture: capture,
+                            onOpenMasters: onOpenMasters,
+                            onOpenStory: onOpenStory
+                        )
+                    }
                 }
             }
             .padding(.bottom, 32)
@@ -92,6 +115,8 @@ struct OperatingActiveView: View {
                             activeSheet = nil
                             model.periodFilter = nil
                             model.statusFilter = nil
+                            model.periodFrom = nil
+                            model.periodTo = nil
                             switch action {
                             case "MEMORY":
                                 onOpenStory()
