@@ -2,11 +2,13 @@ import SwiftUI
 
 /// Figma-parity retail master create/edit sheets (supplier, location, product, stock item).
 /// Uses `BusinessOperatingModel.createMaster` / `updateMaster` — no new APIs.
-enum RetailMasterFormKind {
+enum RetailMasterFormKind: String, Identifiable {
     case supplier
     case location
     case product
     case stockItem
+
+    var id: String { rawValue }
 
     static func from(tab: OperatingMasterTab) -> RetailMasterFormKind? {
         switch tab {

@@ -189,10 +189,17 @@ fun RetailQuickAddHub(
                     sheet = open,
                     model = model,
                     onDismiss = { sheet = null },
+                    companyId = companyId,
                     onSubmit = { draft ->
                         scope.launch {
                             runCatching { onRecord(draft) }.onFailure { error = it.message }
                             sheet = null
+                        }
+                    },
+                    onMasterSubmit = { draft ->
+                        scope.launch {
+                            runCatching { onRecord(draft) }.onFailure { error = it.message }
+                            // Keep Order sheet open; projection refresh fills the browser.
                         }
                     },
                 )

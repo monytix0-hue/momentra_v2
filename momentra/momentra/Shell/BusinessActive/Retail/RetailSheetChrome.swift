@@ -484,19 +484,41 @@ struct RoseTenderChips: View {
                         tender = option
                     }
                 }
-                Text("Split")
-                    .font(.plusJakarta(size: 12, weight: .medium))
-                    .foregroundStyle(OperatingV12.subtitle.opacity(0.7))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(theme.inset.opacity(0.5))
-                    .overlay(Capsule().strokeBorder(theme.border.opacity(0.5), lineWidth: 1))
-                    .clipShape(Capsule())
+                // Figma 2421:29655 / 2439:29655 — Split stays locked (no split-tender API).
+                RoseLockedChip(theme: theme, label: "Split")
             }
-            Text("Split tender is locked — one payment state per post.")
-                .font(.plusJakarta(size: 10))
-                .foregroundStyle(OperatingV12.subtitle)
         }
+    }
+}
+
+/// Figma denser browser CTA (`+ New stock item` / `+ New product`) under catalogue grids.
+struct RoseDenseCreateCta: View {
+    let theme: OperatingTheme
+    let title: String
+    let hint: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(.plusJakarta(size: 13, weight: .bold))
+                    .foregroundStyle(theme.accent)
+                Spacer()
+                Text(hint)
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(OperatingV12.subtitle)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .background(theme.accent.opacity(0.08))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(theme.accent.opacity(0.40), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 

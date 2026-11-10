@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,6 +33,7 @@ import com.example.momentra.data.api.OperatingLineBody
 import com.example.momentra.data.api.OperatingMasterDto
 import com.example.momentra.data.api.OperatingPaymentDto
 import com.example.momentra.data.api.OperatingProjectionDto
+import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
 import com.example.momentra.ui.theme.RetailRose
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -42,6 +44,8 @@ internal fun RetailCaptureSheet(
     model: OperatingProjectionDto,
     onDismiss: () -> Unit,
     onSubmit: (RetailEventDraft) -> Unit,
+    companyId: String? = null,
+    onMasterSubmit: ((RetailEventDraft) -> Unit)? = null,
 ) {
     when (sheet) {
         RetailSheet.PURCHASE -> RetailPurchaseSheet(model, onDismiss, onSubmit)
@@ -49,7 +53,13 @@ internal fun RetailCaptureSheet(
         RetailSheet.PAYMENT -> RetailPaymentSheet(model, onDismiss, onSubmit)
         RetailSheet.SPEND -> RetailExpenseSheet(model, onDismiss, onSubmit)
         RetailSheet.STOCK -> RetailStockUpdateSheet(model, onDismiss, onSubmit)
-        RetailSheet.ORDER -> RetailOrderSheet(model, onDismiss, onSubmit)
+        RetailSheet.ORDER -> RetailOrderSheet(
+            model = model,
+            onDismiss = onDismiss,
+            onSubmit = onSubmit,
+            companyId = companyId,
+            onMasterSubmit = onMasterSubmit ?: onSubmit,
+        )
         RetailSheet.STATUS -> RetailStatusSheet(model, onDismiss, onSubmit)
         RetailSheet.BUDGET -> RetailBudgetSheet(model, onDismiss, onSubmit)
         RetailSheet.ISSUE -> RetailIssueSheet(model, onDismiss, onSubmit)
@@ -682,6 +692,8 @@ private fun RetailOrderSheet(
     model: OperatingProjectionDto,
     onDismiss: () -> Unit,
     onSubmit: (RetailEventDraft) -> Unit,
+    companyId: String? = null,
+    onMasterSubmit: (RetailEventDraft) -> Unit = onSubmit,
 ) {
     var mode by remember { mutableStateOf(OrderSheetMode.SalesOrder) }
     var stateChip by remember { mutableStateOf(if (mode == OrderSheetMode.SalesOrder) "Confirmed" else "Sent") }
@@ -692,6 +704,7 @@ private fun RetailOrderSheet(
     var search by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var moreOpen by remember { mutableStateOf(false) }
+    var createKind by remember { mutableStateOf<RetailMasterFormKind?>(null) }
     val currency = model.currency ?: "INR"
     val catalog = retailCatalogMasters(model)
     val lines = remember { mutableStateListOf(newCaptureLine(1), newCaptureLine(2)) }
@@ -704,6 +717,7 @@ private fun RetailOrderSheet(
         it.kind.equals("CUSTOMER", true) || it.kind.equals("BUYER", true)
     }
 
+    Box {
     retailCaptureScaffold(
         title = if (isPo) "Purchase Order" else "Sales Order",
         subtitle = if (isPo) {
@@ -806,6 +820,14 @@ private fun RetailOrderSheet(
                     )
                 }
             }
+            // Figma 2443:29784 / 2399:30418 — denser create CTA under browser.
+            RoseDenseCreateCta(
+                title = if (isPo) "+ New stock item" else "+ New product",
+                hint = if (isPo) "Name · unit · HSN · GST" else "Name · HSN · GST · MRP",
+                onClick = {
+                    createKind = if (isPo) RetailMasterFormKind.StockItem else RetailMasterFormKind.Product
+                },
+            )
         }
 
         RoseLinesCard(
@@ -924,6 +946,27 @@ private fun RetailOrderSheet(
                 )
             },
         )
+    }
+
+    createKind?.let { formKind ->
+        OperatingSheetScrim(
+            onDismiss = { createKind = null },
+            accent = RetailRose.rose,
+            surface = RetailRose.cardSlate,
+            border = RetailRose.roseBorder.copy(alpha = 0.45f),
+        ) {
+            RetailMasterFormSheet(
+                kind = formKind,
+                model = model,
+                companyId = companyId,
+                onDismiss = { createKind = null },
+                onSubmit = { draft ->
+                    onMasterSubmit(draft)
+                    createKind = null
+                },
+            )
+        }
+    }
     }
 }
 

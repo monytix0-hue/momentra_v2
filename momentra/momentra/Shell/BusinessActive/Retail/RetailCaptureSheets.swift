@@ -24,6 +24,7 @@ private struct RetailCaptureForm: View {
     @State private var draft = RetailCaptureDraft()
     @State private var saving = false
     @State private var didPrefill = false
+    @State private var createMasterKind: RetailMasterFormKind?
 
     private var upper: String { mode.uppercased() }
     private var layout: OperatingCaptureLayout? { OperatingCaptureLayout.forMode(mode) }
@@ -131,6 +132,29 @@ private struct RetailCaptureForm: View {
         }
         .task {
             if model.masters.isEmpty { await model.loadMasters() }
+        }
+        .sheet(item: $createMasterKind) { kind in
+            RetailMasterFormSheet(
+                theme: theme,
+                kind: kind,
+                model: model,
+                onSave: { draft in
+                    let created = await model.createMaster(draft)
+                    let ok = created != nil && model.writeError == nil
+                    if ok { await model.loadMasters() }
+                    return ok
+                },
+                onUpdate: { id, draft, version in
+                    let updated = await model.updateMaster(
+                        id: id,
+                        draft: draft,
+                        expectedVersion: version
+                    )
+                    let ok = updated != nil && model.writeError == nil
+                    if ok { await model.loadMasters() }
+                    return ok
+                }
+            )
         }
     }
 
@@ -607,6 +631,14 @@ private struct RetailCaptureForm: View {
                 action: {}
             )
             catalogueBrowser(purchase: isPo)
+            // Figma 2443:29784 / 2399:30418 — denser create CTA under browser.
+            RoseDenseCreateCta(
+                theme: theme,
+                title: isPo ? "+ New stock item" : "+ New product",
+                hint: isPo ? "Name · unit · HSN · GST" : "Name · HSN · GST · MRP"
+            ) {
+                createMasterKind = isPo ? .stockItem : .product
+            }
         }
 
         RoseLinesCard(

@@ -472,6 +472,30 @@ fun RoseLockedChip(label: String, modifier: Modifier = Modifier) {
     RoseModeChip(text = label, selected = false, locked = "Unavailable", modifier = modifier)
 }
 
+/** Figma denser browser CTA (`+ New stock item` / `+ New product`) under catalogue grids. */
+@Composable
+fun RoseDenseCreateCta(
+    title: String,
+    hint: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(RetailRose.rose.copy(alpha = 0.08f))
+            .border(1.dp, RetailRose.rose.copy(alpha = 0.40f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, style = RetailRose.chipLabel(false).copy(color = RetailRose.rose, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+        Spacer(Modifier.weight(1f))
+        Text(hint, style = RetailRose.rowCaption(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
 /** Create | Edit existing mode chips shared by master sheets (Figma mode row). */
 @Composable
 fun RoseCreateEditMode(
