@@ -453,7 +453,11 @@ fun WhyNote(body: String, modifier: Modifier = Modifier, tinted: Boolean = false
             style = RetailRose.why().copy(color = RetailRose.amber, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
             maxLines = 1,
         )
-        Text(body, style = RetailRose.why().copy(color = RetailRose.roseSoft), modifier = Modifier.weight(1f))
+        Text(
+            body,
+            style = RetailRose.why().copy(color = if (tinted) RetailRose.whyCream else RetailRose.whyBody),
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -652,22 +656,43 @@ fun RoseCta(
 
 /** Section label + trailing note over the Quick Add grids (`Core · 9` … `Retail journey`). */
 @Composable
-fun GridSectionHeader(title: String, note: String, modifier: Modifier = Modifier) {
+fun GridSectionHeader(
+    title: String,
+    note: String,
+    modifier: Modifier = Modifier,
+    /** Quieter band for Utilities · 3 (Figma hub omits it; kept for HTR discovery). */
+    muted: Boolean = false,
+) {
     Row(
-        modifier.fillMaxWidth(),
+        modifier
+            .fillMaxWidth()
+            .then(if (muted) Modifier else Modifier),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, style = RetailRose.sectionTitle(), maxLines = 1)
+        Text(
+            title,
+            style = if (muted) {
+                RetailRose.rowCaption(RetailRose.textMuted).copy(
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    fontSize = 12.sp,
+                )
+            } else {
+                RetailRose.sectionTitle()
+            },
+            maxLines = 1,
+        )
         Box(
             Modifier
                 .weight(1f)
                 .height(1.dp)
-                .background(Color.White.copy(alpha = 0.08f)),
+                .background(Color.White.copy(alpha = if (muted) 0.05f else 0.08f)),
         )
         Text(
             note,
-            style = RetailRose.rowCaption(RetailRose.amber).copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium).copy(fontSize = 11.sp),
+            style = RetailRose.rowCaption(
+                if (muted) RetailRose.textMuted else RetailRose.amber,
+            ).copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium).copy(fontSize = 11.sp),
             maxLines = 1,
         )
     }
@@ -681,6 +706,7 @@ fun QuickAddTile(
     caption: String,
     locked: String?,
     modifier: Modifier = Modifier,
+    muted: Boolean = false,
     onClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(16.dp)
@@ -688,18 +714,29 @@ fun QuickAddTile(
     Column(
         modifier
             .height(112.dp)
-            .shadow(
-                elevation = 8.dp,
-                shape = shape,
-                clip = false,
-                ambientColor = RetailRose.rose.copy(alpha = 0.15f),
-                spotColor = RetailRose.rose.copy(alpha = 0.15f),
+            .then(
+                if (muted) Modifier else Modifier.shadow(
+                    elevation = 8.dp,
+                    shape = shape,
+                    clip = false,
+                    ambientColor = RetailRose.rose.copy(alpha = 0.15f),
+                    spotColor = RetailRose.rose.copy(alpha = 0.15f),
+                ),
             )
             .clip(shape)
-            .background(RetailRose.tile)
-            .border(1.dp, if (locked == null) RetailRose.tileStroke else Color.White.copy(alpha = 0.08f), shape)
+            .background(if (muted) RetailRose.tile.copy(alpha = 0.88f) else RetailRose.tile)
+            .border(
+                1.dp,
+                when {
+                    locked != null -> Color.White.copy(alpha = 0.08f)
+                    muted -> Color.White.copy(alpha = 0.06f)
+                    else -> RetailRose.tileStroke
+                },
+                shape,
+            )
             .then(click)
-            .padding(12.dp),
+            .padding(12.dp)
+            .then(if (muted) Modifier else Modifier),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

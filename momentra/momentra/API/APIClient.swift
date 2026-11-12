@@ -50,6 +50,14 @@ struct OperatingFinancePayload: Decodable {
     let cashPaid: String
 }
 
+struct OperatingActivityLinePayload: Decodable, Equatable {
+    let itemName: String
+    let quantity: String?
+    let unit: String?
+    let unitPrice: String?
+    let masterId: String?
+}
+
 struct OperatingActivityPayload: Decodable, Identifiable {
     let id: String
     let title: String
@@ -79,6 +87,21 @@ struct OperatingActivityPayload: Decodable, Identifiable {
     let badge: String?
     /// One line of context under the row title (V099+).
     let subtitle: String?
+    /// ORDER / SALE lines for Bill-from-KOT and Fire/Reprint.
+    let lines: [OperatingActivityLinePayload]?
+}
+
+struct HsnLookupResultPayload: Decodable {
+    let code: String
+    let description: String
+    let gstRate: String?
+    let classification: String?
+}
+
+struct HsnLookupResponsePayload: Decodable {
+    let query: String?
+    let results: [HsnLookupResultPayload]?
+    let note: String?
 }
 
 struct OperatingLifePayload: Decodable {
@@ -221,7 +244,10 @@ struct MarketingInsightPayload: Decodable {
     let clientContribution: String?
     let campaignStatus: String?
     let clientFee: String?
+    let clientApprovedMediaBudget: String?
+    let agencyOperatingBudget: String?
     let offering: String?
+    let campaignPurpose: String?
     let creativeApprovalRequired: String?
     let reportingCadence: String?
     let orderAchievement: String?
@@ -413,6 +439,11 @@ struct OperatingAllocationInput: Encodable {
     let amount: String
 }
 
+struct OperatingPaymentInput: Encodable {
+    var method: String
+    var amount: String
+}
+
 struct OperatingContractInput: Encodable {
     var entryMode: String? = nil
     var paymentState: String? = nil
@@ -429,6 +460,8 @@ struct OperatingContractInput: Encodable {
     var staffName: String? = nil
     var estimatedAmount: String? = nil
     var allocations: [OperatingAllocationInput]? = nil
+    /// Split tender; amounts must sum to receivedAmount.
+    var payments: [OperatingPaymentInput]? = nil
     var ownership: String? = nil
     var shipmentStatus: String? = nil
     var promisedAt: String? = nil
@@ -444,7 +477,13 @@ struct OperatingContractInput: Encodable {
     var goodsOutcome: String? = nil
     var returnReason: String? = nil
     var gstRate: String? = nil
+    var discount: String? = nil
+    /// Explicit operator-entered cess ₹ — never from HSN tables.
+    var cessAmount: String? = nil
+    /// Explicit operator-entered cess % of taxable.
+    var cessRate: String? = nil
     var taxJurisdiction: String? = nil
+    var placeOfSupply: String? = nil
     var acceptedQuantity: String? = nil
     var productionStatus: String? = nil
     var deliveryStatus: String? = nil
@@ -5609,6 +5648,14 @@ final class APIClient {
         )
     }
 
+    /// Advisory HSN / SAC chapter search (`GET /business/gst/hsn`).
+    func searchHsn(query: String = "", limit: Int = 25) async throws -> HsnLookupResponsePayload {
+        var q: [String: String] = ["limit": String(max(1, min(100, limit)))]
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { q["q"] = trimmed }
+        return try await authorizedGet(path: "v1/business/gst/hsn", query: q)
+    }
+
     // MARK: - Operating masters + price lists (V099)
 
     func listOperatingMasters(
@@ -5730,7 +5777,7 @@ final class APIClient {
         revisesEventId: String? = nil,
         dueAt: String? = nil,
         contract: OperatingContractInput? = nil,
-        lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?)]? = nil,
+        lineItems: [(itemName: String, quantity: String?, unit: String?, unitPrice: String?, masterId: String?, taxMode: String?, gstRate: String?)]? = nil,
         reportingMode: String? = nil,
         metricCode: String? = nil,
         budgetCategory: String? = nil,
@@ -5767,6 +5814,8 @@ final class APIClient {
             let unit: String?
             let unitPrice: String?
             let masterId: String?
+            let taxMode: String?
+            let gstRate: String?
         }
         struct Master: Encodable {
             let masterId: String?
@@ -5824,12 +5873,28 @@ final class APIClient {
         let fromItems = (lineItems ?? []).compactMap { row -> Line? in
             let name = row.itemName.trimmingCharacters(in: .whitespaces)
             guard !name.isEmpty else { return nil }
-            return Line(itemName: name, quantity: row.quantity, unit: row.unit, unitPrice: row.unitPrice, masterId: row.masterId)
+            return Line(
+                itemName: name,
+                quantity: row.quantity,
+                unit: row.unit,
+                unitPrice: row.unitPrice,
+                masterId: row.masterId,
+                taxMode: row.taxMode,
+                gstRate: row.gstRate
+            )
         }
         let lines: [Line]? = {
             if !fromItems.isEmpty { return fromItems }
             if let itemName, !itemName.trimmingCharacters(in: .whitespaces).isEmpty {
-                return [Line(itemName: itemName.trimmingCharacters(in: .whitespaces), quantity: quantity, unit: unit, unitPrice: unitPrice, masterId: nil)]
+                return [Line(
+                    itemName: itemName.trimmingCharacters(in: .whitespaces),
+                    quantity: quantity,
+                    unit: unit,
+                    unitPrice: unitPrice,
+                    masterId: nil,
+                    taxMode: nil,
+                    gstRate: nil
+                )]
             }
             return nil
         }()

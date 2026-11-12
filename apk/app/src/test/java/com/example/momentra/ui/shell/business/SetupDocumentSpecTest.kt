@@ -46,17 +46,14 @@ class SetupDocumentSpecTest {
         val trading = SetupDocumentSpec.channels(SetupDocumentSpec.TRADING)
         val distribution = SetupDocumentSpec.channels(SetupDocumentSpec.DISTRIBUTION)
 
-        assertEquals(5, trading.size)
-        assertEquals(5, distribution.size)
-        assertTrue(trading.contains("Retail buyers"))
-        assertTrue(distribution.contains("Retail dealers"))
-        assertTrue(distribution.contains("Van sales"))
-        assertFalse(trading.contains("Van sales"))
-        // The shared middle three are the same words in both verticals.
-        listOf("Wholesale", "Modern trade", "HoReCa").forEach {
-            assertTrue(it, trading.contains(it))
-            assertTrue(it, distribution.contains(it))
-        }
+        assertEquals(listOf("Wholesale", "Retail", "B2B Direct", "Online", "Distributor", "Other"), trading)
+        assertTrue(distribution.contains("General Trade"))
+        assertTrue(distribution.contains("Van Sales"))
+        assertFalse(trading.contains("Van Sales"))
+        assertFalse(trading.contains("HoReCa"))
+        assertFalse(distribution.contains("HoReCa"))
+        assertTrue(trading.contains("Wholesale"))
+        assertTrue(distribution.contains("Wholesale"))
     }
 
     @Test
@@ -112,7 +109,7 @@ class SetupDocumentSpecTest {
             partyName = "  Northstar Pvt Ltd ",
             currency = "INR",
             startDate = "2026-10-12",
-            channels = listOf("Retail buyers", "Online"),
+            channels = listOf("Wholesale", "Online"),
             monthlyBudget = "500000",
             monthlyTarget = "1200000",
             targetMetric = "REVENUE",
@@ -131,7 +128,7 @@ class SetupDocumentSpecTest {
         assertEquals("REVENUE", prefs["targetMetric"])
         // Purchases inherit the sales decision unless told otherwise.
         assertEquals(prefs["salePriceIncludesGst"], prefs["purchasePriceIncludesGst"])
-        assertEquals(listOf("Retail buyers", "Online"), prefs["channels"])
+        assertEquals(listOf("Wholesale", "Online"), prefs["channels"])
         @Suppress("UNCHECKED_CAST")
         val participants = prefs["participants"] as List<Map<String, String>>
         assertEquals("Kiran Rao", participants.single()["displayName"])
@@ -145,7 +142,7 @@ class SetupDocumentSpecTest {
             partyName = "Northstar Pvt Ltd",
             currency = "INR",
             startDate = "2026-10-12",
-            channels = listOf("Retail buyers"),
+            channels = listOf("Wholesale"),
             monthlyBudget = "500000",
             monthlyTarget = "1200000",
             targetMetric = "REVENUE",
@@ -252,8 +249,8 @@ class SetupDocumentSpecTest {
         assertTrue(distribution.contains("1 supplier"))
         assertTrue(distribution.contains("3 buyers"))
 
-        assertEquals("Principals & dealers", SetupDocumentSpec.networkLabel(SetupDocumentSpec.TRADING))
-        assertEquals("Suppliers & buyers", SetupDocumentSpec.networkLabel(SetupDocumentSpec.DISTRIBUTION))
+        assertEquals("Business contacts", SetupDocumentSpec.networkLabel(SetupDocumentSpec.TRADING))
+        assertEquals("Suppliers & customers", SetupDocumentSpec.networkLabel(SetupDocumentSpec.DISTRIBUTION))
     }
 
     @Test
@@ -423,7 +420,7 @@ class SetupDocumentSpecTest {
         saved.gstTracking = "Not now"
         saved.gstRegistration = "Composition"
         saved.gstPricing = "Prices include GST"
-        saved.channels = setOf("Retail dealers")
+        saved.channels = setOf("General Trade")
         saved.budget = "2,50,000"
         saved.target = "9,00,000"
         saved.month = "2026-11"
@@ -443,7 +440,7 @@ class SetupDocumentSpecTest {
         assertEquals("Not now", reopened.gstTracking)
         assertEquals("Composition", reopened.gstRegistration)
         assertEquals("Prices include GST", reopened.gstPricing)
-        assertEquals(setOf("Retail dealers"), reopened.channels)
+        assertEquals(setOf("General Trade"), reopened.channels)
         // Grouped money comes back grouped, not as raw digits in the field.
         assertEquals("2,50,000", reopened.budget)
         assertEquals("9,00,000", reopened.target)
@@ -462,12 +459,12 @@ class SetupDocumentSpecTest {
         reopened.applyPrefill(
             mapOf(
                 "subtype" to SetupDocumentSpec.DISTRIBUTION,
-                "channels" to listOf("Retail dealers", "Van sales"),
+                "channels" to listOf("General Trade", "Van Sales"),
             ),
         )
 
         assertEquals(SetupDocumentSpec.DISTRIBUTION, reopened.subtype)
-        assertEquals(setOf("Retail dealers", "Van sales"), reopened.channels)
+        assertEquals(setOf("General Trade", "Van Sales"), reopened.channels)
 
         // Switching back to trading must not keep a dealership-only chip selected.
         reopened.switchSubtype(SetupDocumentSpec.TRADING)

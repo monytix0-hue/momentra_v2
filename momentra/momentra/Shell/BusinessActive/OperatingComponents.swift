@@ -9,6 +9,7 @@ struct OperatingTheme {
 
     var accent: Color { vertical.accent }
     var canvas: Color { vertical.canvas }
+    var canvasTop: Color { vertical.canvasTop }
     var surface: Color { vertical.surface }
     var inset: Color { vertical.inset }
     var border: Color { vertical.border }
@@ -16,9 +17,107 @@ struct OperatingTheme {
     var body: Color { vertical.body }
     var muted: Color { vertical.muted }
     var onAccent: Color { vertical.onAccent }
+    var softLink: Color { vertical.softLink }
     var warning: Color { BusinessTokens.Colors.signalWarning }
     var negative: Color { BusinessTokens.Colors.signalDanger }
     var positive: Color { BusinessTokens.Colors.signalPositive }
+
+    /// Pulse section card fill — Own plum `#2A1030`; Client keeps kit pulse surface.
+    var pulseCardFill: Color {
+        vertical == .ownBusinessCampaign ? surface : OperatingV12.pulseSurface
+    }
+
+    /// TRD-QA `#151D2E` / DST-QA `#13203A` / MKT-QA+OWN `#1E293B` capture sheet — distinct from pulse cards.
+    var captureSheet: Color {
+        switch vertical {
+        case .trading: return Color(hex: "#151D2E")
+        case .distribution: return Color(hex: "#13203A")
+        case .clientCampaign, .ownBusinessCampaign: return Color(hex: "#1E293B")
+        default: return canvas
+        }
+    }
+
+    /// WHY / context accent — Trading cyan, Dist sky, Client violet, Own amber.
+    var cyan: Color {
+        switch vertical {
+        case .trading: return BusinessTokens.Colors.signalInfo
+        case .distribution: return Color(hex: "#38BDF8")
+        case .clientCampaign: return Color(hex: "#8B5CF6")
+        case .ownBusinessCampaign: return Color(hex: "#F59E0B")
+        default: return accent
+        }
+    }
+
+    var captureLabel: Color {
+        if isMarketingQaCapture { return Color(hex: "#94A3B8") }
+        return isOpsQaCapture ? Color(hex: "#8B97AD") : muted
+    }
+
+    var captureHint: Color {
+        if isMarketingQaCapture { return Color(hex: "#64748B") }
+        return isOpsQaCapture ? Color(hex: "#6B7790") : muted
+    }
+
+    var captureValue: Color {
+        if isMarketingQaCapture { return Color(hex: "#F8FAFC") }
+        return isOpsQaCapture ? Color(hex: "#F1F5F9") : ink
+    }
+
+    var captureField: Color {
+        switch vertical {
+        case .trading: return Color(hex: "#1E293B")
+        case .distribution: return Color(hex: "#1A2A4A")
+        case .clientCampaign, .ownBusinessCampaign: return Color(hex: "#334155")
+        default: return inset
+        }
+    }
+
+    var whyFill: Color {
+        switch vertical {
+        case .clientCampaign: return Color(hex: "#8B5CF6").opacity(0.12)
+        case .ownBusinessCampaign: return Color(hex: "#F59E0B").opacity(0.12)
+        case .trading: return Color(hex: "#06B6D4").opacity(0.08)
+        case .distribution: return Color(hex: "#38BDF8").opacity(0.08)
+        default: return inset
+        }
+    }
+
+    var whyBorder: Color {
+        switch vertical {
+        case .clientCampaign: return Color(hex: "#8B5CF6").opacity(0.40)
+        case .ownBusinessCampaign: return Color(hex: "#F59E0B").opacity(0.40)
+        case .trading: return Color(hex: "#06B6D4").opacity(0.30)
+        case .distribution: return Color(hex: "#38BDF8").opacity(0.30)
+        default: return border
+        }
+    }
+
+    var whyBody: Color {
+        switch vertical {
+        case .retailStore: return BusinessTokens.Colors.retailWhyBody
+        case .clientCampaign: return Color(hex: "#C4B5FD")
+        case .ownBusinessCampaign: return Color(hex: "#FCD34D")
+        default: return Color(hex: "#CFEFF6")
+        }
+    }
+
+    /// Soft accent lead — Client violet / Own amber / MTO soft amber (`#FBBF24`); others reuse accent.
+    var accentSoft: Color {
+        switch vertical {
+        case .clientCampaign: return Color(hex: "#8B5CF6")
+        case .ownBusinessCampaign: return Color(hex: "#F59E0B")
+        case .madeToOrder: return BusinessTokens.Colors.manufacturingAccentSoft
+        default: return accent
+        }
+    }
+
+    var isTradingCapture: Bool { vertical == .trading }
+    var isDistributionCapture: Bool { vertical == .distribution }
+    var isMarketingClientCapture: Bool { vertical == .clientCampaign }
+    var isMarketingOwnCapture: Bool { vertical == .ownBusinessCampaign }
+    var isMarketingQaCapture: Bool { isMarketingClientCapture || isMarketingOwnCapture }
+    /// Shared TRD/DST/MKT-Client/Own amount-first chrome + chip routing body.
+    var isOpsQaCapture: Bool { isTradingCapture || isDistributionCapture || isMarketingQaCapture }
 
     init(vertical: BusinessOperatingVertical) {
         self.vertical = vertical
@@ -155,17 +254,39 @@ struct OperatingMetricGrid: View {
 
 // MARK: - Why footnote
 
-/// The Figma `Why: …` line. It explains a gap and never restates the tiles.
+/// The Figma `Why: …` line. Trading capture sheets use the cyan TRD-QA WHY panel.
 struct OperatingWhyFootnote: View {
     let theme: OperatingTheme
     let text: String?
 
     var body: some View {
         if let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            Text("Why: \(text)")
-                .font(.plusJakarta(size: 12))
-                .foregroundStyle(theme.body)
+            if theme.isOpsQaCapture {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("WHY")
+                        .font(.plusJakarta(size: 11, weight: .bold))
+                        .tracking(1)
+                        .foregroundStyle(theme.cyan)
+                    Text(text)
+                        .font(.plusJakarta(size: 13))
+                        .foregroundStyle(theme.whyBody)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .background(theme.whyFill)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(theme.whyBorder, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            } else {
+                Text("Why: \(text)")
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(theme.body)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 }

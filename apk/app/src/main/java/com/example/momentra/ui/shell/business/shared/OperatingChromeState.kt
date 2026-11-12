@@ -31,7 +31,13 @@ object OperatingChromeState {
     var partsBrowserOpen by mutableStateOf<String?>(null)
 
     /**
-     * Master chosen in the Parts/Materials browser. Capture sheets consume this on open
+     * Consumer Service catalogue browser (`SVC-SHEET · Services browser`).
+     * Value is the capture hint the open sheet should absorb (`SERVICE` / `APPOINTMENT`).
+     */
+    var servicesBrowserOpen by mutableStateOf<String?>(null)
+
+    /**
+     * Master chosen in the Parts/Materials/Services browser. Capture sheets consume this on open
      * (name / id / qty defaults); hubs open the matching Quick Add when no capture is up.
      */
     var browserSelection by mutableStateOf<OperatingBrowserSelection?>(null)
@@ -86,17 +92,22 @@ object OperatingChromeState {
 
     /** Vertical accent/surface for the shared chrome sheets. */
     var storyAccent by mutableStateOf(Color(0xFF10B981))
+    /** Soft / CTA-end accent — Own amber `#F59E0B`; Client violet; else mirrors [storyAccent]. */
+    var storyAccentSoft by mutableStateOf(Color(0xFF10B981))
     var storySurface by mutableStateOf(Color(0xFF090D16))
     var storyBorder by mutableStateOf(Color(0xFF1E293B))
     var storyInk by mutableStateOf(Color.White)
     var storyBody by mutableStateOf(Color(0xFF94A3B8))
+    var storyInset by mutableStateOf(Color.Black.copy(alpha = 0.25f))
+    /** When true, masters / Switch Moment / SKU browser use Dist Figma copy. */
+    var distributionChrome by mutableStateOf(false)
 
     fun storyTheme(): OperatingSheetTheme = OperatingSheetTheme(
         accent = storyAccent,
-        accentSoft = storyAccent,
+        accentSoft = storyAccentSoft,
         canvas = storySurface,
         surface = storySurface,
-        inset = Color.Black.copy(alpha = 0.25f),
+        inset = storyInset,
         border = storyBorder,
         ink = storyInk,
         body = storyBody,

@@ -667,8 +667,8 @@ struct BusinessSetupDocSpecTests {
     @Test func channelsDifferPerVerticalAndRolesAreTheFourMintableCodes() {
         let tradingChannels = BusinessSetupDocSpec.channels(.trading)
         let distributionChannels = BusinessSetupDocSpec.channels(.distribution)
-        #expect(tradingChannels.first == "Retail buyers")
-        #expect(distributionChannels.first == "Retail dealers")
+        #expect(tradingChannels.first == "Wholesale")
+        #expect(distributionChannels.first == "General Trade")
         #expect(tradingChannels != distributionChannels)
 
         let expected = ["FINANCE", "APPROVER", "OPERATIONS_LEAD", "CONTRIBUTOR"]
@@ -678,6 +678,13 @@ struct BusinessSetupDocSpecTests {
         #expect(BusinessSetupDocSpec.roles(.distribution).map(\.label) == ["Manager", "Warehouse", "Route lead", "Salesman"])
         #expect(OperatingSheetCatalog.all.count == 30)
         #expect(OperatingSheetChrome.figmaId(for: "FINANCE") == "2561:29430")
+        #expect(OperatingSheetChrome.figmaId(for: "production") == "2549:30941")
+        #expect(OperatingSheetChrome.figmaId(for: "ME3") == "2513:30751")
+        #expect(OperatingSheetChrome.figmaId(for: "M1") == "2574:29810")
+        #expect(OperatingSheetChrome.figmaId(for: "sales") == "2513:30297")
+        #expect(OperatingSheetChrome.figmaId(for: "FINANCE", vertical: "TRADING_WHOLESALE") == "2566:33689")
+        #expect(OperatingSheetChrome.figmaId(for: "ATTENTION", vertical: "RETAIL_STORE") == "2513:29426")
+        #expect(OperatingSheetChrome.figmaId(for: "production", vertical: "STANDARD_PRODUCTION") == "2549:30941")
         #expect(OperatingSheetChrome.footerCta(for: "ME4") == "Open Memory")
         #expect(OperatingSheetChrome.footerAction(for: "PAYMENT_READINESS") == "PAYMENT")
         #expect(OperatingSheetChrome.statusFilters(for: "ATTENTION") == ["Open", "Overdue", "Settled"])
@@ -701,14 +708,14 @@ struct BusinessSetupDocSpecTests {
     @Test func switchingTheKindKeepsTypedFieldsButDropsForeignChannels() {
         var doc = BusinessSetupDocState(vertical: .trading)
         doc.businessName = "Sharma Wholesale"
-        doc.toggleChannel("Retail buyers")
+        doc.toggleChannel("B2B Direct")
         doc.toggleChannel("Wholesale")
 
         doc.switchVertical(.distribution)
 
         #expect(doc.vertical == .distribution)
         #expect(doc.businessName == "Sharma Wholesale")
-        // `Retail buyers` is not a distribution channel, so it must not survive the switch.
+        // `B2B Direct` is trading-only; `Wholesale` is shared and survives the switch.
         #expect(doc.channels == Set(["Wholesale"]))
         #expect(doc.inviteRole == "OPERATIONS_LEAD")
     }
@@ -781,8 +788,8 @@ struct BusinessSetupDocSpecTests {
         #expect(BusinessSetupDocSpec.networkSubtitle(.trading, counts: counts) == "3 principals · 4 dealers · GSTIN on file")
         #expect(BusinessSetupDocSpec.networkSubtitle(.distribution, counts: counts) == "3 suppliers · 4 buyers · GSTIN on file")
         #expect(BusinessSetupDocSpec.networkSubtitle(.trading, counts: BusinessSetupMasterCounts()) == BusinessSetupDocSpec.networkInvite)
-        #expect(BusinessSetupDocSpec.networkLabel(.trading) == "Principals & dealers")
-        #expect(BusinessSetupDocSpec.networkLabel(.distribution) == "Suppliers & buyers")
+        #expect(BusinessSetupDocSpec.networkLabel(.trading) == "Business contacts")
+        #expect(BusinessSetupDocSpec.networkLabel(.distribution) == "Suppliers & customers")
     }
 
     // MARK: §02 copy
@@ -943,7 +950,7 @@ struct BusinessSetupDocSpecTests {
         saved.gstTracking = "Not now"
         saved.gstRegistration = "Composition"
         saved.gstPricing = "Prices include GST"
-        saved.channels = ["Retail dealers"]
+        saved.channels = ["General Trade"]
         saved.budget = "2,50,000"
         saved.target = "9,00,000"
         saved.month = "2026-11"
@@ -963,7 +970,7 @@ struct BusinessSetupDocSpecTests {
         #expect(reopened.gstTracking == "Not now")
         #expect(reopened.gstRegistration == "Composition")
         #expect(reopened.gstPricing == "Prices include GST")
-        #expect(reopened.channels == Set(["Retail dealers"]))
+        #expect(reopened.channels == Set(["General Trade"]))
         #expect(reopened.budget == "2,50,000")
         #expect(reopened.target == "9,00,000")
         #expect(reopened.startDate == "2026-11-01")

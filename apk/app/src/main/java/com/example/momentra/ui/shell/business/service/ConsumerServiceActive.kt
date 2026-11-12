@@ -226,7 +226,7 @@ private fun PulseHero(model: OperatingProjectionDto, onOpenQuickAdd: () -> Unit)
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text("Book. Charge. Settle.", style = ServicesTeal.heroHeadline(), maxLines = 1)
+            Text("Book. Deliver. Charge.", style = ServicesTeal.heroHeadline(), maxLines = 1)
             Text(
                 summary,
                 style = ServicesTeal.heroBody(),
@@ -234,9 +234,10 @@ private fun PulseHero(model: OperatingProjectionDto, onOpenQuickAdd: () -> Unit)
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(end = 56.dp),
             )
-            if ("SALE" in model.quickAdds.map { it.code }) {
+            val allowed = model.quickAdds.map { it.code.uppercase() }.toSet()
+            if ("SERVICE" in allowed || "SALE" in allowed) {
                 Spacer(Modifier.height(4.dp))
-                TealCta("+  Record Sale", onClick = onOpenQuickAdd)
+                TealCta("+  Finalize Charge", onClick = onOpenQuickAdd)
             }
         }
         HeroGlyph()

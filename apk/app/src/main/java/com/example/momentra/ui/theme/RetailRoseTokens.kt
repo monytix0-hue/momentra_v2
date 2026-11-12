@@ -41,21 +41,37 @@ object RetailRose {
     // ---- Accents ----------------------------------------------------------------
     val rose = Color(0xFFF43F5E)
     val roseBorder = Color(0xFFE11D48)
+    /** Selected register / context chip fill — Figma HTR `#881337`. */
+    val roseDeep = Color(0xFF881337)
     val roseSoft = Color(0xFFFFE4E6)
     val roseMuted = Color(0xFFFECDD3)
+    /** Why-note cream body — Figma HTR `#FEF3C7`. */
+    val whyCream = Color(0xFFFEF3C7)
+    /** Sheet grab handle — Figma `#FB7185`. */
+    val grab = Color(0xFFFB7185)
+    /** ALT / soft-rose pill fill — Figma `#FB7185`. */
+    val rosePill = Color(0xFFFB7185)
     val cyan = Color(0xFF06B6D4)
     val amber = Color(0xFFFBBF24)
     val positive = Color(0xFF22C55E)
     val negative = Color(0xFFEF4444)
     val warning = Color(0xFFF59E0B)
     val indigo = Color(0xFF4F46E5)
+    /** Why-note body — Figma POS uses rose-soft cream `#FFE4E6`. */
+    val whyBody = Color(0xFFFFE4E6)
 
     // ---- Text -------------------------------------------------------------------
     val textPrimary = Color(0xFFF8FAFC)
     val textBody = Color(0xFFCBD5E1)
     val textMuted = Color(0xFF94A3B8)
     val textFaint = Color(0xFF64748B)
+    /**
+     * Dark ink on rose — used by RTL-FORM Supplier CTA (`2506:29612` / slate `#0F172A` family).
+     * QA sticky CTAs (POS / money / HTR) use **white** on rose per Figma — see [RoseStickyFooter].
+     */
     val inkOnRose = Color(0xFF04110C)
+    /** Placeholder / scan field hint — Figma `#FB7185`. */
+    val textRoseHint = Color(0xFFFB7185)
 
     // ---- Hairlines --------------------------------------------------------------
     /** Card border: rose at 28% (Pulse) / 40% (Moments) / 45–50% (Life, Memory). */
@@ -81,6 +97,10 @@ object RetailRose {
     val rHeroIcon = RoundedCornerShape(12.dp)
     val rTileIcon = RoundedCornerShape(10.dp)
     val rStoryCta = RoundedCornerShape(18.dp)
+    /** Bottom-sheet top corners — Figma ~28. */
+    val rSheetTop = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    /** Primary sticky CTA — Figma 16. */
+    val rCta = RoundedCornerShape(16.dp)
 
     // ---- Spacing (8pt-derived, exact Figma values) ------------------------------
     val s2 = 2.dp

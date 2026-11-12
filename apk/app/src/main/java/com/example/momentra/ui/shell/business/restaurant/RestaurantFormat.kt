@@ -101,6 +101,37 @@ object RestaurantFormat {
         return runCatching { LocalDate.parse(text) }.getOrNull()
     }
 
+    /**
+     * Client-side GST **estimate** from known line rates + amounts — never posts to ledger.
+     * Returns null when a priced line lacks a parseable rate.
+     */
+    fun gstEstimate(
+        lineAmounts: List<BigDecimal>,
+        lineRates: List<String?>,
+        inclusive: Boolean = true,
+    ): BigDecimal? {
+        if (lineAmounts.isEmpty()) return null
+        var tax = BigDecimal.ZERO
+        var sawPositive = false
+        for (i in lineAmounts.indices) {
+            val amount = lineAmounts.getOrNull(i) ?: BigDecimal.ZERO
+            if (amount.signum() <= 0) continue
+            sawPositive = true
+            val raw = lineRates.getOrNull(i)?.trim().orEmpty()
+            if (raw.isBlank()) return null
+            if (raw.equals("Exempt", true) || raw == "0") continue
+            val rate = raw.removeSuffix("%").toBigDecimalOrNull() ?: return null
+            if (rate.signum() < 0) return null
+            val piece = if (inclusive) {
+                amount.multiply(rate).divide(BigDecimal(100).add(rate), 4, RoundingMode.HALF_UP)
+            } else {
+                amount.multiply(rate).divide(BigDecimal(100), 4, RoundingMode.HALF_UP)
+            }
+            tax = tax.add(piece)
+        }
+        return if (sawPositive) tax.setScale(2, RoundingMode.HALF_UP) else null
+    }
+
     fun count(value: Int): String = value.toString()
 
     /** Replaces raw `1234.0000` tokens inside a board `detail` sentence. */

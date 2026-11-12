@@ -1,0 +1,13 @@
+<!-- Figma RTL-QA-01-ALT POS scan field barcode icon (18×18). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="18dp"
+    android:height="18dp"
+    android:viewportWidth="18"
+    android:viewportHeight="18">
+    <path android:pathData="M2.25,3.75V14.25" android:strokeWidth="1.5" android:strokeColor="#CBD5E1" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M5.25,3.75V14.25" android:strokeWidth="1.5" android:strokeColor="#CBD5E1" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M7.5,3.75V14.25" android:strokeWidth="1.5" android:strokeColor="#CBD5E1" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M10.5,3.75V14.25" android:strokeWidth="1.5" android:strokeColor="#CBD5E1" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M12.75,3.75V14.25" android:strokeWidth="1.5" android:strokeColor="#CBD5E1" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M15.75,3.75V14.25" android:strokeWidth="1.5" android:strokeColor="#CBD5E1" android:strokeLineCap="round" android:fillColor="#00000000" />
+</vector>

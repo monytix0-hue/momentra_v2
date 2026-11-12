@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -39,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.api.OperatingAttentionDto
+import com.example.momentra.data.api.OperatingBoardMetricDto
 import com.example.momentra.data.api.OperatingBoardSectionDto
 import com.example.momentra.data.api.OperatingPaymentDto
 import com.example.momentra.data.api.OperatingProjectionDto
@@ -47,7 +49,9 @@ import com.example.momentra.ui.shell.business.shared.BusinessEmptyState
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingChromeSheets
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
-import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
+import com.example.momentra.ui.shell.business.shared.OperatingSheetChrome
+import com.example.momentra.ui.shell.business.shared.OperatingSheetFrame
+import com.example.momentra.ui.shell.business.shared.OperatingSheetTheme
 import com.example.momentra.ui.shell.business.shared.OperatingTab
 import com.example.momentra.ui.shell.business.shared.OperatingV12
 import com.example.momentra.ui.shell.business.shared.OperatingV12Card
@@ -130,7 +134,12 @@ fun MarketingActive(
     val brand = theme.accent
     var boardSheet by remember { mutableStateOf<MarketingBoardSheet?>(null) }
 
-    Box(modifier.fillMaxSize().background(theme.canvas)) {
+    val canvasBrush = if (theme.isMarketingOwn) {
+        Brush.verticalGradient(listOf(theme.canvasTop, theme.canvas))
+    } else {
+        Brush.verticalGradient(listOf(theme.canvas, theme.canvas))
+    }
+    Box(modifier.fillMaxSize().background(canvasBrush)) {
         if (tab == OperatingTab.QUICK_ADD) {
             MarketingQuickAddHub(model, onRecord, onDecide, momentId)
         } else {
@@ -221,14 +230,40 @@ internal fun ContextChips(model: OperatingProjectionDto, theme: OperatingV12Them
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        ContextChip(theme.label, filled = true, brand = theme.accent)
-        ContextChip(campaign, filled = false, brand = theme.accent)
-        ContextChip(period, filled = false, brand = theme.accent)
+        ContextChip(
+            theme.label,
+            filled = true,
+            brand = theme.accent,
+            selectedBorder = if (theme.isMarketingOwn) Color(0xFFF59E0B) else theme.accent,
+            idleFill = if (theme.isMarketingOwn) Color(0xFF334155) else CampCard,
+            idleBorder = if (theme.isMarketingOwn) Color(0xFF475569) else CampBorder,
+        )
+        ContextChip(
+            campaign,
+            filled = false,
+            brand = theme.accent,
+            idleFill = if (theme.isMarketingOwn) Color(0xFF334155) else CampCard,
+            idleBorder = if (theme.isMarketingOwn) Color(0xFF475569) else CampBorder,
+        )
+        ContextChip(
+            period,
+            filled = false,
+            brand = theme.accent,
+            idleFill = if (theme.isMarketingOwn) Color(0xFF334155) else CampCard,
+            idleBorder = if (theme.isMarketingOwn) Color(0xFF475569) else CampBorder,
+        )
     }
 }
 
 @Composable
-private fun ContextChip(text: String, filled: Boolean, brand: Color) {
+private fun ContextChip(
+    text: String,
+    filled: Boolean,
+    brand: Color,
+    selectedBorder: Color = brand,
+    idleFill: Color = CampCard,
+    idleBorder: Color = CampBorder,
+) {
     Text(
         text,
         color = if (filled) Color.White else CampSecondary,
@@ -239,8 +274,8 @@ private fun ContextChip(text: String, filled: Boolean, brand: Color) {
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(if (filled) brand else CampCard)
-            .border(1.dp, if (filled) brand else CampBorder, RoundedCornerShape(999.dp))
+            .background(if (filled) brand else idleFill)
+            .border(1.dp, if (filled) selectedBorder else idleBorder, RoundedCornerShape(999.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp),
     )
 }
@@ -268,6 +303,9 @@ private fun MarketingPulse(
         AttentionCard(model, theme, onDecide, onOpenQuickAdd, onOpenSheet)
     }
     ActivityCard(model, theme, onOpenQuickAdd, onOpenSheet)
+    // GST Position is intentional omit on Marketing Pulse (MKT-PULSE-v12 / Own):
+    // campaign boards track leads/budget/AR, not tax filing position. Retail/Restaurant/
+    // Service/MFG keep GST sheets; Marketing does not open a GST View-all.
 }
 
 @Composable
@@ -343,8 +381,8 @@ private fun AttentionCard(
 ) {
     val scope = rememberCoroutineScope()
     val overdue = model.attention.count { it.severity.equals("CRITICAL", true) || it.severity.equals("HIGH", true) || it.kind.contains("OVERDUE", true) }
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
-        SectionHead("Needs Attention", chip = if (model.attention.isNotEmpty()) "Alert" else null, chipTone = CampDanger, onViewAll = { onOpenSheet(MarketingBoardSheet.Attention) })
+    OperatingV12Card(theme = theme, fill = theme.surface) {
+        SectionHead("Needs Attention", chip = if (model.attention.isNotEmpty()) "Alert" else null, chipTone = CampDanger, softLink = theme.softLink, onViewAll = { onOpenSheet(MarketingBoardSheet.Attention) })
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OperatingV12Tile("Alerts", model.attention.size.toString(), tone = CampDanger, modifier = Modifier.weight(1f))
             OperatingV12Tile("Overdue", overdue.toString(), tone = CampWarn, modifier = Modifier.weight(1f))
@@ -434,8 +472,8 @@ private fun TargetBudgetCard(model: OperatingProjectionDto, theme: OperatingV12T
     val achieved = OperatingV12Money.compact(target?.progress, model.currency)
     val targetLabel = if (configured) OperatingV12Money.compact(target?.value, model.currency) else "not set"
     val noun = if (theme.isMarketingOwn) "Orders" else "Leads"
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
-        SectionHead("Target & Budget", onViewAll = { onOpenSheet(MarketingBoardSheet.TargetBudget) })
+    OperatingV12Card(theme = theme, fill = theme.surface) {
+        SectionHead("Target & Budget", softLink = theme.softLink, onViewAll = { onOpenSheet(MarketingBoardSheet.TargetBudget) })
         Row(
             Modifier
                 .fillMaxWidth()
@@ -494,8 +532,8 @@ private fun PaymentReadinessCard(model: OperatingProjectionDto, theme: Operating
     val ap = toPay.mapNotNull { OperatingV12Money.number(it.amount) }.sum()
     val ar = toCollect.mapNotNull { OperatingV12Money.number(it.amount) }.sum()
     val paid = OperatingV12Money.number(model.finance?.cashPaid) ?: 0.0
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
-        SectionHead("Payment Readiness", onViewAll = { onOpenSheet(MarketingBoardSheet.Payment) })
+    OperatingV12Card(theme = theme, fill = theme.surface) {
+        SectionHead("Payment Readiness", softLink = theme.softLink, onViewAll = { onOpenSheet(MarketingBoardSheet.Payment) })
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OperatingV12Tile(
                 if (client) "Vendor dues (AP)" else "Vendor due (AP)",
@@ -565,8 +603,8 @@ private fun FinanceCard(model: OperatingProjectionDto, theme: OperatingV12Theme,
     val client = isClientCampaign(model.subtype)
     val finance = model.finance
     val measured = model.activity.any { it.eventType == "RESULT" || it.eventType == "PROGRESS" }
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
-        SectionHead("Finance", onViewAll = { onOpenSheet(MarketingBoardSheet.Finance) })
+    OperatingV12Card(theme = theme, fill = theme.surface) {
+        SectionHead("Finance", softLink = theme.softLink, onViewAll = { onOpenSheet(MarketingBoardSheet.Finance) })
         if (client) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OperatingV12Tile("Invoiced", OperatingV12Money.compact(finance?.sales, model.currency), modifier = Modifier.weight(1f))
@@ -618,8 +656,8 @@ private fun ActivityCard(
     }
     val today = LocalDate.now().toString()
     val todayCount = model.activity.count { it.occurredAt.startsWith(today) }
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
-        SectionHead("Activity", onViewAll = { onOpenSheet(MarketingBoardSheet.Activity) })
+    OperatingV12Card(theme = theme, fill = theme.surface) {
+        SectionHead("Activity", softLink = theme.softLink, onViewAll = { onOpenSheet(MarketingBoardSheet.Activity) })
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OperatingV12Tile("Open", open.toString(), modifier = Modifier.weight(1f))
             OperatingV12Tile("Done", done.toString(), tone = CampSuccess, modifier = Modifier.weight(1f))
@@ -652,7 +690,7 @@ private fun ActivityCard(
 
 @Composable
 private fun RestrictedPulse(model: OperatingProjectionDto, theme: OperatingV12Theme) {
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
+    OperatingV12Card(theme = theme, fill = theme.surface) {
         Text(model.title ?: "Campaign", color = CampInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
         val channels = model.life?.channels?.joinToString(" · ").orEmpty()
         if (channels.isNotBlank()) Text("Channels · $channels", color = CampSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
@@ -750,7 +788,7 @@ private fun MarketingMoments(
         onViewAll = { onOpenSheet(MarketingBoardSheet.Channels) },
         fallbackEmpty = "Channels, vendors and partners will show here.",
     )
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
+    OperatingV12Card(theme = theme, fill = theme.surface) {
         Text("Create the next campaign moment", color = CampInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         Text(
             "Open Quick Add",
@@ -768,7 +806,7 @@ private fun MarketingMoments(
 
 @Composable
 private fun MomentsHero(model: OperatingProjectionDto, theme: OperatingV12Theme) {
-    OperatingV12Card(theme = theme, fill = OperatingV12.surface, borderOpacity = 0.4f) {
+    OperatingV12Card(theme = theme, fill = if (theme.isMarketingOwn) theme.surface else OperatingV12.surface, borderOpacity = 0.4f) {
         Text(model.title ?: "Campaign", color = Color.White, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Black, fontSize = 24.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatusPill(theme.label, theme.accent)
@@ -789,7 +827,7 @@ private fun MomentsHero(model: OperatingProjectionDto, theme: OperatingV12Theme)
 @Composable
 private fun MarketingLife(model: OperatingProjectionDto, theme: OperatingV12Theme, onOpenSheet: (MarketingBoardSheet) -> Unit) {
     val life = model.boards?.life.orEmpty()
-    OperatingV12Card(theme = theme, fill = OperatingV12.surface, borderOpacity = 0.4f) {
+    OperatingV12Card(theme = theme, fill = if (theme.isMarketingOwn) theme.surface else OperatingV12.surface, borderOpacity = 0.4f) {
         Text("TODAY", color = theme.accent, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 1.sp)
         Text("${model.title ?: "Campaign"} · today", color = Color.White, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Black, fontSize = 22.sp)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -837,7 +875,7 @@ private fun MarketingMemory(
 ) {
     val memory = model.boards?.memory.orEmpty()
     val period = OperatingV12Date.monthYear(model.startDate) ?: periodLabel(model.startDate)
-    OperatingV12Card(theme = theme, fill = OperatingV12.surface, borderOpacity = 0.4f) {
+    OperatingV12Card(theme = theme, fill = if (theme.isMarketingOwn) theme.surface else OperatingV12.surface, borderOpacity = 0.4f) {
         Text("${model.title ?: "Campaign"} · memory", color = Color.White, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Black, fontSize = 22.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PeriodPill(period, selected = true, brand = theme.accent)
@@ -869,7 +907,9 @@ private fun MarketingMemory(
     BoardSectionCard("People & Activity", memory.firstOrNull { it.code == "ME3" }, model, theme, why = "On-time rates use posted activity with due dates.", onViewAll = { onOpenSheet(MarketingBoardSheet.MemoryPeople) })
     BoardSectionCard("Patterns & Decisions", memory.firstOrNull { it.code == "ME4" }, model, theme, why = "Approval ≠ disbursement. Attributed sales stay observational.", onViewAll = { onOpenSheet(MarketingBoardSheet.MemoryPatterns) })
     StoryCta(theme, period) {
-        if (momentId != null) OperatingChromeState.previewStoryId = momentId
+        // Parity with TRD/DST/iOS — open story-config sheet (not preview-only).
+        if (momentId != null) OperatingChromeState.momentId = momentId
+        OperatingChromeState.storyConfigOpen = true
     }
 }
 
@@ -914,8 +954,8 @@ private fun BoardSectionCard(
     fallbackEmpty: String = "Nothing recorded yet.",
     preferParticipants: Boolean = false,
 ) {
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
-        SectionHead(title, onViewAll = onViewAll)
+    OperatingV12Card(theme = theme, fill = theme.surface) {
+        SectionHead(title, softLink = theme.softLink, onViewAll = onViewAll)
         chips?.invoke()
         when {
             preferParticipants && model.participants.isNotEmpty() -> {
@@ -949,6 +989,53 @@ private fun BoardSectionCard(
     }
 }
 
+private fun MarketingBoardSheet.chromeCode(): String = when (this) {
+    MarketingBoardSheet.Attention -> "ATTENTION"
+    MarketingBoardSheet.TargetBudget -> "TARGET_BUDGET"
+    MarketingBoardSheet.Payment -> "PAYMENT_READINESS"
+    MarketingBoardSheet.Finance -> "FINANCE"
+    MarketingBoardSheet.Activity -> "ACTIVITY"
+    MarketingBoardSheet.Commitments -> "M4"
+    MarketingBoardSheet.Campaign -> "M1"
+    MarketingBoardSheet.People -> "M2"
+    MarketingBoardSheet.Channels -> "M3" // Channels & Network
+    MarketingBoardSheet.LifeCurrent -> "L1"
+    MarketingBoardSheet.LifeChannels -> "L2"
+    MarketingBoardSheet.LifeMoney -> "L3"
+    MarketingBoardSheet.LifePeople -> "L5"
+    MarketingBoardSheet.MemoryMonthly -> "ME1"
+    MarketingBoardSheet.MemoryMoney -> "ME2"
+    MarketingBoardSheet.MemoryPeople -> "ME3"
+    MarketingBoardSheet.MemoryPatterns -> "ME4"
+}
+
+private fun MarketingBoardSheet.sheetTitle(): String = when (this) {
+    MarketingBoardSheet.Attention -> "Needs Attention"
+    MarketingBoardSheet.TargetBudget -> "Target & Budget"
+    MarketingBoardSheet.Payment -> "Payment Readiness"
+    MarketingBoardSheet.Finance -> "Finance"
+    MarketingBoardSheet.Activity -> "All activity"
+    MarketingBoardSheet.Commitments -> "Open Commitments"
+    MarketingBoardSheet.Campaign -> "Campaign / Business Moment"
+    MarketingBoardSheet.People -> "People"
+    MarketingBoardSheet.Channels -> "Channels & Network"
+    MarketingBoardSheet.LifeCurrent -> "Current Campaign"
+    MarketingBoardSheet.LifeChannels -> "Channel Activity"
+    MarketingBoardSheet.LifeMoney -> "Money Moving"
+    MarketingBoardSheet.LifePeople -> "People Today"
+    MarketingBoardSheet.MemoryMonthly -> "Monthly Memory"
+    MarketingBoardSheet.MemoryMoney -> "Money Memory"
+    MarketingBoardSheet.MemoryPeople -> "People & Activity"
+    MarketingBoardSheet.MemoryPatterns -> "Patterns & Decisions"
+}
+
+private fun marketingAttentionChip(severity: String?): String = when (severity?.uppercase()) {
+    "CRITICAL" -> "Overdue"
+    "HIGH" -> "Alert"
+    "MEDIUM" -> "Unavailable"
+    else -> "Open"
+}
+
 @Composable
 private fun MarketingViewAllSheet(
     sheet: MarketingBoardSheet,
@@ -960,101 +1047,151 @@ private fun MarketingViewAllSheet(
     onOpenQuickAdd: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val title = when (sheet) {
-        MarketingBoardSheet.Attention -> "Needs Attention"
-        MarketingBoardSheet.TargetBudget -> "Target & Budget"
-        MarketingBoardSheet.Payment -> "Payment Readiness"
-        MarketingBoardSheet.Finance -> "Finance"
-        MarketingBoardSheet.Activity -> "All activity"
-        MarketingBoardSheet.Commitments -> "Open Commitments"
-        MarketingBoardSheet.Campaign -> "Campaign / Business Moment"
-        MarketingBoardSheet.People -> "People"
-        MarketingBoardSheet.Channels -> "Channels & Network"
-        MarketingBoardSheet.LifeCurrent -> "Current Campaign"
-        MarketingBoardSheet.LifeChannels -> "Channel Activity"
-        MarketingBoardSheet.LifeMoney -> "Money Moving"
-        MarketingBoardSheet.LifePeople -> "People Today"
-        MarketingBoardSheet.MemoryMonthly -> "Monthly Memory"
-        MarketingBoardSheet.MemoryMoney -> "Money Memory"
-        MarketingBoardSheet.MemoryPeople -> "People & Activity"
-        MarketingBoardSheet.MemoryPatterns -> "Patterns & Decisions"
+    val code = sheet.chromeCode()
+    val section = boardSectionFor(sheet, model)
+    val total = when (sheet) {
+        MarketingBoardSheet.Attention -> model.attention.size
+        MarketingBoardSheet.Payment -> model.paymentReadiness.size
+        MarketingBoardSheet.Activity -> model.activity.size
+        MarketingBoardSheet.TargetBudget -> model.pulseGroup("TARGET_BUDGET")?.metrics?.size ?: 0
+        MarketingBoardSheet.Finance -> model.pulseGroup("FINANCE")?.metrics?.size ?: 0
+        else -> section?.rows?.size ?: 0
     }
-    // Bounded sheet height (fillMaxHeight 0.92f) so this verticalScroll is not nested
-    // under MarketingActive's page scroll with infinity max height.
-    OperatingSheetScrim(
-        onDismiss = onClose,
+    // Own: slate sheet + magenta glow + DST sticky density (Figma `2584:29250`…).
+    // Client keeps campaign canvas / CampBorder.
+    val ownSheet = theme.isMarketingOwn
+    val sheetTheme = OperatingSheetTheme(
         accent = brand,
-        surface = theme.canvas,
-        border = CampBorder,
-    ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 18.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center) {
-                Box(
-                    Modifier
-                        .size(width = 40.dp, height = 5.dp)
-                        .clip(RoundedCornerShape(100.dp))
-                        .background(Color.White.copy(alpha = 0.2f)),
+        accentSoft = theme.softLink,
+        canvas = if (ownSheet) Color(0xFF1E293B) else theme.canvas,
+        surface = if (ownSheet) Color(0xFF1E293B) else theme.surface,
+        inset = if (ownSheet) Color(0xFF334155) else theme.inset,
+        border = if (ownSheet) brand.copy(alpha = 0.28f) else CampBorder,
+        ink = CampInk,
+        body = CampSecondary,
+        warning = CampWarn,
+        negative = CampDanger,
+        ownStickyChrome = ownSheet,
+    )
+    OperatingSheetFrame(
+        title = sheet.sheetTitle(),
+        eyebrow = "",
+        model = model,
+        theme = sheetTheme,
+        onDismiss = onClose,
+        sheetCode = code,
+        totalCount = total,
+        visibleCount = { status ->
+            when (sheet) {
+                MarketingBoardSheet.Attention -> model.attention.count {
+                    OperatingSheetChrome.matchesStatus(status, marketingAttentionChip(it.severity))
+                }
+                MarketingBoardSheet.Payment -> model.paymentReadiness.count {
+                    OperatingSheetChrome.matchesStatus(status, it.dueBucket)
+                }
+                MarketingBoardSheet.Activity -> model.activity.count {
+                    OperatingSheetChrome.matchesStatus(status, it.badge)
+                }
+                MarketingBoardSheet.TargetBudget, MarketingBoardSheet.Finance -> total
+                else -> section?.rows?.count {
+                    OperatingSheetChrome.matchesStatus(status, it.badge)
+                } ?: total
+            }
+        },
+        onFooterAction = { action ->
+            when (action) {
+                "PAYMENT" -> OperatingChromeState.quickAddHint = "payment"
+                "MEMORY" -> OperatingChromeState.storyConfigOpen = true
+                "ATTENTION" -> OperatingChromeState.quickAddHint = "issue"
+                else -> onOpenQuickAdd()
+            }
+        },
+    ) { status ->
+        when (sheet) {
+            MarketingBoardSheet.Attention -> {
+                val rows = model.attention.filter {
+                    OperatingSheetChrome.matchesStatus(status, marketingAttentionChip(it.severity))
+                }
+                if (rows.isEmpty()) Quiet("Nothing is waiting", "Approvals and overdue items will show here.")
+                rows.forEach { item ->
+                    AttentionRow(item, model, theme, onOpenQuickAdd) { id, decision ->
+                        scope.launch { onDecide(id, decision) }
+                    }
+                }
+            }
+            MarketingBoardSheet.Activity -> {
+                val rows = model.activity.filter {
+                    OperatingSheetChrome.matchesStatus(status, it.badge)
+                }
+                if (rows.isEmpty()) Quiet("Nothing recorded yet", "Sales, spend, and money collection will show here.")
+                BusinessActivityList(
+                    rows = rows,
+                    model = model,
+                    accent = brand,
+                    onEdit = { OperatingChromeState.editing = it },
                 )
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(title, color = CampInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
-                Text("Close", color = CampSecondary, fontFamily = PlusJakartaSans, modifier = Modifier.clickable(onClick = onClose))
+            MarketingBoardSheet.Payment -> {
+                val client = isClientCampaign(model.subtype)
+                val filtered = model.paymentReadiness.filter {
+                    OperatingSheetChrome.matchesStatus(status, it.dueBucket)
+                }
+                val toCollect = if (client) filtered.filter { it.relevance == "RECEIVABLE" } else emptyList()
+                val toPay = filtered.filter { it.relevance != "RECEIVABLE" }
+                if (client && toCollect.isNotEmpty()) {
+                    Text("To collect", color = brand, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold)
+                    toCollect.forEach { PaymentRow(it, model, theme) }
+                }
+                if (toPay.isNotEmpty()) {
+                    Text("To pay", color = brand, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold)
+                    toPay.forEach { PaymentRow(it, model, theme) }
+                }
+                if (filtered.isEmpty()) Quiet("No open payments", "Nothing waiting to settle.")
             }
-            Text(model.title ?: "Marketing", color = CampSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
-            ContextChips(model, theme)
-            when (sheet) {
-                MarketingBoardSheet.Attention -> {
-                    if (model.attention.isEmpty()) Quiet("Nothing is waiting", "Approvals and overdue items will show here.")
-                    model.attention.forEach { item ->
-                        AttentionRow(item, model, theme, onOpenQuickAdd) { id, decision -> scope.launch { onDecide(id, decision) } }
-                    }
-                }
-                MarketingBoardSheet.Activity -> {
-                    if (model.activity.isEmpty()) Quiet("Nothing recorded yet", "Sales, spend, and money collection will show here.")
-                    BusinessActivityList(rows = model.activity, model = model, accent = brand, onEdit = { OperatingChromeState.editing = it })
-                }
-                MarketingBoardSheet.Payment -> {
-                    val client = isClientCampaign(model.subtype)
-                    val toCollect = if (client) model.paymentReadiness.filter { it.relevance == "RECEIVABLE" } else emptyList()
-                    val toPay = model.paymentReadiness.filter { it.relevance != "RECEIVABLE" }
-                    if (client && toCollect.isNotEmpty()) {
-                        Text("To collect", color = brand, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold)
-                        toCollect.forEach { PaymentRow(it, model, theme) }
-                    }
-                    if (toPay.isNotEmpty()) {
-                        Text("To pay", color = brand, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold)
-                        toPay.forEach { PaymentRow(it, model, theme) }
-                    }
-                    if (model.paymentReadiness.isEmpty()) Quiet("No open payments", "Nothing waiting to settle.")
-                }
-                MarketingBoardSheet.Finance -> FinanceCard(model, theme, onOpenSheet = {})
-                MarketingBoardSheet.TargetBudget -> TargetBudgetCard(model, theme, onOpenSheet = {})
-                else -> {
-                    val section = boardSectionFor(sheet, model)
-                    if (section == null || (section.rows.isEmpty() && section.detail.isBlank())) {
-                        Quiet("Nothing recorded yet", "Details will show here when posted.")
-                    } else {
-                        if (section.detail.isNotBlank()) {
-                            Text(formatOperatingDetail(section.detail, model.currency), color = CampSecondary, fontFamily = PlusJakartaSans, fontSize = 13.sp)
-                        }
-                        section.rows.forEach { row ->
-                            MetricLine(
-                                row.title.ifBlank { row.eventType },
-                                listOfNotNull(row.channelName, row.counterpartyName).joinToString(" · "),
-                                if (model.financeVisible && !row.amount.isNullOrBlank()) formatOperatingAmount(model.currency, row.amount, true) else "Open",
-                                brand,
-                            )
-                        }
-                    }
+            // Own view-all Target/Finance: metric list rows (Figma `2584:29250` / `29503`), not nested Pulse cards.
+            MarketingBoardSheet.Finance -> {
+                if (ownSheet) {
+                    OwnPulseMetricRows(model.pulseGroup("FINANCE")?.metrics.orEmpty(), brand, model)
+                } else {
+                    FinanceCard(model, theme, onOpenSheet = {})
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            MarketingBoardSheet.TargetBudget -> {
+                if (ownSheet) {
+                    OwnPulseMetricRows(model.pulseGroup("TARGET_BUDGET")?.metrics.orEmpty(), brand, model)
+                } else {
+                    TargetBudgetCard(model, theme, onOpenSheet = {})
+                }
+            }
+            else -> {
+                val rows = section?.rows.orEmpty().filter {
+                    OperatingSheetChrome.matchesStatus(status, it.badge)
+                }
+                if (section == null || (rows.isEmpty() && section.detail.isBlank())) {
+                    Quiet("Nothing recorded yet", "Details will show here when posted.")
+                } else {
+                    if (section.detail.isNotBlank()) {
+                        Text(
+                            formatOperatingDetail(section.detail, model.currency),
+                            color = CampSecondary,
+                            fontFamily = PlusJakartaSans,
+                            fontSize = 13.sp,
+                        )
+                    }
+                    rows.forEach { row ->
+                        MetricLine(
+                            row.title.ifBlank { row.eventType },
+                            listOfNotNull(row.channelName, row.counterpartyName).joinToString(" · "),
+                            if (model.financeVisible && !row.amount.isNullOrBlank()) {
+                                formatOperatingAmount(model.currency, row.amount, true)
+                            } else {
+                                "Open"
+                            },
+                            brand,
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -1081,12 +1218,18 @@ private fun boardSectionFor(sheet: MarketingBoardSheet, model: OperatingProjecti
 }
 
 @Composable
-private fun SectionHead(title: String, chip: String? = null, chipTone: Color = CampDanger, onViewAll: (() -> Unit)? = null) {
+private fun SectionHead(
+    title: String,
+    chip: String? = null,
+    chipTone: Color = CampDanger,
+    softLink: Color = OperatingV12.viewAll,
+    onViewAll: (() -> Unit)? = null,
+) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, color = CampInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
         if (chip != null) SeverityChip(chip, chipTone)
         if (onViewAll != null) {
-            Text("View all ›", color = OperatingV12.viewAll, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.clickable(onClick = onViewAll))
+            Text("View all ›", color = softLink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.clickable(onClick = onViewAll))
         }
     }
 }
@@ -1152,6 +1295,110 @@ private fun PeriodPill(label: String, selected: Boolean, brand: Color) {
             .border(1.dp, if (selected) brand else CampBorder, RoundedCornerShape(999.dp))
             .padding(horizontal = 10.dp, vertical = 6.dp),
     )
+}
+
+/** Own view-all pulse metric rows — Figma `2584:29250` severity bar + icon tile density. */
+@Composable
+private fun OwnPulseMetricRows(
+    metrics: List<OperatingBoardMetricDto>,
+    brand: Color,
+    model: OperatingProjectionDto,
+) {
+    if (metrics.isEmpty()) {
+        Quiet("Nothing recorded yet", "Target and budget figures will show here when posted.")
+        return
+    }
+    val caption = listOfNotNull(
+        model.title?.takeIf { it.isNotBlank() },
+        OperatingV12Date.monthYear(model.startDate),
+    ).joinToString(" · ").ifBlank { "This period" }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        metrics.forEach { metric ->
+            val bar = when (metric.tone?.uppercase()) {
+                "WARNING" -> CampWarn
+                "NEGATIVE", "DANGER" -> CampDanger
+                "MUTED" -> Color(0xFF64748B)
+                else -> brand
+            }
+            val valueTone = when (metric.tone?.uppercase()) {
+                "WARNING" -> CampWarn
+                "NEGATIVE", "DANGER" -> CampDanger
+                "POSITIVE" -> CampSuccess
+                else -> CampInk
+            }
+            val monetary = metric.unit.equals("INR", true) ||
+                metric.unit.equals("money", true) ||
+                (
+                    metric.value.toDoubleOrNull() != null &&
+                        (
+                            metric.label.contains("spend", true) ||
+                                metric.label.contains("budget", true) ||
+                                metric.label.contains("₹") ||
+                                metric.key.contains("spend", true) ||
+                                metric.key.contains("budget", true) ||
+                                metric.key.contains("amount", true)
+                            )
+                    )
+            val value = if (monetary) {
+                OperatingV12Money.compact(metric.value, model.currency ?: "INR")
+            } else {
+                OperatingV12Money.tile(metric, model.currency)
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF0F172A))
+                    .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(14.dp))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(
+                    Modifier
+                        .width(3.dp)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(bar),
+                )
+                Box(
+                    Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(brand.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("◇", color = brand, fontSize = 12.sp)
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        metric.label.ifBlank { metric.key },
+                        color = CampInk,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        caption,
+                        color = CampSecondary,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    value,
+                    color = valueTone,
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                )
+            }
+        }
+    }
 }
 
 @Composable

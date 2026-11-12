@@ -30,6 +30,7 @@ import {
   tradingStockPositions,
   consignmentStockHint,
 } from './operating-trading-contract';
+import { isConfirmedOrder } from './operating-retail-contract';
 
 const NOT_RECORDED = 'Not recorded';
 
@@ -133,7 +134,7 @@ function buildFacts(
   const purchases = live.filter((row) => row.eventType === 'PURCHASE' || row.eventType === 'VENDOR_COST');
   const collections = live.filter((row) => row.eventType === 'COLLECTION');
   const payments = live.filter((row) => row.eventType === 'PAYMENT');
-  const orders = live.filter((row) => row.eventType === 'ORDER' || row.eventType === 'CUSTOMER_ORDER');
+  const orders = live.filter((row) => isConfirmedOrder(row));
   const openOrders = orders.filter(
     (row) => row.contract?.orderStatus !== 'CANCELLED' && row.contract?.orderStatus !== 'COMPLETED'
   );
@@ -465,6 +466,8 @@ function badgeFor(row: OperatingBoardRow, event: OperatingEventRow | undefined):
   if (event.approvalStatus === 'PENDING') return 'Approval';
   if (contract?.holdStatus === 'HELD') return 'On hold';
   if (event.eventType === 'ORDER' || event.eventType === 'CUSTOMER_ORDER') {
+    const quote = String(contract?.quotationStatus ?? '').toUpperCase();
+    if (quote && quote !== 'ACCEPTED') return quote === 'SENT' ? 'Quote' : 'Quotation';
     if (contract?.orderStatus === 'CANCELLED') return 'Cancelled';
     if (contract?.orderStatus === 'COMPLETED') return 'Done';
     return 'Open';
@@ -952,6 +955,174 @@ export function tradingPulseMetrics(args: {
       why: prefs.gstTracking === 'YES'
         ? null
         : 'GST tracking is off for this moment, so tax is not computed on new records.',
+    },
+  ];
+}
+
+/**
+ * Marketing Pulse AN-P01…P05 (+ GST) as the same `pulseMetrics` contract used by trading/retail.
+ * Own campaigns never surface client AR figures; attributed sales stay observational.
+ */
+export function marketingPulseMetrics(args: {
+  events: OperatingEventRow[];
+  visible: boolean;
+  currency: string;
+  asOf: Date;
+  prefs: OperatingPreferences;
+  ownCampaign: boolean;
+  clientCampaign: boolean;
+  marketing: {
+    cpl: string | null;
+    coverage: string;
+  } | null;
+  projection: {
+    budget: { amount: string; spent: string; remaining: string; configured: boolean } | null;
+    target: { metric: string; value: string; progress: string; configured: boolean } | null;
+    finance: {
+      sales: string;
+      received: string;
+      outstanding: string;
+      payable: string;
+      eligibleCost: string;
+      cashPaid: string;
+    } | null;
+    attention: Array<{ severity?: string | null }>;
+    paymentReadiness: Array<{ relevance: string; status: string; amount: string; dueBucket?: string | null }>;
+    activity: Array<{ eventType: string }>;
+  };
+}): OperatingPulseMetricGroup[] {
+  const { prefs, projection, ownCampaign, clientCampaign } = args;
+  const overdue = projection.paymentReadiness.filter((row) => row.dueBucket === 'OVERDUE').length;
+  const dueSoon = projection.paymentReadiness.filter((row) => row.dueBucket === 'DUE_SOON').length;
+  const high = projection.attention.filter((row) => row.severity === 'HIGH').length;
+  const pendingApprovals = args.events.filter((row) => row.approvalStatus === 'PENDING').length;
+  const currency = args.currency || 'INR';
+  const fmt = (value: string | null | undefined) =>
+    args.visible && value != null && value !== ''
+      ? `${money(num(value))} ${currency}`
+      : args.visible
+        ? NOT_RECORDED
+        : 'Hidden';
+  const activities = args.events.filter((row) => row.eventType === 'ACTIVITY' && effective(row)).length;
+  const results = args.events.filter((row) => row.eventType === 'RESULT' && effective(row)).length;
+  const spends = args.events.filter(
+    (row) => (row.eventType === 'SPEND' || row.eventType === 'VENDOR_COST') && effective(row)
+  ).length;
+
+  return [
+    {
+      code: 'TARGET_BUDGET',
+      metrics: [
+        metric(
+          'target',
+          'Target',
+          projection.target?.configured
+            ? `${money(num(projection.target.value))} ${projection.target.metric}`
+            : NOT_RECORDED
+        ),
+        metric(
+          'progress',
+          'Achieved',
+          projection.target?.configured ? money(num(projection.target.progress)) : NOT_RECORDED,
+          null,
+          projection.target?.configured && num(projection.target.progress) >= num(projection.target.value)
+            ? 'POSITIVE'
+            : 'NORMAL'
+        ),
+        metric('budget', 'Budget', projection.budget?.configured ? fmt(projection.budget.amount) : NOT_RECORDED),
+        metric(
+          'remaining',
+          'Budget left',
+          projection.budget?.configured ? fmt(projection.budget.remaining) : NOT_RECORDED,
+          null,
+          projection.budget?.configured && num(projection.budget.remaining) < 0 ? 'WARNING' : 'NORMAL'
+        ),
+      ],
+      why:
+        projection.target?.configured || projection.budget?.configured
+          ? args.marketing?.coverage === 'N/A'
+            ? 'Comparable result coverage is unavailable — ratios stay Unavailable, not 0%.'
+            : null
+          : 'Set a target and budget to measure campaign progress.',
+    },
+    {
+      code: 'FINANCE',
+      metrics: clientCampaign
+        ? [
+            metric('sales', 'Invoiced', projection.finance ? fmt(projection.finance.sales) : 'Hidden'),
+            metric('received', 'Collected', projection.finance ? fmt(projection.finance.received) : 'Hidden'),
+            metric(
+              'outstanding',
+              'Receivable',
+              projection.finance ? fmt(projection.finance.outstanding) : 'Hidden',
+              null,
+              projection.finance && num(projection.finance.outstanding) > 0 ? 'WARNING' : 'NORMAL'
+            ),
+            metric('payable', 'Vendor payable', projection.finance ? fmt(projection.finance.payable) : 'Hidden'),
+          ]
+        : [
+            metric('sales', 'Attributed sales', NOT_RECORDED),
+            metric('cost', 'Eligible spend', projection.finance ? fmt(projection.finance.eligibleCost) : 'Hidden'),
+            metric('paid', 'Cash paid', projection.finance ? fmt(projection.finance.cashPaid) : 'Hidden'),
+            metric('payable', 'Open payable', projection.finance ? fmt(projection.finance.payable) : 'Hidden'),
+          ],
+      why: ownCampaign
+        ? 'Own-business attributed sales are observational and never booked as ledger revenue.'
+        : projection.finance
+          ? null
+          : 'Finance figures are visible to owner, finance, and approver roles.',
+    },
+    {
+      code: 'PAYMENT_READINESS',
+      metrics: [
+        metric('overdue', 'Overdue', overdue, 'count', overdue > 0 ? 'WARNING' : 'POSITIVE'),
+        metric('dueSoon', 'Due soon', dueSoon, 'count', dueSoon > 0 ? 'WARNING' : 'NORMAL'),
+        metric('open', 'Open', projection.paymentReadiness.length, 'count'),
+        metric(
+          'toCollect',
+          clientCampaign ? 'To collect' : 'To pay',
+          `${money(
+            projection.paymentReadiness
+              .filter((row) =>
+                clientCampaign ? row.relevance === 'RECEIVABLE' : row.relevance === 'PAYABLE'
+              )
+              .reduce((total, row) => total + num(row.amount), 0)
+          )} ${currency}`
+        ),
+      ],
+      why: projection.paymentReadiness.length === 0 ? 'Nothing is awaiting settlement.' : null,
+    },
+    {
+      code: 'ATTENTION',
+      metrics: [
+        metric('high', 'High priority', high, 'count', high > 0 ? 'WARNING' : 'POSITIVE'),
+        metric('open', 'Open items', projection.attention.length, 'count'),
+        metric('approvals', 'Waiting approval', pendingApprovals, 'count', pendingApprovals > 0 ? 'WARNING' : 'NORMAL'),
+        metric('overdue', 'Overdue', overdue, 'count', overdue > 0 ? 'WARNING' : 'NORMAL'),
+      ],
+      why: projection.attention.length === 0 ? 'Nothing needs attention right now.' : null,
+    },
+    {
+      code: 'ACTIVITY',
+      metrics: [
+        metric('records', 'Records', projection.activity.length, 'count'),
+        metric('activities', 'Activities', activities, 'count'),
+        metric('results', 'Results', results, 'count'),
+        metric('spends', 'Spend posts', spends, 'count'),
+      ],
+      why: null,
+    },
+    {
+      code: 'GST',
+      metrics: [
+        metric('registration', 'Registration', prefs.gstRegistration || NOT_RECORDED),
+        metric('state', 'Business state', prefs.gstState || NOT_RECORDED),
+        metric('tracking', 'GST tracking', prefs.gstTracking === 'YES' ? 'On' : 'Off'),
+        metric('cpl', 'CPL', args.marketing?.cpl ? `${args.marketing.cpl} ${currency}` : NOT_RECORDED),
+      ],
+      why: prefs.gstTracking === 'YES'
+        ? null
+        : 'GST follows the shared tax contract; marketing never invents a 0% rate.',
     },
   ];
 }

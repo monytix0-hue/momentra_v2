@@ -5,7 +5,7 @@
 
 import { gstStateCodeOf, gstStateName, resolveJurisdiction } from './operating-gst-states';
 
-export const GST_CALCULATION_VERSION = 'v12.0';
+export const GST_CALCULATION_VERSION = 'v12.1';
 
 export interface GstLineSnapshot {
   enteredUnitPrice: string;
@@ -35,6 +35,13 @@ export interface GstSnapshot {
   sgstAmount: string;
   igstAmount: string;
   gstTotal: string;
+  /**
+   * Explicit operator-entered cess only (₹). Never derived from HSN/CBIC schedules.
+   * Absent/`0.0000` on snapshots written before v12.1.
+   */
+  cessAmount?: string;
+  /** Explicit cess rate (%) used when computing `cessAmount` from taxable; empty when amount was entered directly. */
+  cessRate?: string;
   invoiceTotal: string;
   taxJurisdiction: 'INTRA' | 'INTER' | null;
   placeOfSupply: string;
@@ -181,6 +188,8 @@ function headerFromLines(
     sgstAmount: moneyFromPaise(sum((row) => row.sgstAmount)),
     igstAmount: moneyFromPaise(sum((row) => row.igstAmount)),
     gstTotal: moneyFromPaise(sum((row) => row.gstTotal)),
+    cessAmount: money(0),
+    cessRate: '',
     invoiceTotal: moneyFromPaise(sum((row) => row.lineTotal)),
     taxJurisdiction: jurisdiction,
     placeOfSupply,
@@ -245,6 +254,7 @@ export function scaleGstSnapshot(snapshot: GstSnapshot, credit: number): GstSnap
   const igst = scale(snapshot.igstAmount);
   const gst = cgst + sgst + igst;
   const taxable = scale(snapshot.taxableAmount);
+  const cess = scale(snapshot.cessAmount ?? '0.0000');
   return {
     ...snapshot,
     discount: moneyFromPaise(scale(snapshot.discount)),
@@ -253,7 +263,9 @@ export function scaleGstSnapshot(snapshot: GstSnapshot, credit: number): GstSnap
     sgstAmount: moneyFromPaise(sgst),
     igstAmount: moneyFromPaise(igst),
     gstTotal: moneyFromPaise(gst),
-    invoiceTotal: moneyFromPaise(taxable + gst),
+    cessAmount: moneyFromPaise(cess),
+    cessRate: snapshot.cessRate ?? '',
+    invoiceTotal: moneyFromPaise(taxable + gst + cess),
     calculationVersion: GST_CALCULATION_VERSION,
     taxStatus: snapshot.taxStatus === 'NOT_CONFIGURED' ? 'NOT_CONFIGURED' : 'CALCULATED',
     sellerRegistration: snapshot.sellerRegistration ?? '',
@@ -277,6 +289,8 @@ export function parseGstSnapshot(raw: unknown): GstSnapshot | null {
     sgstAmount: String(rec.sgstAmount ?? '0.0000'),
     igstAmount: String(rec.igstAmount ?? '0.0000'),
     gstTotal: String(rec.gstTotal),
+    cessAmount: String(rec.cessAmount ?? '0.0000'),
+    cessRate: String(rec.cessRate ?? ''),
     invoiceTotal: String(rec.invoiceTotal),
     taxJurisdiction: jurisdiction,
     placeOfSupply: String(rec.placeOfSupply ?? ''),
@@ -442,11 +456,125 @@ export interface GstPostingContract {
   taxMode?: 'INCLUSIVE' | 'EXCLUSIVE' | 'NOT_CONFIGURED' | null;
   gstRate?: string | null;
   discount?: string | null;
+  /** Explicit cess ₹ — never derived from HSN schedules. */
+  cessAmount?: string | null;
+  /** Explicit cess % of taxable — never derived from HSN schedules. */
+  cessRate?: string | null;
   taxJurisdiction?: 'INTRA' | 'INTER' | null;
   placeOfSupply?: string | null;
   taxStatus?: 'CALCULATED' | 'NOT_CONFIGURED' | null;
   taxAmount?: string | null;
   gst?: GstSnapshot | null;
+}
+
+/**
+ * Apply document-level discount across priced lines (paise half-up). Line discounts stay;
+ * header discount is distributed by gross across lines that have no line discount, or across
+ * all lines when every line is undecounted. Caps each line at its gross.
+ */
+export function resolveLineDiscounts(input: {
+  lineGrosses: number[];
+  lineDiscounts: number[];
+  headerDiscount: number;
+}): { ok: true; discounts: number[] } | { ok: false; message: string } {
+  const { lineGrosses, lineDiscounts, headerDiscount } = input;
+  if (!(headerDiscount >= 0) || !Number.isFinite(headerDiscount)) {
+    return { ok: false, message: 'Discount must be zero or more.' };
+  }
+  const grossPaise = lineGrosses.map((g) => Math.max(0, rupeesToPaise(g)));
+  const totalGross = grossPaise.reduce((sum, p) => sum + p, 0);
+  const headerPaise = rupeesToPaise(headerDiscount);
+  if (headerPaise > totalGross) return { ok: false, message: 'Discount cannot exceed the sale amount.' };
+  const own = lineDiscounts.map((d, i) => Math.min(Math.max(0, rupeesToPaise(d)), grossPaise[i] ?? 0));
+  const undecounted = own.map((d, i) => d === 0 && (grossPaise[i] ?? 0) > 0);
+  const targets = undecounted.some(Boolean) ? undecounted : own.map((_, i) => (grossPaise[i] ?? 0) > 0);
+  const targetGross = targets.reduce((sum, on, i) => sum + (on ? grossPaise[i] ?? 0 : 0), 0);
+  const allocated = own.slice();
+  if (headerPaise > 0 && targetGross > 0) {
+    let remaining = headerPaise;
+    const indices = targets.flatMap((on, i) => (on ? [i] : []));
+    for (let n = 0; n < indices.length; n++) {
+      const i = indices[n]!;
+      const share =
+        n === indices.length - 1
+          ? remaining
+          : mulDivHalfUp(headerPaise, grossPaise[i]!, targetGross);
+      const room = Math.max(0, (grossPaise[i] ?? 0) - (allocated[i] ?? 0));
+      const take = Math.min(share, room, remaining);
+      allocated[i] = (allocated[i] ?? 0) + take;
+      remaining -= take;
+    }
+    if (remaining > 0) return { ok: false, message: 'Discount cannot exceed the sale amount.' };
+  }
+  return { ok: true, discounts: allocated.map((p) => Number(moneyFromPaise(p))) };
+}
+
+/** Explicit cess only — amount wins over rate; rate applies to taxable paise. */
+export function resolveExplicitCess(input: {
+  taxable: number;
+  cessAmount?: string | number | null;
+  cessRate?: string | number | null;
+}): { ok: true; cessPaise: number; rateStored: string } | { ok: false; message: string } {
+  const amountRaw = Number(input.cessAmount ?? 0);
+  const rateRaw = Number(input.cessRate ?? 0);
+  if (!(amountRaw >= 0) || !Number.isFinite(amountRaw)) return { ok: false, message: 'Cess amount must be zero or more.' };
+  if (!(rateRaw >= 0) || !Number.isFinite(rateRaw)) return { ok: false, message: 'Cess rate must be zero or more.' };
+  if (amountRaw > 0) {
+    return { ok: true, cessPaise: rupeesToPaise(amountRaw), rateStored: '' };
+  }
+  if (rateRaw > 0) {
+    const taxablePaise = rupeesToPaise(input.taxable);
+    const rateHundredths = rupeesToPaise(rateRaw);
+    return {
+      ok: true,
+      cessPaise: mulDivHalfUp(taxablePaise, rateHundredths, 10000),
+      rateStored: money(rateRaw),
+    };
+  }
+  return { ok: true, cessPaise: 0, rateStored: '' };
+}
+
+/** Payable when GST tracking is off: gross − discount + explicit cess ₹. */
+export function applyPlainDiscountAndCess(input: {
+  entered: number;
+  discount?: string | number | null;
+  cessAmount?: string | number | null;
+}): { ok: true; amount: number } | { ok: false; message: string } {
+  const entered = Math.max(0, Number(input.entered) || 0);
+  const discount = Math.max(0, Number(input.discount ?? 0) || 0);
+  if (discount - entered > 0.00005) return { ok: false, message: 'Discount cannot exceed the sale amount.' };
+  const cess = Math.max(0, Number(input.cessAmount ?? 0) || 0);
+  return { ok: true, amount: Math.max(0, entered - discount) + cess };
+}
+
+/** Attach explicit cess to a computed GST snapshot (header only). */
+export function withExplicitCess(
+  snapshot: GstSnapshot,
+  cessAmount?: string | number | null,
+  cessRate?: string | number | null
+): { ok: true; snapshot: GstSnapshot } | { ok: false; message: string } {
+  const cess = resolveExplicitCess({
+    taxable: Number(snapshot.taxableAmount),
+    cessAmount,
+    cessRate,
+  });
+  if (!cess.ok) return cess;
+  if (cess.cessPaise <= 0) {
+    return {
+      ok: true,
+      snapshot: { ...snapshot, cessAmount: money(0), cessRate: '', calculationVersion: GST_CALCULATION_VERSION },
+    };
+  }
+  return {
+    ok: true,
+    snapshot: {
+      ...snapshot,
+      cessAmount: moneyFromPaise(cess.cessPaise),
+      cessRate: cess.rateStored,
+      invoiceTotal: moneyFromPaise(readPaise(snapshot.invoiceTotal) + cess.cessPaise),
+      calculationVersion: GST_CALCULATION_VERSION,
+    },
+  };
 }
 
 /** Same line snapshot Trading uses. A missing rate is rejected and is never stored as 0%. */
@@ -459,19 +587,29 @@ export function stampPostedGst(input: {
   partyState?: string | null;
   contract: GstPostingContract;
 }): { ok: true; amount: number } | { ok: false; message: string } {
-  if (!input.gst?.enabled) return { ok: true, amount: input.entered };
+  if (!input.gst?.enabled) {
+    return applyPlainDiscountAndCess({
+      entered: input.entered,
+      discount: input.contract.discount,
+      cessAmount: input.contract.cessAmount,
+    });
+  }
   if (input.contract.gst?.taxStatus === 'CALCULATED' && input.contract.gst.invoiceTotal) {
     return { ok: true, amount: Number(input.contract.gst.invoiceTotal) };
   }
   const preference = input.side === 'SALE' ? input.gst.saleIncludesGst : input.gst.purchaseIncludesGst;
   const businessState = input.gst.businessState.trim();
   const businessStateCode = input.gst.businessStateCode || gstStateCodeOf(businessState);
-  const supplyState = (input.contract.placeOfSupply || input.partyState || '').trim();
-  let jurisdiction = input.contract.taxJurisdiction ?? null;
-  // Code comparison, so a `"MH"` master and a `"Maharashtra"` preference agree on intra-state.
-  if (!jurisdiction) {
-    jurisdiction = resolveJurisdiction(businessStateCode || businessState, supplyState);
-  }
+  // Walk-in / unnamed counterparty: place of supply defaults to the business state (INTRA).
+  const supplyState = (input.contract.placeOfSupply || input.partyState || '').trim() || businessState;
+  // Prefer jurisdiction derived from state codes. Client taxJurisdiction is only a fallback when
+  // states cannot be resolved — never trusted over a successful code comparison.
+  const resolved = resolveJurisdiction(businessStateCode || businessState, supplyState);
+  const clientJurisdiction =
+    input.contract.taxJurisdiction === 'INTRA' || input.contract.taxJurisdiction === 'INTER'
+      ? input.contract.taxJurisdiction
+      : null;
+  const jurisdiction = resolved ?? clientJurisdiction;
   if (!jurisdiction) return { ok: false, message: 'Confirm whether this supply is inside your state or outside it.' };
   input.contract.taxJurisdiction = jurisdiction;
   // Store the canonical name so a snapshot written from a `"MH"` master and one written from a
@@ -479,9 +617,31 @@ export function stampPostedGst(input: {
   const canonicalSupply = supplyState || input.contract.placeOfSupply || businessState;
   input.contract.placeOfSupply = gstStateName(canonicalSupply) || canonicalSupply;
   const priced = (input.lines ?? []).filter((line) => Number(line.unitPrice) > 0 && Number(line.quantity) > 0);
-  const sources = priced.length > 0 ? priced : [{ quantity: '1', unitPrice: String(input.entered), gstRate: input.contract.gstRate, taxMode: input.contract.taxMode === 'NOT_CONFIGURED' ? null : input.contract.taxMode, discount: input.contract.discount, master: null }];
+  const sources =
+    priced.length > 0
+      ? priced
+      : [
+          {
+            quantity: '1',
+            unitPrice: String(input.entered),
+            gstRate: input.contract.gstRate,
+            taxMode: input.contract.taxMode === 'NOT_CONFIGURED' ? null : input.contract.taxMode,
+            discount: null,
+            master: null,
+          },
+        ];
+  const lineGrosses = sources.map((source) => (Number(source.quantity) || 1) * Number(source.unitPrice));
+  const lineDiscounts = sources.map((source) => Number(source.discount ?? 0));
+  const headerDiscount = priced.length > 0 ? Number(input.contract.discount ?? 0) : Number(input.contract.discount ?? 0);
+  const resolvedDiscounts = resolveLineDiscounts({
+    lineGrosses,
+    lineDiscounts: priced.length > 0 ? lineDiscounts : lineDiscounts.map(() => 0),
+    headerDiscount,
+  });
+  if (!resolvedDiscounts.ok) return resolvedDiscounts;
   const gstLines: GstLineInput[] = [];
-  for (const source of sources) {
+  for (let i = 0; i < sources.length; i++) {
+    const source = sources[i]!;
     const master = source.master;
     const applicable = String(master?.gstApplicable ?? '').toUpperCase();
     const classification = String(master?.gstClassification ?? '').toUpperCase();
@@ -491,24 +651,44 @@ export function stampPostedGst(input: {
     const sideOverride = input.side === 'SALE' ? master?.salePriceIncludesGst : master?.purchasePriceIncludesGst;
     const override = String(sideOverride || master?.priceIncludesGst || '').toUpperCase();
     const lineMode = source.taxMode;
-    const inclusive = lineMode === 'INCLUSIVE' ? true : lineMode === 'EXCLUSIVE' ? false : input.contract.taxMode === 'INCLUSIVE' ? true : input.contract.taxMode === 'EXCLUSIVE' ? false : override === 'YES' ? true : override === 'NO' ? false : preference;
+    const inclusive =
+      lineMode === 'INCLUSIVE'
+        ? true
+        : lineMode === 'EXCLUSIVE'
+          ? false
+          : input.contract.taxMode === 'INCLUSIVE'
+            ? true
+            : input.contract.taxMode === 'EXCLUSIVE'
+              ? false
+              : override === 'YES'
+                ? true
+                : override === 'NO'
+                  ? false
+                  : preference;
     if (inclusive == null) return { ok: false, message: 'Choose whether the price includes GST.' };
-    const lineDiscount = Number(source.discount ?? 0);
     gstLines.push({
       quantity: Number(source.quantity) || 1,
       unitPrice: Number(source.unitPrice),
-      discount: lineDiscount > 0 ? lineDiscount : priced.length > 0 ? 0 : Number(input.contract.discount ?? 0),
+      discount: resolvedDiscounts.discounts[i] ?? 0,
       ratePercent: rate,
       inclusive,
     });
   }
   const place = input.contract.placeOfSupply ?? '';
-  const snapshot = gstLines.length === 1
+  const baseSnapshot = gstLines.length === 1
     ? computeGstLine(gstLines[0]!, jurisdiction, place, input.gst.registration)
     : rollGstLines(gstLines, jurisdiction, place, input.gst.registration);
+  const withCess = withExplicitCess(baseSnapshot, input.contract.cessAmount, input.contract.cessRate);
+  if (!withCess.ok) return withCess;
+  const snapshot = withCess.snapshot;
   input.contract.gst = snapshot;
   input.contract.taxStatus = 'CALCULATED';
   input.contract.taxMode = snapshot.priceIncludesGst ? 'INCLUSIVE' : 'EXCLUSIVE';
   input.contract.taxAmount = snapshot.gstTotal;
+  input.contract.discount = snapshot.discount;
+  if (Number(snapshot.cessAmount ?? 0) > 0) {
+    input.contract.cessAmount = snapshot.cessAmount ?? money(0);
+    if (snapshot.cessRate) input.contract.cessRate = snapshot.cessRate;
+  }
   return { ok: true, amount: Number(snapshot.invoiceTotal) };
 }

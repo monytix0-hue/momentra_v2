@@ -1,16 +1,43 @@
 import SwiftUI
 
-// MARK: - Retail capture chrome (Figma RTL-QA rose / amber)
+// MARK: - Retail capture chrome (Figma RTL-QA rose / amber · Harbor Mart)
 
 enum RoseSheetChrome {
+    /// Amber labels / Why / Add line (`#FBBF24`).
     static let label = Color(hex: "#FBBF24")
+    /// Legacy cyan context — prefer `whyBody` on POS Why notes.
     static let context = Color(hex: "#CFEFF6")
+    /// Why body cream (`#FEF3C7`) — Figma RTL HTR / POS Why notes.
+    static let whyBody = Color(hex: "#FEF3C7")
+    /// Soft rose wash (legacy soft token).
+    static let whyBodySoft = BusinessTokens.Colors.retailWhyBody
+    /// Sheet / tile / chip slate (`#1E293B`).
+    static let sheet = BusinessTokens.Colors.retailSheet
+    /// Nested field / line row fill (`#0F172A`).
+    static let field = Color(hex: "#0F172A")
+    /// Inactive chip fill (`#334155`) — Figma HTR pills.
+    static let chip = Color(hex: "#334155")
+    /// Inactive chip stroke (`#475569`).
+    static let chipBorder = Color(hex: "#475569")
+    /// Deep rose context fill (`#881337`).
+    static let deepRose = Color(hex: "#881337")
+    /// Dark ink on rose mode chips (`#0F172A`).
+    static let inkOnChip = Color(hex: "#0F172A")
+    /// Inactive chip / field stroke (`#E11D48`).
+    static let roseBorder = BusinessTokens.Colors.retailAccentDeep
+    /// Grab + ALT soft rose (`#FB7185`).
+    static let grab = BusinessTokens.Colors.retailAccentSoft
+    /// Tender selected fill (`#22C55E`).
+    static let tenderSelected = Color(hex: "#22C55E")
+    /// Body / muted slate text.
+    static let textBody = Color(hex: "#CBD5E1")
+    static let textMuted = Color(hex: "#94A3B8")
 }
 
 struct RoseGrabber: View {
     var body: some View {
         Capsule()
-            .fill(Color.white.opacity(0.22))
+            .fill(RoseSheetChrome.grab)
             .frame(width: 40, height: 4)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 4)
@@ -22,37 +49,52 @@ struct RoseSheetHeader: View {
     let title: String
     var subtitle: String? = nil
     var qaCode: String? = nil
+    /// Figma ALT badge on Quick amount / Hold recall.
+    var showAltBadge: Bool = false
     var onClose: () -> Void
 
     var body: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                if let qaCode {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(title)
+                    .font(.plusJakarta(size: 22, weight: .bold))
+                    .foregroundStyle(OperatingV12.title)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if showAltBadge {
+                    Text("ALT")
+                        .font(.plusJakarta(size: 12, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(RoseSheetChrome.grab)
+                        .overlay(
+                            Capsule().strokeBorder(theme.accent, lineWidth: 1)
+                        )
+                        .clipShape(Capsule())
+                } else if let qaCode {
                     Text(qaCode)
                         .font(.plusJakarta(size: 10, weight: .bold))
                         .tracking(0.6)
                         .foregroundStyle(theme.accent)
                 }
-                Text(title)
-                    .font(.plusJakarta(size: 22, weight: .semibold))
-                    .foregroundStyle(OperatingV12.title)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.plusJakarta(size: 12))
-                        .foregroundStyle(OperatingV12.subtitle)
+                Button(action: onClose) {
+                    Text("✕")
+                        .font(.plusJakarta(size: 13, weight: .bold))
+                        .foregroundStyle(RoseSheetChrome.textBody)
+                        .frame(width: 32, height: 32)
+                        .background(RoseSheetChrome.sheet)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close")
             }
-            Spacer(minLength: 8)
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(OperatingV12.subtitle)
-                    .frame(width: 32, height: 32)
-                    .background(theme.inset)
-                    .clipShape(Circle())
+            // Optional legacy subtitle kept for API compatibility; POS uses RoseRegisterContext.
+            if let subtitle {
+                Text(subtitle)
+                    .font(.plusJakarta(size: 12, weight: .medium))
+                    .foregroundStyle(RoseSheetChrome.textBody)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close")
         }
     }
 }
@@ -60,10 +102,10 @@ struct RoseSheetHeader: View {
 struct RoseFieldLabel: View {
     let text: String
     var body: some View {
-        Text(text.uppercased())
-            .font(.plusJakarta(size: 10, weight: .semibold))
-            .tracking(0.4)
-            .foregroundStyle(RoseSheetChrome.label)
+        // Figma RTL labels are title case (Scan or search SKU), not all-caps.
+        Text(text)
+            .font(.plusJakarta(size: 11, weight: .medium))
+            .foregroundStyle(RoseSheetChrome.textBody)
     }
 }
 
@@ -71,32 +113,227 @@ struct RoseModeChip: View {
     let theme: OperatingTheme
     let text: String
     let selected: Bool
+    var style: RoseChipStyle = .accent
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Text(text)
-                .font(.plusJakarta(size: 12, weight: .semibold))
-                .foregroundStyle(selected ? theme.onAccent : OperatingV12.subtitle)
+                .font(.plusJakarta(size: 12, weight: selected ? .bold : .medium))
+                .foregroundStyle(selectedForeground)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(selected ? theme.accent : theme.inset)
+                .background(selectedFill)
+                .overlay(
+                    Capsule()
+                        .strokeBorder(selectedStroke, lineWidth: 1)
+                )
                 .clipShape(Capsule())
+                .shadow(
+                    color: selected && (style == .ticket || style == .deep)
+                        ? Color(hex: "#EA580C").opacity(0.35)
+                        : .clear,
+                    radius: 8,
+                    y: 2
+                )
         }
         .buttonStyle(.plain)
     }
+
+    private var selectedForeground: Color {
+        guard selected else {
+            return (style == .ticket || style == .deep) ? RoseSheetChrome.textMuted : RoseSheetChrome.textBody
+        }
+        switch style {
+        case .ticket, .deep, .tender: return RoseSheetChrome.inkOnChip
+        case .accent: return Color.white
+        }
+    }
+
+    private var selectedFill: Color {
+        guard selected else {
+            return (style == .ticket || style == .deep) ? RoseSheetChrome.chip : RoseSheetChrome.sheet
+        }
+        switch style {
+        case .tender: return RoseSheetChrome.tenderSelected
+        case .deep: return RoseSheetChrome.deepRose
+        case .ticket, .accent: return theme.accent
+        }
+    }
+
+    private var selectedStroke: Color {
+        guard selected else {
+            return (style == .ticket || style == .deep) ? RoseSheetChrome.chipBorder : RoseSheetChrome.roseBorder
+        }
+        switch style {
+        case .ticket, .deep, .tender: return RoseSheetChrome.label
+        case .accent: return theme.accent
+        }
+    }
+}
+
+enum RoseChipStyle {
+    /// POS default — white ink on rose fill.
+    case accent
+    /// Tender selected — green fill.
+    case tender
+    /// HTR mode chips — dark ink on rose + amber border (Figma Hold|Transfer|Reprint).
+    case ticket
+    /// HTR context chips — deep rose fill + amber border.
+    case deep
+}
+
+/// Ticket hero for Hold / Transfer / Reprint (Figma slip card · rose chrome).
+struct RoseTicketHero: View {
+    let theme: OperatingTheme
+    let eyebrow: String
+    let code: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(eyebrow)
+                    .font(.plusJakarta(size: 11, weight: .medium))
+                    .foregroundStyle(RoseSheetChrome.textMuted)
+                Spacer(minLength: 8)
+                Text(code)
+                    .font(.plusJakarta(size: 12, weight: .bold))
+                    .foregroundStyle(RoseSheetChrome.label)
+            }
+            Text(title)
+                .font(.plusJakarta(size: 28, weight: .bold))
+                .foregroundStyle(OperatingV12.title)
+                .lineLimit(2)
+            Text(subtitle)
+                .font(.plusJakarta(size: 12))
+                .foregroundStyle(RoseSheetChrome.textMuted)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoseSheetChrome.chip)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(theme.accent, lineWidth: 1.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: Color(hex: "#EA580C").opacity(0.35), radius: 16, y: 0)
+    }
+}
+
+/// Line card for utility tickets — HSN · ₹ · % meta + category + status pills.
+struct RoseTicketLineCard: View {
+    let theme: OperatingTheme
+    let title: String
+    let qtyLabel: String
+    let meta: String
+    let category: String
+    let status: String
+    var statusStyle: RoseTicketStatusStyle = .parked
+    var onDecrement: (() -> Void)? = nil
+    var onIncrement: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(title)
+                    .font(.plusJakarta(size: 14, weight: .bold))
+                    .foregroundStyle(OperatingV12.title)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let onDecrement, let onIncrement {
+                    RoseStepper(theme: theme, quantity: qtyFromLabel, onDecrement: onDecrement, onIncrement: onIncrement)
+                } else {
+                    Text(qtyLabel)
+                        .font(.plusJakarta(size: 14, weight: .bold))
+                        .foregroundStyle(RoseSheetChrome.label)
+                }
+            }
+            HStack(alignment: .center, spacing: 6) {
+                Text(meta)
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(RoseSheetChrome.textMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(2)
+                Text(category)
+                    .font(.plusJakarta(size: 12, weight: .medium))
+                    .foregroundStyle(RoseSheetChrome.textMuted)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(RoseSheetChrome.chip)
+                    .overlay(Capsule().strokeBorder(RoseSheetChrome.chipBorder, lineWidth: 1))
+                    .clipShape(Capsule())
+                Text(status)
+                    .font(.plusJakarta(size: 12, weight: .bold))
+                    .foregroundStyle(RoseSheetChrome.inkOnChip)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(statusFill)
+                    .overlay(Capsule().strokeBorder(RoseSheetChrome.label, lineWidth: 1))
+                    .clipShape(Capsule())
+                    .shadow(color: Color(hex: "#EA580C").opacity(0.25), radius: 8, y: 2)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoseSheetChrome.chip)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(statusBorder, lineWidth: statusStyle == .move || statusStyle == .amberParked ? 1 : 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(
+            color: (statusStyle == .move || statusStyle == .amberParked)
+                ? RoseSheetChrome.label.opacity(0.2)
+                : .clear,
+            radius: 8,
+            y: 2
+        )
+    }
+
+    private var qtyFromLabel: Int {
+        Int(qtyLabel.replacingOccurrences(of: "×", with: "")) ?? 1
+    }
+
+    private var statusFill: Color {
+        switch statusStyle {
+        case .parked, .posted: return RoseSheetChrome.tenderSelected
+        case .move, .amberParked: return RoseSheetChrome.label
+        }
+    }
+
+    private var statusBorder: Color {
+        switch statusStyle {
+        case .parked, .posted: return theme.accent.opacity(0.3)
+        case .move, .amberParked: return RoseSheetChrome.label.opacity(0.4)
+        }
+    }
+}
+
+enum RoseTicketStatusStyle {
+    case parked
+    case amberParked
+    case move
+    case posted
 }
 
 struct RoseChipRow: View {
     let theme: OperatingTheme
     let options: [String]
     @Binding var selection: String
+    var style: RoseChipStyle = .accent
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(options, id: \.self) { option in
-                    RoseModeChip(theme: theme, text: option, selected: selection == option) {
+                    RoseModeChip(
+                        theme: theme,
+                        text: option,
+                        selected: selection == option,
+                        style: style
+                    ) {
                         selection = option
                     }
                 }
@@ -110,20 +347,29 @@ struct RoseTextField: View {
     let placeholder: String
     @Binding var text: String
     var keyboard: UIKeyboardType = .default
+    var trailing: String? = nil
 
     var body: some View {
-        TextField(placeholder, text: $text)
-            .keyboardType(keyboard)
-            .font(.plusJakarta(size: 14))
-            .foregroundStyle(OperatingV12.title)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
-            .background(theme.inset)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(theme.border.opacity(0.6), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        HStack(spacing: 8) {
+            TextField(placeholder, text: $text)
+                .keyboardType(keyboard)
+                .font(.plusJakarta(size: 14, weight: .medium))
+                .foregroundStyle(OperatingV12.title)
+                .tint(theme.accent)
+            if let trailing {
+                Text(trailing)
+                    .font(.plusJakarta(size: 14, weight: .bold))
+                    .foregroundStyle(RoseSheetChrome.textBody)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .background(RoseSheetChrome.sheet)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(RoseSheetChrome.roseBorder, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -131,25 +377,38 @@ struct RoseScanField: View {
     let theme: OperatingTheme
     let placeholder: String
     @Binding var query: String
-    var actionLabel: String = "Add"
+    var actionLabel: String = "Scan"
     var action: () -> Void
     var disabled: Bool = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            RoseTextField(theme: theme, placeholder: placeholder, text: $query)
+        HStack(spacing: 10) {
+            Image(systemName: "barcode.viewfinder")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(theme.accent)
+            TextField(placeholder, text: $query)
+                .font(.plusJakarta(size: 13))
+                .foregroundStyle(OperatingV12.title)
+                .tint(theme.accent)
             Button(action: action) {
                 Text(actionLabel)
-                    .font(.plusJakarta(size: 13, weight: .bold))
-                    .foregroundStyle(disabled ? OperatingV12.subtitle : theme.onAccent)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
+                    .font(.plusJakarta(size: 11, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
                     .background(disabled ? theme.inset : theme.accent)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(disabled)
         }
+        .padding(12)
+        .background(RoseSheetChrome.sheet)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(theme.accent, lineWidth: 1.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -161,23 +420,27 @@ struct RoseStepper: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            stepButton("minus", action: onDecrement)
+            stepButton("−", action: onDecrement)
             Text("\(quantity)")
-                .font(.plusJakarta(size: 12, weight: .bold))
+                .font(.plusJakarta(size: 14, weight: .bold))
                 .foregroundStyle(OperatingV12.title)
                 .frame(minWidth: 16)
-            stepButton("plus", action: onIncrement)
+            stepButton("+", action: onIncrement)
         }
-        .foregroundStyle(theme.accent)
     }
 
     private func stepButton(_ symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 11, weight: .bold))
-                .frame(width: 24, height: 24)
-                .background(theme.canvas)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+            Text(symbol)
+                .font(.plusJakarta(size: 14, weight: .bold))
+                .foregroundStyle(Color.white)
+                .frame(width: 28, height: 28)
+                .background(RoseSheetChrome.sheet)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(RoseSheetChrome.roseBorder, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -193,19 +456,22 @@ struct RoseLinesCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(title)
-                    .font(.plusJakarta(size: 13, weight: .bold))
-                    .foregroundStyle(theme.accent)
+                    .font(.plusJakarta(size: 12, weight: .bold))
+                    .foregroundStyle(RoseSheetChrome.label)
                 Spacer()
                 Text(trailing)
-                    .font(.plusJakarta(size: 11))
-                    .foregroundStyle(OperatingV12.subtitle)
+                    .font(.plusJakarta(size: 11, weight: .medium))
+                    .foregroundStyle(RoseSheetChrome.textBody)
             }
             content()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(theme.inset)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(14)
+        .background(RoseSheetChrome.sheet)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(theme.accent.opacity(0.30), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -300,6 +566,97 @@ struct RoseTotalsCard: View {
     }
 }
 
+/// Figma RTL-QA-02…04 money totals — rose 1.5pt border + hero amount + method/AP status.
+struct RoseMoneyTotalsCard<Rows: View>: View {
+    let theme: OperatingTheme
+    let heroLabel: String
+    let heroAmount: String
+    var statusEyebrow: String = "Method"
+    var statusValue: String
+    var statusTone: RoseMoneyStatusTone = .tender
+    @ViewBuilder var rows: () -> Rows
+
+    var body: some View {
+        VStack(spacing: 6) {
+            rows()
+            Rectangle()
+                .fill(RoseSheetChrome.roseBorder)
+                .frame(height: 1)
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(heroLabel)
+                        .font(.plusJakarta(size: 11, weight: .medium))
+                        .foregroundStyle(RoseSheetChrome.textBody)
+                    Text(heroAmount.isEmpty ? "—" : heroAmount)
+                        .font(.plusJakarta(size: 28, weight: .bold))
+                        .foregroundStyle(OperatingV12.title)
+                }
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(statusEyebrow)
+                        .font(.plusJakarta(size: 10, weight: .bold))
+                        .foregroundStyle(RoseSheetChrome.label)
+                    Text(statusValue)
+                        .font(.plusJakarta(size: 13, weight: .bold))
+                        .foregroundStyle(statusColor)
+                }
+            }
+        }
+        .padding(16)
+        .background(RoseSheetChrome.sheet)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(theme.accent, lineWidth: 1.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: theme.accent.opacity(0.18), radius: 16, y: 0)
+    }
+
+    private var statusColor: Color {
+        switch statusTone {
+        case .tender: return RoseSheetChrome.tenderSelected
+        case .amber: return RoseSheetChrome.label
+        case .danger: return theme.negative
+        case .body: return RoseSheetChrome.textBody
+        }
+    }
+}
+
+enum RoseMoneyStatusTone {
+    case tender
+    case amber
+    case danger
+    case body
+}
+
+struct RoseMoneyRow: View {
+    let label: String
+    let value: String
+    var valueTone: RoseMoneyStatusTone = .body
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.plusJakarta(size: 12))
+                .foregroundStyle(RoseSheetChrome.textBody)
+            Spacer()
+            Text(value)
+                .font(.plusJakarta(size: 12, weight: .medium))
+                .foregroundStyle(toneColor)
+        }
+    }
+
+    private var toneColor: Color {
+        switch valueTone {
+        case .tender: return RoseSheetChrome.tenderSelected
+        case .amber: return RoseSheetChrome.label
+        case .danger: return Color(hex: "#EF4444")
+        case .body: return RoseSheetChrome.textBody
+        }
+    }
+}
+
+
 struct RoseAmountHero: View {
     let theme: OperatingTheme
     var label: String = "Quick amount"
@@ -339,29 +696,37 @@ struct RoseAmountHero: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            RoseFieldLabel(text: label)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                    .font(.plusJakarta(size: 12, weight: .medium))
+                    .foregroundStyle(RoseSheetChrome.textBody)
+                Spacer()
+                Text(currency.isEmpty ? "INR" : currency)
+                    .font(.plusJakarta(size: 11, weight: .bold))
+                    .foregroundStyle(RoseSheetChrome.label)
+            }
             if let amountBinding {
                 RoseTextField(theme: theme, placeholder: "0.00", text: amountBinding, keyboard: .decimalPad)
             } else {
                 Text(amountText.isEmpty ? "—" : amountText)
-                    .font(.plusJakarta(size: 28, weight: .bold))
+                    .font(.plusJakarta(size: 40, weight: .bold))
                     .foregroundStyle(OperatingV12.title)
             }
             if let caption {
                 Text(caption)
-                    .font(.plusJakarta(size: 10))
-                    .foregroundStyle(OperatingV12.subtitle)
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(RoseSheetChrome.textBody)
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.accent.opacity(0.12))
+        .background(RoseSheetChrome.sheet)
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(theme.accent.opacity(0.45), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(theme.accent, lineWidth: 1.5)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -372,55 +737,79 @@ struct RosePickerRow: View {
     var action: (() -> Void)? = nil
 
     var body: some View {
-        Button {
-            action?()
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    RoseFieldLabel(text: label)
+        VStack(alignment: .leading, spacing: 6) {
+            RoseFieldLabel(text: label)
+            Button {
+                action?()
+            } label: {
+                HStack {
                     Text(value.isEmpty ? "Select…" : value)
                         .font(.plusJakarta(size: 14, weight: .medium))
-                        .foregroundStyle(value.isEmpty ? OperatingV12.subtitle : OperatingV12.title)
+                        .foregroundStyle(value.isEmpty ? RoseSheetChrome.textMuted : OperatingV12.title)
+                    Spacer()
+                    Text("›")
+                        .font(.plusJakarta(size: 16, weight: .bold))
+                        .foregroundStyle(RoseSheetChrome.textBody)
                 }
-                Spacer()
-                Text("›")
-                    .font(.plusJakarta(size: 18, weight: .semibold))
-                    .foregroundStyle(theme.accent)
+                .padding(12)
+                .background(RoseSheetChrome.sheet)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(RoseSheetChrome.roseBorder, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .padding(12)
-            .background(theme.inset)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .buttonStyle(.plain)
+            .disabled(action == nil)
         }
-        .buttonStyle(.plain)
-        .disabled(action == nil)
     }
 }
 
 struct RoseMoreDetails<Content: View>: View {
     @State private var open = false
     let title: String
+    var hint: String = "Notes · Attachment · Tags"
     @ViewBuilder var content: () -> Content
+
+    init(title: String, hint: String = "Notes · Attachment · Tags", @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.hint = hint
+        self.content = content
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) { open.toggle() }
             } label: {
-                HStack {
+                HStack(spacing: 8) {
                     Text(title)
-                        .font(.plusJakarta(size: 13, weight: .semibold))
-                        .foregroundStyle(OperatingV12.title)
+                        .font(.plusJakarta(size: 13, weight: .bold))
+                        .foregroundStyle(RoseSheetChrome.label)
                     Spacer()
-                    Image(systemName: open ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(OperatingV12.subtitle)
+                    Text(hint)
+                        .font(.plusJakarta(size: 11))
+                        .foregroundStyle(RoseSheetChrome.textBody)
+                        .lineLimit(1)
+                    Text(open ? "⌃" : "⌄")
+                        .font(.plusJakarta(size: 14, weight: .bold))
+                        .foregroundStyle(RoseSheetChrome.label)
                 }
+                .padding(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(themeAccentBorder, lineWidth: 1)
+                )
             }
             .buttonStyle(.plain)
             if open {
                 content()
             }
         }
+    }
+
+    private var themeAccentBorder: Color {
+        Color(hex: "#F43F5E").opacity(0.40)
     }
 }
 
@@ -429,63 +818,133 @@ struct RoseWhyBox: View {
     let text: String
 
     var body: some View {
-        Text(text)
-            .font(.plusJakarta(size: 11, weight: .medium))
-            .foregroundStyle(RoseSheetChrome.context)
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.accent.opacity(0.08))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(theme.accent.opacity(0.3), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        HStack(alignment: .top, spacing: 8) {
+            Text("Why")
+                .font(.plusJakarta(size: 11, weight: .bold))
+                .foregroundStyle(RoseSheetChrome.label)
+            Text(text)
+                .font(.plusJakarta(size: 11))
+                .foregroundStyle(RoseSheetChrome.whyBody)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(10)
+        .background(theme.accent.opacity(0.12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(theme.accent.opacity(0.40), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
 struct RoseStickyFooter: View {
     let theme: OperatingTheme
     let title: String
+    var caption: String = "Draft preserved if you close or open a picker"
     var disabled: Bool = false
     var loading: Bool = false
+    /// Master supplier form (`2506:29612`) — dark CTA ink + amber caveat. QA sheets stay white/slate.
+    var formStyle: Bool = false
     let action: () -> Void
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             Button(action: action) {
-                Text(loading ? "Saving…" : title)
+                Text(loading ? "Posting…" : title)
                     .font(.plusJakarta(size: 15, weight: .bold))
-                    .foregroundStyle(theme.onAccent)
+                    .foregroundStyle(formStyle ? Color(hex: "#0F172A") : Color.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 52)
+                    .padding(.vertical, 16)
                     .background(disabled || loading ? theme.accent.opacity(0.4) : theme.accent)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .shadow(color: theme.accent.opacity(disabled ? 0 : 0.45), radius: 12, y: 4)
             }
             .buttonStyle(.plain)
             .disabled(disabled || loading)
-            Text("Draft preserved if you close or open a picker")
+            Text(caption)
                 .font(.plusJakarta(size: 10))
-                .foregroundStyle(OperatingV12.subtitle)
+                .foregroundStyle(formStyle ? RoseSheetChrome.label : RoseSheetChrome.textBody)
+                .multilineTextAlignment(.center)
         }
+        .padding(.top, 8)
+    }
+}
+
+/// Figma toast: `✓ Saved · sheet closes and returns back`
+struct RoseSavedToast: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("✓")
+                .font(.plusJakarta(size: 12, weight: .semibold))
+                .foregroundStyle(RoseSheetChrome.label)
+            Text("Saved · sheet closes and returns back")
+                .font(.plusJakarta(size: 12, weight: .semibold))
+                .foregroundStyle(OperatingV12.title)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(RoseSheetChrome.sheet)
+        .overlay(
+            Capsule().strokeBorder(RoseSheetChrome.label, lineWidth: 1)
+        )
+        .clipShape(Capsule())
+        .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
     }
 }
 
 struct RoseTenderChips: View {
     let theme: OperatingTheme
     @Binding var tender: String
-    let options: [String]
+    @Binding var splitTender: Bool
+    @Binding var splitUpi: String
+    @Binding var splitCash: String
+    @Binding var splitCard: String
+    var splitOk: Bool = true
+    var options: [String] = ["UPI", "Cash", "Card"]
+    var allowSplit: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             RoseFieldLabel(text: "Tender")
             HStack(spacing: 6) {
                 ForEach(options, id: \.self) { option in
-                    RoseModeChip(theme: theme, text: option, selected: tender == option) {
+                    RoseModeChip(
+                        theme: theme,
+                        text: option,
+                        selected: !splitTender && tender == option,
+                        style: .tender
+                    ) {
+                        splitTender = false
                         tender = option
                     }
                 }
-                // Figma 2421:29655 / 2439:29655 — Split stays locked (no split-tender API).
-                RoseLockedChip(theme: theme, label: "Split")
+                if allowSplit {
+                    RoseModeChip(
+                        theme: theme,
+                        text: "Split",
+                        selected: splitTender,
+                        style: .tender
+                    ) {
+                        splitTender = true
+                    }
+                }
+            }
+            if splitTender {
+                RoseFieldLabel(text: "UPI")
+                RoseTextField(theme: theme, placeholder: "0", text: $splitUpi)
+                RoseFieldLabel(text: "Cash")
+                RoseTextField(theme: theme, placeholder: "0", text: $splitCash)
+                RoseFieldLabel(text: "Card")
+                RoseTextField(theme: theme, placeholder: "0", text: $splitCard)
+                Text(splitOk
+                     ? "Split instruments post on the contract and must add up to payable."
+                     : "Split amounts must add up to payable before Charge.")
+                    .font(.plusJakarta(size: 10))
+                    .foregroundStyle(splitOk ? OperatingV12.subtitle.opacity(0.8) : Color(hex: "#EF4444"))
+            } else {
+                Text("One instrument posts as contract.payments · use Split for UPI+Cash+Card.")
+                    .font(.plusJakarta(size: 10))
+                    .foregroundStyle(OperatingV12.subtitle.opacity(0.8))
             }
         }
     }
@@ -526,8 +985,8 @@ struct RoseContextLine: View {
     let text: String
     var body: some View {
         Text(text)
-            .font(.plusJakarta(size: 11, weight: .medium))
-            .foregroundStyle(RoseSheetChrome.context)
+            .font(.plusJakarta(size: 12, weight: .medium))
+            .foregroundStyle(RoseSheetChrome.textBody)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -539,11 +998,11 @@ struct RoseLockedChip: View {
     var body: some View {
         Text(label)
             .font(.plusJakarta(size: 12, weight: .medium))
-            .foregroundStyle(OperatingV12.subtitle.opacity(0.7))
+            .foregroundStyle(RoseSheetChrome.textMuted.opacity(0.7))
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(theme.inset.opacity(0.5))
-            .overlay(Capsule().strokeBorder(theme.border.opacity(0.5), lineWidth: 1))
+            .background(RoseSheetChrome.sheet.opacity(0.5))
+            .overlay(Capsule().strokeBorder(RoseSheetChrome.roseBorder.opacity(0.5), lineWidth: 1))
             .clipShape(Capsule())
             .accessibilityLabel("\(label), unavailable")
     }
@@ -600,6 +1059,37 @@ struct RoseUnavailableGstRow: View {
     }
 }
 
+/// GST estimate when rates+amounts exist; else Unavailable. UI-only — never posts ledger tax.
+struct RoseGstEstimateRow: View {
+    let theme: OperatingTheme
+    var label: String
+    var estimate: Decimal?
+    var currency: String
+    var captionWhenKnown: String = "Estimate only — GST posts on Charge / Purchase"
+    var captionWhenMissing: String = "Unavailable — rate missing on line / master"
+
+    var body: some View {
+        if let estimate {
+            HStack {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(label)
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(OperatingV12.subtitle)
+                    Text(captionWhenKnown)
+                        .font(.plusJakarta(size: 10))
+                        .foregroundStyle(OperatingV12.subtitle.opacity(0.8))
+                }
+                Spacer()
+                Text(OperatingV12Money.amount(NSDecimalNumber(decimal: estimate).stringValue, currency: currency))
+                    .font(.plusJakarta(size: 14, weight: .semibold))
+                    .foregroundStyle(theme.warning)
+            }
+        } else {
+            RoseUnavailableGstRow(theme: theme, label: label, caption: captionWhenMissing)
+        }
+    }
+}
+
 /// On-sheet numeric keypad for Quick amount — same amount string as the text field path.
 struct RoseNumericKeypad: View {
     let theme: OperatingTheme
@@ -622,14 +1112,14 @@ struct RoseNumericKeypad: View {
                             value = RoseKeypad.apply(current: value, key: key, maxLength: maxLength)
                         } label: {
                             Text(key)
-                                .font(.plusJakarta(size: 18, weight: .semibold))
-                                .foregroundStyle(OperatingV12.title)
+                                .font(.plusJakarta(size: 16, weight: .bold))
+                                .foregroundStyle(Color.white)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 48)
-                                .background(theme.inset)
+                                .padding(.vertical, 14)
+                                .background(RoseSheetChrome.sheet)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .strokeBorder(theme.border.opacity(0.5), lineWidth: 1)
+                                        .strokeBorder(RoseSheetChrome.roseBorder, lineWidth: 1)
                                 )
                                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
@@ -660,22 +1150,44 @@ enum RoseKeypad {
 struct RoseSectionCard<Content: View>: View {
     let theme: OperatingTheme
     let label: String
+    var trailing: String? = nil
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            RoseFieldLabel(text: label)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(label)
+                    .font(.plusJakarta(size: 14, weight: .bold))
+                    .foregroundStyle(OperatingV12.title)
+                Spacer()
+                if let trailing {
+                    Text(trailing)
+                        .font(.plusJakarta(size: 11))
+                        .foregroundStyle(RoseSheetChrome.textMuted)
+                }
+            }
             VStack(alignment: .leading, spacing: 10) {
                 content()
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.inset)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(theme.accent.opacity(0.35), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoseSheetChrome.sheet)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(theme.accent.opacity(0.40), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+/// Register strip under POS title — location-derived; Register/Shift are Figma chrome labels.
+struct RoseRegisterContext: View {
+    let text: String
+    var body: some View {
+        Text(text)
+            .font(.plusJakarta(size: 12, weight: .medium))
+            .foregroundStyle(RoseSheetChrome.textBody)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

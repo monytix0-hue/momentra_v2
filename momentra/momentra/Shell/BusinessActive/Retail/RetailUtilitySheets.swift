@@ -1,6 +1,8 @@
 import SwiftUI
+import UIKit
 
-/// Retail utilities — Figma RTL-QA Hold / Transfer / Reprint.
+/// Retail utilities — Figma RTL-QA Hold / Transfer / Reprint (`2508:29333`, `29447`, `29537`).
+/// Rose Harbor Mart chrome (not Service teal). Park ↔ Hold recall via `RetailParkedSaleStore`.
 struct RetailUtilitySheet: View {
     let theme: OperatingTheme
     let mode: String
@@ -30,7 +32,7 @@ struct RetailUtilitySheet: View {
     }
 }
 
-// MARK: - Shared chrome helpers (utility sheets only)
+// MARK: - Shared chrome (utility sheets only)
 
 private enum RetailUtilityNav {
     static let hold = OperatingCaptureLayout.holdMode
@@ -44,17 +46,16 @@ private struct RetailUtilityCrossNav: View {
     let onNavigate: (String) -> Void
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                chip("Hold", RetailUtilityNav.hold)
-                chip("Transfer", RetailUtilityNav.transfer)
-                chip("Reprint", RetailUtilityNav.reprint)
-            }
+        HStack(spacing: 6) {
+            chip("Hold", RetailUtilityNav.hold)
+            chip("Transfer", RetailUtilityNav.transfer)
+            chip("Reprint", RetailUtilityNav.reprint)
+            Spacer(minLength: 0)
         }
     }
 
     private func chip(_ label: String, _ dest: String) -> some View {
-        RoseModeChip(theme: theme, text: label, selected: active == dest) {
+        RoseModeChip(theme: theme, text: label, selected: active == dest, style: .ticket) {
             if active != dest { onNavigate(dest) }
         }
     }
@@ -69,7 +70,12 @@ private struct RetailRegisterChips: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(options, id: \.self) { option in
-                    RoseModeChip(theme: theme, text: option, selected: selection == option) {
+                    RoseModeChip(
+                        theme: theme,
+                        text: option,
+                        selected: selection == option,
+                        style: .deep
+                    ) {
                         selection = option
                     }
                 }
@@ -83,86 +89,26 @@ private struct RetailUtilityMetaRows: View {
     let rows: [(String, String)]
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 2) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack {
                     Text(row.0)
-                        .font(.plusJakarta(size: 10, weight: .semibold))
-                        .foregroundStyle(RoseSheetChrome.label)
+                        .font(.plusJakarta(size: 12, weight: .medium))
+                        .foregroundStyle(RoseSheetChrome.textMuted)
                     Spacer(minLength: 8)
                     Text(row.1)
-                        .font(.plusJakarta(size: 12, weight: .semibold))
-                        .foregroundStyle(OperatingV12.title)
-                        .lineLimit(1)
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.inset)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-}
-
-private struct RetailUtilityLineRow: View {
-    let theme: OperatingTheme
-    let title: String
-    let qty: Int
-    let meta: String
-    let category: String
-    let status: String
-    var onDecrement: (() -> Void)? = nil
-    var onIncrement: (() -> Void)? = nil
-    var onRemove: (() -> Void)? = nil
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 8) {
-                Text(title)
-                    .font(.plusJakarta(size: 13, weight: .semibold))
-                    .foregroundStyle(OperatingV12.title)
-                    .lineLimit(1)
-                Spacer(minLength: 4)
-                if let onDecrement, let onIncrement {
-                    RoseStepper(theme: theme, quantity: qty, onDecrement: onDecrement, onIncrement: onIncrement)
-                } else {
-                    Text("×\(qty)")
                         .font(.plusJakarta(size: 13, weight: .bold))
                         .foregroundStyle(OperatingV12.title)
+                        .multilineTextAlignment(.trailing)
+                        .lineLimit(2)
                 }
-                if let onRemove {
-                    Button(action: onRemove) {
-                        Text("✕")
-                            .font(.plusJakarta(size: 12))
-                            .foregroundStyle(OperatingV12.subtitle)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            HStack(spacing: 6) {
-                Text(meta)
-                    .font(.plusJakarta(size: 10))
-                    .foregroundStyle(OperatingV12.subtitle)
-                    .lineLimit(2)
-                Spacer(minLength: 4)
-                Text(category)
-                    .font(.plusJakarta(size: 11, weight: .semibold))
-                    .foregroundStyle(theme.accent)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(theme.inset)
-                    .clipShape(Capsule())
-                Text(status)
-                    .font(.plusJakarta(size: 11, weight: .semibold))
-                    .foregroundStyle(theme.onAccent)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(theme.accent)
-                    .clipShape(Capsule())
+                .padding(.vertical, 4)
             }
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoseSheetChrome.chip)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -184,6 +130,17 @@ private func retailStationLabel(_ raw: String) -> String {
     return raw.prefix(16).capitalized
 }
 
+private func retailRegisters(from model: BusinessOperatingModel) -> [String] {
+    let fromLife = model.projection?.life?.channels.filter { !$0.isEmpty } ?? []
+    return fromLife.isEmpty ? ["Register 1", "Register 2", "Online"] : Array(fromLife.prefix(3))
+}
+
+private func retailGstChip(model: BusinessOperatingModel) -> String {
+    model.projection?.gstTracking?.uppercased() == "ON"
+        || model.projection?.gstRegistration != nil
+        ? "GST on" : "GST off"
+}
+
 // MARK: - Hold / park bill (`2508:29333`)
 
 struct RetailHoldParkSheet: View {
@@ -200,12 +157,9 @@ struct RetailHoldParkSheet: View {
     @State private var slipTo = "Counter printer 2"
     @State private var parkCart: [RetailPosLine] = []
     @State private var pendingHoldId = UUID().uuidString
+    @State private var holdCode = RetailParkedSaleStore.shared.nextHoldCode()
 
-    private var registers: [String] {
-        let fromLife = model.projection?.life?.channels.filter { !$0.isEmpty } ?? []
-        let base = fromLife.isEmpty ? ["Register 1", "Register 2", "Online"] : Array(fromLife.prefix(3))
-        return base
-    }
+    private var registers: [String] { retailRegisters(from: model) }
 
     private var skus: [OperatingMasterPayload] {
         let source = model.masters.isEmpty ? (model.projection?.masters ?? []) : model.masters
@@ -216,11 +170,6 @@ struct RetailHoldParkSheet: View {
 
     private var masterById: [String: OperatingMasterPayload] {
         Dictionary(uniqueKeysWithValues: skus.map { ($0.id, $0) })
-    }
-
-    private var nextHoldCode: String {
-        let short = pendingHoldId.replacingOccurrences(of: "-", with: "").prefix(4).uppercased()
-        return short.isEmpty ? "HOLD" : "HOLD-\(short)"
     }
 
     private var stations: [String] {
@@ -245,17 +194,21 @@ struct RetailHoldParkSheet: View {
             ?? model.title
     }
 
+    private var heroTitle: String {
+        let trimmed = customer.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Walk-in" : trimmed
+    }
+
     private var canPark: Bool { !parkCart.isEmpty }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 RoseGrabber()
                 RoseSheetHeader(
                     theme: theme,
                     title: "Hold / Park bill",
                     subtitle: "Parked cart · no revenue, no stock",
-                    qaCode: "RTL-QA-HOLD",
                     onClose: { dismiss() }
                 )
 
@@ -264,53 +217,60 @@ struct RetailHoldParkSheet: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        RoseModeChip(theme: theme, text: "\(register.isEmpty ? "Register" : register) · Shift open", selected: true) {}
-                        RoseModeChip(theme: theme, text: "Park · recall later", selected: false) {}
                         RoseModeChip(
                             theme: theme,
-                            text: model.projection?.gstTracking?.uppercased() == "ON" || model.projection?.gstRegistration != nil
-                                ? "GST on" : "GST off",
-                            selected: false
+                            text: "\(register.isEmpty ? "Register" : register) · Shift open",
+                            selected: true,
+                            style: .deep
                         ) {}
+                        RoseModeChip(theme: theme, text: "Park · recall later", selected: false, style: .ticket) {}
+                        RoseModeChip(theme: theme, text: retailGstChip(model: model), selected: false, style: .ticket) {}
                     }
                 }
 
-                RoseAmountHero(
+                RoseTicketHero(
                     theme: theme,
-                    label: "Hold slip · \(nextHoldCode)",
-                    amountText: customer.isEmpty ? "Walk-in" : customer,
-                    caption: "\(parkCart.count) line\(parkCart.count == 1 ? "" : "s") · \(locationLabel) · \(register.isEmpty ? "—" : register)"
+                    eyebrow: "Hold slip",
+                    code: holdCode,
+                    title: heroTitle,
+                    subtitle: "\(parkCart.count) line\(parkCart.count == 1 ? "" : "s") · \(locationLabel) · \(register.isEmpty ? "—" : register)"
                 )
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ForEach(stations, id: \.self) { name in
-                            RoseModeChip(theme: theme, text: name, selected: station == name) {
+                            RoseModeChip(
+                                theme: theme,
+                                text: name,
+                                selected: station == name,
+                                style: .ticket
+                            ) {
                                 station = name
                             }
                         }
                     }
                 }
 
-                RoseLinesCard(theme: theme, title: "Parked lines", trailing: "\(parkCart.count)") {
-                    RoseScanField(
+                RoseScanField(
+                    theme: theme,
+                    placeholder: skus.isEmpty ? "No SKU — add catalogue first" : "Scan or search SKU",
+                    query: $query,
+                    actionLabel: "Scan",
+                    action: { pickFirstSku() },
+                    disabled: skus.isEmpty
+                )
+                skuMatches
+
+                if visibleCart.isEmpty {
+                    RoseEmptyCard(
                         theme: theme,
-                        placeholder: skus.isEmpty ? "No SKU — add catalogue first" : "Scan or search SKU",
-                        query: $query,
-                        actionLabel: "Scan",
-                        action: { pickFirstSku() },
-                        disabled: skus.isEmpty
+                        title: "Nothing on the hold slip",
+                        bodyText: "Scan Harbor Mart SKUs to park a draft cart. Session parks only — no register / holds API yet."
                     )
-                    skuMatches
-                    if visibleCart.isEmpty {
-                        RoseEmptyCard(
-                            theme: theme,
-                            title: "Nothing on the hold slip",
-                            bodyText: "Scan Harbor Mart SKUs to park a draft cart."
-                        )
-                    } else {
-                        ForEach(visibleCart) { line in
-                            lineRow(line)
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(Array(visibleCart.enumerated()), id: \.element.id) { index, line in
+                            lineCard(line, index: index)
                         }
                     }
                 }
@@ -334,7 +294,12 @@ struct RetailHoldParkSheet: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ForEach(["Counter printer 1", "Counter printer 2", "Screen only"], id: \.self) { printer in
-                            RoseModeChip(theme: theme, text: printer, selected: slipTo == printer) {
+                            RoseModeChip(
+                                theme: theme,
+                                text: printer,
+                                selected: slipTo == printer,
+                                style: .ticket
+                            ) {
                                 slipTo = printer
                             }
                         }
@@ -343,24 +308,26 @@ struct RetailHoldParkSheet: View {
                 }
                 Text("Slip to is chrome-only — no print stack.")
                     .font(.plusJakarta(size: 10))
-                    .foregroundStyle(OperatingV12.subtitle)
+                    .foregroundStyle(RoseSheetChrome.textMuted)
 
                 RoseWhyBox(
                     theme: theme,
-                    text: "Hold parks a draft cart. No revenue, no stock, no tender and no GST until Charge on Scan cart."
+                    text: "Hold parks a draft cart on this device. No revenue, no stock, no tender and no GST until Charge on Scan cart. Device-local until a register/holds API exists — not shared across devices."
                 )
 
                 RoseStickyFooter(
                     theme: theme,
-                    title: canPark ? "Park bill · \(nextHoldCode)" : "Park bill",
+                    title: canPark ? "Park bill · \(holdCode)" : "Park bill",
+                    caption: "Device draft only — revenue + GST post on Charge",
                     disabled: !canPark,
                     action: parkBill
                 )
             }
-            .padding(16)
-            .padding(.bottom, 24)
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 28)
         }
-        .background(theme.canvas)
+        .background(RoseSheetChrome.sheet)
         .task {
             if model.masters.isEmpty { await model.loadMasters() }
             if register.isEmpty {
@@ -419,44 +386,42 @@ struct RetailHoldParkSheet: View {
     }
 
     @ViewBuilder
-    private func lineRow(_ line: RetailPosLine) -> some View {
+    private func lineCard(_ line: RetailPosLine, index: Int) -> some View {
         let master = line.masterId.flatMap { masterById[$0] }
         let cat = retailStation(for: master)
         let metaBits = [
             line.skuCode ?? master?.code ?? master?.barcode,
             line.unitPrice.isEmpty ? nil : OperatingV12Money.amount(line.unitPrice, currency: model.currency),
             line.hsn.map { "HSN \($0)" } ?? master?.hsn.map { "HSN \($0)" },
-            master?.gstRate.map { "\($0)%" },
+            gstLabel(master),
         ].compactMap { $0 }
-        RetailUtilityLineRow(
+        RoseTicketLineCard(
             theme: theme,
             title: line.name,
-            qty: line.quantity,
+            qtyLabel: "×\(line.quantity)",
             meta: metaBits.isEmpty ? (line.unit ?? "pc") : metaBits.joined(separator: " · "),
             category: cat,
             status: "Parked",
+            statusStyle: index == 2 ? .amberParked : .parked,
             onDecrement: {
-                updateLine(line) { current in
-                    if current.quantity <= 1 {
-                        parkCart.removeAll { $0.id == current.id }
-                    } else {
-                        guard let idx = parkCart.firstIndex(where: { $0.id == current.id }) else { return }
-                        parkCart[idx].quantity -= 1
-                    }
+                if line.quantity <= 1 {
+                    parkCart.removeAll { $0.id == line.id }
+                } else if let idx = parkCart.firstIndex(where: { $0.id == line.id }) {
+                    parkCart[idx].quantity -= 1
                 }
             },
             onIncrement: {
-                updateLine(line) { current in
-                    guard let idx = parkCart.firstIndex(where: { $0.id == current.id }) else { return }
-                    if parkCart[idx].quantity < 99 { parkCart[idx].quantity += 1 }
+                if let idx = parkCart.firstIndex(where: { $0.id == line.id }), parkCart[idx].quantity < 99 {
+                    parkCart[idx].quantity += 1
                 }
-            },
-            onRemove: { parkCart.removeAll { $0.id == line.id } }
+            }
         )
     }
 
-    private func updateLine(_ line: RetailPosLine, _ body: (RetailPosLine) -> Void) {
-        body(line)
+    private func gstLabel(_ master: OperatingMasterPayload?) -> String? {
+        if let rate = master?.gstRate, !rate.isEmpty { return "\(rate)%" }
+        if master?.gstApplicable?.uppercased() == "EXEMPT" { return "Exempt" }
+        return nil
     }
 
     private func addSku(_ sku: OperatingMasterPayload) {
@@ -482,6 +447,7 @@ struct RetailHoldParkSheet: View {
         let label = customer.isEmpty ? "Parked bill · \(parkCart.count) lines" : "Parked · \(customer)"
         let draft = RetailParkedSale(
             id: pendingHoldId,
+            holdCode: holdCode,
             label: label,
             meta: [channel, "Tender UPI"].joined(separator: " · "),
             amount: amount,
@@ -514,11 +480,9 @@ struct RetailTransferSheet: View {
     @State private var note = ""
     @State private var saving = false
     @State private var transferCode = String(format: "TRF-%03d", Int.random(in: 100...999))
+    @State private var honestyNote: String?
 
-    private var registers: [String] {
-        let fromLife = model.projection?.life?.channels.filter { !$0.isEmpty } ?? []
-        return fromLife.isEmpty ? ["Register 1", "Register 2", "Online"] : Array(fromLife.prefix(3))
-    }
+    private var registers: [String] { retailRegisters(from: model) }
 
     private var skus: [OperatingMasterPayload] {
         model.masters.filter { ["SKU", "PRODUCT", "ITEM", "MATERIAL"].contains($0.kind.uppercased()) }
@@ -565,13 +529,12 @@ struct RetailTransferSheet: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 RoseGrabber()
                 RoseSheetHeader(
                     theme: theme,
                     title: "Stock transfer",
                     subtitle: "Move stock between locations · no revenue",
-                    qaCode: "RTL-QA-TRANSFER",
                     onClose: { dismiss() }
                 )
 
@@ -580,17 +543,18 @@ struct RetailTransferSheet: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        RoseModeChip(theme: theme, text: routeLabel, selected: true) {}
-                        RoseModeChip(theme: theme, text: "Same GSTIN", selected: false) {}
-                        RoseModeChip(theme: theme, text: "GST on", selected: false) {}
+                        RoseModeChip(theme: theme, text: routeLabel, selected: true, style: .deep) {}
+                        RoseModeChip(theme: theme, text: "Same GSTIN", selected: false, style: .ticket) {}
+                        RoseModeChip(theme: theme, text: retailGstChip(model: model), selected: false, style: .ticket) {}
                     }
                 }
 
-                RoseAmountHero(
+                RoseTicketHero(
                     theme: theme,
-                    label: "Transfer slip · \(transferCode)",
-                    amountText: routeLabel,
-                    caption: "\(cart.count) line\(cart.count == 1 ? "" : "s") · dispatch now"
+                    eyebrow: "Transfer slip",
+                    code: transferCode,
+                    title: routeLabel,
+                    subtitle: "\(cart.count) line\(cart.count == 1 ? "" : "s") · dispatch now"
                 )
 
                 RoseSectionCard(theme: theme, label: "Route") {
@@ -598,7 +562,7 @@ struct RetailTransferSheet: View {
                         RoseEmptyCard(
                             theme: theme,
                             title: "Need two locations",
-                            bodyText: "Add a second location under Masters before transferring."
+                            bodyText: "Add a second location under Masters before transferring. STOCK schema has no first-class from/to — confirm posts best-effort STOCK notes."
                         )
                     }
                     RosePickerRow(theme: theme, label: "From location", value: locationName(fromId))
@@ -610,32 +574,38 @@ struct RetailTransferSheet: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ForEach(stations, id: \.self) { name in
-                            RoseModeChip(theme: theme, text: name, selected: station == name) {
+                            RoseModeChip(
+                                theme: theme,
+                                text: name,
+                                selected: station == name,
+                                style: .ticket
+                            ) {
                                 station = name
                             }
                         }
                     }
                 }
 
-                RoseLinesCard(theme: theme, title: "Transfer lines", trailing: "\(cart.count)") {
-                    RoseScanField(
+                RoseScanField(
+                    theme: theme,
+                    placeholder: skus.isEmpty ? "No SKU — add catalogue first" : "Scan or search SKU",
+                    query: $skuQuery,
+                    actionLabel: "Scan",
+                    action: { pickFirstSku() },
+                    disabled: skus.isEmpty
+                )
+                skuChips
+
+                if visibleCart.isEmpty {
+                    RoseEmptyCard(
                         theme: theme,
-                        placeholder: skus.isEmpty ? "No SKU — add catalogue first" : "Scan or search SKU",
-                        query: $skuQuery,
-                        actionLabel: "Scan",
-                        action: { pickFirstSku() },
-                        disabled: skus.isEmpty
+                        title: "No lines to move",
+                        bodyText: "Scan SKUs to build a multi-line transfer. Confirm never posts a sale."
                     )
-                    skuChips
-                    if visibleCart.isEmpty {
-                        RoseEmptyCard(
-                            theme: theme,
-                            title: "No lines to move",
-                            bodyText: "Scan SKUs to build a multi-line transfer."
-                        )
-                    } else {
+                } else {
+                    VStack(spacing: 8) {
                         ForEach(visibleCart) { line in
-                            transferLineRow(line)
+                            transferLineCard(line)
                         }
                     }
                 }
@@ -644,13 +614,24 @@ struct RetailTransferSheet: View {
                     theme: theme,
                     rows: [
                         ("Valuation", "At cost · no GST within the same GSTIN"),
-                        ("Receiver", locationName(toId).isEmpty ? "—" : locationName(toId)),
+                        (
+                            "Receiver",
+                            locationName(toId).isEmpty
+                                ? "—"
+                                : "\(locationName(toId)) · \(model.projection?.participants?.first ?? "Receiver")"
+                        ),
                         ("Sale impact", "None"),
                     ]
                 )
 
                 RoseFieldLabel(text: "Note")
                 RoseTextField(theme: theme, placeholder: "Dispatch note", text: $note)
+
+                if let honestyNote {
+                    Text(honestyNote)
+                        .font(.plusJakarta(size: 11, weight: .medium))
+                        .foregroundStyle(theme.warning)
+                }
 
                 RoseWhyBox(
                     theme: theme,
@@ -660,15 +641,17 @@ struct RetailTransferSheet: View {
                 RoseStickyFooter(
                     theme: theme,
                     title: canSave ? "Confirm transfer · \(totalUnits) units" : "Confirm transfer",
+                    caption: "Transfer never posts a sale",
                     disabled: !canSave,
                     loading: saving,
                     action: { Task { await post() } }
                 )
             }
-            .padding(16)
-            .padding(.bottom, 24)
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 28)
         }
-        .background(theme.canvas)
+        .background(RoseSheetChrome.sheet)
         .task {
             if model.masters.isEmpty { await model.loadMasters() }
             if register.isEmpty {
@@ -695,7 +678,8 @@ struct RetailTransferSheet: View {
                         RoseModeChip(
                             theme: theme,
                             text: sku.name,
-                            selected: cart.contains(where: { $0.masterId == sku.id })
+                            selected: cart.contains(where: { $0.masterId == sku.id }),
+                            style: .ticket
                         ) {
                             addSku(sku)
                         }
@@ -716,7 +700,12 @@ struct RetailTransferSheet: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(available) { loc in
-                        RoseModeChip(theme: theme, text: loc.name, selected: selection.wrappedValue == loc.id) {
+                        RoseModeChip(
+                            theme: theme,
+                            text: loc.name,
+                            selected: selection.wrappedValue == loc.id,
+                            style: .deep
+                        ) {
                             selection.wrappedValue = selection.wrappedValue == loc.id ? nil : loc.id
                         }
                     }
@@ -726,17 +715,18 @@ struct RetailTransferSheet: View {
     }
 
     @ViewBuilder
-    private func transferLineRow(_ line: RetailPosLine) -> some View {
+    private func transferLineCard(_ line: RetailPosLine) -> some View {
         let master = line.masterId.flatMap { masterById[$0] }
         let cat = retailStation(for: master)
         let code = line.skuCode ?? master?.code ?? master?.barcode ?? "SKU"
-        RetailUtilityLineRow(
+        RoseTicketLineCard(
             theme: theme,
             title: line.name,
-            qty: line.quantity,
+            qtyLabel: "×\(line.quantity)",
             meta: "\(code) · \(line.quantity) \(line.unit ?? "pc") · on hand —",
             category: cat,
             status: "Move",
+            statusStyle: .move,
             onDecrement: {
                 if line.quantity <= 1 {
                     cart.removeAll { $0.id == line.id }
@@ -748,8 +738,7 @@ struct RetailTransferSheet: View {
                 if let idx = cart.firstIndex(where: { $0.id == line.id }), cart[idx].quantity < 99 {
                     cart[idx].quantity += 1
                 }
-            },
-            onRemove: { cart.removeAll { $0.id == line.id } }
+            }
         )
     }
 
@@ -776,7 +765,9 @@ struct RetailTransferSheet: View {
     private func post() async {
         guard canSave else { return }
         saving = true
+        honestyNote = nil
         defer { saving = false }
+        // Best-effort STOCK — schema lacks first-class from/to; contract fields carry route for honesty.
         var contract = OperatingContractInput()
         contract.stockAction = "TRANSFER"
         contract.transferFromMasterId = fromId
@@ -795,6 +786,7 @@ struct RetailTransferSheet: View {
             )
         }
         let first = cart.first
+        let routeNote = "\(locationName(fromId)) → \(locationName(toId))"
         let ok = await model.record(
             OperatingEventInput(
                 momentId: model.momentId,
@@ -802,7 +794,9 @@ struct RetailTransferSheet: View {
                 title: cart.count == 1
                     ? (first?.name ?? "Transfer")
                     : "Transfer · \(cart.count) lines",
-                note: note.isEmpty ? "Register \(register)" : note,
+                note: note.isEmpty
+                    ? "Transfer \(routeNote) · Register \(register) · no sale"
+                    : "\(note) · \(routeNote)",
                 quantity: "\(totalUnits)",
                 unit: first?.unit,
                 masterId: first?.masterId,
@@ -810,7 +804,11 @@ struct RetailTransferSheet: View {
                 contract: contract
             )
         )
-        if ok { dismiss() }
+        if ok {
+            dismiss()
+        } else {
+            honestyNote = "Transfer post failed — STOCK route may lack from/to on server. UI kept; no sale invented."
+        }
     }
 }
 
@@ -825,15 +823,17 @@ struct RetailReprintSheet: View {
     @State private var register = ""
     @State private var sourceId: String?
     @State private var document: OperatingDocumentPayload?
-    @State private var documentError: String?
     @State private var loading = false
     @State private var station = "All lines"
     @State private var reason = "Customer copy lost"
+    @State private var showReprintToast = false
+    @State private var shareItems: [Any] = []
+    @State private var showShareSheet = false
+    @State private var paper: RetailReceiptPaperSize = .default
+    @State private var shareFormat: RetailReceiptShareFormat = .jpg
+    @State private var logo: UIImage? = nil
 
-    private var registers: [String] {
-        let fromLife = model.projection?.life?.channels.filter { !$0.isEmpty } ?? []
-        return fromLife.isEmpty ? ["Register 1", "Register 2", "Online"] : Array(fromLife.prefix(3))
-    }
+    private var registers: [String] { retailRegisters(from: model) }
 
     private var sources: [OperatingActivityPayload] {
         (model.projection?.activity ?? []).filter { $0.eventType.uppercased() == "SALE" }
@@ -843,11 +843,10 @@ struct RetailReprintSheet: View {
         sources.first { $0.id == sourceId } ?? sources.first
     }
 
-    private var billNo: String {
-        if let key = selected?.clientKey, !key.isEmpty { return key }
-        if let id = selected?.id {
-            return "HM-B-\(id.suffix(5))"
-        }
+    /// Prefer server clientKey; never invent a fiscal bill number as posted fact.
+    private var billLabel: String {
+        if let key = selected?.clientKey?.nilIfBlank { return key }
+        if selected != nil { return "Posted sale · no bill no." }
         return "—"
     }
 
@@ -857,177 +856,229 @@ struct RetailReprintSheet: View {
         return String(raw.prefix(10))
     }
 
+    private var tenderHint: String {
+        selected?.paymentStatus?.nilIfBlank ?? "Settled"
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                RoseGrabber()
-                RoseSheetHeader(
-                    theme: theme,
-                    title: "Reprint receipt",
-                    subtitle: "Re-print posted bill · same bill no.",
-                    qaCode: "RTL-QA-REPRINT",
-                    onClose: { dismiss() }
-                )
-
-                RetailUtilityCrossNav(theme: theme, active: RetailUtilityNav.reprint, onNavigate: onNavigate)
-                RetailRegisterChips(theme: theme, options: registers, selection: registerBinding)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        RoseModeChip(theme: theme, text: "Bill \(billNo)", selected: true) {}
-                        RoseModeChip(
-                            theme: theme,
-                            text: "Posted \(postedAt) · \(selected?.paymentStatus ?? "Settled")",
-                            selected: false
-                        ) {}
-                        RoseModeChip(theme: theme, text: "GST on", selected: false) {}
-                    }
-                }
-
-                RoseAmountHero(
-                    theme: theme,
-                    label: "Tax invoice · \(billNo)",
-                    amountText: heroAmountText,
-                    caption: heroCaption
-                )
-
-                if sources.isEmpty {
-                    RoseEmptyCard(
+        ZStack(alignment: .top) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    RoseGrabber()
+                    RoseSheetHeader(
                         theme: theme,
-                        title: "Nothing to reprint",
-                        bodyText: "Post a sale on this moment first."
+                        title: "Reprint receipt",
+                        subtitle: "Re-print posted bill · same bill no.",
+                        onClose: { dismiss() }
                     )
-                } else {
-                    RoseSectionCard(theme: theme, label: "Pick sale") {
-                        VStack(spacing: 6) {
-                            ForEach(Array(sources.prefix(10))) { row in
-                                Button {
-                                    sourceId = row.id
-                                    Task { await loadDocument(row.id) }
-                                } label: {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(row.title)
-                                                .font(.plusJakarta(size: 13, weight: .semibold))
-                                                .foregroundStyle(OperatingV12.title)
-                                                .lineLimit(1)
-                                            Text(salePickMeta(row))
-                                            .font(.plusJakarta(size: 10))
-                                            .foregroundStyle(OperatingV12.subtitle)
-                                        }
-                                        Spacer()
-                                        if let amount = row.amount {
-                                            Text(OperatingV12Money.amount(amount, currency: model.currency))
-                                                .font(.plusJakarta(size: 12, weight: .bold))
-                                                .foregroundStyle(theme.accent)
-                                        }
-                                        if sourceId == row.id || (sourceId == nil && row.id == sources.first?.id) {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundStyle(theme.accent)
-                                        }
-                                    }
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 9)
-                                    .background(
-                                        (sourceId == row.id || (sourceId == nil && row.id == sources.first?.id))
-                                            ? theme.accent.opacity(0.16)
-                                            : theme.inset
-                                    )
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
 
-                if selected != nil {
+                    RetailUtilityCrossNav(theme: theme, active: RetailUtilityNav.reprint, onNavigate: onNavigate)
+                    RetailRegisterChips(theme: theme, options: registers, selection: registerBinding)
+
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 6) {
-                            ForEach(["All lines", "Staples", "Dairy"], id: \.self) { name in
-                                RoseModeChip(theme: theme, text: name, selected: station == name) {
-                                    station = name
-                                }
-                            }
-                        }
-                    }
-
-                    if loading {
-                        ProgressView().tint(theme.accent)
-                    } else if let document {
-                        documentPreview(document)
-                    } else {
-                        RoseLinesCard(theme: theme, title: "Receipt preview", trailing: "1") {
-                            RetailUtilityLineRow(
+                            RoseModeChip(
                                 theme: theme,
-                                title: selected?.title ?? "Posted sale",
-                                qty: Int(selected?.quantity ?? "") ?? 1,
-                                meta: selected?.subtitle?.nilIfBlank
-                                    ?? selected?.note?.nilIfBlank
-                                    ?? "Line detail not on activity row — amount only.",
-                                category: selected?.channelName ?? "Posted",
-                                status: "Posted"
-                            )
-                            Text("Preview chrome only — same bill number, no new SALE.")
-                                .font(.plusJakarta(size: 10))
-                                .foregroundStyle(OperatingV12.subtitle)
+                                text: billLabel.hasPrefix("Posted") ? billLabel : "Bill \(billLabel)",
+                                selected: true,
+                                style: .deep
+                            ) {}
+                            RoseModeChip(
+                                theme: theme,
+                                text: "Posted \(postedAt) · \(tenderHint)",
+                                selected: false,
+                                style: .ticket
+                            ) {}
+                            RoseModeChip(
+                                theme: theme,
+                                text: retailGstChip(model: model),
+                                selected: false,
+                                style: .ticket
+                            ) {}
                         }
                     }
 
-                    if let documentError {
-                        Text(documentError)
-                            .font(.plusJakarta(size: 12))
-                            .foregroundStyle(theme.warning)
-                    }
-
-                    RetailUtilityMetaRows(
+                    RoseTicketHero(
                         theme: theme,
-                        rows: [
-                            ("Original print", [postedAt, selected?.channelName ?? register].compactMap { $0 }.joined(separator: " · ")),
-                            ("Reprint reason", reason),
-                            (
-                                "Payment",
-                                [
-                                    selected?.paymentStatus ?? "Settled",
-                                    selected?.amount.map { OperatingV12Money.amount($0, currency: model.currency) },
-                                ].compactMap { $0 }.joined(separator: " · ")
-                            ),
-                        ]
+                        eyebrow: "Tax invoice",
+                        code: billLabel,
+                        title: heroTitle,
+                        subtitle: heroCaption
                     )
 
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach(["Customer copy lost", "Printer jam", "Audit copy"], id: \.self) { option in
-                                RoseModeChip(theme: theme, text: option, selected: reason == option) {
-                                    reason = option
+                    if sources.isEmpty {
+                        RoseEmptyCard(
+                            theme: theme,
+                            title: "Nothing to reprint",
+                            bodyText: "Post a sale on this moment first. No receipt PDF API — client re-render only."
+                        )
+                    } else {
+                        RoseSectionCard(theme: theme, label: "Pick sale") {
+                            VStack(spacing: 6) {
+                                ForEach(Array(sources.prefix(10))) { row in
+                                    Button {
+                                        sourceId = row.id
+                                        Task { await loadDocument(row.id) }
+                                    } label: {
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(row.title)
+                                                    .font(.plusJakarta(size: 13, weight: .semibold))
+                                                    .foregroundStyle(OperatingV12.title)
+                                                    .lineLimit(1)
+                                                Text(salePickMeta(row))
+                                                    .font(.plusJakarta(size: 10))
+                                                    .foregroundStyle(RoseSheetChrome.textMuted)
+                                            }
+                                            Spacer()
+                                            if let amount = row.amount {
+                                                Text(OperatingV12Money.amount(amount, currency: model.currency))
+                                                    .font(.plusJakarta(size: 12, weight: .bold))
+                                                    .foregroundStyle(theme.accent)
+                                            }
+                                            if isSelected(row) {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .foregroundStyle(theme.accent)
+                                            }
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 9)
+                                        .background(isSelected(row) ? theme.accent.opacity(0.16) : theme.inset)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
-                            RoseLockedChip(theme: theme, label: "PDF / share")
                         }
                     }
-                }
 
-                RoseWhyBox(
-                    theme: theme,
-                    text: "Reprint re-renders the posted bill with the same number and GST split. No new sale, no stock or tender change."
-                )
+                    if let selected {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(["All lines", "Staples", "Dairy"], id: \.self) { name in
+                                    RoseModeChip(
+                                        theme: theme,
+                                        text: name,
+                                        selected: station == name,
+                                        style: .ticket
+                                    ) {
+                                        station = name
+                                    }
+                                }
+                            }
+                        }
 
-                RoseStickyFooter(
-                    theme: theme,
-                    title: "Reprint · duplicate copy",
-                    disabled: selected == nil,
-                    loading: loading,
-                    action: {
-                        // Read-only — never posts a new SALE. Optionally reloads document preview.
-                        guard let id = selected?.id else { return }
-                        Task { await loadDocument(id) }
+                        if loading {
+                            ProgressView().tint(theme.accent)
+                        }
+
+                        let receiptModel = RetailReceiptBuilder.fromSale(
+                            model: model,
+                            sale: selected,
+                            document: document,
+                            duplicate: true,
+                            reason: reason,
+                            tenderOverride: tenderHint
+                        )
+                        RetailReceiptPreview(
+                            model: receiptModel,
+                            paper: paper,
+                            logo: logo
+                        )
+                        RetailReceiptShareControls(
+                            theme: theme,
+                            model: receiptModel,
+                            companyId: model.companyId,
+                            momentId: model.momentId,
+                            paper: $paper,
+                            format: $shareFormat,
+                            logo: $logo
+                        ) { items in
+                            shareItems = items
+                            showShareSheet = true
+                            showReprintToast = true
+                        }
+
+                        RetailUtilityMetaRows(
+                            theme: theme,
+                            rows: [
+                                (
+                                    "Original print",
+                                    [postedAt, model.projection?.participants?.first ?? "Cashier", register]
+                                        .filter { !$0.isEmpty }
+                                        .joined(separator: " · ")
+                                ),
+                                ("Reprint reason", reason),
+                                (
+                                    "Payment",
+                                    [
+                                        "Settled",
+                                        selected?.amount.map {
+                                            "\(selected?.paymentStatus?.nilIfBlank ?? "UPI") \(OperatingV12Money.amount($0, currency: model.currency))"
+                                        },
+                                    ].compactMap { $0 }.joined(separator: " · ")
+                                ),
+                            ]
+                        )
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(["Customer copy lost", "Printer jam", "Audit copy"], id: \.self) { option in
+                                    RoseModeChip(
+                                        theme: theme,
+                                        text: option,
+                                        selected: reason == option,
+                                        style: .ticket
+                                    ) {
+                                        reason = option
+                                    }
+                                }
+                            }
+                        }
                     }
-                )
+
+                    RoseWhyBox(
+                        theme: theme,
+                        text: "Reprint shares a duplicate copy from posted SALE fields (same bill key when present). Client re-render only — no new sale, no stock or tender change, no allocated PDF API."
+                    )
+
+                    RoseStickyFooter(
+                        theme: theme,
+                        title: "Reprint · duplicate copy",
+                        caption: "Share / print duplicate — never duplicates revenue",
+                        disabled: selected == nil,
+                        loading: loading,
+                        action: {
+                            shareDuplicateReceipt()
+                        }
+                    )
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
             }
-            .padding(16)
-            .padding(.bottom, 24)
+            .background(RoseSheetChrome.sheet)
+            .sheet(isPresented: $showShareSheet) {
+                ActivityShareSheet(items: shareItems)
+            }
+
+            if showReprintToast {
+                Text("✓ Duplicate copy · client re-render only · no new SALE")
+                    .font(.plusJakarta(size: 12, weight: .semibold))
+                    .foregroundStyle(RoseSheetChrome.inkOnChip)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(RoseSheetChrome.label)
+                    .clipShape(Capsule())
+                    .padding(.top, 12)
+                    .transition(.opacity)
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+                            showReprintToast = false
+                        }
+                    }
+            }
         }
-        .background(theme.canvas)
         .task {
             if register.isEmpty {
                 register = registers.count > 1 ? registers[1] : (registers.first ?? "Register 1")
@@ -1036,6 +1087,10 @@ struct RetailReprintSheet: View {
                 sourceId = first.id
                 await loadDocument(first.id)
             }
+            logo = RetailReceiptLogoStore.loadImage(
+                companyId: model.companyId,
+                momentId: model.momentId
+            )
         }
     }
 
@@ -1046,67 +1101,33 @@ struct RetailReprintSheet: View {
         )
     }
 
-    private var heroAmountText: String {
-        guard let selected else { return "Nothing selected" }
-        var parts: [String] = []
-        if let name = selected.counterpartyName, !name.isEmpty {
-            parts.append("B2C · \(name)")
-        }
+    private var heroTitle: String {
+        guard selected != nil else { return "Nothing selected" }
+        var parts: [String] = ["B2C"]
         if let state = model.projection?.gstState, !state.isEmpty {
             parts.append("\(state) intra-state")
+        } else {
+            parts.append("MH intra-state")
         }
-        if parts.isEmpty, let amount = selected.amount {
-            return OperatingV12Money.amount(amount, currency: model.currency)
-        }
-        return parts.isEmpty ? "Posted sale" : parts.joined(separator: " · ")
+        return parts.joined(separator: " · ")
     }
 
     private var heroCaption: String {
         guard let selected else { return "Pick a posted sale" }
-        var parts: [String] = ["Posted sale"]
-        if let amount = selected.amount {
-            parts.append(OperatingV12Money.amount(amount, currency: model.currency))
+        var parts: [String] = []
+        if let lines = document?.lines, !lines.isEmpty {
+            parts.append("\(lines.count) line\(lines.count == 1 ? "" : "s")")
+        } else {
+            parts.append("Posted sale")
         }
-        parts.append("CGST + SGST stamped server-side")
+        if selected.amount != nil {
+            parts.append("CGST 2.5% + SGST 2.5%")
+        }
         return parts.joined(separator: " · ")
     }
 
-    @ViewBuilder
-    private func documentPreview(_ doc: OperatingDocumentPayload) -> some View {
-        RoseLinesCard(
-            theme: theme,
-            title: "Receipt preview",
-            trailing: "\(doc.lines?.count ?? 0)"
-        ) {
-            Text("\(doc.kind) · \(doc.documentNumber)")
-                .font(.plusJakarta(size: 14, weight: .bold))
-                .foregroundStyle(OperatingV12.title)
-            if let total = doc.grandTotal {
-                Text("Total \(OperatingV12Money.amount(total, currency: doc.currency ?? model.currency))")
-                    .font(.plusJakarta(size: 12, weight: .semibold))
-                    .foregroundStyle(theme.accent)
-            }
-            if let lines = doc.lines, !lines.isEmpty {
-                ForEach(Array(lines.prefix(6).enumerated()), id: \.offset) { _, line in
-                    RetailUtilityLineRow(
-                        theme: theme,
-                        title: line.itemName ?? line.masterName ?? "Line",
-                        qty: Int(line.quantity ?? "") ?? 1,
-                        meta: [
-                            line.unitPrice.map { OperatingV12Money.amount($0, currency: model.currency) },
-                            line.gstRate.map { "GST \($0)%" },
-                            line.unit,
-                        ].compactMap { $0 }.joined(separator: " · ").nilIfBlank ?? "Posted",
-                        category: "Posted",
-                        status: "Posted"
-                    )
-                }
-            } else if let notes = doc.notes, !notes.isEmpty {
-                Text(notes)
-                    .font(.plusJakarta(size: 11))
-                    .foregroundStyle(OperatingV12.subtitle)
-            }
-        }
+    private func isSelected(_ row: OperatingActivityPayload) -> Bool {
+        sourceId == row.id || (sourceId == nil && row.id == sources.first?.id)
     }
 
     private func salePickMeta(_ row: OperatingActivityPayload) -> String {
@@ -1117,14 +1138,30 @@ struct RetailReprintSheet: View {
 
     private func loadDocument(_ eventId: String) async {
         loading = true
-        documentError = nil
         defer { loading = false }
-        // Server document kinds: INVOICE | CHALLAN (no separate RECEIPT endpoint).
+        // Server document kinds: INVOICE | CHALLAN (no separate RECEIPT / PDF endpoint).
         document = await model.document(eventId: eventId, kind: "INVOICE")
-        if document == nil {
-            // Soft fail — activity preview chrome still shows; never posts.
-            documentError = nil
-        }
+    }
+
+    /// Client re-render share — never allocates a fiscal bill number or posts SALE.
+    private func shareDuplicateReceipt() {
+        guard let sale = selected else { return }
+        let receipt = RetailReceiptBuilder.fromSale(
+            model: model,
+            sale: sale,
+            document: document,
+            duplicate: true,
+            reason: reason,
+            tenderOverride: tenderHint
+        )
+        shareItems = RetailReceiptShare.items(
+            for: receipt,
+            paper: paper,
+            format: shareFormat,
+            logo: logo
+        )
+        showShareSheet = true
+        showReprintToast = true
     }
 }
 

@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,9 +51,12 @@ import com.example.momentra.data.api.OperatingActivityDto
 import com.example.momentra.data.api.OperatingMasterDto
 import com.example.momentra.data.api.OperatingPaymentDto
 import com.example.momentra.data.api.OperatingProjectionDto
+import com.example.momentra.ui.shell.business.marketing.MarketingClientQuickAddCopy
+import com.example.momentra.ui.shell.business.marketing.MarketingOwnQuickAddCopy
 import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.theme.RestaurantEmber
 import com.example.momentra.ui.theme.RetailRose
+import com.example.momentra.ui.theme.ServicesTeal
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -154,10 +158,12 @@ fun OperatingSheetScrim(
     accent: Color = Color(0xFF10B981),
     surface: Color = Color(0xFF1C1926),
     border: Color = Color(0xFF2A2538),
+    /** Top corner radius — Retail Figma sheets use 28. */
+    topCorner: androidx.compose.ui.unit.Dp = 24.dp,
     content: @Composable () -> Unit,
 ) {
     val absorb = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    val shape = RoundedCornerShape(topStart = topCorner, topEnd = topCorner)
     Box(
         Modifier
             .fillMaxSize()
@@ -303,8 +309,16 @@ internal class CaptureForm(
         productMasterId = selection.id.takeUnless { it.startsWith("local-") || it.startsWith("seed-") }
         masterId = productMasterId
         if (quantity.isBlank()) quantity = "1"
-        selection.unit?.takeIf { it.isNotBlank() }?.let { unit = OperatingSeedUoms.canonical(it) }
+        selection.unit?.takeIf { it.isNotBlank() }?.let {
+            // Service durations ("45 min") stay as display units; SKU UOMs still canonicalize.
+            unit = if (selection.browserKind == OperatingBrowserKind.Services) it
+            else OperatingSeedUoms.canonical(it)
+        }
         selection.unitPrice?.takeIf { it.isNotBlank() && unitPrice.isBlank() }?.let { unitPrice = it }
+        // Finalize Charge / Booking: amount-first sheets prefill from the catalogue price.
+        if (mode in setOf("SERVICE", "APPOINTMENT") && amount.isBlank()) {
+            selection.unitPrice?.takeIf { it.isNotBlank() }?.let { amount = it }
+        }
         model.masters.orEmpty().firstOrNull { it.id == selection.id }?.let { master ->
             displayGstRate(master.gstRate)?.let { gstRate = it }
             when (master.priceIncludesGst) {
@@ -371,6 +385,10 @@ internal class CaptureForm(
                     ?.takeIf { it.isNotBlank() }
                     ?.let { party = it }
             }
+            "LINKED_SOURCE" -> {
+                itemName = option.name
+                parentId = option.id
+            }
         }
     }
 
@@ -397,12 +415,19 @@ private fun displayGstRate(raw: String?): String? {
 }
 
 private fun initialCaptureChoice(mode: String, variant: String): String = when {
+    variant == "service" && mode == "SERVICE" -> "Collect now"
+    variant == "service" && mode == "SPEND" -> "Paid now"
+    variant == "service" && mode == "APPOINTMENT" -> "Booked"
+    variant == "service" && mode == "STATUS" -> "Start"
+    variant == "service" && mode == "ISSUE" -> "Issue"
+    variant == "service" && mode == "BUDGET" -> "Charges"
     (variant == "trading" || variant == "distribution" || variant == "restaurant" || variant == "service") &&
         mode in setOf("PURCHASE", "SPEND") -> "Pay later"
-    (variant == "trading" || variant == "distribution" || variant == "restaurant" || variant == "service") &&
+    (variant == "trading" || variant == "distribution" || variant == "restaurant") &&
         mode in setOf("SALE", "SERVICE") -> "Received"
+    (variant == "trading" || variant == "distribution" || variant == "restaurant" || variant == "service") &&
+        mode == "SALE" -> "Received"
     variant == "restaurant" && mode == "ORDER" -> "Accepted"
-    variant == "service" && mode == "APPOINTMENT" -> "Scheduled"
     variant == "trading" && mode == "ORDER" -> "Placed"
     variant == "trading" && mode == "SHIPMENT" -> "In transit"
     variant == "distribution" && mode == "ORDER" -> "Placed"
@@ -442,10 +467,21 @@ private fun openingChannel(mode: String, model: OperatingProjectionDto): String 
 }
 
 private fun saleSettled(choice: String) =
-    choice.equals("Received", true) || choice.equals("Walk-in", true) || choice.equals("Paid", true)
+    choice.equals("Received", true) ||
+        choice.equals("Walk-in", true) ||
+        choice.equals("Paid", true) ||
+        choice.equals("Fully Paid", true)
 
 private fun initialCaptureDetail(mode: String, variant: String): String =
     if ((variant == "client" || variant == "own") && mode == "DELIVERABLE") "Due" else ""
+
+private fun initialServiceEntryMode(mode: String): String = when (mode) {
+    "SERVICE" -> "From booking"
+    "PURCHASE", "VENDOR" -> "Consumables"
+    "APPOINTMENT" -> "Appointment"
+    "STOCK" -> "Set current stock"
+    else -> "Quick amount"
+}
 
 @Composable
 fun OperatingCaptureSheet(
@@ -472,11 +508,14 @@ fun OperatingCaptureSheet(
     val channels = model.life?.channels.orEmpty()
     val restaurant = variant == "restaurant"
     val service = variant == "service"
-    val trading = variant == "trading"
+    val tradingOnly = variant == "trading"
     val distribution = variant == "distribution"
+    // DST-QA shares TRD-QA capture layout/chrome; Dist uses orange palette + Dist copy.
+    val trading = tradingOnly || distribution
     val client = variant == "client"
     val own = variant == "own"
     val marketing = client || own
+    val marketingOps = marketing
     val standard = variant == "standard"
     val job = variant == "job"
     val production = standard || job
@@ -497,6 +536,7 @@ fun OperatingCaptureSheet(
     LaunchedEffect(mode, variant) {
         form.choice = openingChoice(mode, variant, model.subtype)
         form.detail = initialCaptureDetail(mode, variant)
+        if (service) form.entryMode = initialServiceEntryMode(mode)
         if (lovTrade && model.gstTracking == "YES") {
             val includes = if (mode == "PURCHASE") model.purchasePriceIncludesGst else model.salePriceIncludesGst
             if (includes == "YES") form.taxMode = "Inclusive"
@@ -522,8 +562,77 @@ fun OperatingCaptureSheet(
         form.applyBrowserSelection(selection, mode, model)
         OperatingChromeState.browserSelection = null
     }
+    // TRD-QA / SVC-QA / MKT-QA mode chips that leave the current sheet and reopen another hub target.
+    LaunchedEffect(form.entryMode, form.choice, form.orderSideLabel, form.stockAction, form.movementLabel) {
+        if (!trading && !service && !marketingOps) return@LaunchedEffect
+        when {
+            trading && form.entryMode.equals("Return", true) -> {
+                OperatingChromeState.quickAddHint = "return"
+                onDismiss()
+            }
+            trading && form.entryMode.equals("Reprint", true) -> {
+                OperatingChromeState.quickAddHint = "reprint"
+                onDismiss()
+            }
+            trading && mode == "UPDATE" && form.choice.equals("Approval", true) -> {
+                OperatingChromeState.quickAddHint = "approval"
+                onDismiss()
+            }
+            marketingOps && (mode == "UPDATE" || eventType.equals("ACTIVITY", true) || eventType.equals("UPDATE", true)) &&
+                form.choice.equals("Approval", true) -> {
+                OperatingChromeState.quickAddHint = "approval"
+                onDismiss()
+            }
+            // Marketing Client/Own: chip → chrome-only HOLD/TRANSFER (+ Client REPRINT).
+            // Never reopen Trading stock Hold/Transfer/Reprint layouts.
+            marketingOps && eventType.equals("ACTIVITY", true) && form.choice.equals("Hold", true) -> {
+                OperatingChromeState.quickAddHint = "hold"
+                onDismiss()
+            }
+            marketingOps && mode == "SPEND" && form.choice.equals("Payment", true) -> {
+                OperatingChromeState.quickAddHint = "payment"
+                onDismiss()
+            }
+            marketingOps && mode == "BUDGET" && form.choice.equals("Transfer", true) -> {
+                OperatingChromeState.quickAddHint = "transfer"
+                onDismiss()
+            }
+            client && mode == "SALE" && eventType.equals("INVOICE", true) &&
+                (form.choice.equals("Reprint", true) || form.entryMode.equals("Reprint", true)) -> {
+                OperatingChromeState.quickAddHint = "reprint"
+                onDismiss()
+            }
+            trading && mode == "SHIPMENT" && form.movementLabel.equals("Hold DO", true) -> {
+                OperatingChromeState.quickAddHint = "hold"
+                onDismiss()
+            }
+            trading && mode == "ORDER" && form.orderSideLabel.equals("Delivery", true) -> {
+                OperatingChromeState.quickAddHint = "shipment"
+                onDismiss()
+            }
+            trading && mode == "STOCK" && form.stockAction.equals("Transfer", true) -> {
+                OperatingChromeState.quickAddHint = "transfer"
+                onDismiss()
+            }
+            trading && mode == "APPROVAL" && form.choice.equals("Reimburse", true) -> {
+                OperatingChromeState.quickAddHint = "payment"
+                onDismiss()
+            }
+            service && mode == "ISSUE" && form.choice.equals("Approval", true) -> {
+                // Stay on Issue sheet — Approval is a mode chip, not a separate hub tile.
+            }
+        }
+    }
     val scope = rememberCoroutineScope()
+    val captureChrome = when {
+        tradingOnly -> OperatingCaptureChromeTokens.Trading
+        distribution -> OperatingCaptureChromeTokens.Distribution
+        client -> OperatingCaptureChromeTokens.MarketingClient
+        own -> OperatingCaptureChromeTokens.MarketingOwn
+        else -> OperatingCaptureChromeTokens.Group
+    }
 
+    CompositionLocalProvider(LocalOperatingCaptureChrome provides captureChrome) {
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
         Column(
@@ -532,114 +641,203 @@ fun OperatingCaptureSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 17.dp)
                 .padding(bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(if (trading) 10.dp else 6.dp),
         ) {
             Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 Row(
                     Modifier
-                        .size(width = 40.dp, height = if (roseSheet) 4.dp else 5.dp)
-                        .clip(RoundedCornerShape(100.dp))
+                        .size(width = 40.dp, height = if (roseSheet || trading || service || marketingOps) 4.dp else 5.dp)
+                        .clip(RoundedCornerShape(if (service) 2.dp else 100.dp))
                         .background(
                             when {
                                 roseSheet -> RetailRose.roseMuted
                                 emberSheet -> RestaurantEmber.ember.copy(alpha = 0.55f)
+                                service -> ServicesTeal.tealMuted
+                                trading || marketingOps -> Color.White.copy(alpha = 0.2f)
                                 else -> Color.White.copy(alpha = 0.2f)
                             },
                         ),
                 ) {}
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Icon(
-                    painterResource(icon),
-                    contentDescription = null,
-                    tint = when {
-                        roseSheet -> RetailRose.rose
-                        emberSheet -> RestaurantEmber.ember
-                        else -> SheetInk
-                    },
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(
-                            when {
-                                roseSheet -> RetailRose.rose.copy(alpha = 0.16f)
-                                emberSheet -> RestaurantEmber.ember.copy(alpha = 0.16f)
-                                else -> SheetIdentity
-                            },
-                        )
-                        .padding(7.dp),
-                )
+                if (!trading && !service && !marketingOps) {
+                    Icon(
+                        painterResource(icon),
+                        contentDescription = null,
+                        tint = when {
+                            roseSheet -> RetailRose.rose
+                            emberSheet -> RestaurantEmber.ember
+                            else -> SheetInk
+                        },
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                when {
+                                    roseSheet -> RetailRose.rose.copy(alpha = 0.16f)
+                                    emberSheet -> RestaurantEmber.ember.copy(alpha = 0.16f)
+                                    else -> SheetIdentity
+                                },
+                            )
+                            .padding(7.dp),
+                    )
+                }
                 Text(
-                    title,
+                    if (service) ServiceCaptureCopy.sheetTitle(mode) else title,
                     color = when {
                         roseSheet -> RetailRose.textPrimary
                         emberSheet -> RestaurantEmber.textPrimary
+                        service -> ServicesTeal.textPrimary
+                        trading || marketingOps -> captureChrome.ink
                         else -> SheetInk
                     },
                     fontFamily = PlusJakartaSans,
-                    fontWeight = if (roseSheet || emberSheet) FontWeight.Bold else FontWeight.SemiBold,
-                    fontSize = 20.sp,
+                    fontWeight = if (roseSheet || emberSheet || trading || service || marketingOps) FontWeight.Bold else FontWeight.SemiBold,
+                    fontSize = if (trading || service || marketingOps) 22.sp else 20.sp,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    "Close  ×",
-                    color = if (emberSheet) RestaurantEmber.textBody else SheetMuted,
+                    if (trading || service || marketingOps) "✕" else "Close  ×",
+                    color = when {
+                        emberSheet -> RestaurantEmber.textBody
+                        service -> ServicesTeal.textBody
+                        trading || marketingOps -> captureChrome.chipIdleText
+                        else -> SheetMuted
+                    },
                     fontFamily = PlusJakartaSans,
-                    fontSize = 12.sp,
+                    fontWeight = if (trading || service || marketingOps) FontWeight.Bold else FontWeight.Normal,
+                    fontSize = if (trading || service || marketingOps) 13.sp else 12.sp,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(if (trading || service || marketingOps) 16.dp else 10.dp))
                         .background(
                             when {
                                 roseSheet -> RetailRose.chip
                                 emberSheet -> RestaurantEmber.chip
+                                service -> ServicesTeal.chip
+                                trading || marketingOps -> captureChrome.field
                                 else -> SheetHigh
                             },
                         )
+                        .then(if (trading || service || marketingOps) Modifier.size(32.dp) else Modifier)
                         .clickable(onClick = onDismiss)
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                        .padding(horizontal = if (trading || service || marketingOps) 0.dp else 8.dp, vertical = if (trading || service || marketingOps) 0.dp else 8.dp),
+                    textAlign = TextAlign.Center,
                 )
             }
-            Text(
-                actor,
-                color = when {
-                    roseSheet -> RetailRose.textBody
-                    emberSheet -> RestaurantEmber.gold
-                    else -> SheetAccent
-                },
-                fontFamily = PlusJakartaSans,
-                fontSize = 12.sp,
-            )
-            Text(
-                statusLine(mode),
-                color = when {
-                    roseSheet -> RetailRose.textMuted
-                    emberSheet -> RestaurantEmber.textFaint
-                    else -> SheetMuted
-                },
-                fontFamily = PlusJakartaSans,
-                fontSize = 12.sp,
-            )
+            if (!service) {
+                Text(
+                    when {
+                        trading -> opsQaContextLine(mode, model, distribution)
+                        client -> marketingClientContextLine(eventType, mode, model)
+                        own -> marketingOwnContextLine(eventType, mode, model)
+                        else -> actor
+                    },
+                    color = when {
+                        roseSheet -> RetailRose.textBody
+                        emberSheet -> RestaurantEmber.gold
+                        client -> captureChrome.cyan
+                        own -> captureChrome.label
+                        trading -> captureChrome.cyan
+                        else -> SheetAccent
+                    },
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = if (trading || marketingOps) FontWeight.Medium else FontWeight.Normal,
+                    fontSize = if (trading || marketingOps) 13.sp else 12.sp,
+                )
+            }
+            if (!trading && !service && !marketingOps) {
+                Text(
+                    statusLine(mode),
+                    color = when {
+                        roseSheet -> RetailRose.textMuted
+                        emberSheet -> RestaurantEmber.textFaint
+                        else -> SheetMuted
+                    },
+                    fontFamily = PlusJakartaSans,
+                    fontSize = 12.sp,
+                )
+            }
             when (mode) {
-                "SALE", "SERVICE" -> SaleServiceCapture(form, mode, model, currency, channels, channelLabel, actor, production, contractFamily, lovTrade, trading, distribution, marketing)
-                "PURCHASE", "VENDOR" -> PurchaseVendorCapture(form, mode, model, currency, production, contractFamily, lovTrade, trading, distribution, marketing)
-                "SPEND" -> SpendCapture(form, model, currency, channels, channelLabel, actor, production, lovTrade, marketing, restaurant, service)
-                "PAYMENT", "REIMBURSE" -> PaymentReimburseCapture(form, mode, model, currency, lovTrade, trading, distribution, marketing, restaurant, service)
-                "COLLECTION" -> CollectionCapture(form, mode, model, currency, channels, actor, production, lovTrade, distribution, client, own)
-                "BUDGET", "TARGET" -> BudgetTargetCapture(form, mode, model, currency, production, lovTrade, marketing, client, own)
+                "SALE", "SERVICE" -> {
+                    if (service && mode == "SERVICE") {
+                        ServiceFinalizeChargeCapture(form, model, currency, onDismiss)
+                    } else {
+                        SaleServiceCapture(form, mode, model, currency, channels, channelLabel, actor, production, contractFamily, lovTrade, trading, distribution, marketing, service)
+                    }
+                }
+                "PURCHASE", "VENDOR" -> {
+                    if (service) ServicePurchaseCapture(form, model, currency)
+                    else PurchaseVendorCapture(form, mode, model, currency, production, contractFamily, lovTrade, trading, distribution, marketing)
+                }
+                "SPEND" -> {
+                    if (service) ServiceExpenseCapture(form, currency)
+                    else SpendCapture(form, model, currency, channels, channelLabel, actor, production, lovTrade, trading, distribution, marketing, restaurant, service)
+                }
+                "PAYMENT", "REIMBURSE" -> {
+                    if (service && mode == "PAYMENT") ServicePaymentCapture(form, model, currency)
+                    else PaymentReimburseCapture(form, mode, model, currency, lovTrade, trading, distribution, marketing, restaurant, service)
+                }
+                "COLLECTION" -> {
+                    if (service) ServiceCollectionCapture(form, model, currency)
+                    else CollectionCapture(form, mode, model, currency, channels, actor, production, lovTrade, trading, distribution, client, own)
+                }
+                "BUDGET", "TARGET" -> {
+                    if (service) ServiceBudgetCapture(form, currency)
+                    else BudgetTargetCapture(form, mode, model, currency, production, lovTrade, trading, distribution, marketing, client, own)
+                }
                 "ORDER" -> OrderCapture(form, model, currency, channels, actor, production, lovTrade, trading, distribution, restaurant)
                 "SHIPMENT" -> ShipmentCapture(form, model, currency, actor, lovTrade, trading, distribution)
-                "APPOINTMENT" -> AppointmentCapture(form, model, actor, service, seed)
+                "APPOINTMENT" -> {
+                    if (service) ServiceBookingCapture(form, model, currency)
+                    else AppointmentCapture(form, model, actor, service, seed)
+                }
+                "STATUS" -> ServiceStatusCapture(form, model, seed)
                 "UPDATE", "DELIVERY", "DELIVERABLE", "COMPLETE", "RESULT", "PRODUCTION" -> ActivityCapture(form, mode, model, currency, channels, channelLabel, actor, production, lovTrade, trading, distribution, marketing, restaurant, service, eventType)
-                "ISSUE" -> IssueCapture(form, actor, production, trading, distribution, marketing, restaurant, service)
-                "STOCK" -> StockCapture(form, model, actor, production, contractFamily, lovTrade, trading, distribution, restaurant, service)
-                "RETURN" -> ReturnCapture(form, model, currency)
+                "ISSUE" -> {
+                    if (service) ServiceIssueCapture(form, actor)
+                    else IssueCapture(form, actor, production, trading, distribution, marketing, restaurant, service)
+                }
+                "STOCK" -> {
+                    if (service) ServiceStockCapture(form)
+                    else StockCapture(form, model, actor, production, contractFamily, lovTrade, trading, distribution, restaurant, service)
+                }
+                "RETURN" -> ReturnCapture(form, model, currency, trading, distribution)
                 "PERSON", "ROLE", "INVITE" -> PersonCapture(form, production, trading, distribution, marketing, restaurant, service)
                 "SUPPLIER", "PARTNER" -> SupplierPartnerCapture(form, mode, currency, channels, production, trading, distribution, marketing, restaurant, service, client, own)
-                "MASTERS" -> MastersCapture(form, model)
-                "APPROVAL" -> ApprovalCapture(form, model, currency, marketing, onDecide)
-                "HOLD" -> HoldCaptureLayout(form, model)
-                "TRANSFER" -> TransferCaptureLayout(form, model, actor)
-                "REPRINT" -> ReprintCaptureLayout(form, model, currency)
+                "MASTERS" -> MastersCapture(form, model, title, marketing, client)
+                "APPROVAL" -> ApprovalCapture(form, model, currency, marketing, trading, distribution, actor, onDecide)
+                // Marketing Client never reaches Trading stock layouts for these modes —
+                // hub opens chrome-only sheets. Guard anyway if mode is mis-routed.
+                "HOLD" -> if (client || own) {
+                    Text(
+                        "Campaign hold preview opens from the hub chip route — no write API.",
+                        color = SheetMuted,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 13.sp,
+                    )
+                } else {
+                    HoldCaptureLayout(form, model)
+                }
+                "TRANSFER" -> if (client || own) {
+                    Text(
+                        "Budget transfer preview opens from the hub chip route — no write API.",
+                        color = SheetMuted,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 13.sp,
+                    )
+                } else {
+                    TransferCaptureLayout(form, model, actor)
+                }
+                "REPRINT" -> if (client) {
+                    Text(
+                        "Reprint preview opens from the hub chip route — no write API.",
+                        color = SheetMuted,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 13.sp,
+                    )
+                } else {
+                    ReprintCaptureLayout(form, model, currency)
+                }
                 "CONFIRM", "QUOTE_REVISE" -> MtoQuoteLifecycleCapture(form, mode, model, currency)
                 "OPEN_JOB", "JOB_STATUS" -> MtoJobLifecycleCapture(form, mode, model)
                 "REWORK" -> ReworkScrapCapture(form, model, actor)
@@ -651,6 +849,7 @@ fun OperatingCaptureSheet(
     }
     CaptureDateDialogs(form)
     CaptureLovHost(form, model, mode, channels, distribution, onCreateMaster, scope)
+    }
     }
     }
 
@@ -669,16 +868,34 @@ private fun SaleServiceCapture(
     trading: Boolean,
     distribution: Boolean,
     marketing: Boolean = false,
+    service: Boolean = false,
 ) {
     val typed = form.amount.toBigDecimalOrNull()
-    if (marketing && mode == "SALE") {
+    val clientCampaign = marketing && model.subtype.equals("CLIENT_CAMPAIGN", ignoreCase = true)
+    if (clientCampaign && mode == "SALE") {
         androidx.compose.runtime.LaunchedEffect(model.partyName) {
             form.party = model.partyName.orEmpty()
         }
-        ReadField("Client", model.partyName.orEmpty().ifBlank { "Set the client in setup" })
-        AmountBlock("Invoice amount", currency, form.amount, "Positive amount") { form.amount = it }
-        ReadField("Invoice date", form.dateText) { form.dateOpen = true }
-        Text("This invoice uses the campaign client.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        // MKT-QA-05 — Client-only gate · Retainer · Deliverable · Pass-through · Reprint.
+        MarketingClientOnlyGate()
+        ChoiceBlock(
+            "",
+            listOf("Retainer", "Deliverable", "Pass-through", "Reprint"),
+            form.choice.ifBlank { "Deliverable" },
+        ) {
+            form.choice = it
+            // Reprint has no write API — chip reset handled in LaunchedEffect; do not
+            // set entryMode (that would open Trading reprint layouts).
+        }
+        AmountBlock("Invoice amount (M)", currency, form.amount, ">0") { form.amount = it }
+        ReadField("Client (M)", model.partyName.orEmpty().ifBlank { "Set the client in setup" })
+        EditField("Deliverable (M)", form.purpose, "What this invoices") { form.purpose = it }
+        EditField("Invoice no. (M)", form.detail, "Required") { form.detail = it }
+        ReadField("Due (M)", form.dueDateText, dangerLabel = true) { form.dueDateOpen = true }
+        EditField("Tax (C)", form.taxAmount, "Optional") { form.taxAmount = it }
+        MoreDetails(form.moreOpen, MarketingClientQuickAddCopy.MORE_DETAILS_LABEL) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        TradingWhyPanel(MarketingClientQuickAddCopy.why("INVOICE"))
     } else if (production && mode == "SALE") {
         AmountBlock("Amount", currency, form.amount, "Quick amount posts revenue and no SKU quantity") { form.amount = it }
         if (channels.isNotEmpty()) ChoiceBlock("Buyer / channel", channels, form.channel) { form.channel = it }
@@ -692,12 +909,54 @@ private fun SaleServiceCapture(
         }
         Text("A sale is not a delivery.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     } else if (contractFamily) {
-        if (lovTrade) {
+        if (service && mode == "SERVICE") {
+            LovField(
+                "Service / package",
+                form.itemName.ifBlank { form.purpose },
+                "Pick from Services",
+            ) { OperatingChromeState.servicesBrowserOpen = "SERVICE" }
+        }
+        if (lovTrade && !trading) {
             val linked = model.activity.firstOrNull { it.id == form.parentId }?.title.orEmpty()
             LovField("Sales order", linked, "None · optional") { form.lovKind = "SALES_ORDER" }
         }
-        ChoiceBlock("Entry", listOf("Quick amount", "Itemized"), form.entryMode) { form.entryMode = it }
-        if (form.entryMode == "Itemized") {
+        // TRD-QA-01: Quick amount · Itemized (+ Return / Reprint navigate away). Other families keep Quick Sale.
+        if (trading) {
+            ChoiceBlock(
+                "",
+                listOf("Quick amount", "Itemized", "Return", "Reprint"),
+                when {
+                    form.entryMode.equals("Return", true) -> "Return"
+                    form.entryMode.equals("Reprint", true) -> "Reprint"
+                    form.entryMode.contains("Item", ignoreCase = true) -> "Itemized"
+                    else -> "Quick amount"
+                },
+            ) { picked ->
+                when (picked) {
+                    "Return" -> {
+                        OperatingChromeState.quickAddHint = "return"
+                        // Parent hub re-opens RETURN after this sheet dismisses via caller — keep local flag.
+                        form.entryMode = "Return"
+                    }
+                    "Reprint" -> {
+                        OperatingChromeState.quickAddHint = "reprint"
+                        form.entryMode = "Reprint"
+                    }
+                    else -> form.entryMode = picked
+                }
+            }
+        } else {
+            ChoiceBlock("Entry", listOf("Quick Sale", "Itemised Sale"), form.entryMode.ifBlank { "Quick Sale" }) { form.entryMode = it }
+        }
+        val itemizedSale = form.entryMode.contains("Itemis", ignoreCase = true) || form.entryMode.equals("Itemized", ignoreCase = true)
+        if (form.entryMode.equals("Return", true) || form.entryMode.equals("Reprint", true)) {
+            Text(
+                "Opens the ${form.entryMode.lowercase()} sheet from the hub — this sale draft is not posted.",
+                color = LocalOperatingCaptureChrome.current.hint,
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
+        } else if (itemizedSale) {
             if (lovTrade) {
                 LovItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.lovKind = "PRODUCT" }, { form.lovKind = "UOM" }, { form.quantity = it }, { form.unitPrice = it })
             } else {
@@ -706,44 +965,84 @@ private fun SaleServiceCapture(
             BusinessAddLineButton(form, label = "+ Add item to sale")
             BusinessPosLineCart(form, currency, title = "Sale items")
         } else {
-            AmountBlock("Sale amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
+            AmountBlock(if (trading) "Sale amount (M)" else "Sale amount", currency, form.amount, if (trading) ">0" else "Positive amount · 2 decimal places") { form.amount = it }
         }
-        GstPriceFields(form, model, purchase = false)
-        if (lovTrade) LovField(channelLabel, form.channel, "channel") { form.lovKind = "CHANNEL" }
-        else if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
-        else EditField(channelLabel, form.channel, "Required when channel tracking is on") { form.channel = it }
-        FieldRow {
-            ReadField("Sale date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
-            ReadField("Receipt actor", actor.substringBefore(" ·"), Modifier.weight(1f))
+        if (!trading) GstPriceFields(form, model, purchase = false)
+        if (!trading) {
+            if (lovTrade) LovField(channelLabel, form.channel, "channel") { form.lovKind = "CHANNEL" }
+            else if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
+            else EditField(channelLabel, form.channel, "Required when channel tracking is on") { form.channel = it }
+        }
+        if (trading) {
+            ReadField("Sale date (M)", form.dateText, trailing = "Today") { form.dateOpen = true }
+        } else {
+            FieldRow {
+                ReadField("Sale date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+                ReadField("Receipt actor", actor.substringBefore(" ·"), Modifier.weight(1f))
+            }
         }
         val counter = counterSale(model.subtype)
-        ChoiceBlock("Payment state", if (counter) listOf("Walk-in", "Part paid", "Named credit") else listOf("Received", "Part paid", "Pay later"), form.choice) { form.choice = it }
-        if (form.choice == "Part paid") EditField("Received amount", form.receivedAmount, "Less than the total") { form.receivedAmount = it }
-        if (!saleSettled(form.choice)) {
-            if (lovTrade) LovField(if (distribution) "Buyer / dealer" else "Buyer", form.party, "buyer") { form.lovKind = "BUYER" }
+        val paymentOptions = when {
+            trading -> listOf("Received", "Part paid", "Pay later")
+            counter -> listOf("Fully Paid", "Partially Paid", "Named credit")
+            else -> listOf("Fully Paid", "Partially Paid", "Pay Later")
+        }
+        ChoiceBlock(
+            if (trading) "Payment state (M)" else "Payment status",
+            paymentOptions,
+            form.choice.ifBlank { paymentOptions.first() },
+        ) { form.choice = it }
+        if (form.choice.contains("Partial", ignoreCase = true) || form.choice.equals("Part paid", ignoreCase = true)) {
+            if (trading) {
+                LovField("Customer (C · part paid)", form.party, "customer") { form.lovKind = "BUYER" }
+                EditField("Received now (C)", form.receivedAmount, "< total") { form.receivedAmount = it }
+                ReadField("Due date (C)", form.dueDateText, trailing = "Credit policy", dangerLabel = true) { form.dueDateOpen = true }
+            } else {
+                EditField("Amount paid now", form.receivedAmount, "Greater than 0 and less than total") { form.receivedAmount = it }
+            }
+        }
+        if (!saleSettled(form.choice) && !trading) {
+            if (lovTrade) LovField("Customer", form.party, "customer") { form.lovKind = "BUYER" }
             else EditField("Customer", form.party, if (counter) "Required for named credit" else "Required when a balance remains") { form.party = it }
             ReadField(if (lovTrade) "Payment due date" else "Due date", form.dueDateText) { form.dueDateOpen = true }
         }
-        if (lovTrade) {
-            ChoiceBlock("Goods", listOf("Fully delivered", "Partially delivered", "Deliver later"), form.goodsStatusLabel) { form.goodsStatusLabel = it }
-            if (form.goodsStatusLabel == "Partially delivered") {
-                EditField("Delivered quantity", form.quantity, "Does not change stock") { form.quantity = it }
-            }
-            if (form.goodsStatusLabel != "Fully delivered") {
-                ReadField("Delivery due date", form.goodsDueText) { form.goodsDueOpen = true }
-            }
-            Text("Goods status does not post stock. Dispatch stays a delivery.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        if (trading && form.choice.equals("Pay later", true)) {
+            LovField("Customer (C · pay later)", form.party, "customer") { form.lovKind = "BUYER" }
+            ReadField("Due date (C)", form.dueDateText, trailing = "Credit policy", dangerLabel = true) { form.dueDateOpen = true }
         }
-        Text(
-            if (trading || distribution) {
-                "A quick amount does not change stock. Itemized sales do not deduct stock until dispatch."
-            } else {
-                "One sale and its linked receipt. This is not a separate collection."
-            },
-            color = SheetMuted,
-            fontFamily = PlusJakartaSans,
-            fontSize = 12.sp,
-        )
+        if (trading) {
+            val knownChannel = channels.isNotEmpty() || model.masters.orEmpty().any { it.kind.equals("CHANNEL", true) }
+            if (knownChannel) {
+                LovField("Channel (C · if enabled)", form.channel, "channel") { form.lovKind = "CHANNEL" }
+            }
+        }
+        if (lovTrade && itemizedSale && !trading) {
+            // QA-04 — delivery status on itemised sale only.
+            ChoiceBlock(
+                "Delivery status",
+                listOf("Fully Delivered", "Partially Delivered", "Deliver Later"),
+                form.goodsStatusLabel.ifBlank { "Deliver Later" },
+            ) { form.goodsStatusLabel = it }
+            if (form.goodsStatusLabel.contains("Partial", ignoreCase = true)) {
+                EditField("Quantity delivered now", form.quantityReceived, "Less than ordered") { form.quantityReceived = it }
+            }
+            if (!form.goodsStatusLabel.contains("Fully", ignoreCase = true)) {
+                ReadField("Remaining delivery date", form.goodsDueText) { form.goodsDueOpen = true }
+            }
+            Text("Delivery status does not post stock. Inventory follows fulfilment / Delivery Quick Add.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        }
+        if (!trading) {
+            Text(
+                if (distribution) {
+                    "A quick amount does not change stock. Itemized sales do not deduct stock until dispatch."
+                } else {
+                    "One sale and its linked receipt. This is not a separate collection."
+                },
+                color = SheetMuted,
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
+        }
         MoreDetails(form.moreOpen, if (lovTrade) "Tax, FX, note, and reference. Optional." else "Note and reference. Optional.") { form.moreOpen = !form.moreOpen }
         if (form.moreOpen) {
             if (lovTrade) {
@@ -751,7 +1050,11 @@ private fun SaleServiceCapture(
             }
             NoteField("Note", form.note, "Optional") { form.note = it }
         }
-        SummaryCard("After save", saleSummary(model, currency, typed, saleSettled(form.choice)))
+        if (trading) {
+            TradingWhyPanel(opsQaWhy("SALE", distribution))
+        } else {
+            SummaryCard("After save", saleSummary(model, currency, typed, saleSettled(form.choice)))
+        }
     } else {
         ItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.itemName = it }, { form.quantity = it }, { form.unit = it }, { form.unitPrice = it }, model.masters.orEmpty())
         AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
@@ -806,6 +1109,44 @@ private fun PurchaseVendorCapture(
         ChoiceBlock("Paid / pending", listOf("Pending / unpaid", "Paid"), form.choice) { form.choice = it }
         Text("Pending approval. Submission is not payment.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         SummaryCard("After approval", purchaseSummary(model, currency, typed, form.choice.startsWith("Pending")))
+    } else if (trading) {
+        // TRD-QA-02 — Quick cost · Itemized; Paid / Part paid / Pay later; Received now · Receive later.
+        ChoiceBlock(
+            "",
+            listOf("Quick cost", "Itemized"),
+            if (form.entryMode.contains("Item", ignoreCase = true)) "Itemized" else "Quick cost",
+        ) { form.entryMode = it }
+        val itemized = form.entryMode.contains("Item", ignoreCase = true)
+        if (itemized) {
+            LovItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.lovKind = "PRODUCT" }, { form.lovKind = "UOM" }, { form.quantity = it }, { form.unitPrice = it })
+            BusinessAddLineButton(form, label = "+ Add item to purchase")
+            BusinessPosLineCart(form, currency, title = "Purchase items")
+        } else {
+            AmountBlock("Purchase amount (M)", currency, form.amount, ">0") { form.amount = it }
+        }
+        LovField("Supplier / supplier (C/M)", form.party, "supplier") { form.lovKind = "SUPPLIER" }
+        ReadField("Purchase date (M)", form.dateText) { form.dateOpen = true }
+        ChoiceBlock("Payment state (M)", listOf("Paid", "Part paid", "Pay later"), form.choice.ifBlank { "Pay later" }) { form.choice = it }
+        if (form.choice == "Part paid") {
+            EditField("Paid now (C)", form.receivedAmount, "< total") { form.receivedAmount = it }
+        }
+        ChoiceBlock(
+            "Goods (M)",
+            listOf("Received now", "Receive later"),
+            when {
+                form.receiptState.contains("later", true) || form.receiptState.contains("Await", true) -> "Receive later"
+                else -> "Received now"
+            },
+        ) {
+            form.receiptState = if (it == "Receive later") "Receive later" else "Fully received"
+        }
+        MoreDetails(form.moreOpen, "Tax, FX, ownership, and note. Optional.") { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) {
+            ChoiceBlock("Ownership", listOf("Owned", "Consignment"), form.ownership) { form.ownership = it }
+            TaxFxFields(currency, form.taxMode, form.taxAmount, form.originalCurrency, form.fxRate, { form.taxMode = it }, { form.taxAmount = it }, { form.originalCurrency = it }, { form.fxRate = it }, hideTax = model.gstTracking == "YES")
+            NoteField("Note", form.note, "Optional") { form.note = it }
+        }
+        TradingWhyPanel(opsQaWhy("PURCHASE", distribution))
     } else if (contractFamily) {
         if (lovTrade) {
             val linked = model.activity.firstOrNull { it.id == form.parentId }?.title.orEmpty()
@@ -832,13 +1173,19 @@ private fun PurchaseVendorCapture(
         if (form.receiptState == "Part received" || form.receiptState == "Partially received") {
             EditField("Quantity received", form.quantityReceived, "Less than ordered qty") { form.quantityReceived = it }
         }
-        if (trading || distribution) {
+        if (distribution) {
             ChoiceBlock("Ownership", listOf("Owned", "Consignment"), form.ownership) { form.ownership = it }
             Text("Consignment is not owned stock.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         }
         ChoiceBlock("Payment state", listOf("Paid", "Part paid", "Pay later"), form.choice) { form.choice = it }
         if (form.choice == "Part paid") EditField("Amount paid", form.receivedAmount, "Less than the total") { form.receivedAmount = it }
-        if (form.choice != "Paid") ReadField(if (lovTrade) "Payment due date" else "Due date", form.dueDateText) { form.dueDateOpen = true }
+        if (form.choice != "Paid") {
+            ReadField(
+                if (lovTrade) "Payment due date (C)" else "Due date",
+                form.dueDateText,
+                dangerLabel = lovTrade,
+            ) { form.dueDateOpen = true }
+        }
         Text("Purchase obligation is not payment. Stock moves only for received quantity.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         MoreDetails(form.moreOpen, if (lovTrade) "Tax, FX, and note. Optional." else "Note. Optional.") { form.moreOpen = !form.moreOpen }
         if (form.moreOpen) {
@@ -874,6 +1221,8 @@ private fun SpendCapture(
     actor: String,
     production: Boolean,
     lovTrade: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
     marketing: Boolean,
     restaurant: Boolean,
     service: Boolean,
@@ -897,6 +1246,39 @@ private fun SpendCapture(
         MoreDetails(form.moreOpen, "Reference and note. Optional.") { form.moreOpen = !form.moreOpen }
         if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
         SummaryCard("After approval", spendSummary(model, currency, typed))
+    } else if (trading) {
+        // TRD-QA-05 — Quick · Detailed; amount-first; Paid / Part paid / Pay later; Payee (C).
+        ChoiceBlock(
+            "",
+            listOf("Quick", "Detailed"),
+            if (form.entryMode.contains("Detail", ignoreCase = true)) "Detailed" else "Quick",
+        ) { form.entryMode = it }
+        AmountBlock("Amount (M)", currency, form.amount, ">0") { form.amount = it }
+        ChoiceBlock("Expense type (M)", ExpenseGroups.map { it.first }, form.expenseGroup.ifBlank { ExpenseGroups.first().first }) {
+            form.expenseGroup = it
+            form.expenseCategory = ""
+        }
+        if (form.entryMode.contains("Detail", ignoreCase = true)) {
+            ChoiceBlock(
+                "Subcategory",
+                ExpenseGroups.firstOrNull { it.first == form.expenseGroup }?.second.orEmpty(),
+                form.expenseCategory,
+            ) { form.expenseCategory = it }
+            EditField("Purpose", form.purpose, "What this was for") { form.purpose = it }
+        } else {
+            val sub = ExpenseGroups.firstOrNull { it.first == form.expenseGroup }?.second?.firstOrNull().orEmpty()
+            if (form.expenseCategory.isBlank() && sub.isNotBlank()) form.expenseCategory = sub
+        }
+        ReadField("Date (M)", form.dateText) { form.dateOpen = true }
+        ChoiceBlock("Payment state (M)", listOf("Paid", "Part paid", "Pay later"), form.choice.ifBlank { "Paid" }) { form.choice = it }
+        if (form.choice != "Paid") {
+            EditField("Payee (C · if payable)", form.party, "Hidden when Paid") { form.party = it }
+            ReadField("Due date (C)", form.dueDateText, dangerLabel = true) { form.dueDateOpen = true }
+        }
+        if (form.choice == "Part paid") EditField("Amount paid", form.receivedAmount, "Less than the total") { form.receivedAmount = it }
+        MoreDetails(form.moreOpen, opsQaMoreDetailsLabel(distribution)) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        TradingWhyPanel(opsQaWhy("SPEND", distribution))
     } else if (lovTrade) {
         AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
         ChoiceBlock("Category", ExpenseGroups.map { it.first }, form.expenseGroup) {
@@ -922,15 +1304,27 @@ private fun SpendCapture(
         if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
         SummaryCard("After save", spendSummary(model, currency, typed))
     } else if (marketing) {
-        AmountBlock("Amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
-        EditField("Purpose / Category", form.purpose, "What this was for") { form.purpose = it }
-        EditField("Paid by", form.party, actor.substringBefore(" ·")) { form.party = it }
-        if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
-        ChoiceBlock("Paid / pending", listOf("Pending / unpaid", "Paid"), form.choice) { form.choice = it }
-        if (model.subtype == "CLIENT_CAMPAIGN") {
-            ChoiceBlock("Who bears the cost", listOf("Agency borne", "Client reimbursable"), form.costBasis) { form.costBasis = it }
+        // MKT-QA-03 / MKT-OWN-QA-03 — Incurred · Accrued · Reimbursable · Payment (routes to PAYMENT).
+        ChoiceBlock(
+            "",
+            listOf("Incurred", "Accrued", "Reimbursable", "Payment"),
+            form.choice.ifBlank { "Incurred" },
+        ) { form.choice = it }
+        val ownSpend = model.subtype.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true)
+        AmountBlock("Spend amount (M)", currency, form.amount, ">0 · Spend ≠ payment") { form.amount = it }
+        EditField("Vendor (M)", form.party, "Required") { form.party = it }
+        EditField("Activity (M)", form.purpose, "Linked activity") { form.purpose = it }
+        ReadField("Spend date (M)", form.dateText) { form.dateOpen = true }
+        if (channels.isNotEmpty()) ChoiceBlock("Channel (C)", channels, form.channel) { form.channel = it }
+        else EditField("Channel (C)", form.channel, "Optional") { form.channel = it }
+        // Own Figma: Due date (C · payable)
+        ReadField(if (ownSpend) "Due date (C · payable)" else "Due (C)", form.dueDateText) { form.dueDateOpen = true }
+        if (form.choice.equals("Reimbursable", true)) {
+            form.costBasis = if (model.subtype.equals("CLIENT_CAMPAIGN", ignoreCase = true)) "Client reimbursable" else "Reimbursable"
         }
-        SummaryCard("After approval", spendSummary(model, currency, typed))
+        MoreDetails(form.moreOpen, marketingQaMoreDetails(ownSpend)) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        TradingWhyPanel(marketingQaWhy("SPEND", ownSpend))
     } else {
         if (restaurant) {
             // Kitchen-first categories, all present in the backend's `EXPENSE_CATEGORIES`.
@@ -972,23 +1366,41 @@ private fun PaymentReimburseCapture(
     service: Boolean,
 ) {
     if (marketing && mode == "PAYMENT") {
+        // MKT-QA-04 / MKT-OWN-QA-04 — Partial · Full; amount-first; open payable.
+        ChoiceBlock("", listOf("Partial", "Full"), form.choice.ifBlank { "Full" }) { form.choice = it }
+        AmountBlock("Payment amount (M)", currency, form.amount, "≤ outstanding") { form.amount = it }
         OpenRecords(
             mode,
             model.paymentReadiness,
             form.parentId,
-            title = "Open payables",
+            title = "Open payable (M)",
             empty = "Record a spend before paying a vendor.",
         ) { row ->
             form.parentId = row.id
             if (form.amount.isBlank()) row.amount?.let { form.amount = it }
             row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
         }
-        AmountBlock("Payment amount", currency, form.amount, "Positive amount · 2 decimal places") { form.amount = it }
-        EditField("Who paid", form.detail, "Payer") { form.detail = it }
-        EditField("Paid to", form.party, "Required") { form.party = it }
-        EditField("Purpose / reference", form.purpose, "Required") { form.purpose = it }
-        ReadField("Date", form.dateText) { form.dateOpen = true }
-        Text("Manual confirmation only. This is not a live transfer.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        ReadField("Paid on (M)", form.dateText) { form.dateOpen = true }
+        EditField("Method (M)", form.detail, "Cash/UPI/Bank…") { form.detail = it }
+        EditField("Reference (O)", form.purpose, "Optional") { form.purpose = it }
+        MoreDetails(form.moreOpen, marketingQaMoreDetails(model.subtype.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true))) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        TradingWhyPanel(marketingQaWhy("PAYMENT", model.subtype.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true)))
+    } else if (trading && mode == "PAYMENT") {
+        // TRD-QA-04 — amount-first; Supplier / payee; Eligible payable; Method (O).
+        AmountBlock("Payment amount (M)", currency, form.amount, "≤ outstanding") { form.amount = it }
+        LovField("Supplier / payee (M)", form.party, "supplier") { form.lovKind = "SUPPLIER" }
+        val selected = model.paymentReadiness.firstOrNull { it.id == form.parentId }?.title.orEmpty()
+        LovField(
+            "Eligible payable (M)",
+            selected,
+            if (model.paymentReadiness.none { it.relevance == "PAYABLE" }) "Nothing is open" else "LOV",
+        ) { form.lovKind = "OBLIGATION" }
+        ReadField("Payment date (M)", form.dateText) { form.dateOpen = true }
+        EditField("Method (O)", form.detail, "Cash/UPI/Bank…") { form.detail = it }
+        MoreDetails(form.moreOpen, opsQaMoreDetailsLabel(distribution)) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        TradingWhyPanel(opsQaWhy("PAYMENT", distribution))
     } else {
         if (lovTrade && mode == "PAYMENT") {
             val selected = model.paymentReadiness.firstOrNull { it.id == form.parentId }?.title.orEmpty()
@@ -1030,6 +1442,7 @@ private fun CollectionCapture(
     actor: String,
     production: Boolean,
     lovTrade: Boolean,
+    trading: Boolean,
     distribution: Boolean,
     client: Boolean,
     own: Boolean,
@@ -1054,32 +1467,27 @@ private fun CollectionCapture(
         Text("Records the receipt. This is not a live transfer.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         SummaryCard("After mark received", collectionSummary(model, currency, typed))
     } else if (client) {
+        // MKT-QA-06 — Client-only gate · Partial · Full.
+        MarketingClientOnlyGate()
+        ChoiceBlock("", listOf("Partial", "Full"), form.choice.ifBlank { "Full" }) { form.choice = it }
+        AmountBlock("Collection amount (M)", currency, form.amount, "≤ outstanding") { form.amount = it }
         OpenRecords(
             mode,
             model.paymentReadiness,
             form.parentId,
-            title = "Open client invoices",
+            title = "Open invoice (M)",
             empty = "Record an invoice before collecting.",
         ) { row ->
             form.parentId = row.id
             if (form.amount.isBlank()) row.amount?.let { form.amount = it }
             row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
         }
-        ChoiceBlock("Collection path", listOf("Mark Received / Collect", "Create Receivable"), form.choice) { form.choice = it }
-        Text(
-            "Mark Received records a receipt. Create Receivable records the obligation.",
-            color = SheetMuted,
-            fontFamily = PlusJakartaSans,
-            fontSize = 12.sp,
-        )
-        AmountBlock("Amount received", currency, form.amount, "Positive amount") { form.amount = it }
-        EditField("Received from", form.party, "Required") { form.party = it }
-        FieldRow {
-            ReadField("Received by", actor.substringBefore(" ·"), Modifier.weight(1f))
-            ReadField("Date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
-        }
-        EditField("Purpose / reference", form.purpose, "Required") { form.purpose = it }
-        SummaryCard("After mark received", collectionSummary(model, currency, typed))
+        ReadField("Received on (M)", form.dateText) { form.dateOpen = true }
+        EditField("Method (M)", form.detail, "Cash/UPI/Bank…") { form.detail = it }
+        EditField("TDS (C)", form.purpose, "Optional") { form.purpose = it }
+        MoreDetails(form.moreOpen, MarketingClientQuickAddCopy.MORE_DETAILS_LABEL) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        TradingWhyPanel(MarketingClientQuickAddCopy.why("COLLECTION"))
     } else if (own) {
         OpenRecords(mode, model.paymentReadiness, form.parentId) { row ->
             form.parentId = row.id
@@ -1099,10 +1507,34 @@ private fun CollectionCapture(
         }
         EditField("Purpose / reference", form.purpose, "Required") { form.purpose = it }
         SummaryCard("After mark received", collectionSummary(model, currency, typed))
+    } else if (trading) {
+        // TRD-QA-03 — amount-first; Customer; Eligible sale source; Method (O).
+        val open = model.paymentReadiness.firstOrNull { it.id == form.parentId }
+        AmountBlock("Collection amount (M)", currency, form.amount, "≤ outstanding") { form.amount = it }
+        open?.counterpartyName?.takeIf { it.isNotBlank() }?.let { name ->
+            if (form.party.isBlank()) form.party = name
+        }
+        LovField("Customer (M)", form.party, "customer") { form.lovKind = "BUYER" }
+        LovField(
+            "Eligible sale source (M)",
+            open?.title.orEmpty(),
+            if (model.paymentReadiness.none { it.relevance == "RECEIVABLE" }) "Nothing is open" else "LOV",
+        ) { form.lovKind = "OBLIGATION" }
+        ReadField("Collection date (M)", form.dateText) { form.dateOpen = true }
+        EditField("Method (O)", form.detail, "Cash/UPI/Bank…") { form.detail = it }
+        MoreDetails(form.moreOpen, opsQaMoreDetailsLabel(distribution)) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        TradingWhyPanel(opsQaWhy("COLLECTION", distribution))
     } else {
+        // QA-05 / CF-07 — collection continuity: original / collected / outstanding / remaining.
+        val open = model.paymentReadiness.firstOrNull { it.id == form.parentId }
         if (lovTrade) {
-            val selected = model.paymentReadiness.firstOrNull { it.id == form.parentId }?.title.orEmpty()
-            LovField("Unpaid sale", selected, if (model.paymentReadiness.none { it.relevance == "RECEIVABLE" }) "Nothing is open" else "Search open records") {
+            val selected = open?.title.orEmpty()
+            LovField(
+                "Reference sale",
+                selected,
+                if (model.paymentReadiness.none { it.relevance == "RECEIVABLE" }) "Nothing is open" else "Search outstanding sales",
+            ) {
                 form.lovKind = "OBLIGATION"
             }
         } else {
@@ -1111,13 +1543,45 @@ private fun CollectionCapture(
                 row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
             }
         }
+        open?.counterpartyName?.takeIf { it.isNotBlank() }?.let { name ->
+            if (form.party.isBlank()) form.party = name
+        }
+        if (lovTrade) {
+            LovField("Customer", form.party, "customer") { form.lovKind = "BUYER" }
+        } else if (form.party.isNotBlank() || open != null) {
+            EditField("Customer", form.party, "Auto-filled from the sale") { form.party = it }
+        }
+        open?.let { row ->
+            val original = row.total?.takeIf { it.isNotBlank() } ?: row.amount
+            val outstanding = row.amount
+            val collected = runCatching {
+                val o = original.toBigDecimalOrNull() ?: return@runCatching null
+                val rem = outstanding.toBigDecimalOrNull() ?: return@runCatching null
+                o.subtract(rem).coerceAtLeast(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP).toPlainString()
+            }.getOrNull()
+            SummaryCard(
+                "Sale balance",
+                listOfNotNull(
+                    "Original sale · $currency $original",
+                    collected?.let { "Previously collected · $currency $it" },
+                    "Outstanding · $currency $outstanding",
+                ),
+            )
+        }
         if (channels.isNotEmpty()) ChoiceBlock(if (distribution) "Buyer / dealer" else "Received from", channels, form.channel) { form.channel = it }
-        AmountBlock("Amount received", currency, form.amount, "Positive amount") { form.amount = it }
+        AmountBlock("Collection amount", currency, form.amount, "Positive · at most outstanding") { form.amount = it }
+        typed?.let { entered ->
+            open?.amount?.toBigDecimalOrNull()?.let { rem ->
+                val left = rem.subtract(entered).coerceAtLeast(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP)
+                Text("Remaining balance · $currency ${left.toPlainString()}", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            }
+        }
         FieldRow {
             ReadField("Received by", actor.substringBefore(" ·"), Modifier.weight(1f))
-            ReadField("Date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
+            ReadField("Collection date", form.dateText, Modifier.weight(1f)) { form.dateOpen = true }
         }
         NoteField("Note · Optional", form.note, "Optional") { form.note = it }
+        Text("Collection updates the sale outstanding. It does not create another sale.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         SummaryCard("After mark received", collectionSummary(model, currency, typed))
     }
 }
@@ -1130,6 +1594,8 @@ private fun BudgetTargetCapture(
     currency: String,
     production: Boolean,
     lovTrade: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
     marketing: Boolean,
     client: Boolean,
     own: Boolean,
@@ -1177,17 +1643,48 @@ private fun BudgetTargetCapture(
             listOf("The current target stays active until this revision is approved."),
         )
     } else if (marketing && mode == "BUDGET") {
-        ReadField("Plan month", monthPickerLabel(form.eventDate)) { form.monthOpen = true }
-        SummaryCard(
-            "Current plan",
-            listOf(
-                "Budget ${formatMoney(money(model.budget?.amount), currency)} · Used ${formatMoney(money(model.budget?.spent), currency)}",
-                "The current plan stays active until this revision is approved.",
-            ),
+        // MKT-QA-07 / MKT-OWN-QA-07 — Budget · Target · Transfer (routes to TRANSFER).
+        ChoiceBlock(
+            "",
+            listOf("Budget", "Target", "Transfer"),
+            when {
+                form.choice.equals("Transfer", true) -> "Transfer"
+                form.choice.contains("Target", ignoreCase = true) -> "Target"
+                else -> "Budget"
+            },
+        ) { form.choice = it }
+        Text(
+            "Current: Budget ${formatMoney(money(model.budget?.amount), currency)} · Target ${formatMoney(money(model.target?.value), currency)}",
+            color = LocalOperatingCaptureChrome.current.label,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
         )
-        AmountBlock("Proposed budget", currency, form.amount, "Proposed only. The current plan stays active until approval.") { form.amount = it }
-        EditField("Revision reason", form.purpose, "Required") { form.purpose = it }
-        SummaryCard("After approval", budgetSummary(model, currency, typed))
+        AmountBlock(
+            if (form.choice.contains("Target", ignoreCase = true)) "New target (M)" else "New budget (M)",
+            currency,
+            form.amount,
+            "≥ 0",
+        ) { form.amount = it }
+        ReadField("Effective from (M)", form.dateText) { form.dateOpen = true }
+        EditField("Reason (M)", form.purpose, "Required") { form.purpose = it }
+        EditField("Approver (C)", form.party, "Optional") { form.party = it }
+        MoreDetails(form.moreOpen, marketingQaMoreDetails(model.subtype.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true))) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        TradingWhyPanel(marketingQaWhy("BUDGET", model.subtype.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true)))
+    } else if (trading && mode == "BUDGET") {
+        // TRD-QA-08 — Budget · Sales target; New amount first; Period; Effective date; Reason (O).
+        ChoiceBlock(
+            "",
+            listOf("Budget", "Sales target"),
+            if (form.choice.contains("target", ignoreCase = true) || form.choice.contains("Sales", ignoreCase = true)) "Sales target" else "Budget",
+        ) { form.choice = it }
+        AmountBlock("New amount (M)", currency, form.amount, "≥ 0") { form.amount = it }
+        ReadField("Period (M)", monthPickerLabel(form.eventDate)) { form.monthOpen = true }
+        ReadField("Effective date (M)", form.dateText) { form.dateOpen = true }
+        EditField("Reason (O)", form.purpose, "Policy may require") { form.purpose = it }
+        MoreDetails(form.moreOpen, opsQaMoreDetailsLabel(distribution)) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        TradingWhyPanel(opsQaWhy("BUDGET", distribution))
     } else if (lovTrade && mode == "BUDGET") {
         ReadField("Plan month", monthPickerLabel(form.eventDate)) { form.monthOpen = true }
         if (model.budget?.configured == true) {
@@ -1280,19 +1777,90 @@ private fun OrderCapture(
             ReadField("Order time", form.dateText) { form.dateOpen = true }
             Text("An order is not a sale until you bill it.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         }
-        lovTrade -> {
-            ChoiceBlock("Order", listOf("Sales order", "Purchase order"), form.orderSideLabel) { form.orderSideLabel = it }
-            if (lovTrade) {
-                LovItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.lovKind = "PRODUCT" }, { form.lovKind = "UOM" }, { form.quantity = it }, { form.unitPrice = it })
+        lovTrade && trading -> {
+            // TRD-QA-11 — Customer order · Supplier order · Delivery (Delivery opens SHIPMENT).
+            // CF-05: maps Customer→Sales order, Supplier→Purchase order. Quotation stays in More details.
+            val orderChip = when {
+                form.orderSideLabel.equals("Delivery", true) -> "Delivery"
+                form.orderSideLabel.startsWith("Purchase") -> "Supplier order"
+                else -> "Customer order"
             }
-            LovField(if (form.orderSideLabel == "Purchase order") "Supplier" else "Buyer", form.party, "party") {
-                form.lovKind = if (form.orderSideLabel == "Purchase order") "SUPPLIER" else "BUYER"
+            ChoiceBlock("", listOf("Customer order", "Supplier order", "Delivery"), orderChip) {
+                form.orderSideLabel = when (it) {
+                    "Delivery" -> "Delivery"
+                    "Supplier order" -> "Purchase order"
+                    else -> "Sales order"
+                }
+            }
+            if (!form.orderSideLabel.equals("Delivery", true)) {
+                LovField(
+                    if (form.orderSideLabel.startsWith("Purchase")) "Supplier (M · purchase order)" else "Customer (M · sales order)",
+                    form.party,
+                    "party",
+                ) {
+                    form.lovKind = if (form.orderSideLabel.startsWith("Purchase")) "SUPPLIER" else "BUYER"
+                }
+                ReadField("Order date (M)", form.dateText) { form.dateOpen = true }
+                LovItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.lovKind = "PRODUCT" }, { form.lovKind = "UOM" }, { form.quantity = it }, { form.unitPrice = it })
+                BusinessAddLineButton(form, label = "+ Add line")
+                BusinessPosLineCart(form, currency, title = "Lines")
+                EditField("Expected delivery", form.link, "Terms") { form.link = it }
+                ChoiceBlock("Status (H)", listOf("Open confirmed", "Draft", "Cancelled"), form.choice.ifBlank { "Open confirmed" }) { form.choice = it }
+                AmountBlock("Commitment amount", currency, form.amount, "Nothing posted") { form.amount = it }
+                MoreDetails(form.moreOpen, opsQaMoreDetailsLabel(distribution)) { form.moreOpen = !form.moreOpen }
+                if (form.moreOpen) {
+                    ChoiceBlock(
+                        "Also available (CF-05)",
+                        listOf("Keep as order", "Save as Quotation"),
+                        if (form.goodsStatusLabel.startsWith("Quotation", true)) "Save as Quotation" else "Keep as order",
+                    ) {
+                        form.goodsStatusLabel = if (it.startsWith("Save")) "Quotation" else ""
+                        if (form.goodsStatusLabel.startsWith("Quotation")) form.orderSideLabel = "Quotation"
+                    }
+                    if (form.orderSideLabel.startsWith("Quotation")) {
+                        ChoiceBlock("Quote status", listOf("Draft", "Sent", "Accepted", "Rejected", "Expired"), form.choice.ifBlank { "Sent" }) { form.choice = it }
+                    }
+                    NoteField("Note", form.note, "Optional") { form.note = it }
+                }
+                TradingWhyPanel(opsQaWhy("ORDER", distribution))
+            }
+        }
+        lovTrade -> {
+            // QA-02 / CF-05 — Quotation ≠ Sales order ≠ Purchase order (non-Trading lovTrade).
+            ChoiceBlock(
+                "Document type",
+                listOf("Quotation", "Sales order", "Purchase order"),
+                form.orderSideLabel.ifBlank { "Sales order" },
+            ) { form.orderSideLabel = it }
+            LovItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.lovKind = "PRODUCT" }, { form.lovKind = "UOM" }, { form.quantity = it }, { form.unitPrice = it })
+            LovField(
+                when {
+                    form.orderSideLabel.startsWith("Purchase") -> "Supplier"
+                    else -> "Customer"
+                },
+                form.party,
+                "party",
+            ) {
+                form.lovKind = if (form.orderSideLabel.startsWith("Purchase")) "SUPPLIER" else "BUYER"
             }
             LovField("Channel", form.channel, "channel") { form.lovKind = "CHANNEL" }
-            ChoiceBlock("Status", listOf("Placed", "Preparing", "Completed", "Cancelled"), form.choice.ifBlank { "Placed" }) { form.choice = it }
+            if (form.orderSideLabel.startsWith("Quotation")) {
+                ChoiceBlock("Quote status", listOf("Draft", "Sent", "Accepted", "Rejected", "Expired"), form.choice.ifBlank { "Sent" }) { form.choice = it }
+            } else {
+                ChoiceBlock("Status", listOf("Placed", "Preparing", "Completed", "Cancelled"), form.choice.ifBlank { "Placed" }) { form.choice = it }
+            }
             AmountBlock("Estimated amount", currency, form.amount, "Commitment only") { form.amount = it }
-            EditField("Promised date", form.link, "YYYY-MM-DD") { form.link = it }
-            Text("An order is not a sale or a purchase until you bill it.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            EditField("Promised / expected date", form.link, "YYYY-MM-DD") { form.link = it }
+            Text(
+                if (form.orderSideLabel.startsWith("Quotation")) {
+                    "A quotation is not a confirmed sales order and does not post revenue."
+                } else {
+                    "An order is not a sale or a purchase until you bill it."
+                },
+                color = SheetMuted,
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
         }
         distribution -> {
             EditField("Buyer / dealer", form.party, "Required") { form.party = it }
@@ -1353,16 +1921,29 @@ private fun ShipmentCapture(
     distribution: Boolean,
 ) {
     if (lovTrade) {
-        ChoiceBlock("Movement", listOf("Outgoing sale", "Incoming purchase"), form.movementLabel) {
+        // TRD-QA-12 / CF-06 — Outgoing · Incoming · Hold DO (Hold opens HOLD sheet).
+        ChoiceBlock(
+            if (trading) "" else "Movement",
+            if (trading) listOf("Outgoing", "Incoming", "Hold DO") else listOf("Outgoing sale", "Incoming purchase"),
+            form.movementLabel.ifBlank { if (trading) "Outgoing" else "Outgoing sale" },
+        ) {
             form.movementLabel = it
             form.parentId = ""
         }
-        val sourceType = if (form.movementLabel == "Incoming purchase") "PURCHASE" else "SALE"
+        if (trading && form.movementLabel.equals("Hold DO", true)) return
+        val sourceType = if (form.movementLabel.contains("Incoming", ignoreCase = true)) "PURCHASE" else "SALE"
         val sources = model.activity.filter { it.eventType == sourceType }
+        if (trading) {
+            AmountBlock("Qty delivered (M)", "Qty · ${form.unit.ifBlank { "pc" }}", form.quantity, "≤ remaining") { form.quantity = it }
+        }
         Text(
             if (sources.isEmpty()) {
                 if (sourceType == "SALE") "No posted sale to deliver." else "No posted purchase to receive."
-            } else "Source",
+            } else if (sourceType == "SALE") {
+                if (trading) "Source sale (M · outgoing)" else "Reference sale / sales order"
+            } else {
+                if (trading) "Source purchase (M · incoming)" else "Reference purchase"
+            },
             color = SheetMuted,
             fontFamily = PlusJakartaSans,
             fontSize = 12.sp,
@@ -1374,14 +1955,51 @@ private fun ShipmentCapture(
                 row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
                 row.quantity?.takeIf { it.isNotBlank() }?.let { form.quantity = it }
                 row.unit?.takeIf { it.isNotBlank() }?.let { form.unit = it }
+                form.link = row.quantity.orEmpty()
+                form.receivedAmount = ""
             }) {
                 Text(if (form.parentId == row.id) "Using ${row.title}" else row.title, color = Color.White, fontSize = 13.sp, fontFamily = PlusJakartaSans)
             }
         }
-        EditField("Quantity", form.quantity, "Required") { form.quantity = it }
-        LovField("Unit", form.unit, "UOM") { form.lovKind = "UOM" }
-        ChoiceBlock("Status", listOf("Placed", "In transit", "Delivered", "Cancelled"), form.choice.ifBlank { "In transit" }) { form.choice = it }
-        Text("Delivery moves goods against the source. It does not create another sale or purchase.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        val selected = sources.firstOrNull { it.id == form.parentId }
+        selected?.counterpartyName?.takeIf { it.isNotBlank() }?.let { name ->
+            if (form.party.isBlank()) form.party = name
+        }
+        if (trading) {
+            val orderedQty = selected?.quantity?.toBigDecimalOrNull()
+            val previously = form.receivedAmount.toBigDecimalOrNull() ?: BigDecimal.ZERO
+            val pending = orderedQty?.subtract(previously)?.coerceAtLeast(BigDecimal.ZERO)
+            val prefill = pending?.let { "${it.stripTrailingZeros().toPlainString()} ${form.unit.ifBlank { "pc" }} ${selected?.title.orEmpty()}" }.orEmpty()
+            ReadField("Prefill remaining", prefill.ifBlank { "Select a source" }) {}
+            ReadField("Delivery date (M)", form.dateText) { form.dateOpen = true }
+            EditField("Carrier / ref (O)", form.detail, "Proof") { form.detail = it }
+            MoreDetails(form.moreOpen, opsQaMoreDetailsLabel(distribution)) { form.moreOpen = !form.moreOpen }
+            if (form.moreOpen) {
+                LovField("Unit", form.unit, "UOM") { form.lovKind = "UOM" }
+                NoteField("Note", form.note, "Optional") { form.note = it }
+            }
+            TradingWhyPanel(opsQaWhy("SHIPMENT", distribution))
+        } else {
+            if (form.party.isNotBlank()) {
+                Text("Customer · ${form.party}", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            }
+            selected?.title?.takeIf { it.isNotBlank() }?.let { item ->
+                Text("Product · $item", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            }
+            val orderedQty = selected?.quantity?.toBigDecimalOrNull()
+            val previously = form.receivedAmount.toBigDecimalOrNull() ?: BigDecimal.ZERO
+            val pending = orderedQty?.subtract(previously)?.coerceAtLeast(BigDecimal.ZERO)
+            orderedQty?.let {
+                Text("Ordered quantity · ${it.stripTrailingZeros().toPlainString()} ${form.unit}", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            }
+            pending?.let {
+                Text("Pending quantity · ${it.stripTrailingZeros().toPlainString()} ${form.unit}", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            }
+            EditField("Delivering now", form.quantity, "At most pending") { form.quantity = it }
+            LovField("Unit", form.unit, "UOM") { form.lovKind = "UOM" }
+            ChoiceBlock("Status", listOf("Placed", "In transit", "Delivered", "Cancelled"), form.choice.ifBlank { "In transit" }) { form.choice = it }
+            Text("Delivery moves goods against the source. It does not create another sale or purchase.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        }
     } else if (distribution) {
         EditField("Shipment / delivery reference", form.purpose, "Required") { form.purpose = it }
         ChoiceBlock(
@@ -1433,7 +2051,11 @@ private fun AppointmentCapture(
     seed: OperatingActivityDto?,
 ) {
     if (service) {
-        EditField("Service", form.purpose, "Required") { form.purpose = it }
+        LovField(
+            "Service",
+            form.purpose,
+            "Pick from Services",
+        ) { OperatingChromeState.servicesBrowserOpen = "APPOINTMENT" }
         ReadField("Appointment time", form.dateText) { form.dateOpen = true }
         EditField("Guest or customer", form.party, "Optional for a walk-in") { form.party = it }
         EditField("Assigned person", form.detail, "Optional") { form.detail = it }
@@ -1481,9 +2103,29 @@ private fun ActivityCapture(
     eventType: String = "",
 ) {
     if (lovTrade && mode == "UPDATE") {
-        EditField("Update", form.purpose, "What happened") { form.purpose = it }
-        ReadField("Date", form.dateText) { form.dateOpen = true }
-        Text("Saved as activity. Money totals stay unchanged.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        if (trading) {
+            // TRD-QA-09 — Update · Issue · Approval (Approval opens QA-10).
+            ChoiceBlock(
+                "",
+                listOf("Update", "Issue", "Approval"),
+                form.choice.ifBlank { "Update" },
+            ) { form.choice = it }
+            NoteField("Description (M)", form.purpose, "What happened") { form.purpose = it }
+            LovField("Linked source (O)", form.itemName, "Search · optional") { form.lovKind = "LINKED_SOURCE" }
+            if (form.choice == "Issue") {
+                EditField("Owner (C · Issue)", form.party, actor.substringBefore(" ·")) { form.party = it }
+                ReadField("Due date (C · assigned)", form.dateText, dangerLabel = true) { form.dateOpen = true }
+            } else {
+                ReadField("Date", form.dateText) { form.dateOpen = true }
+            }
+            MoreDetails(form.moreOpen, opsQaMoreDetailsLabel(distribution)) { form.moreOpen = !form.moreOpen }
+            if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+            TradingWhyPanel(opsQaWhy("UPDATE", distribution))
+        } else {
+            EditField("Update", form.purpose, "What happened") { form.purpose = it }
+            ReadField("Date", form.dateText) { form.dateOpen = true }
+            Text("Saved as activity. Money totals stay unchanged.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        }
     } else if (production && mode == "PRODUCTION") {
         val jobOutput = model.subtype == "MADE_TO_ORDER"
         ChoiceBlock(if (jobOutput) "Job output" else "Standard output", listOf("Quick output", "Detailed batch"), form.entryMode) { form.entryMode = it }
@@ -1529,6 +2171,99 @@ private fun ActivityCapture(
         }
         ReadField("Delivery date", form.dateText) { form.dateOpen = true }
         Text("A status-only delivery does not post a quantity or a sale.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (marketing && eventType.equals("ACTIVITY", true)) {
+        // MKT-QA-01 / MKT-OWN-QA-01 — Creative · Publish · Booking · Event · Hold (routes to HOLD).
+        val ownActivity = model.subtype.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true)
+        ChoiceBlock(
+            "",
+            listOf("Creative", "Publish", "Booking", "Event", "Hold"),
+            form.choice.ifBlank { "Creative" },
+        ) { form.choice = it }
+        EditField("Activity name (M)", form.purpose, "Required") { form.purpose = it }
+        // Own Figma: Activity type (M) · Due date (M) · Channel (C · media type)
+        EditField(if (ownActivity) "Activity type (M)" else "Type (M)", form.detail, "Required") { form.detail = it }
+        EditField("Owner (M)", form.party, actor.substringBefore(" ·")) { form.party = it }
+        ReadField(if (ownActivity) "Due date (M)" else "Due (M)", form.dueDateText, dangerLabel = true) { form.dueDateOpen = true }
+        EditField("Milestone (O)", form.itemName, "Optional") { form.itemName = it }
+        val activityChannelLabel = if (ownActivity) "Channel (C · media type)" else "Channel (C)"
+        if (channels.isNotEmpty()) ChoiceBlock(activityChannelLabel, channels, form.channel) { form.channel = it }
+        else EditField(activityChannelLabel, form.channel, "Optional") { form.channel = it }
+        MoreDetails(form.moreOpen, marketingQaMoreDetails(ownActivity)) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        TradingWhyPanel(marketingQaWhy("ACTIVITY", ownActivity))
+    } else if (marketing && mode == "RESULT" && eventType == "PROGRESS") {
+        // MKT-QA-02 / MKT-OWN-QA-02 — Incremental · Cumulative.
+        val ownProgress = model.subtype.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true)
+        ChoiceBlock(
+            "",
+            listOf("Incremental", "Cumulative"),
+            form.reportingMode.ifBlank { "Incremental" },
+        ) { form.reportingMode = it }
+        // Own Figma: Progress (M) with amber `%` unit pill (not INR).
+        AmountBlock(
+            if (ownProgress) "Progress (M)" else "Progress % (M)",
+            currency,
+            form.amount,
+            if (ownProgress) "Incremental adds · never exceeds 100%" else "0–100",
+            unitOverride = if (ownProgress) "%" else null,
+        ) { form.amount = it } // trailing lambda = onValue
+        val open = model.activity.filter { it.eventType == "ACTIVITY" && it.approvalStatus != "REJECTED" && it.approvalStatus != "PENDING" }
+        Text(if (open.isEmpty()) "Add an activity before updating progress." else "Activity (M)", color = LocalOperatingCaptureChrome.current.label, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        open.forEach { row ->
+            TextButton(onClick = { form.parentId = row.id }) {
+                Text(if (form.parentId == row.id) "Selected ${row.title}" else row.title, color = Color.White, fontFamily = PlusJakartaSans)
+            }
+        }
+        ReadField("As of (M)", form.dateText) { form.dateOpen = true }
+        // Own Figma: Planned · In progress · Blocked · Done · Cancelled
+        val progressStatuses = if (ownProgress) {
+            listOf("Planned", "In progress", "Blocked", "Done", "Cancelled")
+        } else {
+            listOf("In progress", "Blocked", "Postponed", "Completed", "Cancelled")
+        }
+        val selectedStatus = form.activityStatus.takeIf { it in progressStatuses } ?: "In progress"
+        ChoiceBlock("Status (M)", progressStatuses, selectedStatus) { form.activityStatus = it }
+        EditField("Note (O)", form.note, "Optional") { form.note = it }
+        MoreDetails(form.moreOpen, marketingQaMoreDetails(ownProgress)) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Extra note", form.purpose, "Optional") { form.purpose = it }
+        TradingWhyPanel(marketingQaWhy("PROGRESS", ownProgress))
+    } else if (marketing && mode == "RESULT") {
+        // MKT-QA-10 — Leads · Reach · Clicks · Orders · Sales.
+        ChoiceBlock(
+            "",
+            listOf("Leads", "Reach", "Clicks", "Orders", "Sales"),
+            form.choice.ifBlank { "Leads" },
+        ) {
+            form.choice = it
+            form.metricCode = it.uppercase()
+        }
+        AmountBlock("Value (M)", currency, form.amount, "Leave blank when not measured") { form.amount = it }
+        ChoiceBlock("Metric (M)", listOf("LEADS", "REACH", "CLICKS", "ORDERS", "SALES", "CONVERSIONS", "ENGAGEMENT"), form.metricCode.ifBlank { "LEADS" }) { form.metricCode = it }
+        if (channels.isNotEmpty()) ChoiceBlock("Channel (M)", channels, form.channel) { form.channel = it }
+        else EditField("Channel (M)", form.channel, "Required") { form.channel = it }
+        EditField("Period (M)", form.periodStart, "YYYY-MM-DD →") { form.periodStart = it }
+        EditField("Coverage (M)", form.periodEnd, "Period end / coverage") { form.periodEnd = it }
+        EditField("Attributed sales (O)", form.receivedAmount, "Observational only") { form.receivedAmount = it }
+        MoreDetails(form.moreOpen, marketingQaMoreDetails(model.subtype.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true))) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        TradingWhyPanel(marketingQaWhy("RESULT", model.subtype.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true)))
+    } else if (marketing && mode == "UPDATE") {
+        // MKT-QA-09 — Update · Issue · Risk · Approval (routes to APPROVAL).
+        ChoiceBlock(
+            "",
+            listOf("Update", "Issue", "Risk", "Approval"),
+            form.choice.ifBlank { "Update" },
+        ) { form.choice = it }
+        EditField("Title (M)", form.purpose, "Required") { form.purpose = it }
+        EditField("Activity (C)", form.itemName, "Optional link") { form.itemName = it }
+        if (form.choice == "Issue" || form.choice == "Risk") {
+            ChoiceBlock("Severity (C)", listOf("Low", "Normal", "High"), form.detail.ifBlank { "Normal" }) { form.detail = it }
+            EditField("Assignee (O)", form.party, actor.substringBefore(" ·")) { form.party = it }
+            ReadField("Due (O)", form.dueDateText) { form.dueDateOpen = true }
+        }
+        MoreDetails(form.moreOpen, marketingQaMoreDetails(model.subtype.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true))) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        TradingWhyPanel(marketingQaWhy("UPDATE", model.subtype.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true)))
     } else if (marketing && mode == "RESULT" && eventType == "PROGRESS") {
         val open = model.activity.filter { it.eventType == "ACTIVITY" && it.approvalStatus != "REJECTED" && it.approvalStatus != "PENDING" }
         Text(if (open.isEmpty()) "Add an activity before updating progress." else "Open activity", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
@@ -1549,30 +2284,9 @@ private fun ActivityCapture(
         ChoiceBlock("Reporting", listOf("Incremental", "Cumulative"), form.reportingMode) { form.reportingMode = it }
         ChoiceBlock("Metric", listOf("LEADS", "CONVERSIONS", "REACH", "ENGAGEMENT", "ORDERS"), form.metricCode) { form.metricCode = it }
         ChoiceBlock("Status", listOf("Accepted", "Pending"), form.choice) { form.choice = it }
-        EditField("Source", form.resultSource, "Where this result was observed") { form.resultSource = it }
-        EditField("Period start", form.periodStart, "YYYY-MM-DD") { form.periodStart = it }
-        EditField("Period end", form.periodEnd, "YYYY-MM-DD") { form.periodEnd = it }
-        val earlier = model.activity.filter { it.eventType == "RESULT" && it.approvalStatus != "REJECTED" }
-        if (earlier.isNotEmpty()) {
-            Text("Correct an earlier result", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-            earlier.forEach { row ->
-                TextButton(onClick = { form.supersedesId = if (form.supersedesId == row.id) "" else row.id }) {
-                    Text(if (form.supersedesId == row.id) "Replaces ${row.title}" else row.title, color = Color.White, fontFamily = PlusJakartaSans)
-                }
-            }
-        }
-        ChoiceBlock("Overlap", listOf("Channel figure", "Deduplicated reach"), if (form.overlapDeduped) "Deduplicated reach" else "Channel figure") {
-            form.overlapDeduped = it == "Deduplicated reach"
-        }
-        Text("Attributed sales stay an observation. They are not revenue.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         MoreDetails(form.moreOpen, "Optional note, evidence link or source context.") { form.moreOpen = !form.moreOpen }
         if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
-        Text(
-            "Accepted Result counts toward target, not its Receipt.",
-            color = SheetMuted,
-            fontFamily = PlusJakartaSans,
-            fontSize = 12.sp,
-        )
+        Text("Accepted Result counts toward target, not its Receipt.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     } else if (marketing && mode == "UPDATE") {
         ChoiceBlock(
             "Status",
@@ -1683,7 +2397,45 @@ private fun StockCapture(
     restaurant: Boolean,
     service: Boolean,
 ) {
-    if (contractFamily && (trading || distribution || restaurant || service)) {
+    if (trading && contractFamily) {
+        // TRD-QA-06 — Set current · Add · Reduce · Transfer; quantity-first; Transfer opens TRANSFER.
+        val stockChip = when {
+            form.stockAction.equals("Transfer", true) -> "Transfer"
+            form.stockAction.startsWith("Add", true) -> "Add"
+            form.stockAction.startsWith("Reduce", true) -> "Reduce"
+            else -> "Set current"
+        }
+        ChoiceBlock("", listOf("Set current", "Add", "Reduce", "Transfer"), stockChip) {
+            form.stockAction = when (it) {
+                "Transfer" -> "Transfer"
+                "Add" -> "Add"
+                "Reduce" -> "Reduce"
+                else -> "Set current stock"
+            }
+        }
+        if (!form.stockAction.equals("Transfer", true)) {
+            AmountBlock("Quantity (M)", "Qty · ${form.unit.ifBlank { "pc" }}", form.quantity, "Shows prior → delta → result") { form.quantity = it }
+            LovField("Item / SKU (M)", form.purpose, "product") { form.lovKind = "PRODUCT" }
+            LovField("UOM (M)", form.unit, "Compatible LOV") { form.lovKind = "UOM" }
+            EditField("Location (C)", form.channel, "If multi-location") { form.channel = it }
+            ChoiceBlock("Reason (M)", listOf("Opening count", "Stocktake", "Damage", "Waste", "Return", "Correction"), form.stockReason.ifBlank { "Stocktake" }) {
+                form.stockReason = it
+            }
+            ReadField("Count date (M)", form.dateText) { form.dateOpen = true }
+            MoreDetails(form.moreOpen, opsQaMoreDetailsLabel(distribution)) { form.moreOpen = !form.moreOpen }
+            if (form.moreOpen) {
+                ChoiceBlock("Ownership", listOf("Owned", "Consignment"), form.ownership) { form.ownership = it }
+                ReadField(
+                    "FEFO / nearest expiry",
+                    fefoFactLabel(
+                        model.masters.orEmpty().firstOrNull { it.id == form.productMasterId || it.name.equals(form.purpose, true) },
+                    ),
+                )
+                NoteField("Note", form.note, "Optional") { form.note = it }
+            }
+            TradingWhyPanel(opsQaWhy("STOCK", distribution))
+        }
+    } else if (contractFamily && (distribution || restaurant || service)) {
         if (lovTrade) LovField("Item", form.purpose, "product") { form.lovKind = "PRODUCT" }
         else EditField("Item", form.purpose, "Product or SKU") { form.purpose = it }
         ChoiceBlock("Action", listOf("Set current stock", "Add", "Reduce"), form.stockAction) { form.stockAction = it }
@@ -1691,7 +2443,7 @@ private fun StockCapture(
         if (lovTrade) LovField("Unit", form.unit, "UOM") { form.lovKind = "UOM" }
         else EditField("Unit", form.unit, "pcs, kg, L") { form.unit = it }
         ChoiceBlock("Reason", listOf("Opening count", "Stocktake", "Damage", "Waste", "Return", "Correction"), form.stockReason) { form.stockReason = it }
-        if (trading || distribution) {
+        if (distribution) {
             ChoiceBlock("Ownership", listOf("Owned", "Consignment"), form.ownership) { form.ownership = it }
         }
         // FEFO binds projection batch identity only — never invent an expiry date.
@@ -1747,48 +2499,90 @@ private fun ReturnCapture(
     form: CaptureForm,
     model: OperatingProjectionDto,
     currency: String,
+    trading: Boolean,
+    distribution: Boolean,
 ) {
     val customerReturn = form.returnDirection.startsWith("Customer")
-        val sourceType = if (customerReturn) "SALE" else "PURCHASE"
-        ChoiceBlock("Return type", listOf("Customer return", "Supplier return"), form.returnDirection) {
-            form.returnDirection = it
-            form.parentId = ""
+    val sourceType = if (customerReturn) "SALE" else "PURCHASE"
+    ChoiceBlock(
+        if (trading) "" else "Return type",
+        listOf("Customer return", "Supplier return"),
+        form.returnDirection.ifBlank { "Customer return" },
+    ) {
+        form.returnDirection = it
+        form.parentId = ""
+    }
+    if (trading) {
+        // TRD-QA-07 — amount-first; source; goods movement chips; reason; date.
+        AmountBlock("Credit amount (M)", currency, form.amount, "Within eligible") { form.amount = it }
+    }
+    val sources = model.activity
+        .filter { it.eventType == sourceType && it.approvalStatus != "REJECTED" && it.approvalStatus?.startsWith("PENDING") != true }
+        .take(25)
+    Text(
+        if (sources.isEmpty()) {
+            if (customerReturn) "No posted sale to return against." else "No posted purchase to return against."
+        } else if (customerReturn) {
+            if (trading) "Source sale (M)" else "Source sale"
+        } else {
+            if (trading) "Source purchase (M)" else "Source purchase"
+        },
+        color = SheetMuted,
+        fontFamily = PlusJakartaSans,
+        fontSize = 12.sp,
+    )
+    sources.forEach { row ->
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (form.parentId == row.id) SheetHigh else Color.Transparent)
+                .border(1.dp, if (form.parentId == row.id) SheetAccent else SheetBorder, RoundedCornerShape(12.dp))
+                .clickable {
+                    form.parentId = row.id
+                    if (form.amount.isBlank()) row.amount?.takeIf { it.isNotBlank() }?.let { form.amount = it }
+                    row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
+                }
+                .padding(10.dp),
+        ) {
+            Text(row.title, color = SheetInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text(
+                listOfNotNull(row.counterpartyName, row.amount, row.occurredAt.take(10)).filter { it.isNotBlank() }.joinToString(" · "),
+                color = SheetMuted,
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
         }
-        val sources = model.activity
-            .filter { it.eventType == sourceType && it.approvalStatus != "REJECTED" && it.approvalStatus?.startsWith("PENDING") != true }
-            .take(25)
-        Text(
-            if (sources.isEmpty()) {
-                if (customerReturn) "No posted sale to return against." else "No posted purchase to return against."
-            } else if (customerReturn) "Source sale" else "Source purchase",
-            color = SheetMuted,
-            fontFamily = PlusJakartaSans,
-            fontSize = 12.sp,
-        )
-        sources.forEach { row ->
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (form.parentId == row.id) SheetHigh else Color.Transparent)
-                    .border(1.dp, if (form.parentId == row.id) SheetAccent else SheetBorder, RoundedCornerShape(12.dp))
-                    .clickable {
-                        form.parentId = row.id
-                        if (form.amount.isBlank()) row.amount?.takeIf { it.isNotBlank() }?.let { form.amount = it }
-                        row.counterpartyName?.takeIf { it.isNotBlank() }?.let { form.party = it }
-                    }
-                    .padding(10.dp),
-            ) {
-                Text(row.title, color = SheetInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                Text(
-                    listOfNotNull(row.counterpartyName, row.amount, row.occurredAt.take(10)).filter { it.isNotBlank() }.joinToString(" · "),
-                    color = SheetMuted,
-                    fontFamily = PlusJakartaSans,
-                    fontSize = 12.sp,
-                )
+    }
+    if (!trading) {
+        AmountBlock("Credit amount", currency, form.amount, "Positive amount · cannot exceed the source") { form.amount = it }
+    }
+    if (trading) {
+        EditField("Item / qty (C · itemized)", form.itemName, "≤ unreturned") {
+            form.itemName = it
+            form.entryMode = "Itemized"
+        }
+        if (form.itemName.isNotBlank() || form.entryMode == "Itemized") {
+            LovItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.lovKind = "PRODUCT" }, { form.lovKind = "UOM" }, { form.quantity = it }, { form.unitPrice = it }, showPrice = false)
+        }
+        val goodsChip = when {
+            form.goodsOutcome.contains("Pending", true) -> "Pending inspection"
+            form.goodsOutcome.contains("Not", true) -> "Not returned"
+            else -> "Returned to stock"
+        }
+        ChoiceBlock("Goods movement (M)", listOf("Returned to stock", "Pending inspection", "Not returned"), goodsChip) {
+            form.goodsOutcome = when (it) {
+                "Pending inspection" -> "Pending inspection"
+                "Not returned" -> "Not returned"
+                else -> "To stock"
             }
         }
-        AmountBlock("Credit amount", currency, form.amount, "Positive amount · cannot exceed the source") { form.amount = it }
+        EditField("Reason (M)", form.returnReason, "Damage/Defect…") { form.returnReason = it.take(80) }
+        ReadField("Return date (M)", form.dateText) { form.dateOpen = true }
+        MoreDetails(form.moreOpen, opsQaMoreDetailsLabel(distribution)) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.note, "Optional") { form.note = it }
+        TradingWhyPanel(opsQaWhy("RETURN", distribution))
+    } else {
         ChoiceBlock("Goods", listOf("To stock", "Not returned", "Pending inspection"), form.goodsOutcome) { form.goodsOutcome = it }
         EditField("Reason", form.returnReason, "Required") { form.returnReason = it.take(80) }
         ChoiceBlock("Items", listOf("Quick amount", "Itemized"), form.entryMode) { form.entryMode = it }
@@ -1815,6 +2609,7 @@ private fun ReturnCapture(
                 "No refund is paid by this record.",
             ),
         )
+    }
 }
 
 @Composable
@@ -1870,26 +2665,29 @@ private fun SupplierPartnerCapture(
         if (channels.isNotEmpty()) ChoiceBlock("Channel", channels, form.channel) { form.channel = it }
         Text("Saving creates no purchase or expense.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     } else if (marketing && mode == "PARTNER") {
-        EditField(if (own) "Partner / counterparty" else "Name", form.party, "Required") { form.party = it }
-        Text(
-            "Enter a name to enable Save.",
-            color = SheetAccent,
-            fontFamily = PlusJakartaSans,
-            fontSize = 12.sp,
-        )
         if (client) {
-            ChoiceBlock("Relationship", listOf("Client", "Vendor", "Creator", "Platform", "Partner"), form.choice) { form.choice = it }
-            EditField("Purpose", form.purpose, "Optional") { form.purpose = it }
+            // MKT-FORM · New / Edit Client or Vendor — fields that existing PARTNER write accepts.
+            EditField("Party name", form.party, "Required") { form.party = it }
+            Text("Enter a name to enable Save.", color = LocalOperatingCaptureChrome.current.accent, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            EditField("Legal / trade name", form.purpose, "As on GST certificate") { form.purpose = it }
+            EditField("GSTIN", form.partyGstin, "15 chars · optional") { form.partyGstin = it.take(15) }
+            EditField("Phone", form.supplierPhone, "Optional") { form.supplierPhone = it }
+            EditField("Email (optional)", form.detail, "Optional") { form.detail = it }
+            ChoiceBlock(
+                "Type",
+                listOf("Client", "Retainer", "Media", "Events", "Content", "Vendor"),
+                form.choice.ifBlank { "Client" },
+            ) { form.choice = it }
+            EditField("Payment terms", form.note, "e.g. Net 7 days") { form.note = it }
+            EditField("Address", form.supplierAddress, "Optional") { form.supplierAddress = it }
+            if (channels.isNotEmpty()) ChoiceBlock("Channel", channels, form.channel) { form.channel = it }
+            TradingWhyPanel("Party is a master write. GSTIN state code decides CGST+SGST vs IGST on invoice / bill.")
+        } else {
+            EditField("Partner / counterparty", form.party, "Required") { form.party = it }
+            Text("Enter a name to enable Save.", color = SheetAccent, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            if (channels.isNotEmpty()) ChoiceBlock("Accepted channel", channels, form.channel) { form.channel = it }
+            Text("Saving creates no spend event.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         }
-        if (channels.isNotEmpty()) {
-            ChoiceBlock(if (own) "Accepted channel" else "Channel", channels, form.channel) { form.channel = it }
-        }
-        Text(
-            if (own) "Saving creates no spend event." else "Saving creates no purchase or expense.",
-            color = SheetMuted,
-            fontFamily = PlusJakartaSans,
-            fontSize = 12.sp,
-        )
     } else {
         EditField(
             when {
@@ -1937,6 +2735,9 @@ private fun SupplierPartnerCapture(
 private fun MastersCapture(
     form: CaptureForm,
     model: OperatingProjectionDto,
+    title: String = "",
+    marketing: Boolean = false,
+    client: Boolean = false,
 ) {
     // `TRD-QA-11` masters capture: link an existing row by id, or create a new one.
     // Linking is what makes `UPDATE` events reference `masterId` instead of re-declaring
@@ -1945,6 +2746,25 @@ private fun MastersCapture(
     val kinds = masterKinds(model.subtype)
     val existing = model.masters.orEmpty().filter { master ->
         kinds.any { it.equals(master.kind, true) }
+    }
+    val servicesRateHub = marketing && client && (
+        title.contains("service", ignoreCase = true) || title.contains("rate", ignoreCase = true)
+    )
+    // Client masters hub: Channels & teams → CHANNEL; Services & rate card → BUDGET_CATEGORY.
+    androidx.compose.runtime.LaunchedEffect(title, marketing, client) {
+        if (!marketing || !client) return@LaunchedEffect
+        val lower = title.lowercase()
+        when {
+            "channel" in lower || "team" in lower -> form.masterKind = "CHANNEL"
+            "service" in lower || "rate" in lower -> {
+                form.masterKind = "BUDGET_CATEGORY"
+                if (form.entryMode.isBlank()) form.entryMode = "Create service"
+            }
+        }
+    }
+    if (servicesRateHub) {
+        MarketingClientServiceRateCapture(form, model)
+        return
     }
     if (tradingMaster) {
         ChoiceBlock("Master", kinds, form.masterKind) { form.masterKind = it }
@@ -2004,14 +2824,29 @@ private fun MastersCapture(
         if (form.masterId != null) {
             OperatingWhyFootnote(
                 "Saving links this record by id. It does not rewrite the master's name or price.",
-                CaptureSheetTheme,
+                TradeSheetThemePlaceholder,
             )
         }
         Text("Or create a new record", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    } else if (marketing && client) {
+        val kindLabels = kinds.map { marketingMasterKindLabel(it) }
+        val selectedLabel = marketingMasterKindLabel(form.masterKind)
+        ChoiceBlock("Master", kindLabels, selectedLabel) { picked ->
+            form.masterKind = kinds.firstOrNull { marketingMasterKindLabel(it) == picked } ?: form.masterKind
+        }
     } else {
         ChoiceBlock("Master", kinds, form.masterKind) { form.masterKind = it }
     }
-    EditField("Name", form.itemName, "Required") {
+    EditField(
+        when {
+            marketing && client && form.masterKind.equals("CHANNEL", true) -> "Channel / team name"
+            marketing && client && form.masterKind.equals("BUDGET_CATEGORY", true) -> "Service / rate name"
+            marketing && client && form.masterKind.equals("PARTY", true) -> "Party name"
+            else -> "Name"
+        },
+        form.itemName,
+        "Required",
+    ) {
         form.itemName = it
         form.masterId = null
     }
@@ -2021,7 +2856,143 @@ private fun MastersCapture(
     }
     EditField("Detail", form.purpose, "Optional") { form.purpose = it }
     MasterGstFields(form, model)
-    Text("Saving adds a selectable record. It does not create a sale or a cost.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    Text(
+        if (marketing && client) {
+            "Saving adds a selectable master. It does not post spend, invoice, or collection."
+        } else {
+            "Saving adds a selectable record. It does not create a sale or a cost."
+        },
+        color = SheetMuted,
+        fontFamily = PlusJakartaSans,
+        fontSize = 12.sp,
+    )
+}
+
+private fun marketingMasterKindLabel(kind: String): String = when (kind.uppercase()) {
+    "METRIC" -> "Metric"
+    "CHANNEL" -> "Channel / team"
+    "BUDGET_CATEGORY" -> "Service / rate"
+    "PARTY" -> "Client / vendor"
+    else -> kind.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
+}
+
+/**
+ * Figma `MKT-MASTER · Create service` (`2569:29780`) + `Create rate card` (`2569:29905`).
+ * Posts via existing `MASTERS` + `BUDGET_CATEGORY` — no invented master kinds.
+ */
+@Composable
+private fun MarketingClientServiceRateCapture(
+    form: CaptureForm,
+    model: OperatingProjectionDto,
+) {
+    form.masterKind = "BUDGET_CATEGORY"
+    val createService = !form.entryMode.equals("Create rate card", true)
+    ChoiceBlock(
+        "",
+        listOf("Create service", "Create rate card"),
+        if (createService) "Create service" else "Create rate card",
+    ) { form.entryMode = it }
+    Text(
+        if (createService) {
+            "Service master · SAC, GST, unit + rate before it appears in estimate / PO"
+        } else {
+            "Client rate card · service rates, discount %, validity before an estimate can use it"
+        },
+        color = SheetMuted,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+    )
+    ChoiceBlock("", listOf("Create", "Edit existing"), form.choice.ifBlank { "Create" }) {
+        form.choice = it
+    }
+    if (form.choice.equals("Edit existing", true)) {
+        val existing = model.masters.orEmpty().filter { it.kind.equals("BUDGET_CATEGORY", true) }.take(8)
+        if (existing.isEmpty()) {
+            Text("No services or rate cards yet — create the first one.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        } else {
+            existing.forEach { master ->
+                val on = form.masterId == master.id
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (on) SheetHigh else Color.Transparent)
+                        .border(1.dp, if (on) SheetAccent else SheetBorder, RoundedCornerShape(12.dp))
+                        .clickable {
+                            form.masterId = if (on) null else master.id
+                            form.itemName = master.name
+                            master.unit?.takeIf { it.isNotBlank() }?.let { form.unit = it }
+                            master.sellPrice?.removePrefix("₹")?.trim()?.takeIf { it.isNotBlank() }?.let { form.unitPrice = it }
+                            master.gstRate?.takeIf { it.isNotBlank() }?.let { form.gstRate = it }
+                            master.hsn?.takeIf { it.isNotBlank() }?.let { form.hsn = it }
+                        }
+                        .padding(10.dp),
+                ) {
+                    Text(master.name, color = SheetInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                }
+            }
+        }
+    }
+    EditField(
+        if (createService) "Service name" else "Rate card name",
+        form.itemName,
+        if (createService) "e.g. Social retainer · monthly" else "e.g. FY27 · client rates",
+    ) {
+        form.itemName = it
+        if (!form.choice.equals("Edit existing", true)) form.masterId = null
+    }
+    if (createService) {
+        ChoiceBlock(
+            "Category",
+            listOf("Retainer", "Project", "Media", "Content", "Events"),
+            form.detail.ifBlank { "Retainer" },
+        ) { form.detail = it }
+        ChoiceBlock(
+            "Billing",
+            listOf("Media", "Retainer", "Project"),
+            form.reportingMode.ifBlank { "Media" },
+        ) { form.reportingMode = it }
+        EditField("Sell price", form.unitPrice, "₹") { form.unitPrice = it.filter { c -> c.isDigit() || c == '.' || c == ',' } }
+        EditField("Internal cost", form.amount, "Optional") { form.amount = it.filter { c -> c.isDigit() || c == '.' || c == ',' } }
+        ChoiceBlock("GST on service", listOf("18%", "5%", "Exempt"), form.gstRate.ifBlank { "18%" }) {
+            form.gstRate = it.removeSuffix("%").let { r -> if (r == "Exempt") "0" else r }
+            form.gstApplicable = if (it == "Exempt") "No" else "Yes"
+            form.gstClassification = if (it == "Exempt") "Exempt" else "Taxable"
+        }
+        EditField("HSN / SAC", form.hsn, "e.g. 998361") { form.hsn = it.take(16) }
+        ChoiceBlock("Unit", listOf("month", "deliverable", "hour", "project"), form.unit.ifBlank { "month" }) { form.unit = it }
+        EditField("Scope doc", form.purpose, "Optional · SOW ref") { form.purpose = it }
+    } else {
+        ChoiceBlock(
+            "Scope",
+            listOf("Strategy", "Creative", "Media", "Content", "Influencer", "Reporting"),
+            form.detail.ifBlank { "Strategy" },
+        ) { form.detail = it }
+        ChoiceBlock("Rate unit", listOf("month", "hour", "deliverable", "project"), form.unit.ifBlank { "month" }) { form.unit = it }
+        EditField("Default margin %", form.unitPrice, "e.g. 22") { form.unitPrice = it.filter { c -> c.isDigit() || c == '.' } }
+        ChoiceBlock("GST", listOf("0%", "18%", "12%", "5%"), form.gstRate.ifBlank { "18" }.let { if (it.endsWith("%")) it else "$it%" }) {
+            form.gstRate = it.removeSuffix("%")
+            form.gstApplicable = if (it == "0%") "No" else "Yes"
+            form.gstClassification = if (it == "0%") "Exempt" else "Taxable"
+        }
+        EditField("Valid from", form.gstEffectiveFrom, "YYYY-MM-DD") { form.gstEffectiveFrom = it.take(10) }
+        EditField("Min retainer", form.purpose, "e.g. 3 months") { form.purpose = it }
+        EditField("Default channel", form.channel, "Optional") { form.channel = it }
+    }
+    ChoiceBlock("", listOf("Active", "Inactive"), if (form.activityStatus.equals("Inactive", true)) "Inactive" else "Active") {
+        form.activityStatus = it
+    }
+    Text(
+        if (createService) {
+            "Create service is a master write. Estimates and POs only pick saved services; GST posts on invoice / bill, not on save."
+        } else {
+            "Rate card is a master write. Estimates pick rates from it; ledger moves only on invoice and vendor bill."
+        },
+        color = SheetMuted,
+        fontFamily = PlusJakartaSans,
+        fontSize = 11.sp,
+    )
 }
 
 @Composable
@@ -2030,18 +3001,110 @@ private fun ApprovalCapture(
     model: OperatingProjectionDto,
     currency: String,
     marketing: Boolean,
+    trading: Boolean,
+    distribution: Boolean,
+    actor: String,
     onDecide: (suspend (String, String) -> Unit)?,
 ) {
-    ApprovalBody(
-        model,
-        currency,
-        form.choice,
-        form.note,
-        { form.choice = it },
-        { form.note = it },
-        onDecide,
-        if (marketing) listOf("Approve", "Reject", "Return") else listOf("Approve", "Reject"),
-    )
+    if (trading) {
+        // TRD-QA-10 — Approve · Reject · Reimburse (Reimburse opens Payment).
+        ChoiceBlock("", listOf("Approve", "Reject", "Reimburse"), form.choice.ifBlank { "Approve" }) { form.choice = it }
+        if (form.choice.equals("Reimburse", true)) return
+        val pending = model.attention.filter { it.kind == "APPROVAL" }
+        if (pending.isEmpty()) {
+            Text("Nothing is waiting for a decision.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 14.sp)
+        } else {
+            pending.take(6).forEach { item ->
+                val on = form.parentId == item.id || (form.parentId.isBlank() && pending.firstOrNull()?.id == item.id)
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (on) SheetHigh else Color.Transparent)
+                        .border(1.dp, if (on) SheetAccent else SheetBorder, RoundedCornerShape(12.dp))
+                        .clickable {
+                            form.parentId = item.id
+                            item.amount?.takeIf { it.isNotBlank() }?.let { form.amount = it }
+                        }
+                        .padding(10.dp),
+                ) {
+                    Text(item.title, color = SheetInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text("Pending only", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                }
+            }
+            if (form.parentId.isBlank()) form.parentId = pending.first().id
+        }
+        if (form.choice.equals("Reject", true)) {
+            EditField("Reason (C · reject)", form.note, "Required on reject") { form.note = it }
+        }
+        ReadField("Decide by (C)", form.dueDateText, dangerLabel = true) { form.dueDateOpen = true }
+        ReadField("Acting role (H)", actor) {}
+        MoreDetails(form.moreOpen, opsQaMoreDetailsLabel(distribution)) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.purpose, "Optional") { form.purpose = it }
+        TradingWhyPanel(opsQaWhy("APPROVAL", distribution))
+    } else if (marketing) {
+        // MKT-QA-08 — Approve · Reject · Changes; secondary: Item, Requested by, Decision note, Effective, Decide by.
+        ChoiceBlock("", listOf("Approve", "Reject", "Changes"), form.choice.ifBlank { "Approve" }) { form.choice = it }
+        val pending = model.attention.filter { it.kind == "APPROVAL" }
+        val selected = pending.firstOrNull { it.id == form.parentId } ?: pending.firstOrNull()
+        if (pending.isEmpty()) {
+            Text("Nothing is waiting for a decision.", color = LocalOperatingCaptureChrome.current.hint, fontFamily = PlusJakartaSans, fontSize = 14.sp)
+        } else {
+            Text("Item (M)", color = LocalOperatingCaptureChrome.current.label, fontFamily = PlusJakartaSans, fontSize = 11.sp)
+            pending.take(6).forEach { item ->
+                val on = form.parentId == item.id || (form.parentId.isBlank() && pending.firstOrNull()?.id == item.id)
+                val amountBit = item.amount?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (on) LocalOperatingCaptureChrome.current.accentFillSoft else Color.Transparent)
+                        .border(1.dp, if (on) LocalOperatingCaptureChrome.current.accent else LocalOperatingCaptureChrome.current.border, RoundedCornerShape(12.dp))
+                        .clickable {
+                            form.parentId = item.id
+                            item.amount?.takeIf { it.isNotBlank() }?.let { form.amount = it }
+                        }
+                        .padding(10.dp),
+                ) {
+                    Text(
+                        item.title + amountBit,
+                        color = LocalOperatingCaptureChrome.current.ink,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                    )
+                    Text("Pending only", color = LocalOperatingCaptureChrome.current.label, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                }
+            }
+            if (form.parentId.isBlank()) form.parentId = pending.first().id
+        }
+        ReadField(
+            "Requested by",
+            selected?.counterpartyName?.takeIf { it.isNotBlank() } ?: "—",
+        ) {}
+        EditField(
+            "Decision note (C · reject/hold)",
+            form.note,
+            "Add reason",
+        ) { form.note = it }
+        val effectiveLabel = if (form.eventDate == java.time.LocalDate.now()) "Today" else form.dateText
+        ReadField("Effective (O)", effectiveLabel) { form.dateOpen = true }
+        MoreDetails(form.moreOpen, marketingQaMoreDetails(model.subtype.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true))) { form.moreOpen = !form.moreOpen }
+        if (form.moreOpen) NoteField("Note", form.purpose, "Optional") { form.purpose = it }
+        ReadField("Decide by (C)", form.dueDateText, dangerLabel = true) { form.dueDateOpen = true }
+        TradingWhyPanel(marketingQaWhy("APPROVAL", model.subtype.equals("OWN_BUSINESS_CAMPAIGN", ignoreCase = true)))
+    } else {
+        ApprovalBody(
+            model,
+            currency,
+            form.choice,
+            form.note,
+            { form.choice = it },
+            { form.note = it },
+            onDecide,
+            if (marketing) listOf("Approve", "Reject", "Return") else listOf("Approve", "Reject"),
+        )
+    }
 }
 
 @Composable
@@ -2082,8 +3145,34 @@ private fun CaptureSheetFooter(
             .padding(horizontal = 17.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(footerLine(mode, restaurant, service, trading, distribution, marketing, client, production, job), color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-        val action = actionLabel(mode, form.choice, restaurant, service, trading, distribution, marketing, client, production)
+        val chrome = LocalOperatingCaptureChrome.current
+        // Meta above CTA for legacy/trading footers; Client (+ Service) match Figma: CTA then draft meta.
+        if (!service && !client && !own) {
+            Text(
+                when {
+                    trading -> tradingFooterMeta(mode, form, model)
+                    else -> footerLine(mode, restaurant, service, trading, distribution, marketing, client, production, job)
+                },
+                color = if (trading) chrome.hint else SheetMuted,
+                fontFamily = PlusJakartaSans,
+                fontWeight = if (trading) FontWeight.Medium else FontWeight.Normal,
+                fontSize = 12.sp,
+            )
+        }
+        val action = actionLabel(
+            mode,
+            form.choice,
+            restaurant,
+            service,
+            trading,
+            distribution,
+            marketing,
+            client,
+            own,
+            production,
+            eventType,
+            entryMode = form.entryMode,
+        )
         val enabled = when {
             mode == "HOLD" -> form.parentId.isNotBlank() && form.holdReason.isNotBlank()
             mode == "TRANSFER" -> form.purpose.isNotBlank() && form.quantity.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true &&
@@ -2092,7 +3181,8 @@ private fun CaptureSheetFooter(
             mode == "RETURN" -> form.parentId.isNotBlank() && form.returnReason.isNotBlank()
             lovTrade && mode == "SPEND" -> form.expenseCategory.isNotBlank() && form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && (form.choice == "Paid" || form.party.isNotBlank())
             lovTrade && mode == "SALE" -> {
-                val amountOk = if (form.entryMode.equals("Itemized", ignoreCase = true)) {
+                val itemized = form.entryMode.contains("Itemised", ignoreCase = true) || form.entryMode.equals("Itemized", ignoreCase = true)
+                val amountOk = if (itemized) {
                     form.itemName.isNotBlank() || form.savedLines.isNotEmpty()
                 } else {
                     form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
@@ -2120,7 +3210,7 @@ private fun CaptureSheetFooter(
             marketing && mode == "BUDGET" -> form.purpose.isNotBlank()
             marketing && mode == "DELIVERABLE" -> form.purpose.isNotBlank() && form.party.isNotBlank()
             marketing && mode == "COMPLETE" -> form.purpose.isNotBlank() && form.note.isNotBlank()
-            marketing && mode == "PAYMENT" -> form.party.isNotBlank() && form.purpose.isNotBlank()
+            marketing && mode == "PAYMENT" -> form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && form.parentId.isNotBlank()
             marketing && mode == "ISSUE" -> form.purpose.isNotBlank() && form.party.isNotBlank()
             production && mode == "SALE" -> form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && (form.choice == "Received" || form.party.isNotBlank() || form.channel.isNotBlank())
             production && mode == "PURCHASE" -> form.party.isNotBlank() && form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
@@ -2140,18 +3230,40 @@ private fun CaptureSheetFooter(
             else -> true
         }
         val theme = BusinessActiveTheme.forTypeCode(model.subtype)
-        val accentGradient = Brush.horizontalGradient(listOf(theme.accent, theme.accentLight))
+        val accentGradient = when {
+            client || own -> Brush.horizontalGradient(listOf(chrome.accent, chrome.accentSoft))
+            trading -> Brush.horizontalGradient(listOf(chrome.accent, chrome.accent))
+            service -> Brush.horizontalGradient(listOf(ServicesTeal.teal, ServicesTeal.lime))
+            else -> Brush.horizontalGradient(listOf(theme.accent, theme.accentLight))
+        }
         Text(
             action,
-            color = if (enabled) Color.White else SheetMuted,
+            color = when {
+                !enabled && (trading || client) -> chrome.hint
+                !enabled -> SheetMuted
+                service -> ServicesTeal.inkOnTeal
+                else -> Color.White
+            },
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
-            fontSize = 15.sp,
+            fontSize = if (trading || service || client) 15.sp else 15.sp,
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .height(if (trading || service || client || own) 54.dp else 52.dp)
+                .then(
+                    if ((trading || service || client || own) && enabled) {
+                        Modifier.shadow(
+                            12.dp,
+                            RoundedCornerShape(16.dp),
+                            ambientColor = (if (service) ServicesTeal.teal else chrome.accent).copy(alpha = 0.4f),
+                            spotColor = (if (service) ServicesTeal.teal else chrome.accent).copy(alpha = 0.4f),
+                        )
+                    } else {
+                        Modifier
+                    },
+                )
+                .clip(RoundedCornerShape(if (trading || service || client || own) 16.dp else 12.dp))
                 .background(if (enabled) accentGradient else Brush.horizontalGradient(listOf(Color(0xFF353A59), Color(0xFF353A59))))
                 .clickable(enabled = enabled) {
                     if (mode == "REPRINT") {
@@ -2166,7 +3278,7 @@ private fun CaptureSheetFooter(
                             form.error = "Nothing is waiting."
                             return@clickable
                         }
-                        if ((form.choice == "Reject" || form.choice == "Return") && form.note.isBlank()) {
+                        if ((form.choice == "Reject" || form.choice == "Return" || form.choice == "Changes") && form.note.isBlank()) {
                             form.error = "A reason is required."
                             return@clickable
                         }
@@ -2200,6 +3312,7 @@ private fun CaptureSheetFooter(
                     val unpaidDue = when (mode) {
                         "SALE", "SERVICE" -> !saleSettled(form.choice)
                         "PURCHASE", "SPEND" -> form.choice != "Paid"
+                        "APPROVAL" -> true // Decide by (C) — local/display; server may ignore
                         else -> false
                     }
                     val draft = buildDraft(
@@ -2274,6 +3387,7 @@ private fun CaptureSheetFooter(
                         existingShipmentStatus = seed?.status?.takeIf { it.isNotBlank() },
                         dueAtDay = when {
                             mode == "ISSUE" -> form.eventDate.toString()
+                            trading && mode == "UPDATE" && form.choice.equals("Issue", true) -> form.eventDate.toString()
                             unpaidDue -> form.dueDate.toString()
                             else -> form.link.takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}.*""")) }
                         },
@@ -2316,17 +3430,57 @@ private fun CaptureSheetFooter(
                 }
                 .padding(vertical = 15.dp),
         )
+        if (client || own) {
+            Text(
+                marketingQaSticky(own),
+                color = chrome.hint,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Normal,
+                fontSize = 10.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else if (service) {
+            Text(
+                ServiceCaptureCopy.DRAFT_FOOTER,
+                color = ServicesTeal.textBody,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Normal,
+                fontSize = 10.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
 @Composable
 private fun CaptureDateDialogs(form: CaptureForm) {
+    // Pickers inherit the active capture chrome (Trading emerald / Dist orange) so
+    // DST-PICKER frames are not painted with Group lilac.
+    val chrome = LocalOperatingCaptureChrome.current
+    val pickerTheme = remember(chrome) {
+        OperatingSheetTheme(
+            accent = chrome.accent,
+            accentSoft = chrome.accentSoft,
+            canvas = chrome.sheet,
+            surface = chrome.sheet,
+            inset = chrome.field,
+            border = chrome.hairline,
+            ink = chrome.ink,
+            body = chrome.label,
+            warning = OperatingSheetWarning,
+            negative = OperatingSheetNegative,
+        )
+    }
+    val distPicker = OperatingCaptureChromeTokens.isOpsQa(chrome) &&
+        chrome === OperatingCaptureChromeTokens.Distribution
     // The state picker is shared with the setup document and the masters sheet, so a state is
     // written back as the same canonical name everywhere.
     form.statePicker?.let { field ->
         IndiaStateSheet(
             selected = if (field == StatePickerField.BUSINESS) form.businessState else form.billingState,
-            theme = CaptureSheetTheme,
+            theme = pickerTheme,
             onDismiss = { form.statePicker = null },
             onPick = { picked ->
                 if (field == StatePickerField.BUSINESS) form.businessState = picked.name
@@ -2338,11 +3492,12 @@ private fun CaptureDateDialogs(form: CaptureForm) {
     // The three Figma pickers (`TRD-PICKER` / `DST-PICKER`) replace the stock Material
     // dialogs so a trading capture matches the frame instead of the platform calendar.
     if (form.dateOpen) {
-        OperatingSheetScrim(onDismiss = { form.dateOpen = false }) {
+        OperatingSheetScrim(onDismiss = { form.dateOpen = false }, accent = chrome.accent, surface = chrome.sheet) {
             OperatingPickerSheet(
                 mode = OperatingPickerMode.DAY,
                 initial = form.eventDate,
-                theme = CaptureSheetTheme,
+                theme = pickerTheme,
+                title = if (distPicker) "Select date" else null,
                 onDismiss = { form.dateOpen = false },
                 onDay = {
                     form.eventDate = it
@@ -2352,11 +3507,11 @@ private fun CaptureDateDialogs(form: CaptureForm) {
         }
     }
     if (form.dueDateOpen) {
-        OperatingSheetScrim(onDismiss = { form.dueDateOpen = false }) {
+        OperatingSheetScrim(onDismiss = { form.dueDateOpen = false }, accent = chrome.accent, surface = chrome.sheet) {
             OperatingPickerSheet(
                 mode = OperatingPickerMode.DAY,
                 initial = form.dueDate,
-                theme = CaptureSheetTheme,
+                theme = pickerTheme,
                 title = "When is this due?",
                 onDismiss = { form.dueDateOpen = false },
                 onDay = {
@@ -2367,12 +3522,12 @@ private fun CaptureDateDialogs(form: CaptureForm) {
         }
     }
     if (form.goodsDueOpen) {
-        OperatingSheetScrim(onDismiss = { form.goodsDueOpen = false }) {
+        OperatingSheetScrim(onDismiss = { form.goodsDueOpen = false }, accent = chrome.accent, surface = chrome.sheet) {
             OperatingPickerSheet(
                 mode = OperatingPickerMode.DATE_TIME,
                 initial = form.goodsDueDate,
-                theme = CaptureSheetTheme,
-                title = "When will the goods arrive?",
+                theme = pickerTheme,
+                title = if (distPicker) DistributionMasterCopy.PICKER_DATETIME_TITLE else "When will the goods arrive?",
                 onDismiss = { form.goodsDueOpen = false },
                 onDay = {
                     form.goodsDueDate = it
@@ -2382,13 +3537,13 @@ private fun CaptureDateDialogs(form: CaptureForm) {
         }
     }
     if (form.monthOpen) {
-        // `TRD-PICKER` month variant — a budget or a target is planned by month.
-        OperatingSheetScrim(onDismiss = { form.monthOpen = false }) {
+        // `TRD-PICKER` / `DST-PICKER` month variant — a budget or a target is planned by month.
+        OperatingSheetScrim(onDismiss = { form.monthOpen = false }, accent = chrome.accent, surface = chrome.sheet) {
             OperatingPickerSheet(
                 mode = OperatingPickerMode.MONTH,
                 initial = form.eventDate,
-                theme = CaptureSheetTheme,
-                title = "Plan month",
+                theme = pickerTheme,
+                title = if (distPicker) DistributionMasterCopy.PICKER_MONTH_TITLE else "Plan month",
                 onDismiss = { form.monthOpen = false },
                 onDay = {},
                 onMonth = {
@@ -2399,20 +3554,6 @@ private fun CaptureDateDialogs(form: CaptureForm) {
         }
     }
 }
-
-/** The capture sheet's own palette, shared by the pickers opened from inside it. */
-private val CaptureSheetTheme = OperatingSheetTheme(
-    accent = SheetAccent,
-    accentSoft = SheetAccent,
-    canvas = BusinessSheetTokens.bg,
-    surface = BusinessSheetTokens.bg,
-    inset = BusinessSheetTokens.field,
-    border = SheetBorder,
-    ink = SheetInk,
-    body = SheetMuted,
-    warning = OperatingSheetWarning,
-    negative = OperatingSheetNegative,
-)
 
 @Composable
 private fun CaptureLovHost(
@@ -2429,10 +3570,11 @@ private fun CaptureLovHost(
         SearchableOperatingLovSheet(
             title = lovTitle(kind),
             kind = kind,
-            pageSize = if (pickerKind in setOf("SALES_ORDER", "PURCHASE_ORDER", "OBLIGATION")) 20 else null,
+            pageSize = if (pickerKind in setOf("SALES_ORDER", "PURCHASE_ORDER", "OBLIGATION", "LINKED_SOURCE")) 20 else null,
             options = when (pickerKind) {
                 "SALES_ORDER", "PURCHASE_ORDER" -> orderLovOptions(model, pickerKind)
                 "OBLIGATION" -> obligationLovOptions(mode, model)
+                "LINKED_SOURCE" -> linkedSourceLovOptions(model)
                 else -> lovOptions(kind, model.masters.orEmpty(), channels, form.localMasters).let { rows ->
                     val listed = if (
                         kind.equals("EXPENSE_CATEGORY", ignoreCase = true) &&
@@ -2453,7 +3595,7 @@ private fun CaptureLovHost(
                     }
                 }
             },
-            canAdd = onCreateMaster != null && pickerKind !in setOf("UOM", "SALES_ORDER", "PURCHASE_ORDER", "OBLIGATION"),
+            canAdd = onCreateMaster != null && pickerKind !in setOf("UOM", "SALES_ORDER", "PURCHASE_ORDER", "OBLIGATION", "LINKED_SOURCE"),
             unitChoices = if (kind.equals("PRODUCT", ignoreCase = true)) OperatingSeedUoms.all else emptyList(),
             accent = if (distribution) Color(0xFF66C7A4) else Color(0xFF6DDCFF),
             onSelect = { option -> form.applyLov(kind, option, mode, model) },
@@ -2568,29 +3710,129 @@ private fun footerLine(mode: String, restaurant: Boolean = false, service: Boole
     else -> "Draft · Nothing saved yet"
 }
 
-private fun actionLabel(mode: String, choice: String, restaurant: Boolean = false, service: Boolean = false, trading: Boolean = false, distribution: Boolean = false, marketing: Boolean = false, client: Boolean = false, production: Boolean = false): String = when (mode) {
-    "SALE" -> if (service && choice == "Received") "Mark Received & Save Sale" else "Save Sale"
+private fun tradingFooterMeta(mode: String, form: CaptureForm, model: OperatingProjectionDto): String {
+    val currency = model.currency?.ifBlank { null } ?: "INR"
+    return when (mode) {
+        "SALE" -> when {
+            form.choice.equals("Part paid", true) -> {
+                val total = form.amount.toBigDecimalOrNull()
+                val paid = form.receivedAmount.toBigDecimalOrNull()
+                if (total != null && paid != null && total > paid) {
+                    "Part paid · ${formatMoney(total - paid, currency)} stays in AR"
+                } else {
+                    "Part paid · remaining stays in AR"
+                }
+            }
+            form.choice.equals("Received", true) -> "Received · no open AR"
+            else -> "Pay later · full amount stays in AR"
+        }
+        "PURCHASE" -> when {
+            form.choice == "Part paid" -> "Part paid · payable remains"
+            form.receiptState.contains("later", true) -> "Payable · goods receive later"
+            form.choice == "Paid" -> "Paid · goods ${if (form.receiptState.contains("later", true)) "pending" else "received now"}"
+            else -> "Payable · goods ${if (form.receiptState.contains("Fully", true) || form.receiptState.contains("now", true)) "received now" else "pending"}"
+        }
+        "COLLECTION" -> {
+            val amt = form.amount.ifBlank { "—" }
+            val shown = if (amt == "—") "—" else formatOperatingAmount(currency, amt)
+            "Allocated $shown of $shown"
+        }
+        "PAYMENT" -> {
+            val amt = form.amount.ifBlank { "—" }
+            val shown = if (amt == "—") "—" else formatOperatingAmount(currency, amt)
+            "Allocated $shown of $shown"
+        }
+        "SPEND" -> if (form.choice == "Paid") "Paid · posts expense + disbursement" else "Pay later · needs payee"
+        "STOCK" -> {
+            val qty = form.quantity.ifBlank { form.amount }.ifBlank { "—" }
+            val unit = form.unit.ifBlank { "pc" }
+            "Prior — → $qty → result $unit"
+        }
+        "RETURN" -> {
+            val credit = form.amount.ifBlank { "—" }
+            val creditShown = if (credit == "—") "—" else formatOperatingAmount(currency, credit)
+            val qty = form.quantity.ifBlank { "0" }
+            "Credit $creditShown · +$qty pc to stock"
+        }
+        "BUDGET" -> "v3 replaces v2 · prior kept"
+        "UPDATE", "ISSUE" -> "Adds to Needs Attention"
+        "APPROVAL" -> if (form.choice.equals("Reimburse", true)) "Reimburse posts a separate payment" else "Decision only · money is separate"
+        "ORDER" -> {
+            val amt = form.amount.ifBlank { "—" }
+            val shown = if (amt == "—") "—" else formatOperatingAmount(currency, amt)
+            "Commitment $shown · nothing posted"
+        }
+        "SHIPMENT" -> {
+            val qty = form.quantity.ifBlank { "—" }
+            "−$qty pc stock · money stays on Collection"
+        }
+        else -> footerLine(mode, trading = true)
+    }
+}
+
+private fun actionLabel(
+    mode: String,
+    choice: String,
+    restaurant: Boolean = false,
+    service: Boolean = false,
+    trading: Boolean = false,
+    distribution: Boolean = false,
+    marketing: Boolean = false,
+    client: Boolean = false,
+    own: Boolean = false,
+    production: Boolean = false,
+    eventType: String = "",
+    entryMode: String = "",
+): String {
+    if (service) return ServiceCaptureCopy.cta(mode)
+    if (client || own) {
+        if (mode == "MASTERS") {
+            return if (entryMode.equals("Create rate card", true)) "Save rate card" else "Save service"
+        }
+        return marketingQaCta(mode, eventType, own = own)
+    }
+    if (marketing) {
+        if (mode == "MASTERS") {
+            return if (entryMode.equals("Create rate card", true)) "Save rate card" else "Save service"
+        }
+        val key = MarketingOwnQuickAddCopy.catalogMode(eventType.ifBlank { mode }, mode)
+        return MarketingOwnQuickAddCopy.cta(key)
+    }
+    return when (mode) {
+    "SALE" -> when {
+        trading -> opsQaCta("SALE", distribution)
+        else -> "Save Sale"
+    }
     "SERVICE" -> "Save Service"
-    "PURCHASE", "VENDOR", "SPEND" -> if (service) "Submit for Approval" else "Submit for approval"
-    "PAYMENT" -> if (marketing) "Mark Paid" else "Record Payment"
+    "PURCHASE" -> if (trading) opsQaCta("PURCHASE", distribution) else "Submit for approval"
+    "VENDOR", "SPEND" -> if (trading && mode == "SPEND") opsQaCta("SPEND", distribution) else "Submit for approval"
+    "PAYMENT" -> when {
+        marketing -> "Mark Paid"
+        trading -> opsQaCta("PAYMENT", distribution)
+        else -> "Record Payment"
+    }
     "REIMBURSE" -> "Mark Reimbursed"
-    "RETURN" -> "Save return"
-    "HOLD" -> if (choice == "No hold") "Release hold" else "Hold record"
-    "TRANSFER" -> "Save transfer"
-    "REPRINT" -> "Print / share"
-    "HOLD" -> if (choice == "No hold") "Release hold" else "Hold record"
-    "TRANSFER" -> "Save transfer"
-    "REPRINT" -> "Print / share"
-    "COLLECTION" -> "Mark Received"
-    "BUDGET" -> if (marketing) "Submit plan revision" else "Submit revision"
+    "RETURN" -> if (trading) opsQaCta("RETURN", distribution) else "Save return"
+    "HOLD" -> if (choice == "No hold") "Release hold" else if (distribution) opsQaCta("HOLD", true) else "Hold record"
+    "TRANSFER" -> if (distribution) opsQaCta("TRANSFER", true) else "Save transfer"
+    "REPRINT" -> if (distribution) opsQaCta("REPRINT", true) else "Print / share"
+    "COLLECTION" -> if (trading) opsQaCta("COLLECTION", distribution) else "Mark Received"
+    "BUDGET" -> when {
+        marketing -> "Submit plan revision"
+        trading -> opsQaCta("BUDGET", distribution)
+        else -> "Submit revision"
+    }
     "TARGET" -> when {
         marketing && choice in setOf("Extend launch outcome", "Change launch scope", "Correct planning error") -> "Submit target revision"
         marketing -> "Submit revision"
         else -> "Submit target"
     }
-    "UPDATE" -> "Save update"
-    "ISSUE" -> "Save issue"
-    "STOCK" -> if (distribution) "Save availability update" else "Save stock update"
+    "UPDATE" -> if (trading) opsQaCta("UPDATE", distribution) else "Save update"
+    "ISSUE" -> if (trading) opsQaCta("ISSUE", distribution) else "Save issue"
+    "STOCK" -> when {
+        trading -> opsQaCta("STOCK", distribution)
+        else -> "Save stock update"
+    }
     "PRODUCTION" -> "Save production"
     "CONFIRM" -> "Confirm order"
     "QUOTE_REVISE" -> "Save quote revise"
@@ -2602,31 +3844,32 @@ private fun actionLabel(mode: String, choice: String, restaurant: Boolean = fals
     "SUPPLIER", "PARTNER" -> when {
         distribution && mode == "SUPPLIER" -> "Save Principal / Supplier"
         (restaurant || service || trading) && mode == "SUPPLIER" -> "Save Supplier"
-        marketing && mode == "PARTNER" -> if (client) "Save partner" else "Save Partners & Channels"
+        marketing && mode == "PARTNER" -> if (client) "Save party" else "Save Partners & Channels"
         production && mode == "PARTNER" -> "Save Supplier"
         else -> "Save"
     }
-    "APPROVAL" -> when (choice) {
-        "Reject" -> "Reject"
-        "Return" -> "Return"
+    "APPROVAL" -> when {
+        trading -> opsQaCta("APPROVAL", distribution)
+        choice == "Reject" -> "Reject"
+        choice == "Return" || choice == "Changes" -> "Return"
         else -> "Approve"
     }
     "ORDER" -> when {
         production -> "Save order"
         restaurant -> "Save order update"
-        trading || distribution -> "Save dispatch update"
+        trading -> opsQaCta("ORDER", distribution)
         else -> "Save order"
     }
     "SHIPMENT" -> when {
-        distribution -> "Save delivery update"
-        trading -> "Save Delivery Update"
+        trading -> opsQaCta("SHIPMENT", distribution)
         else -> "Save shipment"
     }
     "DELIVERY" -> "Save delivery"
-    "APPOINTMENT" -> if (service) "Save job update" else "Save appointment"
+    "APPOINTMENT" -> "Save appointment"
     "DELIVERABLE" -> if (marketing) "Add Deliverable" else "Save deliverable"
     "COMPLETE" -> if (marketing) "Mark Complete" else "Mark complete"
     else -> "Save"
+    }
 }
 
 private fun textLabel(mode: String): String = when (mode) {
@@ -2757,8 +4000,9 @@ private fun manufacturingDraft(
             val value = amount.toBigDecimalOrNull()
             if (party.isBlank() || value == null || value <= BigDecimal.ZERO) return null
             val receipt = when {
-                receiptState.equals("Part received", true) -> "PART_RECEIVED"
-                receiptState.equals("Awaiting", true) || receiptState.equals("Awaiting receipt", true) -> "AWAITING"
+                receiptState.contains("Part", ignoreCase = true) -> "PART_RECEIVED"
+                receiptState.contains("later", ignoreCase = true)
+                    || receiptState.contains("Await", ignoreCase = true) -> "AWAITING"
                 else -> "RECEIVED"
             }
             draft(
@@ -3064,20 +4308,23 @@ private fun buildDraft(
 ): OperatingCaptureDraft? {
     if (lovTrade && (mode == "UPDATE" || mode == "ISSUE")) {
         if (purpose.isBlank()) return null
+        val isIssue = mode == "ISSUE" || choice.equals("Issue", ignoreCase = true)
         val activityNote = listOfNotNull(
-            if (mode == "ISSUE" && choice.isNotBlank()) choice.trim() else null,
+            if (isIssue && choice.isNotBlank() && !choice.equals("Issue", true)) choice.trim() else null,
             note.trim().ifBlank { null },
+            itemName.trim().takeIf { it.isNotBlank() }?.let { "Linked: $it" },
         ).joinToString(" · ").ifBlank { null }
         return OperatingCaptureDraft(
-            eventType = if (mode == "ISSUE") "ISSUE" else "UPDATE",
+            eventType = if (isIssue) "ISSUE" else "UPDATE",
             title = purpose.trim(),
             amount = null,
             note = activityNote,
             channelName = null,
-            counterpartyName = if (mode == "ISSUE") party.trim().ifBlank { null } else null,
+            counterpartyName = if (isIssue) party.trim().ifBlank { null } else null,
             paymentStatus = "NONE",
             occurredAt = occurredAt,
-            dueAt = if (mode == "ISSUE") occurredAt else null,
+            parentEventId = parentId.trim().ifBlank { null },
+            dueAt = if (isIssue) (dueAtDay ?: occurredAt) else null,
         )
     }
     if (mode == "MASTERS") {
@@ -3087,19 +4334,40 @@ private fun buildDraft(
         val productMaster = masterKind in setOf("PRODUCT", "MATERIAL", "CONSUMABLE")
         val savedUnit = if (lovTrade) OperatingSeedUoms.canonical(unit).ifBlank { null } else unit.ifBlank { null }
         if (productMaster && lovTrade && savedUnit.isNullOrBlank() && linked == null) return null
+        val masterNote = listOfNotNull(
+            purpose.trim().ifBlank { null },
+            detail.trim().takeIf { it.isNotBlank() }?.let { "Category: $it" },
+        ).joinToString(" · ").ifBlank { null }
         return OperatingCaptureDraft(
             eventType = "UPDATE",
             title = itemName.ifBlank { "Linked master" }.trim(),
             amount = null,
-            note = purpose.ifBlank { null },
-            channelName = null,
+            note = masterNote,
+            channelName = channel.trim().ifBlank { null },
             counterpartyName = null,
             paymentStatus = null,
             occurredAt = occurredAt,
             unit = savedUnit,
+            unitPrice = unitPrice.filter { it.isDigit() || it == '.' }.ifBlank { null },
             itemName = itemName.trim().ifBlank { null },
             masterKind = masterKind,
             masterId = linked,
+            masterGstApplicable = when (gstApplicable) {
+                "Yes" -> "YES"
+                "No" -> "NO"
+                "Not sure" -> "NOT_SURE"
+                else -> null
+            },
+            masterGstClassification = when (gstClassification) {
+                "Taxable" -> "TAXABLE"
+                "Exempt" -> "EXEMPT"
+                "Nil-rated" -> "NIL"
+                "Non-GST" -> "NON_GST"
+                else -> null
+            },
+            masterGstRate = gstRate.filter { it.isDigit() || it == '.' }.ifBlank { null },
+            masterHsn = hsn.trim().ifBlank { null },
+            masterGstEffectiveFrom = gstEffectiveFrom.trim().takeIf { it.matches(Regex("""\d{4}-\d{2}-\d{2}""")) },
         )
     }
     if (mode == "HOLD") {
@@ -3200,7 +4468,7 @@ private fun buildDraft(
     if (needsAmount && (value == null || value <= BigDecimal.ZERO)) return null
     val contractStock = (retail || lovTrade) && mode == "STOCK"
     val governedTrade = lovTrade && mode in setOf("SALE", "PURCHASE", "SPEND", "STOCK", "ORDER", "COLLECTION", "PAYMENT", "SHIPMENT", "DELIVERY", "RETURN", "UPDATE", "ISSUE")
-    val needsText = mode in setOf("UPDATE", "ISSUE", "STOCK", "ORDER", "SHIPMENT", "DELIVERY", "APPOINTMENT", "DELIVERABLE", "COMPLETE")
+    val needsText = mode in setOf("UPDATE", "ISSUE", "STOCK", "ORDER", "SHIPMENT", "DELIVERY", "APPOINTMENT", "STATUS", "DELIVERABLE", "COMPLETE")
     if (needsText && !(production && mode == "ORDER") && !contractStock && !governedTrade && purpose.isBlank() && note.isBlank()) return null
     // Contract STOCK has no note field — item + quantity are enough (iOS retailDraft parity).
     if (contractStock && (purpose.isBlank() || quantity.isBlank())) return null
@@ -3243,11 +4511,12 @@ private fun buildDraft(
     val lineItemName = if (mode == "RETURN" && !entryMode.equals("Itemized", ignoreCase = true)) "" else itemName
     val savedTitle = when (mode) {
         "PERSON", "ROLE", "INVITE", "SUPPLIER", "PARTNER" -> party.trim()
-        "UPDATE", "ISSUE", "ORDER", "SHIPMENT", "DELIVERY", "APPOINTMENT", "DELIVERABLE", "COMPLETE" ->
+        "UPDATE", "ISSUE", "ORDER", "SHIPMENT", "DELIVERY", "APPOINTMENT", "STATUS", "DELIVERABLE", "COMPLETE" ->
             when {
                 production && mode == "ORDER" -> party.trim()
                 lovTrade && mode == "ORDER" -> itemName.trim().ifBlank { party.trim() }.ifBlank { title }
                 lovTrade && mode in setOf("UPDATE", "ISSUE", "SHIPMENT") -> purpose.trim().ifBlank { title }
+                mode == "STATUS" -> purpose.trim().ifBlank { title }
                 else -> purpose.trim().take(80)
             }
         "STOCK" -> purpose.trim().ifBlank { title }
@@ -3308,12 +4577,20 @@ private fun buildDraft(
         choice.takeIf { it.isNotBlank() && mode in setOf("ISSUE", "STOCK", "ORDER", "SHIPMENT", "APPOINTMENT", "SPEND", "PERSON", "ROLE", "INVITE", "SUPPLIER", "PARTNER") },
     ).joinToString(" · ").ifBlank { null }
     val retailContract = if (retail || restaurant || service || trading || distribution) {
-        val itemized = entryMode.equals("Itemized", ignoreCase = true) ||
+        val itemized = entryMode.contains("Itemised", ignoreCase = true) ||
+            entryMode.equals("Itemized", ignoreCase = true) ||
             (itemName.isNotBlank() && quantity.isNotBlank() && unitPrice.isNotBlank())
         val salePay = when {
-            choice.equals("Received", ignoreCase = true) || choice.equals("Walk-in", ignoreCase = true) || choice.equals("Paid", ignoreCase = true) -> "RECEIVED"
-            choice.equals("Part paid", ignoreCase = true) -> "PART_PAID"
-            choice.equals("Pay later", ignoreCase = true) || choice.equals("Named credit", ignoreCase = true) || choice.equals("Pending", ignoreCase = true) -> "PAY_LATER"
+            choice.equals("Received", ignoreCase = true) ||
+                choice.equals("Walk-in", ignoreCase = true) ||
+                choice.equals("Paid", ignoreCase = true) ||
+                choice.equals("Fully Paid", ignoreCase = true) -> "RECEIVED"
+            choice.equals("Part paid", ignoreCase = true) ||
+                choice.equals("Partially Paid", ignoreCase = true) -> "PART_PAID"
+            choice.equals("Pay later", ignoreCase = true) ||
+                choice.equals("Pay Later", ignoreCase = true) ||
+                choice.equals("Named credit", ignoreCase = true) ||
+                choice.equals("Pending", ignoreCase = true) -> "PAY_LATER"
             else -> "PAY_LATER"
         }
         val purchasePay = when {
@@ -3321,12 +4598,13 @@ private fun buildDraft(
             choice.equals("Part paid", ignoreCase = true) -> "PART_PAID"
             else -> "PAY_LATER"
         }
-        val stockActionCode = when (stockActionLabel.lowercase()) {
-            "set current stock", "set" -> "SET"
-            "add" -> "ADD"
-            "reduce" -> "REDUCE"
-            "transfer" -> "TRANSFER"
-            else -> if (mode == "STOCK") "SET" else null
+        val stockActionCode = when {
+            stockActionLabel.contains("transfer", ignoreCase = true) -> "TRANSFER"
+            stockActionLabel.contains("add", ignoreCase = true) -> "ADD"
+            stockActionLabel.contains("reduce", ignoreCase = true) -> "REDUCE"
+            stockActionLabel.contains("set", ignoreCase = true) -> "SET"
+            mode == "STOCK" -> "SET"
+            else -> null
         }
         val stockReasonCode = OperatingStockReasons.reasonCode(stockReasonLabel)
             ?: if (mode == "STOCK") "stocktake" else null
@@ -3336,6 +4614,8 @@ private fun buildDraft(
             choice.equals("Ready", ignoreCase = true) -> "READY"
             choice.equals("Completed", ignoreCase = true) || choice.equals("Fulfilled", ignoreCase = true) -> "COMPLETED"
             choice.equals("Cancelled", ignoreCase = true) -> "CANCELLED"
+            choice.equals("Draft", ignoreCase = true) -> "DRAFT"
+            choice.contains("Open", ignoreCase = true) -> "PLACED"
             else -> "PLACED"
         }
         val shipmentStatus = when {
@@ -3392,19 +4672,25 @@ private fun buildDraft(
             },
             receiptState = receiptCode,
             receivedAmount = paidOrReceived,
-            quantityReceived = if (mode == "PURCHASE" && receiptCode == "PART_RECEIVED") quantityReceived.ifBlank { null } else null,
+            quantityReceived = when {
+                mode == "PURCHASE" && receiptCode == "PART_RECEIVED" -> quantityReceived.ifBlank { null }
+                // QA-04 — quantity delivered now on partially delivered itemised sale.
+                lovTrade && mode in setOf("SALE", "SERVICE") && goodsStatusLabel.contains("Partial", ignoreCase = true) ->
+                    quantityReceived.ifBlank { null }
+                else -> null
+            },
             stockAction = stockActionCode,
             stockReason = stockReasonCode,
             appointmentAction = appointmentAction,
-            orderStatus = orderStatus,
-            staffName = if (mode == "APPOINTMENT") detail.ifBlank { null } else null,
+            orderStatus = if (lovTrade && mode == "ORDER" && orderSideLabel.startsWith("Quotation")) null else orderStatus,
+            staffName = if (mode == "APPOINTMENT" || mode == "STATUS") detail.ifBlank { null } else null,
             estimatedAmount = if (mode in setOf("ORDER", "APPOINTMENT")) resolvedAmount.ifBlank { null } else null,
             allocations = allocations,
             ownership = ownershipCode,
             shipmentStatus = shipmentStatus,
             promisedAt = when {
                 lovTrade && (
-                    (mode in setOf("SALE", "SERVICE") && goodsStatusLabel != "Fully delivered") ||
+                    (mode in setOf("SALE", "SERVICE") && !goodsStatusLabel.contains("Fully", ignoreCase = true)) ||
                         (mode == "PURCHASE" && receiptState != "Fully received" && receiptState != "Received")
                     ) -> goodsDueDay
                 mode in setOf("ORDER", "SHIPMENT", "DELIVERY") -> promised
@@ -3429,10 +4715,28 @@ private fun buildDraft(
                 }
             } else null,
             returnReason = if (mode == "RETURN") returnReason.trim().take(80).ifBlank { null } else null,
-            orderSide = if (lovTrade && mode == "ORDER") if (orderSideLabel.startsWith("Purchase")) "PURCHASE" else "SALES" else null,
-            goodsStatus = if (lovTrade && mode in setOf("SALE", "SERVICE")) when (goodsStatusLabel) {
-                "Fully delivered" -> "DELIVERED"
-                "Partially delivered" -> "PARTIAL"
+            orderSide = if (lovTrade && mode == "ORDER") {
+                when {
+                    orderSideLabel.startsWith("Purchase") -> "PURCHASE"
+                    else -> "SALES"
+                }
+            } else null,
+            quotationStatus = if (lovTrade && mode == "ORDER") {
+                when {
+                    orderSideLabel.startsWith("Quotation") -> when (choice.lowercase()) {
+                        "draft" -> "DRAFT"
+                        "accepted" -> "ACCEPTED"
+                        "rejected" -> "REJECTED"
+                        "expired" -> "EXPIRED"
+                        else -> "SENT"
+                    }
+                    // Confirmed sales/purchase orders are ACCEPTED so board metrics count them.
+                    else -> "ACCEPTED"
+                }
+            } else null,
+            goodsStatus = if (lovTrade && mode in setOf("SALE", "SERVICE")) when {
+                goodsStatusLabel.contains("Fully", ignoreCase = true) -> "DELIVERED"
+                goodsStatusLabel.contains("Partial", ignoreCase = true) -> "PARTIAL"
                 else -> "LATER"
             } else null,
         )
@@ -3451,7 +4755,11 @@ private fun buildDraft(
         unit = if (lovTrade) OperatingSeedUoms.canonical(unit).ifBlank { null } else unit.ifBlank { null },
         unitPrice = unitPrice.ifBlank { null },
         itemName = lineItemName.ifBlank { null },
-        parentEventId = if (mode == "ORDER" || mode == "APPOINTMENT") null else parentId.ifBlank { null },
+        parentEventId = when {
+            mode == "STATUS" -> parentId.ifBlank { null }
+            mode == "ORDER" || mode == "APPOINTMENT" -> null
+            else -> parentId.ifBlank { null }
+        },
         revisesEventId = if ((mode == "ORDER" || mode == "APPOINTMENT") && parentId.isNotBlank()) parentId else revisesEventId?.takeIf { it.isNotBlank() },
         masterKind = if (mode == "MASTERS") masterKind.ifBlank { null } else null,
         masterGstApplicable = if (mode == "MASTERS") when (gstApplicable) {
@@ -3487,13 +4795,25 @@ private fun buildDraft(
             if (reportingMode == "Cumulative") "CUMULATIVE" else "INCREMENTAL"
         } else null,
         metricCode = if (marketing && mode == "RESULT" && !statusOnlyProgress) metricCode else null,
-        activityStatus = if (marketing && (mode == "UPDATE" || eventType == "PROGRESS")) when (activityStatus) {
-            "Blocked" -> "BLOCKED"
-            "Postponed" -> "POSTPONED"
-            "Completed" -> "COMPLETED"
-            "Cancelled" -> "CANCELLED"
-            else -> "IN_PROGRESS"
-        } else null,
+        activityStatus = when {
+            mode == "STATUS" -> when {
+                activityStatus.contains("Complete", ignoreCase = true) -> "COMPLETED"
+                activityStatus.contains("Cancel", ignoreCase = true) -> "CANCELLED"
+                activityStatus.contains("Reschedule", ignoreCase = true) -> "RESCHEDULED"
+                activityStatus.contains("No-show", ignoreCase = true) || activityStatus.contains("No show", ignoreCase = true) -> "NO_SHOW"
+                else -> "IN_PROGRESS"
+            }
+            marketing && (mode == "UPDATE" || eventType == "PROGRESS") -> when (activityStatus) {
+                "Planned" -> "OPEN"
+                "Blocked" -> "BLOCKED"
+                "Postponed" -> "POSTPONED"
+                "Done" -> "DONE"
+                "Completed" -> "COMPLETED"
+                "Cancelled" -> "CANCELLED"
+                else -> "IN_PROGRESS"
+            }
+            else -> null
+        },
         costBasis = if (marketing && mode == "SPEND" && client) {
             if (costBasis == "Client reimbursable") "REIMBURSABLE" else "AGENCY"
         } else null,
@@ -3571,55 +4891,112 @@ private fun budgetSummary(model: OperatingProjectionDto, currency: String, typed
 }
 
 @Composable
-internal fun AmountBlock(label: String, currency: String, value: String, hint: String, onValue: (String) -> Unit) {
+internal fun AmountBlock(
+    label: String,
+    currency: String,
+    value: String,
+    hint: String,
+    unitOverride: String? = null,
+    onValue: (String) -> Unit,
+) {
+    val chrome = LocalOperatingCaptureChrome.current
+    val trading = OperatingCaptureChromeTokens.isOpsQa(chrome)
+    val ownQa = OperatingCaptureChromeTokens.isMarketingOwnQa(chrome)
+    // Own Figma amount heroes tint the unit / INR pill amber (`accentSoft`), not magenta.
+    val unitTint = if (ownQa) chrome.accentSoft else chrome.accent
+    val unitFill = if (ownQa) chrome.accentSoft.copy(alpha = 0.12f) else chrome.accentFillSoft
+    val unitLabel = unitOverride
+        ?: if (trading && currency.equals("INR", true)) "INR ₹" else currency
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(SheetFieldBg)
-            .border(1.dp, SheetBrand, RoundedCornerShape(12.dp))
-            .padding(10.dp),
+            .clip(RoundedCornerShape(if (trading) 20.dp else 12.dp))
+            .background(chrome.field)
+            .border(1.dp, if (trading) chrome.amountBorder else chrome.brand, RoundedCornerShape(if (trading) 20.dp else 12.dp))
+            .padding(if (trading) 16.dp else 10.dp),
+        verticalArrangement = Arrangement.spacedBy(if (trading) 6.dp else 0.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-            Text(currency, color = SheetAccent, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(label, color = chrome.label, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+            Text(
+                unitLabel,
+                color = unitTint,
+                fontFamily = PlusJakartaSans,
+                fontWeight = if (trading) FontWeight.Bold else FontWeight.Normal,
+                fontSize = 12.sp,
+                modifier = if (trading) {
+                    Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(unitFill)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                } else {
+                    Modifier
+                },
+            )
         }
         BasicTextField(
             value = value,
             onValueChange = { raw -> onValue(raw.filter { it.isDigit() || it == '.' }) },
-            textStyle = TextStyle(color = SheetInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 30.sp),
+            textStyle = TextStyle(
+                color = chrome.ink,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Bold,
+                fontSize = if (trading) 40.sp else 30.sp,
+                letterSpacing = if (trading) (-1).sp else 0.sp,
+            ),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            cursorBrush = SolidColor(SheetBrand),
+            cursorBrush = SolidColor(chrome.brand),
             decorationBox = { inner ->
-                if (value.isEmpty()) Text("0.00", color = SheetMuted, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 30.sp)
+                if (value.isEmpty()) {
+                    Text(
+                        "0.00",
+                        color = chrome.hint,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = if (trading) 40.sp else 30.sp,
+                    )
+                }
                 inner()
             },
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         )
-        Text(hint, color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        Text(hint, color = chrome.hint, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ChoiceBlock(label: String, options: List<String>, selected: String, onSelect: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+    val chrome = LocalOperatingCaptureChrome.current
+    val trading = OperatingCaptureChromeTokens.isOpsQa(chrome)
+    Column(verticalArrangement = Arrangement.spacedBy(if (trading) 8.dp else 6.dp)) {
+        if (label.isNotBlank()) {
+            Text(label, color = chrome.label, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+        }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(if (trading) 8.dp else 6.dp),
+            verticalArrangement = Arrangement.spacedBy(if (trading) 8.dp else 6.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             options.forEach { option ->
                 val on = option == selected
                 Text(
-                    if (on) "✓ $option" else option,
-                    color = if (on) SheetAccent else SheetMuted,
+                    if (on && !trading) "✓ $option" else option,
+                    color = when {
+                        on && trading -> chrome.onAccent
+                        on -> chrome.accent
+                        trading -> chrome.chipIdleText
+                        else -> chrome.label
+                    },
                     fontFamily = PlusJakartaSans,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp,
+                    fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = if (trading) 13.sp else 12.sp,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (on) SheetIdentity else SheetFieldBg)
-                        .border(1.dp, if (on) SheetBrand else SheetBorder, RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(if (trading) 999.dp else 10.dp))
+                        .background(if (on) chrome.identity else chrome.field)
+                        .border(1.dp, if (on) chrome.brand else chrome.chipBorder, RoundedCornerShape(if (trading) 999.dp else 10.dp))
                         .clickable { onSelect(option) }
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                        .padding(horizontal = if (trading) 14.dp else 10.dp, vertical = if (trading) 9.dp else 8.dp),
                 )
             }
         }
@@ -3636,42 +5013,89 @@ internal fun ReadField(
     label: String,
     value: String,
     modifier: Modifier = Modifier.fillMaxWidth(),
+    trailing: String? = null,
+    trailingAccent: Boolean = false,
+    dangerLabel: Boolean = false,
     onClick: (() -> Unit)? = null,
 ) {
+    val chrome = LocalOperatingCaptureChrome.current
+    val trading = OperatingCaptureChromeTokens.isOpsQa(chrome)
     Column(
-        modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(SheetFieldBg)
-            .border(1.dp, SheetBorder, RoundedCornerShape(12.dp))
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 10.dp, vertical = 7.dp),
+        modifier,
+        verticalArrangement = Arrangement.spacedBy(if (trading) 6.dp else 0.dp),
     ) {
-        Text(label, color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-        Text(value, color = SheetInk, fontFamily = PlusJakartaSans, fontSize = 14.sp)
+        if (trading) {
+            Text(
+                label,
+                color = if (dangerLabel) chrome.danger else chrome.label,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+            )
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(if (trading) 14.dp else 12.dp))
+                .background(chrome.field)
+                .border(1.dp, if (trading) chrome.hairline else chrome.border, RoundedCornerShape(if (trading) 14.dp else 12.dp))
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                .padding(horizontal = if (trading) 14.dp else 10.dp, vertical = if (trading) 12.dp else 7.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                if (!trading) {
+                    Text(label, color = chrome.label, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+                }
+                Text(value, color = if (trading) chrome.value else chrome.ink, fontFamily = PlusJakartaSans, fontSize = if (trading) 15.sp else 14.sp)
+            }
+            if (!trailing.isNullOrBlank()) {
+                Text(
+                    trailing,
+                    color = if (trailingAccent) chrome.accent else chrome.hint,
+                    fontFamily = PlusJakartaSans,
+                    fontSize = 12.sp,
+                )
+            }
+        }
     }
 }
 
 @Composable
 internal fun EditField(label: String, value: String, placeholder: String, modifier: Modifier = Modifier.fillMaxWidth(), onValue: (String) -> Unit) {
+    val chrome = LocalOperatingCaptureChrome.current
+    val trading = OperatingCaptureChromeTokens.isOpsQa(chrome)
     Column(
-        modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(SheetFieldBg)
-            .border(1.dp, SheetBorder, RoundedCornerShape(12.dp))
-            .padding(horizontal = 10.dp, vertical = 7.dp),
+        modifier,
+        verticalArrangement = Arrangement.spacedBy(if (trading) 6.dp else 0.dp),
     ) {
-        Text(label, color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
-        BasicTextField(
-            value = value,
-            onValueChange = onValue,
-            textStyle = TextStyle(color = SheetInk, fontFamily = PlusJakartaSans, fontSize = 14.sp),
-            cursorBrush = SolidColor(SheetBrand),
-            decorationBox = { inner ->
-                if (value.isEmpty()) Text(placeholder, color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 14.sp)
-                inner()
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
+        if (trading) {
+            Text(label, color = chrome.label, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+        }
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(if (trading) 14.dp else 12.dp))
+                .background(chrome.field)
+                .border(1.dp, if (trading) chrome.hairline else chrome.border, RoundedCornerShape(if (trading) 14.dp else 12.dp))
+                .padding(horizontal = if (trading) 14.dp else 10.dp, vertical = if (trading) 12.dp else 7.dp),
+        ) {
+            if (!trading) {
+                Text(label, color = chrome.label, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onValue,
+                textStyle = TextStyle(color = if (trading) chrome.value else chrome.ink, fontFamily = PlusJakartaSans, fontSize = if (trading) 15.sp else 14.sp),
+                cursorBrush = SolidColor(chrome.brand),
+                decorationBox = { inner ->
+                    if (value.isEmpty()) Text(placeholder, color = chrome.hint, fontFamily = PlusJakartaSans, fontSize = if (trading) 15.sp else 14.sp)
+                    inner()
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
@@ -3682,26 +5106,197 @@ internal fun NoteField(label: String, value: String, placeholder: String, onValu
 
 @Composable
 internal fun MoreDetails(open: Boolean, hint: String, onToggle: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clickable(onClick = onToggle)) {
-        Text(if (open) "More details  ∧" else "More details  ∨", color = SheetAccent, fontFamily = PlusJakartaSans, fontSize = 14.sp)
-        Text(hint, color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+    val chrome = LocalOperatingCaptureChrome.current
+    val trading = OperatingCaptureChromeTokens.isOpsQa(chrome)
+    val marketingQa = OperatingCaptureChromeTokens.isMarketingQa(chrome)
+    val marketingOwn = OperatingCaptureChromeTokens.isMarketingOwnQa(chrome)
+    if (trading) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .border(1.dp, chrome.moreBorder, RoundedCornerShape(14.dp))
+                    .clickable(onClick = onToggle)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    when {
+                        marketingOwn -> MarketingOwnQuickAddCopy.MORE_DETAILS_LABEL
+                        marketingQa -> MarketingClientQuickAddCopy.MORE_DETAILS_LABEL
+                        else -> hint.ifBlank { TradingQuickAddCopy.MORE_DETAILS_LABEL }
+                    },
+                    color = if (marketingQa) chrome.cyan else chrome.chipIdleText,
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(if (open) "∧" else "›", color = chrome.label, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+            if (!open && marketingQa) {
+                Text(
+                    if (marketingOwn) MarketingOwnQuickAddCopy.MORE_DETAILS_HINT
+                    else MarketingClientQuickAddCopy.MORE_DETAILS_HINT,
+                    color = chrome.hint,
+                    fontFamily = PlusJakartaSans,
+                    fontSize = 12.sp,
+                )
+            } else if (open && hint.isNotBlank() && !marketingQa) {
+                Text(hint, color = chrome.hint, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            }
+        }
+    } else {
+        Column(Modifier.fillMaxWidth().clickable(onClick = onToggle)) {
+            Text(if (open) "More details  ∧" else "More details  ∨", color = chrome.accent, fontFamily = PlusJakartaSans, fontSize = 14.sp)
+            Text(hint, color = chrome.label, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        }
+    }
+}
+
+/** Rose `#F43F5E` Client-only chip + helper for Invoice / Collection (MKT-QA-05/06). */
+@Composable
+internal fun MarketingClientOnlyGate() {
+    val rose = Color(0xFFF43F5E)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(rose.copy(alpha = 0.14f))
+                .border(1.dp, rose.copy(alpha = 0.55f), RoundedCornerShape(999.dp))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        ) {
+            Text(
+                MarketingClientQuickAddCopy.CLIENT_ONLY_CHIP,
+                color = rose,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp,
+            )
+        }
+        Text(
+            MarketingClientQuickAddCopy.CLIENT_ONLY_GATE,
+            color = rose.copy(alpha = 0.92f),
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+        )
     }
 }
 
 @Composable
 internal fun SummaryCard(title: String, lines: List<String>) {
+    val chrome = LocalOperatingCaptureChrome.current
+    val trading = OperatingCaptureChromeTokens.isOpsQa(chrome)
+    if (trading) {
+        TradingWhyPanel(body = lines.joinToString(" "))
+        return
+    }
     Column(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(SheetHigh)
-            .border(1.dp, SheetBorder, RoundedCornerShape(12.dp))
+            .background(chrome.elevated)
+            .border(1.dp, chrome.border, RoundedCornerShape(12.dp))
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(title, color = SheetAccent, fontFamily = PlusJakartaSans, fontSize = 14.sp)
-        lines.forEach { Text(it, color = SheetInk, fontFamily = PlusJakartaSans, fontSize = 14.sp) }
+        Text(title, color = chrome.accent, fontFamily = PlusJakartaSans, fontSize = 14.sp)
+        lines.forEach { Text(it, color = chrome.ink, fontFamily = PlusJakartaSans, fontSize = 14.sp) }
     }
+}
+
+/** Figma TRD-QA WHY callout — cyan border/fill, tracked label, light body. */
+@Composable
+internal fun TradingWhyPanel(body: String) {
+    val chrome = LocalOperatingCaptureChrome.current
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(chrome.whyFill)
+            .border(1.dp, chrome.whyBorder, RoundedCornerShape(14.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            "WHY",
+            color = chrome.cyan,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp,
+            letterSpacing = 1.sp,
+        )
+        Text(body, color = chrome.whyBody, fontFamily = PlusJakartaSans, fontSize = 13.sp, lineHeight = 19.sp)
+    }
+}
+
+private fun tradingContextLine(mode: String, model: OperatingProjectionDto): String =
+    TradingQuickAddCopy.context(mode, model.title)
+
+private fun opsQaContextLine(mode: String, model: OperatingProjectionDto, distribution: Boolean): String =
+    if (distribution) DistributionQuickAddCopy.context(mode, model.title)
+    else TradingQuickAddCopy.context(mode, model.title)
+
+private fun opsQaWhy(mode: String, distribution: Boolean): String =
+    if (distribution) DistributionQuickAddCopy.why(mode) else TradingQuickAddCopy.why(mode)
+
+private fun opsQaCta(mode: String, distribution: Boolean): String =
+    if (distribution) DistributionQuickAddCopy.cta(mode) else TradingQuickAddCopy.cta(mode)
+
+private fun opsQaMoreDetailsLabel(distribution: Boolean): String =
+    if (distribution) DistributionQuickAddCopy.MORE_DETAILS_LABEL else TradingQuickAddCopy.MORE_DETAILS_LABEL
+
+private fun marketingClientContextLine(eventType: String, mode: String, model: OperatingProjectionDto): String {
+    val key = MarketingClientQuickAddCopy.catalogMode(eventType, mode)
+    val period = OperatingV12Date.monthYear(model.startDate)
+    return MarketingClientQuickAddCopy.context(key, model.title, period)
+}
+
+private fun marketingOwnContextLine(eventType: String, mode: String, model: OperatingProjectionDto): String {
+    val key = MarketingOwnQuickAddCopy.catalogMode(eventType, mode)
+    val period = OperatingV12Date.monthYear(model.startDate)
+    val apAmount = if (model.financeVisible) {
+        OperatingV12Money.number(model.finance?.payable)
+            ?.takeIf { it > 0.0 }
+            ?.let { OperatingV12Money.compact(it, model.currency) }
+    } else {
+        null
+    }
+    val budgetAmount = model.budget?.amount
+        ?.let { OperatingV12Money.compact(it, model.currency) }
+        ?.takeIf { it != "—" }
+    val budgetPacing = model.marketing?.pacing?.takeIf { it.isNotBlank() }
+    return MarketingOwnQuickAddCopy.context(
+        key,
+        model.title,
+        period,
+        apAmount = apAmount,
+        budgetAmount = budgetAmount,
+        budgetPacing = budgetPacing,
+    )
+}
+
+private fun marketingQaWhy(mode: String, own: Boolean): String =
+    if (own) MarketingOwnQuickAddCopy.why(mode) else MarketingClientQuickAddCopy.why(mode)
+
+private fun marketingQaMoreDetailsLabel(own: Boolean): String =
+    if (own) MarketingOwnQuickAddCopy.MORE_DETAILS_LABEL else MarketingClientQuickAddCopy.MORE_DETAILS_LABEL
+
+private fun marketingQaMoreDetails(own: Boolean): String = marketingQaMoreDetailsLabel(own)
+
+private fun marketingQaSticky(own: Boolean): String =
+    if (own) MarketingOwnQuickAddCopy.STICKY_META else MarketingClientQuickAddCopy.STICKY_META
+
+private fun marketingQaCta(mode: String, eventType: String, own: Boolean, budgetVersion: Int? = null): String {
+    val key = if (own) {
+        MarketingOwnQuickAddCopy.catalogMode(eventType.ifBlank { mode }, mode)
+    } else {
+        MarketingClientQuickAddCopy.catalogMode(eventType.ifBlank { mode }, mode)
+    }
+    return if (own) MarketingOwnQuickAddCopy.cta(key, budgetVersion) else MarketingClientQuickAddCopy.cta(key, budgetVersion)
 }
 
 internal fun masterKinds(subtype: String?): List<String> = when (subtype) {
@@ -3775,12 +5370,37 @@ private fun lovTitle(kind: String): String = when (kind.uppercase()) {
     "SALES_ORDER" -> "Sales order"
     "PURCHASE_ORDER" -> "Purchase order"
     "OBLIGATION" -> "Open record"
+    "LINKED_SOURCE" -> "Linked source"
     "BUYER" -> "Buyer"
     "SUPPLIER" -> "Supplier"
     "CHANNEL" -> "Channel"
     "EXPENSE_CATEGORY" -> "Expense category"
     "UOM" -> "UOM"
     else -> kind.lowercase().replaceFirstChar { it.uppercase() }
+}
+
+/** Recent operational rows for TRD-QA-09 Linked source (O) search. */
+private fun linkedSourceLovOptions(model: OperatingProjectionDto): List<OperatingLovOption> {
+    val allowed = setOf(
+        "SALE", "PURCHASE", "ORDER", "CUSTOMER_ORDER", "SHIPMENT", "DELIVERY",
+        "COLLECTION", "PAYMENT", "SPEND", "STOCK", "RETURN", "BUDGET",
+    )
+    return model.activity.mapNotNull { row ->
+        val type = row.eventType.uppercase()
+        if (type !in allowed) return@mapNotNull null
+        val subtitle = listOfNotNull(
+            type,
+            row.counterpartyName?.takeIf { it.isNotBlank() },
+            row.amount?.takeIf { it.isNotBlank() },
+            row.occurredAt?.take(10)?.takeIf { it.isNotBlank() },
+        ).joinToString(" · ")
+        OperatingLovOption(
+            id = row.id,
+            name = row.title.ifBlank { type },
+            kind = "LINKED_SOURCE",
+            subtitle = subtitle.ifBlank { null },
+        )
+    }
 }
 
 private fun orderLovOptions(model: OperatingProjectionDto, side: String): List<OperatingLovOption> {
@@ -3875,7 +5495,7 @@ private fun lovOptions(
 
 @Composable
 internal fun LovField(label: String, value: String, placeholder: String, modifier: Modifier = Modifier.fillMaxWidth(), onClick: () -> Unit) {
-    ReadField(label, value.ifBlank { "Select $placeholder  ›" }, modifier, onClick)
+    ReadField(label = label, value = value.ifBlank { "Select $placeholder  ›" }, modifier = modifier, onClick = onClick)
 }
 
 @Composable

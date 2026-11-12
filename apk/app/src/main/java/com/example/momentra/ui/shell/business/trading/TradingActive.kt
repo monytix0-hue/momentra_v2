@@ -143,16 +143,24 @@ fun TradingActive(
     }
 }
 
-/** Figma `TRD-SHEET` tokens: emerald accent on the trading canvas. */
+/** Pulse / board card surface — distinct from TRD-QA capture sheet fill. */
+internal val TradeSheetSurface = Color(0xFF151D2E)
+internal val TradeCyan = Color(0xFF06B6D4)
+internal val TradeLabel = Color(0xFF8B97AD)
+internal val TradeHint = Color(0xFF6B7790)
+internal val TradeValue = Color(0xFFF1F5F9)
+internal val TradeWhyBody = Color(0xFFCFEFF6)
+
+/** Figma `TRD-SHEET` / TRD-QA tokens: slate sheet `#151D2E`, emerald accent, cyan WHY. */
 internal val TradeSheetTheme = com.example.momentra.ui.shell.business.shared.OperatingSheetTheme(
     accent = TradeBrand,
     accentSoft = TradeSuccess,
     canvas = TradeBg,
-    surface = TradeCard,
-    inset = TradeField,
+    surface = TradeSheetSurface,
+    inset = TradeBorder,
     border = TradeBorder,
     ink = TradeInk,
-    body = TradeSecondary,
+    body = TradeLabel,
     warning = com.example.momentra.ui.shell.business.shared.OperatingSheetWarning,
     negative = com.example.momentra.ui.shell.business.shared.OperatingSheetNegative,
 )

@@ -53,11 +53,15 @@ object RestaurantEmber {
     /** Soft hero text tints from `2400:29655 hero`. */
     val heroEyebrowTint = Color(0xFFFEF3C7)
     val heroBodyTint = Color(0xFFFDE68A)
+    /** Why-note body cream from RST-QA sheets (`#FEF3C7`). */
+    val whyBody = Color(0xFFFEF3C7)
     val amber = Color(0xFFFBBF24)
     val cyan = Color(0xFF06B6D4)
     val positive = Color(0xFF22C55E)
     val negative = Color(0xFFEF4444)
     val warning = Color(0xFFF59E0B)
+    /** Sheet border glow — ember at 40% (Figma POS / KOT chrome). */
+    val sheetBorder = Color(0xFFEA580C).copy(alpha = 0.4f)
 
     // ---- Text -------------------------------------------------------------------
     val textPrimary = Color(0xFFFAFAF9)
@@ -83,6 +87,12 @@ object RestaurantEmber {
     val rHero = RoundedCornerShape(24.dp)
     val rCard = RoundedCornerShape(20.dp)
     val rCardTight = RoundedCornerShape(16.dp)
+    /** Bottom-sheet top corners — Figma RST-QA / RST-KOT (`28`). */
+    val rSheetTop = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    /** Sticky CTA / ticket / amount cards (`16`). */
+    val rSheetCta = RoundedCornerShape(16.dp)
+    /** Sheet close affordance (`16`). */
+    val rSheetClose = RoundedCornerShape(16.dp)
     val rTile = RoundedCornerShape(16.dp)
     val rMetric = RoundedCornerShape(14.dp)
     val rRow = RoundedCornerShape(12.dp)
@@ -90,6 +100,8 @@ object RestaurantEmber {
     val rHeroIcon = RoundedCornerShape(12.dp)
     val rTileIcon = RoundedCornerShape(10.dp)
     val rStoryCta = RoundedCornerShape(18.dp)
+    /** Sheet top corner radius as Dp (for OperatingSheetScrim). */
+    val sheetTopCorner = 28.dp
 
     // ---- Spacing (8pt-derived, exact Figma values) ------------------------------
     val s2 = 2.dp

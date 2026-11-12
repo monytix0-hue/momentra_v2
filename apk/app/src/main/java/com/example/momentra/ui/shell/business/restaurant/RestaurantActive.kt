@@ -164,7 +164,13 @@ fun RestaurantActive(
     }
 
     if (storyConfig && momentId != null) {
-        OperatingSheetScrim(onDismiss = { storyConfig = false }, accent = RestaurantEmber.ember) {
+        OperatingSheetScrim(
+            onDismiss = { storyConfig = false },
+            accent = RestaurantEmber.ember,
+            surface = RestaurantEmber.card,
+            border = RestaurantEmber.sheetBorder,
+            topCorner = RestaurantEmber.sheetTopCorner,
+        ) {
             RestaurantStoryConfigSheet(
                 model = model,
                 momentId = momentId,
@@ -174,7 +180,13 @@ fun RestaurantActive(
     }
 
     if (openPos) {
-        OperatingSheetScrim(onDismiss = { openPos = false }, accent = RestaurantEmber.ember) {
+        OperatingSheetScrim(
+            onDismiss = { openPos = false },
+            accent = RestaurantEmber.ember,
+            surface = RestaurantEmber.card,
+            border = RestaurantEmber.sheetBorder,
+            topCorner = RestaurantEmber.sheetTopCorner,
+        ) {
             RestaurantPosSheet(
                 model = model,
                 onDismiss = { openPos = false },
@@ -203,8 +215,9 @@ private fun RestaurantPickerScrim(
     OperatingSheetScrim(
         onDismiss = onDismiss,
         accent = RestaurantEmber.ember,
-        surface = RestaurantEmber.sheet,
-        border = RestaurantEmber.divider,
+        surface = RestaurantEmber.card,
+        border = RestaurantEmber.sheetBorder,
+        topCorner = RestaurantEmber.sheetTopCorner,
     ) {
         EmberPickerSheet(
             mode = mode,

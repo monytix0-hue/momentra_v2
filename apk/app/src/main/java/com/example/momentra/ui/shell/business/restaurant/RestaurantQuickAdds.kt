@@ -65,6 +65,8 @@ fun RestaurantQuickAddHub(
     val allowed = model.quickAdds.map { it.code }.toSet()
     var sheet by remember { mutableStateOf<RestaurantHubSheet?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    /** When KOT hands off to POS Bill, seed the Bill-from-KOT picker. */
+    var posParentKotId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -121,12 +123,46 @@ fun RestaurantQuickAddHub(
     when (val open = sheet) {
         null -> Unit
         RestaurantHubSheet.Pos -> OperatingSheetScrim(
-            onDismiss = { sheet = null },
+            onDismiss = {
+                sheet = null
+                posParentKotId = null
+            },
             accent = RestaurantEmber.ember,
+            surface = RestaurantEmber.card,
+            border = RestaurantEmber.sheetBorder,
+            topCorner = RestaurantEmber.sheetTopCorner,
         ) {
             RestaurantPosSheet(
                 model = model,
+                onDismiss = {
+                    sheet = null
+                    posParentKotId = null
+                },
+                initialParentKotId = posParentKotId,
+                onSubmit = { draft ->
+                    scope.launch {
+                        runCatching { onRecord(draft) }.onFailure { error = it.message }
+                        sheet = null
+                        posParentKotId = null
+                    }
+                },
+            )
+        }
+
+        RestaurantHubSheet.Kot -> OperatingSheetScrim(
+            onDismiss = { sheet = null },
+            accent = RestaurantEmber.ember,
+            surface = RestaurantEmber.card,
+            border = RestaurantEmber.sheetBorder,
+            topCorner = RestaurantEmber.sheetTopCorner,
+        ) {
+            RestaurantKotSheet(
+                model = model,
                 onDismiss = { sheet = null },
+                onBillFromKot = { ticketId ->
+                    posParentKotId = ticketId
+                    sheet = RestaurantHubSheet.Pos
+                },
                 onSubmit = { draft ->
                     scope.launch {
                         runCatching { onRecord(draft) }.onFailure { error = it.message }
@@ -136,13 +172,17 @@ fun RestaurantQuickAddHub(
             )
         }
 
-        RestaurantHubSheet.Kot -> OperatingSheetScrim(
+        RestaurantHubSheet.Status -> OperatingSheetScrim(
             onDismiss = { sheet = null },
             accent = RestaurantEmber.ember,
+            surface = RestaurantEmber.card,
+            border = RestaurantEmber.sheetBorder,
+            topCorner = RestaurantEmber.sheetTopCorner,
         ) {
-            RestaurantKotSheet(
+            RestaurantStatusSheet(
                 model = model,
                 onDismiss = { sheet = null },
+                onOpenKot = { sheet = RestaurantHubSheet.Kot },
                 onSubmit = { draft ->
                     scope.launch {
                         runCatching { onRecord(draft) }.onFailure { error = it.message }
@@ -155,6 +195,9 @@ fun RestaurantQuickAddHub(
         is RestaurantHubSheet.Masters -> OperatingSheetScrim(
             onDismiss = { sheet = null },
             accent = RestaurantEmber.ember,
+            surface = RestaurantEmber.card,
+            border = RestaurantEmber.sheetBorder,
+            topCorner = RestaurantEmber.sheetTopCorner,
         ) {
             RestaurantMastersSheet(
                 tab = open.tab,
@@ -169,34 +212,127 @@ fun RestaurantQuickAddHub(
         is RestaurantHubSheet.Capture -> OperatingSheetScrim(
             onDismiss = { sheet = null },
             accent = RestaurantEmber.ember,
+            surface = RestaurantEmber.card,
+            border = RestaurantEmber.sheetBorder,
+            topCorner = RestaurantEmber.sheetTopCorner,
         ) {
             val kind = open.kind
-            OperatingCaptureSheet(
-                title = kind.title,
-                icon = kind.icon,
-                eventType = kind.eventType,
-                mode = kind.mode,
-                model = model,
-                channelLabel = when (kind) {
-                    RestaurantSheetKind.Collection -> "Received from"
-                    RestaurantSheetKind.Sale -> "Sales channel"
-                    else -> "Channel"
-                },
-                variant = "restaurant",
-                onDismiss = { sheet = null },
-                onSubmit = { draft ->
-                    scope.launch {
-                        runCatching { onRecord(draft.toRestaurantDraft()) }.onFailure { error = it.message }
-                        sheet = null
-                    }
-                },
-                onDecide = onDecide,
-            )
+            when (kind) {
+                RestaurantSheetKind.Purchase,
+                RestaurantSheetKind.Collection,
+                RestaurantSheetKind.Payment,
+                RestaurantSheetKind.Spend,
+                RestaurantSheetKind.Stock,
+                RestaurantSheetKind.Order,
+                RestaurantSheetKind.Budget,
+                RestaurantSheetKind.Issue,
+                -> RestaurantCaptureSheet(
+                    kind = kind,
+                    model = model,
+                    onDismiss = { sheet = null },
+                    onSubmit = { draft ->
+                        scope.launch {
+                            runCatching { onRecord(draft) }.onFailure { error = it.message }
+                            sheet = null
+                        }
+                    },
+                    onMasterSubmit = { draft ->
+                        scope.launch {
+                            runCatching { onRecord(draft) }.onFailure { error = it.message }
+                        }
+                    },
+                )
+
+                RestaurantSheetKind.Hold -> RestaurantHoldSheet(
+                    model = model,
+                    onDismiss = { sheet = null },
+                    onNavigate = { dest ->
+                        sheet = RestaurantHubSheet.Capture(
+                            when (dest) {
+                                RestaurantUtilityNav.HOLD -> RestaurantSheetKind.Hold
+                                RestaurantUtilityNav.TRANSFER -> RestaurantSheetKind.Transfer
+                                RestaurantUtilityNav.REPRINT -> RestaurantSheetKind.Reprint
+                            },
+                        )
+                    },
+                    onSubmit = { draft ->
+                        scope.launch {
+                            runCatching { onRecord(draft) }.onFailure { error = it.message }
+                            sheet = null
+                        }
+                    },
+                )
+
+                RestaurantSheetKind.Transfer -> RestaurantTransferSheet(
+                    model = model,
+                    onDismiss = { sheet = null },
+                    onNavigate = { dest ->
+                        sheet = RestaurantHubSheet.Capture(
+                            when (dest) {
+                                RestaurantUtilityNav.HOLD -> RestaurantSheetKind.Hold
+                                RestaurantUtilityNav.TRANSFER -> RestaurantSheetKind.Transfer
+                                RestaurantUtilityNav.REPRINT -> RestaurantSheetKind.Reprint
+                            },
+                        )
+                    },
+                    onSubmit = { draft ->
+                        scope.launch {
+                            runCatching { onRecord(draft) }.onFailure { error = it.message }
+                            sheet = null
+                        }
+                    },
+                )
+
+                RestaurantSheetKind.Reprint -> RestaurantReprintReceiptSheet(
+                    model = model,
+                    onDismiss = { sheet = null },
+                    onNavigate = { dest ->
+                        sheet = RestaurantHubSheet.Capture(
+                            when (dest) {
+                                RestaurantUtilityNav.HOLD -> RestaurantSheetKind.Hold
+                                RestaurantUtilityNav.TRANSFER -> RestaurantSheetKind.Transfer
+                                RestaurantUtilityNav.REPRINT -> RestaurantSheetKind.Reprint
+                            },
+                        )
+                    },
+                    onSubmit = { draft ->
+                        scope.launch {
+                            runCatching { onRecord(draft) }.onFailure { error = it.message }
+                            sheet = null
+                        }
+                    },
+                )
+
+                else -> OperatingCaptureSheet(
+                    title = kind.title,
+                    icon = kind.icon,
+                    eventType = kind.eventType,
+                    mode = kind.mode,
+                    model = model,
+                    channelLabel = when (kind) {
+                        RestaurantSheetKind.Collection -> "Received from"
+                        RestaurantSheetKind.Sale -> "Sales channel"
+                        else -> "Channel"
+                    },
+                    variant = "restaurant",
+                    onDismiss = { sheet = null },
+                    onSubmit = { draft ->
+                        scope.launch {
+                            runCatching { onRecord(draft.toRestaurantDraft()) }.onFailure { error = it.message }
+                            sheet = null
+                        }
+                    },
+                    onDecide = onDecide,
+                )
+            }
         }
 
         RestaurantHubSheet.Approval -> OperatingSheetScrim(
             onDismiss = { sheet = null },
             accent = RestaurantEmber.ember,
+            surface = RestaurantEmber.card,
+            border = RestaurantEmber.sheetBorder,
+            topCorner = RestaurantEmber.sheetTopCorner,
         ) {
             OperatingCaptureSheet(
                 title = "Review Approval",
@@ -263,6 +399,8 @@ private fun HubHero(hasSale: Boolean, onRecord: () -> Unit) {
 internal sealed interface RestaurantHubSheet {
     data object Pos : RestaurantHubSheet
     data object Kot : RestaurantHubSheet
+    /** RST-QA-08 Status / Assignment board (Prepare · Ready · Fulfil). */
+    data object Status : RestaurantHubSheet
     data object Approval : RestaurantHubSheet
     data class Capture(val kind: RestaurantSheetKind) : RestaurantHubSheet
     data class Masters(val tab: RestaurantMastersTab) : RestaurantHubSheet
@@ -287,7 +425,7 @@ private val RestaurantCoreTiles = listOf(
     HubTile("Expense", "Kitchen · platform", RestaurantTileIcons.expense, kind = RestaurantSheetKind.Spend, requires = "SPEND"),
     HubTile("Stock", "Count · waste", RestaurantTileIcons.stock, kind = RestaurantSheetKind.Stock, requires = "STOCK"),
     HubTile("Order", "Food / catering", RestaurantTileIcons.order, kind = RestaurantSheetKind.Order, requires = "ORDER"),
-    HubTile("Status", "Prep · fulfil", RestaurantTileIcons.status, hub = RestaurantHubSheet.Kot, requires = "ORDER"),
+    HubTile("Status", "Prep · fulfil", RestaurantTileIcons.status, hub = RestaurantHubSheet.Status, requires = "ORDER"),
     HubTile("Budget", "Versioned revise", RestaurantTileIcons.budget, kind = RestaurantSheetKind.Budget, requires = "BUDGET"),
 )
 
@@ -298,6 +436,8 @@ private val RestaurantSupportTiles = listOf(
     HubTile("Invite & QR", "Join Moment", RestaurantTileIcons.invite, master = RestaurantMastersTab.Invite, wide = true),
     HubTile("Issue", "Update · approval", RestaurantTileIcons.issue, kind = RestaurantSheetKind.Issue, requires = "UPDATE", wide = true),
 )
+
+/** Hub tile Why/trailers locked to Figma RST-HUB-v5 — captions above are the visible trailers. */
 
 private val RestaurantUtilityTiles = listOf(
     HubTile("Hold", "Park order", RestaurantTileIcons.hold, kind = RestaurantSheetKind.Hold, requires = "ORDER"),
@@ -442,12 +582,34 @@ internal fun OperatingCaptureDraft.toRestaurantDraft() = RestaurantEventDraft(
     dueAt = dueAt,
     contract = contract,
     lines = lines,
+    master = masterKind?.let { kind ->
+        OperatingMasterBody(
+            kind = kind,
+            name = title,
+            unit = unit,
+            sellPrice = unitPrice,
+            gstApplicable = masterGstApplicable,
+            gstClassification = masterGstClassification,
+            gstRate = masterGstRate,
+            priceIncludesGst = masterPriceIncludesGst,
+            salePriceIncludesGst = masterSalePriceIncludesGst,
+            purchasePriceIncludesGst = masterPurchasePriceIncludesGst,
+            gstEffectiveFrom = masterGstEffectiveFrom,
+            hsn = masterHsn,
+            gstRegistration = masterGstRegistration,
+            businessState = masterBusinessState,
+            billingState = masterBillingState,
+            deliveryState = masterDeliveryState,
+            gstin = masterGstin,
+        )
+    },
 )
 
 // ---------------------------------------------------------------------------------
 // Shared sheet chrome helpers (ember)
 // ---------------------------------------------------------------------------------
 
+/** Grab handle — Figma `4×40` `#78716c` (stone faint), not ember. */
 @Composable
 internal fun EmberSheetGrabber() {
     Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center) {
@@ -455,22 +617,23 @@ internal fun EmberSheetGrabber() {
             Modifier
                 .width(40.dp)
                 .height(4.dp)
-                .clip(RoundedCornerShape(100.dp))
-                .background(RestaurantEmber.ember.copy(alpha = 0.55f)),
+                .clip(RoundedCornerShape(2.dp))
+                .background(RestaurantEmber.textFaint),
         )
     }
 }
 
+/** Sheet title 22/Bold + `#44403c` close at r16 — Figma RST-QA header. */
 @Composable
 internal fun EmberSheetHeader(title: String, subtitle: String?, onClose: () -> Unit) {
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             title,
-            style = RestaurantEmber.screenTitle().copy(fontSize = 20.sp),
+            style = RestaurantEmber.screenTitle().copy(fontSize = 22.sp, lineHeight = 28.sp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
@@ -478,27 +641,104 @@ internal fun EmberSheetHeader(title: String, subtitle: String?, onClose: () -> U
         Box(
             Modifier
                 .size(32.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color.White.copy(alpha = 0.06f))
+                .clip(RestaurantEmber.rSheetClose)
+                .background(RestaurantEmber.chip)
                 .clickable(onClick = onClose),
             contentAlignment = Alignment.Center,
         ) {
-            Text("✕", style = RestaurantEmber.rowValue(RestaurantEmber.textBody).copy(fontSize = 12.sp))
+            Text("✕", style = RestaurantEmber.rowValue(RestaurantEmber.textBody).copy(fontSize = 13.sp))
         }
     }
     subtitle?.takeIf { it.isNotBlank() }?.let {
-        Text(it, style = RestaurantEmber.rowCaption(), maxLines = 2)
+        Text(
+            it,
+            style = RestaurantEmber.rowCaption().copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+            maxLines = 2,
+        )
     }
 }
 
-/** Field label above an input (`11/Medium` + tracking, as in every `RST-QA-*` frame). */
+/** Field label above an input (`11/Medium`, as in every `RST-QA-*` frame). */
 @Composable
 internal fun EmberFieldLabel(text: String) {
     Text(
         text,
-        style = RestaurantEmber.metricLabel().copy(fontSize = 10.sp, letterSpacing = 0.4.sp),
+        style = RestaurantEmber.rowCaption(RestaurantEmber.textBody).copy(
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+        ),
         maxLines = 1,
     )
+}
+
+/** Chevron row used by POS context fields (Table / Guest / Platform / …). */
+@Composable
+internal fun EmberChevronField(
+    label: String,
+    value: String,
+    onClick: (() -> Unit)? = null,
+    editable: Boolean = false,
+    onValueChange: ((String) -> Unit)? = null,
+    placeholder: String = "",
+    /** Figma Status Due uses `#c2410c` on card `#292524`; default hairline / chip. */
+    borderColor: Color = RestaurantEmber.hairline,
+    surfaceColor: Color = RestaurantEmber.chip,
+) {
+    EmberFieldLabel(label)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(surfaceColor)
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .then(if (onClick != null && !editable) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (editable && onValueChange != null) {
+            Box(Modifier.weight(1f)) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    singleLine = true,
+                    textStyle = TextStyle(
+                        color = RestaurantEmber.textPrimary,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                    cursorBrush = SolidColor(RestaurantEmber.ember),
+                    decorationBox = { inner ->
+                        if (value.isEmpty()) {
+                            Text(
+                                placeholder,
+                                style = RestaurantEmber.rowCaption(RestaurantEmber.textFaint).copy(fontSize = 14.sp),
+                            )
+                        }
+                        inner()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        } else {
+            Text(
+                value.ifBlank { placeholder },
+                style = RestaurantEmber.rowTitle().copy(
+                    fontSize = 14.sp,
+                    color = if (value.isBlank()) RestaurantEmber.textFaint else RestaurantEmber.textPrimary,
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Text(
+            "›",
+            style = RestaurantEmber.rowValue(RestaurantEmber.textBody).copy(fontSize = 16.sp),
+            maxLines = 1,
+        )
+    }
 }
 
 /** `#44403c` text field row used by the POS / KOT / master forms. */

@@ -95,9 +95,11 @@ Needed: `POST /v1/business/moments/:momentId/pos/holds`, `GET .../pos/holds`,
 Present: nothing. A parked bill is not an operating event — it is a draft with no
 revenue and no stock, and the projection has no draft concept.
 
-Behaviour: the `Sale` tile's `Hold` action is **absent** rather than a button that
-discards a cart. If a cart must survive a shift today, the operator records the sale or
-does not start it.
+Behaviour: clients now park carts in a **device-local** durable store
+(`RetailHoldSession` / `RetailParkedSaleStore` — SharedPreferences / UserDefaults,
+scoped by company/moment, `HOLD-n` codes only). Parks survive process death on that
+device and clear on recall/charge. There is still **no** cross-device / register API —
+UI honesty says device-local until the endpoints above exist.
 
 ### 1.6 Stock transfer — `2508:29447`
 

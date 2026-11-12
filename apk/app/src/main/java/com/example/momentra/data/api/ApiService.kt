@@ -942,6 +942,12 @@ interface ApiService {
     ): SuccessEnvelope<RelationshipsBondSnapshotDto>
 
     // --- S4 Business slice ---
+    @GET("v1/business/gst/hsn")
+    suspend fun searchHsn(
+        @Query("q") q: String? = null,
+        @Query("limit") limit: Int? = 25,
+    ): SuccessEnvelope<HsnLookupResponseDto>
+
     @GET("v1/business/moments/{momentId}/operating")
     suspend fun getOperatingMoment(
         @Path("momentId") momentId: String,

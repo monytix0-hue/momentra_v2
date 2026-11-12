@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Harbor Mart · thermal receipt sample</title>
+  <style>
+    :root {
+      --cream: #FFFBF5;
+      --ink: #1C1917;
+      --muted: #57534E;
+      --rule: #A8A29E;
+      --rose: #F43F5E;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 32px 16px;
+      background: linear-gradient(160deg, #f3f0eb 0%, #e7e2db 100%);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--ink);
+    }
+    .wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      width: min(520px, 100%);
+    }
+    .sizes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      font-family: system-ui, sans-serif;
+    }
+    .sizes button {
+      border: 1px solid #d6d3d1;
+      background: #fff;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #57534e;
+      cursor: pointer;
+    }
+    .sizes button[aria-pressed="true"] {
+      background: var(--rose);
+      border-color: var(--rose);
+      color: #fff;
+    }
+    .frame {
+      width: var(--frame-w, 280px);
+      max-width: 100%;
+      background: var(--cream);
+      border: 1px solid rgba(244, 63, 94, 0.28);
+      border-radius: 12px;
+      padding: var(--frame-pad, 0);
+      display: flex;
+      justify-content: center;
+      box-shadow: 0 18px 40px rgba(28, 25, 23, 0.12);
+      transition: width 160ms ease;
+    }
+    .receipt {
+      width: var(--content-w, 280px);
+      max-width: 100%;
+      padding: 16px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    /* Device-local JPEG logo from Retail Locations → Store branding (not company onboarding). */
+    .logo {
+      width: 72px;
+      height: 52px;
+      border-radius: 6px;
+      background:
+        linear-gradient(135deg, rgba(244, 63, 94, 0.18), rgba(251, 191, 36, 0.18)),
+        repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(28,25,23,0.04) 6px, rgba(28,25,23,0.04) 12px);
+      display: grid;
+      place-items: center;
+      font-family: system-ui, sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .store {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-align: center;
+    }
+    .tagline {
+      margin: 0;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--rose);
+      text-align: center;
+    }
+    .location, .gstin {
+      margin: 0;
+      font-size: 10px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .dash {
+      width: 100%;
+      height: 1px;
+      margin: 2px 0;
+      background: repeating-linear-gradient(
+        to right,
+        var(--rule) 0 4px,
+        transparent 4px 7px
+      );
+    }
+    .banner {
+      width: 100%;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.4px;
+      color: var(--rose);
+      background: rgba(244, 63, 94, 0.14);
+      border-radius: 4px;
+      padding: 5px 8px;
+    }
+    .row {
+      width: 100%;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 10px;
+    }
+    .row .label { color: var(--muted); flex: 1; }
+    .row .value { color: var(--ink); font-weight: 600; text-align: right; }
+    .row.emph .label,
+    .row.emph .value {
+      color: var(--ink);
+      font-weight: 700;
+    }
+    .row.emph .label { font-size: 12px; }
+    .row.emph .value { font-size: 13px; }
+    .cols {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 6px;
+      font-size: 9px;
+      color: var(--muted);
+    }
+    .line {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 6px;
+      align-items: start;
+      font-size: 11px;
+    }
+    .line .name { font-weight: 600; }
+    .line .meta {
+      display: block;
+      margin-top: 2px;
+      font-size: 9px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+    .line .qty { padding: 0 6px; }
+    .line .amt { text-align: right; min-width: 56px; }
+    .gst {
+      width: 100%;
+      margin: 0;
+      font-size: 10px;
+      color: var(--muted);
+      text-align: right;
+    }
+    .thanks {
+      margin: 0;
+      width: 100%;
+      font-size: 10px;
+      text-align: center;
+    }
+    .honesty {
+      margin: 0;
+      width: 100%;
+      font-size: 8px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .caption {
+      max-width: 460px;
+      font-family: system-ui, sans-serif;
+      font-size: 13px;
+      color: #57534e;
+      text-align: center;
+      line-height: 1.45;
+    }
+    .caption code {
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="sizes" role="group" aria-label="Paper size">
+      <button type="button" data-size="2" aria-pressed="false">2″ · 58mm</button>
+      <button type="button" data-size="3" aria-pressed="true">3″ · 80mm</button>
+      <button type="button" data-size="4" aria-pressed="false">4″ · 112mm</button>
+      <button type="button" data-size="6" aria-pressed="false">6″ · 152mm</button>
+      <button type="button" data-size="a4" aria-pressed="false">A4 · 210mm</button>
+    </div>
+    <div class="frame" id="frame">
+      <article class="receipt" id="receipt" aria-label="Harbor Mart duplicate receipt sample">
+        <div class="logo" title="Optional device-local store logo">LOGO</div>
+        <p class="store">HARBOR MART</p>
+        <p class="tagline">Stock. Sell. Settle.</p>
+        <p class="location">Harbor Mart Andheri</p>
+        <p class="gstin">GSTIN : 36ADUFS9403L1Z9</p>
+        <div class="dash"></div>
+        <div class="banner">DUPLICATE COPY</div>
+        <div class="dash"></div>
+        <div class="row">
+          <span class="label">Ref</span>
+          <span class="value">SALE-ANDH-88421</span>
+        </div>
+        <div class="row">
+          <span class="label">When</span>
+          <span class="value">2026-11-11T09:42</span>
+        </div>
+        <div class="dash"></div>
+        <div class="cols">
+          <span>ITEM</span>
+          <span>QTY</span>
+          <span>AMT</span>
+        </div>
+        <div class="dash"></div>
+        <div class="line">
+          <div>
+            <span class="name">Basmati Rice 5kg</span>
+            <span class="meta">kg · GST 5%</span>
+          </div>
+          <span class="qty">2</span>
+          <span class="amt">₹790</span>
+        </div>
+        <div class="line">
+          <div>
+            <span class="name">Toor Dal 1kg</span>
+            <span class="meta">kg · GST 5%</span>
+          </div>
+          <span class="qty">3</span>
+          <span class="amt">₹480</span>
+        </div>
+        <div class="line">
+          <div>
+            <span class="name">Amul Butter 500g</span>
+            <span class="meta">pc · GST 12%</span>
+          </div>
+          <span class="qty">1</span>
+          <span class="amt">₹295</span>
+        </div>
+        <div class="line">
+          <div>
+            <span class="name">Tata Salt 1kg</span>
+            <span class="meta">pc · GST 5%</span>
+          </div>
+          <span class="qty">2</span>
+          <span class="amt">₹56</span>
+        </div>
+        <div class="dash"></div>
+        <div class="row">
+          <span class="label">Subtotal</span>
+          <span class="value">₹1,621</span>
+        </div>
+        <p class="gst">GST est. ₹97.26</p>
+        <div class="row">
+          <span class="label">Tender</span>
+          <span class="value">UPI</span>
+        </div>
+        <div class="row emph">
+          <span class="label">TOTAL</span>
+          <span class="value">₹1,718.26</span>
+        </div>
+        <div class="dash"></div>
+        <div class="row">
+          <span class="label">Reprint</span>
+          <span class="value">Customer request</span>
+        </div>
+        <div class="dash"></div>
+        <p class="thanks">Thank you for shopping with Harbor Mart</p>
+        <p class="honesty">Client duplicate · receipt.pdf API not allocated yet</p>
+      </article>
+    </div>
+    <p class="caption">
+      Sample matches <code>RetailReceiptPreview</code> — cream paper, rose duplicate banner,
+      <strong>GSTIN</strong> under location, optional device-local logo, paper sizes
+      2″ / 3″ / 4″ / 6″ / A4. Share exports JPG or PDF (WhatsApp when installed).
+      Demo GSTIN <code>36ADUFS9403L1Z9</code> for Harbor Mart fixtures only —
+      live stores use real GSTIN or omit the line. No fiscal HM-B-* bill numbers.
+    </p>
+  </div>
+  <script>
+    const sizes = {
+      "2":  { content: 200, frame: 200, pad: "0" },
+      "3":  { content: 280, frame: 280, pad: "0" },
+      "4":  { content: 340, frame: 340, pad: "0" },
+      "6":  { content: 400, frame: 400, pad: "0" },
+      "a4": { content: 320, frame: 460, pad: "18px" },
+    };
+    const frame = document.getElementById("frame");
+    const receipt = document.getElementById("receipt");
+    document.querySelectorAll(".sizes button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".sizes button").forEach((b) => b.setAttribute("aria-pressed", "false"));
+        btn.setAttribute("aria-pressed", "true");
+        const s = sizes[btn.dataset.size];
+        frame.style.setProperty("--frame-w", s.frame + "px");
+        frame.style.setProperty("--frame-pad", s.pad);
+        receipt.style.setProperty("--content-w", s.content + "px");
+      });
+    });
+  </script>
+</body>
+</html>

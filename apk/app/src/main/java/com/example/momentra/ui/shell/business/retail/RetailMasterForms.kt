@@ -50,43 +50,78 @@ internal fun RetailMasterFormSheet(
     onDismiss: () -> Unit,
     onSubmit: (RetailEventDraft) -> Unit,
     companyId: String? = null,
+    existing: OperatingMasterDto? = null,
+    onSaved: (() -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val repo = remember { BusinessSliceRepository() }
-    var isCreate by remember { mutableStateOf(true) }
-    var editing by remember { mutableStateOf<OperatingMasterDto?>(null) }
+    var isCreate by remember(existing?.id) { mutableStateOf(existing == null) }
+    var editing by remember(existing?.id) { mutableStateOf(existing) }
     var saving by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf<String?>(null) }
+    var showToast by remember { mutableStateOf(false) }
 
-    var name by remember { mutableStateOf("") }
+    var name by remember(existing?.id) { mutableStateOf(existing?.name.orEmpty()) }
     var legalName by remember { mutableStateOf("") }
-    var code by remember { mutableStateOf("") }
+    var code by remember(existing?.id) { mutableStateOf(existing?.code.orEmpty()) }
     var phone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-    var gstin by remember { mutableStateOf("") }
-    var gstRegistration by remember { mutableStateOf("Regular") }
+    var gstin by remember(existing?.id) { mutableStateOf(existing?.gstin.orEmpty()) }
+    var gstRegistration by remember(existing?.id) {
+        mutableStateOf(
+            when (existing?.gstRegistration?.uppercase()) {
+                "COMPOSITION" -> "Composition"
+                "UNREGISTERED" -> "Unregistered"
+                else -> "Regular"
+            },
+        )
+    }
     var category by remember { mutableStateOf("") }
     var paymentTerms by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
-    var status by remember { mutableStateOf("Active") }
-    var unit by remember { mutableStateOf("pcs") }
-    var barcode by remember { mutableStateOf("") }
-    var sellPrice by remember { mutableStateOf("") }
-    var mrp by remember { mutableStateOf("") }
-    var purchasePrice by remember { mutableStateOf("") }
-    var gstRate by remember { mutableStateOf("5") }
-    var hsn by remember { mutableStateOf("") }
+    var status by remember(existing?.id) {
+        mutableStateOf(
+            when (existing?.status?.uppercase()) {
+                "INACTIVE", "ARCHIVED" -> "Inactive"
+                "PAUSED" -> "Paused"
+                "PREFERRED" -> "Preferred"
+                else -> "Active"
+            },
+        )
+    }
+    var unit by remember(existing?.id) { mutableStateOf(existing?.unit ?: "pcs") }
+    var barcode by remember(existing?.id) { mutableStateOf(existing?.barcode.orEmpty()) }
+    var sellPrice by remember(existing?.id) { mutableStateOf(existing?.sellPrice.orEmpty()) }
+    var mrp by remember(existing?.id) { mutableStateOf(existing?.mrp.orEmpty()) }
+    var purchasePrice by remember(existing?.id) { mutableStateOf(existing?.purchasePrice.orEmpty()) }
+    var gstRate by remember(existing?.id) {
+        mutableStateOf(
+            existing?.gstRate?.takeIf { it.isNotBlank() }
+                ?: if (kind == RetailMasterFormKind.StockItem) "0" else "5",
+        )
+    }
+    var hsn by remember(existing?.id) { mutableStateOf(existing?.hsn.orEmpty()) }
     var defaultLocation by remember { mutableStateOf("Main store") }
     var variant by remember { mutableStateOf("Single") }
     var trackBatch by remember { mutableStateOf("Off · optional") }
-    var locationType by remember { mutableStateOf("Store") }
+    var locationType by remember(existing?.id) {
+        mutableStateOf(
+            when (existing?.kind?.uppercase()) {
+                "WAREHOUSE" -> "Warehouse"
+                "CHANNEL" -> "Counter"
+                else -> "Store"
+            },
+        )
+    }
     var receiptPrinter by remember { mutableStateOf("Screen only") }
     var displayOrder by remember { mutableStateOf("") }
     var stocksCategory by remember { mutableStateOf("Staples") }
     var locationLead by remember { mutableStateOf("") }
     var parQty by remember { mutableStateOf("") }
     var preferredSupplier by remember { mutableStateOf("") }
-    var tracked by remember { mutableStateOf("Track stock") }
+    var tracked by remember(existing?.id) {
+        mutableStateOf(if (existing?.tracked == false) "Non-tracked" else "Track stock")
+    }
     var contextChip by remember {
         mutableStateOf(if (kind == RetailMasterFormKind.StockItem) "Stock master" else "Catalogue master")
     }
@@ -275,6 +310,16 @@ internal fun RetailMasterFormSheet(
                 }
                 RoseFieldLabel("HSN / SAC")
                 RoseTextField(hsn, "1006 · Rice", onValueChange = { hsn = it.take(24) })
+                com.example.momentra.ui.shell.business.shared.HsnLookupHints(
+                    query = hsn,
+                    onPick = { code, rate ->
+                        hsn = code
+                        if (!rate.isNullOrBlank() && rate != "0") gstRate = rate
+                    },
+                    accent = RetailRose.rose,
+                    captionStyle = RetailRose.rowCaption(),
+                    titleStyle = RetailRose.rowTitle(),
+                )
                 RoseChipFlow(
                     "Default location",
                     locationChips(locations),
@@ -286,7 +331,10 @@ internal fun RetailMasterFormSheet(
                 RosePickerRow("Track batch / expiry", trackBatch, onClick = {
                     trackBatch = if (trackBatch.startsWith("Off")) "On · batch required" else "Off · optional"
                 })
-                RoseChipFlow("Status", listOf("Active", "Inactive"), status) { status = it }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    RoseModeChip("Active", selected = status == "Active", tender = true, onClick = { status = "Active" })
+                    RoseModeChip("Inactive", selected = status == "Inactive", onClick = { status = "Inactive" })
+                }
             }
 
             RetailMasterFormKind.StockItem -> {
@@ -323,6 +371,16 @@ internal fun RetailMasterFormSheet(
                 }
                 RoseFieldLabel("HSN code")
                 RoseTextField(hsn, "HSN code", onValueChange = { hsn = it.take(24) })
+                com.example.momentra.ui.shell.business.shared.HsnLookupHints(
+                    query = hsn,
+                    onPick = { code, rate ->
+                        hsn = code
+                        if (!rate.isNullOrBlank()) gstRate = rate
+                    },
+                    accent = RetailRose.rose,
+                    captionStyle = RetailRose.rowCaption(),
+                    titleStyle = RetailRose.rowTitle(),
+                )
                 RosePickerRow(
                     "Default location",
                     defaultLocation,
@@ -344,7 +402,10 @@ internal fun RetailMasterFormSheet(
                     },
                 )
                 RoseChipFlow(null, listOf("Track stock", "Non-tracked"), tracked) { tracked = it }
-                RoseChipFlow("Status", listOf("Active", "Inactive"), status) { status = it }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    RoseModeChip("Active", selected = status == "Active", tender = true, onClick = { status = "Active" })
+                    RoseModeChip("Inactive", selected = status == "Inactive", onClick = { status = "Inactive" })
+                }
             }
         }
 
@@ -359,9 +420,13 @@ internal fun RetailMasterFormSheet(
             enabled = postable && (isCreate || canUpdate),
             caveat = when {
                 !isCreate && !canUpdate -> "Edit existing needs company context — create still works"
+                // Figma RTL-FORM supplier caveat is amber under dark-ink CTA.
+                kind == RetailMasterFormKind.Supplier -> "Supplier saved · available in Purchase Order"
                 kind == RetailMasterFormKind.Location -> "Location saved · stock point ready"
                 else -> "Master saved · available in browser on next open"
             },
+            // Supplier form (`2506:29612`) uses dark CTA ink; Product/SKU (`2506:29782`) uses white.
+            formStyle = kind == RetailMasterFormKind.Supplier,
             onClick = {
                 val metaNote = buildMasterNote(
                     kind = kind,
@@ -464,7 +529,10 @@ internal fun RetailMasterFormSheet(
                             ),
                         )
                         result.fold(
-                            onSuccess = { onDismiss() },
+                            onSuccess = {
+                                showToast = true
+                                if (onSaved != null) onSaved() else onDismiss()
+                            },
                             onFailure = {
                                 localError = it.message ?: "Could not update"
                                 saving = false
@@ -472,6 +540,7 @@ internal fun RetailMasterFormSheet(
                         )
                     }
                 } else {
+                    showToast = true
                     onSubmit(
                         RetailEventDraft(
                             eventType = "UPDATE",
@@ -485,9 +554,13 @@ internal fun RetailMasterFormSheet(
                             master = body,
                         ),
                     )
+                    onSaved?.invoke()
                 }
             },
         )
+        if (showToast) {
+            RoseSavedToast(message = RetailCaptureCopy.SAVED_TOAST)
+        }
         Spacer(Modifier.height(16.dp))
     }
 }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,14 +31,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.R
 import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.theme.RetailRose
 
-/** Rose grab handle on slate sheets (`#1e293b`). */
+/** Rose grab handle on slate sheets — Figma `#FB7185`, 40×4, radius 2. */
 @Composable
 fun RoseGrabber(modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center) {
@@ -45,8 +49,8 @@ fun RoseGrabber(modifier: Modifier = Modifier) {
             Modifier
                 .width(40.dp)
                 .height(4.dp)
-                .clip(RoundedCornerShape(100.dp))
-                .background(RetailRose.rose.copy(alpha = 0.55f)),
+                .clip(RoundedCornerShape(2.dp))
+                .background(RetailRose.grab),
         )
     }
 }
@@ -57,43 +61,71 @@ fun RoseSheetHeader(
     subtitle: String?,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    showAltBadge: Boolean = false,
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
                 title,
-                style = RetailRose.screenTitle().copy(fontSize = 20.sp),
+                style = RetailRose.screenTitle().copy(fontSize = 22.sp, lineHeight = 28.sp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            if (showAltBadge) {
+                Text(
+                    "ALT",
+                    style = RetailRose.chipLabel(true).copy(color = Color.White),
+                    maxLines = 1,
+                    modifier = Modifier
+                        .clip(RetailRose.rPill)
+                        .background(RetailRose.rosePill)
+                        .border(1.dp, RetailRose.rose, RetailRose.rPill)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
             Box(
                 Modifier
                     .size(32.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.06f))
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(RetailRose.cardSlate)
                     .clickable(onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("✕", style = RetailRose.rowValue(RetailRose.textBody).copy(fontSize = 12.sp))
+                Text("✕", style = RetailRose.rowValue(RetailRose.textBody).copy(fontSize = 13.sp))
             }
         }
         subtitle?.takeIf { it.isNotBlank() }?.let {
-            Text(it, style = RetailRose.rowCaption(), maxLines = 2)
+            Text(it, style = RetailRose.rowCaption(RetailRose.textBody).copy(fontSize = 12.sp), maxLines = 2)
         }
     }
 }
 
-/** Amber section label above fields. */
+/** Field label above inputs — Figma slate Medium 11 (`#CBD5E1`). */
 @Composable
 fun RoseFieldLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
-        style = RetailRose.metricLabel().copy(color = RetailRose.amber, fontSize = 10.sp, letterSpacing = 0.4.sp),
+        style = RetailRose.metricLabel().copy(
+            color = RetailRose.textBody,
+            fontSize = 11.sp,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+        ),
+        maxLines = 1,
+        modifier = modifier,
+    )
+}
+
+/** Amber section title (Cart / Keypad / Parked…). */
+@Composable
+fun RoseSectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = RetailRose.chipLabel(true).copy(color = RetailRose.amber, fontSize = 12.sp),
         maxLines = 1,
         modifier = modifier,
     )
@@ -106,29 +138,47 @@ fun RoseModeChip(
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     locked: String? = null,
+    /** When true, selected fill is tender green (`#22C55E`) per Figma POS. */
+    tender: Boolean = false,
+    /**
+     * Catalogue / stock browser category chips (Figma SO/PO): selected = rose fill,
+     * amber border, dark ink on rose.
+     */
+    category: Boolean = false,
 ) {
     val shape = RetailRose.rPill
     val enabled = locked == null
     val click = if (onClick != null && enabled) Modifier.clickable(onClick = onClick) else Modifier
+    val fill = when {
+        locked != null -> RetailRose.chip
+        selected && tender -> RetailRose.positive
+        selected -> RetailRose.rose
+        category -> Color(0xFF334155)
+        else -> RetailRose.chip
+    }
     Text(
         text,
         style = RetailRose.chipLabel(selected).copy(
             color = when {
                 locked != null -> RetailRose.textFaint
+                selected && category -> RetailRose.field
                 selected -> Color.White
+                category -> RetailRose.textFaint
                 else -> RetailRose.textBody
             },
         ),
         maxLines = 1,
         modifier = modifier
             .clip(shape)
-            .background(if (selected) RetailRose.rose else RetailRose.chip)
+            .background(fill)
             .border(
                 1.dp,
                 when {
                     locked != null -> RetailRose.chipStroke
+                    selected && category -> RetailRose.amber
                     selected -> RetailRose.rose
-                    else -> RetailRose.roseBorder.copy(alpha = 0.35f)
+                    category -> Color(0xFF475569)
+                    else -> RetailRose.roseBorder
                 },
                 shape,
             )
@@ -185,22 +235,50 @@ fun RoseScanField(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier
+            .fillMaxWidth()
+            .clip(RetailRose.rInner)
+            .background(RetailRose.cardSlate)
+            .border(1.5.dp, RetailRose.rose, RetailRose.rInner)
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_retail_barcode),
+            contentDescription = null,
+            tint = RetailRose.textBody,
+            modifier = Modifier.size(18.dp),
+        )
         Box(Modifier.weight(1f)) {
-            RoseTextField(value = query, placeholder = placeholder, onValueChange = onQueryChange)
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = TextStyle(
+                    color = RetailRose.textPrimary,
+                    fontFamily = PlusJakartaSans,
+                    fontSize = 13.sp,
+                ),
+                cursorBrush = SolidColor(RetailRose.rose),
+                decorationBox = { inner ->
+                    if (query.isEmpty()) {
+                        Text(placeholder, style = RetailRose.rowCaption(RetailRose.textRoseHint).copy(fontSize = 13.sp))
+                    }
+                    inner()
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
         Text(
             "Scan",
-            style = RetailRose.chipLabel(true).copy(color = Color.White),
+            style = RetailRose.chipLabel(true).copy(color = Color.White, fontSize = 11.sp),
             maxLines = 1,
             modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(RetailRose.rose)
                 .clickable(onClick = onScan)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 10.dp, vertical = 6.dp),
         )
     }
 }
@@ -210,20 +288,26 @@ fun RoseScanField(
 fun RoseSectionCard(
     label: String,
     modifier: Modifier = Modifier,
+    trailing: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        RoseFieldLabel(label)
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(RetailRose.rCardTight)
-                .background(RetailRose.cardSlate)
-                .border(1.dp, RetailRose.rose.copy(alpha = 0.4f), RetailRose.rCardTight)
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            content = content,
-        )
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(RetailRose.rCardTight)
+            .background(RetailRose.cardSlate)
+            .border(1.dp, RetailRose.rose.copy(alpha = 0.3f), RetailRose.rCardTight)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            RoseSectionLabel(label)
+            Spacer(Modifier.weight(1f))
+            trailing?.let {
+                Text(it, style = RetailRose.rowCaption().copy(fontSize = 11.sp), maxLines = 1)
+            }
+        }
+        content()
     }
 }
 
@@ -232,18 +316,18 @@ fun RoseLinesCard(
     title: String,
     lineCount: Int,
     modifier: Modifier = Modifier,
+    units: Int? = null,
+    /** When set, replaces the default "N lines · …" trailing caption (Figma allocate / receive). */
+    trailingOverride: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    RoseSectionCard(label = title, modifier = modifier) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                if (lineCount == 0) "No lines yet" else "$lineCount line${if (lineCount == 1) "" else "s"}",
-                style = RetailRose.rowCaption(),
-                modifier = Modifier.weight(1f),
-            )
-        }
-        content()
+    val trailing = trailingOverride ?: when {
+        lineCount == 0 -> "No lines yet"
+        units != null ->
+            "$lineCount line${if (lineCount == 1) "" else "s"} · $units unit${if (units == 1) "" else "s"}"
+        else -> "$lineCount line${if (lineCount == 1) "" else "s"}"
     }
+    RoseSectionCard(label = title, trailing = trailing, modifier = modifier, content = content)
 }
 
 @Composable
@@ -252,28 +336,42 @@ fun RoseTotalsCard(
     payable: String,
     tender: String?,
     modifier: Modifier = Modifier,
+    /** Figma side label: `Tender` (POS), `Method` (Collection/Payment), or `Pay later` (Purchase). */
+    sideLabel: String = "Tender",
+    sideValueColor: Color = RetailRose.positive,
+    sideLabelColor: Color = RetailRose.amber,
     rows: @Composable ColumnScope.() -> Unit = {},
 ) {
     Column(
         modifier
             .fillMaxWidth()
             .clip(RetailRose.rCardTight)
-            .background(Color.Black.copy(alpha = 0.24f))
-            .border(1.dp, RetailRose.rose.copy(alpha = 0.35f), RetailRose.rCardTight)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .background(RetailRose.cardSlate)
+            .border(1.5.dp, RetailRose.rose, RetailRose.rCardTight)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         rows()
-        Box(Modifier.fillMaxWidth().height(1.dp).background(RetailRose.divider))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(payableLabel, style = RetailRose.rowCaption().copy(fontSize = 10.sp))
-                Text(payable, style = RetailRose.metricValue().copy(fontSize = 26.sp), maxLines = 1)
+        Box(Modifier.fillMaxWidth().height(1.dp).background(RetailRose.roseBorder))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(payableLabel, style = RetailRose.rowCaption().copy(fontSize = 11.sp))
+                Text(payable, style = RetailRose.metricValue().copy(fontSize = 28.sp), maxLines = 1)
             }
             tender?.let {
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("Tender", style = RetailRose.rowCaption().copy(fontSize = 10.sp))
-                    Text(it, style = RetailRose.rowValue(RetailRose.amber), maxLines = 1)
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        sideLabel,
+                        style = RetailRose.rowCaption(sideLabelColor).copy(
+                            fontSize = 10.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        ),
+                    )
+                    Text(
+                        it,
+                        style = RetailRose.rowValue(sideValueColor).copy(fontSize = 13.sp),
+                        maxLines = 1,
+                    )
                 }
             }
         }
@@ -303,23 +401,38 @@ fun RosePickerRow(
     value: String,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    /** When true, label sits above the field (Figma POS). When false, nested amber label. */
+    externalLabel: Boolean = false,
 ) {
-    Row(
-        modifier
-            .fillMaxWidth()
-            .clip(RetailRose.rInner)
-            .background(RetailRose.field)
-            .border(1.dp, RetailRose.roseBorder.copy(alpha = 0.3f), RetailRose.rInner)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 12.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, style = RetailRose.rowCaption(RetailRose.amber).copy(fontSize = 10.sp), maxLines = 1)
-            Text(value, style = RetailRose.rowTitle(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (externalLabel) RoseFieldLabel(label)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RetailRose.rInner)
+                .background(RetailRose.cardSlate)
+                .border(1.dp, RetailRose.roseBorder, RetailRose.rInner)
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (!externalLabel) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(label, style = RetailRose.rowCaption(RetailRose.amber).copy(fontSize = 10.sp), maxLines = 1)
+                    Text(value, style = RetailRose.rowTitle().copy(fontSize = 14.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            } else {
+                Text(
+                    value,
+                    style = RetailRose.rowTitle().copy(fontSize = 14.sp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Text("›", style = RetailRose.rowValue(RetailRose.textBody).copy(fontSize = 16.sp), maxLines = 1)
         }
-        Text("›", style = RetailRose.rowValue(RetailRose.textFaint), maxLines = 1)
     }
 }
 
@@ -328,6 +441,7 @@ fun RoseMoreDetails(
     expanded: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
+    hint: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -335,16 +449,24 @@ fun RoseMoreDetails(
             Modifier
                 .fillMaxWidth()
                 .clip(RetailRose.rInner)
+                .border(1.dp, RetailRose.rose.copy(alpha = 0.4f), RetailRose.rInner)
                 .clickable(onClick = onToggle)
-                .padding(vertical = 6.dp),
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
                 if (expanded) "Hide details" else "More details",
-                style = RetailRose.viewAll(),
-                modifier = Modifier.weight(1f),
+                style = RetailRose.viewAll().copy(fontSize = 13.sp),
             )
-            Text(if (expanded) "▲" else "▼", style = RetailRose.rowCaption(RetailRose.textFaint))
+            Spacer(Modifier.weight(1f))
+            hint?.takeIf { !expanded }?.let {
+                Text(it, style = RetailRose.rowCaption().copy(fontSize = 11.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(
+                if (expanded) "⌃" else "⌄",
+                style = RetailRose.viewAll().copy(fontSize = 14.sp),
+            )
         }
         AnimatedVisibility(visible = expanded) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
@@ -357,6 +479,13 @@ fun RoseWhyBox(body: String, modifier: Modifier = Modifier, tinted: Boolean = tr
     WhyNote(body = body, modifier = modifier, tinted = tinted)
 }
 
+/**
+ * Sticky rose CTA + caption.
+ *
+ * Figma QA family (POS / money / ops / HTR / masters lists) uses **white** CTA ink and
+ * slate `#CBD5E1` caveat. Master create/edit forms (`2506:29612`+) use dark ink on rose
+ * (`#0F172A` / [RetailRose.inkOnRose]) and amber caveat — pass [formStyle] = true there.
+ */
 @Composable
 fun RoseStickyFooter(
     label: String,
@@ -364,31 +493,49 @@ fun RoseStickyFooter(
     caveat: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Master-form chrome: dark CTA ink + amber caveat (RTL-FORM frames). */
+    formStyle: Boolean = false,
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        val shape = RetailRose.rRow
-        Text(
-            label,
-            style = RetailRose.storyCtaTitle().copy(color = if (enabled) Color.White else RetailRose.textFaint),
-            maxLines = 1,
-            modifier = Modifier
+    Column(
+        modifier.fillMaxWidth().padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        val shape = RetailRose.rCta
+        val labelColor = when {
+            !enabled -> RetailRose.textFaint
+            formStyle -> RetailRose.inkOnRose
+            else -> Color.White
+        }
+        val caveatColor = if (formStyle) RetailRose.amber else RetailRose.textBody
+        Box(
+            Modifier
                 .fillMaxWidth()
-                .height(51.dp)
                 .shadow(
-                    elevation = if (enabled) 10.dp else 0.dp,
+                    elevation = if (enabled) 16.dp else 0.dp,
                     shape = shape,
                     clip = false,
-                    ambientColor = RetailRose.rose.copy(alpha = 0.45f),
-                    spotColor = RetailRose.rose.copy(alpha = 0.45f),
+                    ambientColor = RetailRose.indigo.copy(alpha = 0.6f),
+                    spotColor = RetailRose.indigo.copy(alpha = 0.6f),
                 )
                 .clip(shape)
                 .background(if (enabled) RetailRose.rose else RetailRose.surfaceRow)
                 .clickable(enabled = enabled, onClick = onClick)
-                .padding(vertical = 15.dp, horizontal = 12.dp),
-        )
+                .padding(vertical = 16.dp, horizontal = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                label,
+                style = RetailRose.storyCtaTitle().copy(
+                    color = labelColor,
+                    fontSize = 15.sp,
+                ),
+                maxLines = 1,
+            )
+        }
         Text(
             caveat,
-            style = RetailRose.rowCaption(RetailRose.textFaint).copy(fontSize = 10.sp),
+            style = RetailRose.rowCaption(caveatColor).copy(fontSize = 10.sp),
             maxLines = 2,
         )
     }
@@ -400,19 +547,54 @@ fun RoseAmountHero(
     amount: String,
     modifier: Modifier = Modifier,
     caption: String? = null,
+    currencyBadge: String? = null,
 ) {
     Column(
         modifier
             .fillMaxWidth()
             .clip(RetailRose.rCardTight)
-            .background(RetailRose.rose.copy(alpha = 0.12f))
-            .border(1.dp, RetailRose.rose.copy(alpha = 0.45f), RetailRose.rCardTight)
+            .background(RetailRose.cardSlate)
+            .border(1.5.dp, RetailRose.rose, RetailRose.rCardTight)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(label, style = RetailRose.rowCaption(RetailRose.amber), maxLines = 1)
-        Text(amount, style = RetailRose.metricValue().copy(fontSize = 28.sp), maxLines = 1)
-        caption?.let { Text(it, style = RetailRose.rowCaption(), maxLines = 2) }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = RetailRose.rowCaption().copy(fontSize = 12.sp), maxLines = 1)
+            Spacer(Modifier.weight(1f))
+            currencyBadge?.let {
+                Text(
+                    it,
+                    style = RetailRose.rowCaption(RetailRose.amber).copy(
+                        fontSize = 11.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    ),
+                    maxLines = 1,
+                )
+            }
+        }
+        Text(amount, style = RetailRose.metricValue().copy(fontSize = 40.sp, lineHeight = 48.sp), maxLines = 1)
+        caption?.let { Text(it, style = RetailRose.rowCaption().copy(fontSize = 11.sp), maxLines = 2) }
+    }
+}
+
+/** Toast after master save — Figma `✓ Saved · sheet closes and returns back`. */
+@Composable
+fun RoseSavedToast(modifier: Modifier = Modifier, message: String = "✓ Saved · sheet closes and returns back") {
+    Row(
+        modifier
+            .clip(RetailRose.rPill)
+            .background(RetailRose.cardSlate)
+            .border(1.dp, RetailRose.amber, RetailRose.rPill)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("✓", style = RetailRose.rowCaption(RetailRose.amber).copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
+        Text(
+            message.removePrefix("✓ ").trim(),
+            style = RetailRose.rowCaption(RetailRose.textPrimary).copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+            maxLines = 1,
+        )
     }
 }
 
@@ -490,9 +672,15 @@ fun RoseDenseCreateCta(
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, style = RetailRose.chipLabel(false).copy(color = RetailRose.rose, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
+        Text(
+            title,
+            style = RetailRose.chipLabel(false).copy(
+                color = RetailRose.amber,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            ),
+        )
         Spacer(Modifier.weight(1f))
-        Text(hint, style = RetailRose.rowCaption(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(hint, style = RetailRose.rowCaption(RetailRose.textFaint), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -532,6 +720,36 @@ fun RoseUnavailableGstRow(
         caption = caption,
         modifier = modifier,
     )
+}
+
+/**
+ * GST estimate row — shows derived amount when rates+amounts exist; else Unavailable.
+ * Estimate is UI-only; GST posts only when Charge / Purchase posts with real tax config.
+ */
+@Composable
+fun RoseGstEstimateRow(
+    label: String,
+    estimate: java.math.BigDecimal?,
+    currency: String,
+    captionWhenKnown: String = "Estimate only — GST posts on Charge / Purchase",
+    captionWhenMissing: String = "Unavailable — rate missing on line / master",
+    modifier: Modifier = Modifier,
+) {
+    if (estimate != null) {
+        RoseTotalRow(
+            label = label,
+            value = RetailFormat.exact(currency, estimate.stripTrailingZeros().toPlainString()),
+            valueColor = RetailRose.amber,
+            caption = captionWhenKnown,
+            modifier = modifier,
+        )
+    } else {
+        RoseUnavailableGstRow(
+            label = label,
+            caption = captionWhenMissing,
+            modifier = modifier,
+        )
+    }
 }
 
 /**
@@ -597,13 +815,20 @@ fun RoseChipRow(
     options: List<String>,
     selected: String,
     modifier: Modifier = Modifier,
+    /** When true, selected chip fills tender green (`#22C55E`) per Figma money/method chips. */
+    tenderSelection: Boolean = false,
     onSelect: (String) -> Unit,
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         label?.let { RoseFieldLabel(it) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             options.forEach { option ->
-                RoseModeChip(option, selected = option == selected, onClick = { onSelect(option) })
+                RoseModeChip(
+                    option,
+                    selected = option == selected,
+                    tender = tenderSelection,
+                    onClick = { onSelect(option) },
+                )
             }
         }
     }

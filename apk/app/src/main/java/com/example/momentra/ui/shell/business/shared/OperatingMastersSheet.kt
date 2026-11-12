@@ -69,9 +69,9 @@ data class OperatingMasterContext(
     val note: String,
 ) {
     Principals(
-        "Principals & dealers",
-        "principal or dealer",
-        "Identity is stable here: a dealer row is referenced by id, never by its typed name.",
+        "Business contacts",
+        "supplier or customer",
+        "Identity is stable here: a contact row is referenced by id. One record can be Supplier, Customer, or both.",
     ),
     Catalogue(
         "Catalogue & SKU",
@@ -155,6 +155,20 @@ internal fun OperatingMastersSheet(
         (fromTable + fromEvents).sortedBy { it.name.lowercase() }
     }
 
+    val dist = model.subtype.equals("DISTRIBUTION_DEALERSHIP", ignoreCase = true) ||
+        OperatingChromeState.distributionChrome
+    val sheetTitle = if (dist) DistributionMasterCopy.tabTitle(tab) else tab.title
+    val sheetSubtitle = if (dist) {
+        DistributionMasterCopy.tabSubtitle(tab)
+    } else if (tab != OperatingMasterTab.Invite) {
+        "${rows.size} record${if (rows.size == 1) "" else "s"} · " +
+            (model.title?.takeIf { it.isNotBlank() } ?: "this moment")
+    } else {
+        null
+    }
+    val whyNote = if (dist) DistributionMasterCopy.tabNote(tab) else tab.note
+    val newLabel = if (dist) DistributionMasterCopy.newCta(tab) else "New ${tab.singular}"
+
     Column(
         Modifier
             .fillMaxSize()
@@ -173,7 +187,7 @@ internal fun OperatingMastersSheet(
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                tab.title,
+                sheetTitle,
                 color = theme.ink,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.SemiBold,
@@ -191,10 +205,9 @@ internal fun OperatingMastersSheet(
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             )
         }
-        if (tab != OperatingMasterTab.Invite) {
+        if (sheetSubtitle != null) {
             Text(
-                "${rows.size} record${if (rows.size == 1) "" else "s"} · " +
-                    (model.title?.takeIf { it.isNotBlank() } ?: "this moment"),
+                sheetSubtitle,
                 color = theme.body,
                 fontFamily = PlusJakartaSans,
                 fontSize = 12.sp,
@@ -223,13 +236,18 @@ internal fun OperatingMastersSheet(
                     negative = theme.negative,
                 ),
                 noun = "moment",
+                roles = if (dist) {
+                    OperatingMomentCatalog.distributionInviteRoles.map { it.code to it.label }
+                } else {
+                    BusinessInviteRoles
+                },
                 onError = { error = it },
             )
             OperatingMasterTab.PriceLists -> {
                 if (context.companyId == null) {
                     MasterHint("Masters need a company. This moment is not attached to one yet.", theme)
                 } else {
-                    MasterCta("New ${tab.singular}", theme) { priceFormOpen = true }
+                    MasterCta(newLabel, theme) { priceFormOpen = true }
                     if (prices.isEmpty()) {
                         BusinessEmptyState(
                             title = "No price list yet",
@@ -246,7 +264,7 @@ internal fun OperatingMastersSheet(
                 if (context.companyId == null) {
                     MasterHint("Masters need a company. This moment is not attached to one yet.", theme)
                 } else {
-                    MasterCta("New ${tab.singular}", theme) { form = tab }
+                    MasterCta(newLabel, theme) { form = tab }
                     if (rows.isEmpty()) {
                         BusinessEmptyState(
                             title = "Nothing here yet",
@@ -268,7 +286,7 @@ internal fun OperatingMastersSheet(
                 }
             }
         }
-        OperatingWhyFootnote(tab.note, theme)
+        OperatingWhyFootnote(whyNote, theme)
         if (error != null) {
             Text(error ?: "", color = theme.negative, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         }
@@ -456,13 +474,37 @@ private fun OperatingMasterForm(
 ) {
     val repo = remember { BusinessSliceRepository() }
     val scope = rememberCoroutineScope()
-    val kind = existing?.kind?.uppercase() ?: defaultKindFor(tab)
+    var contactRole by remember {
+        mutableStateOf(
+            when (existing?.kind?.uppercase()) {
+                "SUPPLIER" -> "Supplier"
+                "BUYER", "CUSTOMER", "DEALER" -> "Customer"
+                "PRINCIPAL" -> "Both"
+                else -> "Customer"
+            },
+        )
+    }
+    val kind = when {
+        tab != OperatingMasterTab.Principals -> existing?.kind?.uppercase() ?: defaultKindFor(tab)
+        contactRole == "Supplier" -> "SUPPLIER"
+        contactRole == "Both" -> "PRINCIPAL"
+        else -> "CUSTOMER"
+    }
     val isSku = kind == "SKU" || kind == "PRODUCT"
     val isRoute = kind == "ROUTE"
 
     var name by remember { mutableStateOf(existing?.name.orEmpty()) }
     var code by remember { mutableStateOf(existing?.code.orEmpty()) }
     var unit by remember { mutableStateOf(existing?.unit.orEmpty()) }
+    var unitCategory by remember {
+        mutableStateOf(
+            OperatingMomentCatalog.unitMaster
+                .firstOrNull { it.label.equals(existing?.unit.orEmpty(), true) || it.code.equals(existing?.unit.orEmpty(), true) }
+                ?.category
+                ?: OperatingMomentCatalog.unitCategories.first(),
+        )
+    }
+    var conversionToBase by remember { mutableStateOf(existing?.conversionToBase.orEmpty()) }
     var sellPrice by remember { mutableStateOf(existing?.sellPrice.orEmpty()) }
     var purchasePrice by remember { mutableStateOf(existing?.purchasePrice.orEmpty()) }
     var mrp by remember { mutableStateOf(existing?.mrp.orEmpty()) }
@@ -481,6 +523,21 @@ private fun OperatingMasterForm(
         }
     }
 
+    val dist = model.subtype.equals("DISTRIBUTION_DEALERSHIP", ignoreCase = true) ||
+        OperatingChromeState.distributionChrome
+    val formHeading = when {
+        dist -> DistributionMasterCopy.formTitle(tab, existing?.name)
+        tab == OperatingMasterTab.Principals && existing == null -> "Add Business Contact"
+        existing != null -> "Edit ${existing.name}"
+        else -> "New ${tab.singular}"
+    }
+    val saveLabel = when {
+        saving -> "Saving…"
+        dist -> DistributionMasterCopy.saveCta(tab, existing != null)
+        existing == null -> "Create"
+        else -> "Save changes"
+    }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -489,16 +546,83 @@ private fun OperatingMasterForm(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            if (existing == null) "New ${tab.singular}" else "Edit ${existing.name}",
+            formHeading,
             color = theme.ink,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.SemiBold,
             fontSize = 22.sp,
         )
-        MasterField("Name", name, theme) { name = it }
+        if (tab == OperatingMasterTab.Principals) {
+            // QA-01 / CF-02 — Supplier vs Customer segments; PRINCIPAL = both roles, one record.
+            Text("Contact role", color = theme.body, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(
+                    "Supplier" to "Someone you purchase from",
+                    "Customer" to "Someone you sell to",
+                    "Both" to "Supplier and customer",
+                ).forEach { (label, hint) ->
+                    val on = contactRole == label
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (on) theme.accent else theme.inset)
+                            .border(1.dp, if (on) theme.accent else theme.border, RoundedCornerShape(10.dp))
+                            .clickable { contactRole = label }
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                    ) {
+                        Text(label, color = if (on) theme.canvas else theme.ink, fontFamily = PlusJakartaSans, fontSize = 13.sp)
+                        Text(hint, color = if (on) theme.canvas.copy(alpha = 0.85f) else theme.body, fontFamily = PlusJakartaSans, fontSize = 10.sp)
+                    }
+                }
+            }
+        }
+        MasterField(if (tab == OperatingMasterTab.Principals) "Business / Contact Name" else "Name", name, theme) { name = it }
         MasterField("Code (optional)", code, theme) { code = it }
         if (isSku) {
-            MasterField("Unit", unit, theme) { unit = it }
+            Text("Unit category", color = theme.body, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OperatingMomentCatalog.unitCategories.forEach { category ->
+                    val on = unitCategory == category
+                    Text(
+                        category,
+                        color = if (on) theme.canvas else theme.ink,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (on) theme.accent else theme.inset)
+                            .clickable { unitCategory = category }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                    )
+                }
+            }
+            Text("Unit", color = theme.body, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                OperatingMomentCatalog.unitsForCategory(unitCategory).forEach { entry ->
+                    val on = unit == entry.label || unit.equals(entry.code, ignoreCase = true)
+                    Text(
+                        entry.label,
+                        color = if (on) theme.canvas else theme.ink,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 13.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (on) theme.accent else theme.inset)
+                            .border(1.dp, if (on) theme.accent else theme.border, RoundedCornerShape(10.dp))
+                            .clickable { unit = entry.label }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                    )
+                }
+            }
+            MasterField("Packaging conversion to base", conversionToBase, theme, KeyboardType.Decimal) { conversionToBase = it }
+            Text(
+                "How many base units this packaging holds (e.g. 12 for a dozen). Leave blank when the unit is already base.",
+                color = theme.body,
+                fontFamily = PlusJakartaSans,
+                fontSize = 11.sp,
+            )
             MasterField("Sell price", sellPrice, theme, KeyboardType.Decimal) { sellPrice = it }
             MasterField("Purchase price", purchasePrice, theme, KeyboardType.Decimal) { purchasePrice = it }
             MasterField("MRP (optional)", mrp, theme, KeyboardType.Decimal) { mrp = it }
@@ -569,7 +693,7 @@ private fun OperatingMasterForm(
             Text(localError ?: "", color = theme.negative, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         }
         Text(
-            if (saving) "Saving…" else if (existing == null) "Create" else "Save changes",
+            saveLabel,
             color = theme.canvas,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.SemiBold,
@@ -585,6 +709,7 @@ private fun OperatingMasterForm(
                         name = name,
                         code = code,
                         unit = unit,
+                        conversionToBase = conversionToBase,
                         sellPrice = sellPrice,
                         purchasePrice = purchasePrice,
                         mrp = mrp,
@@ -622,6 +747,16 @@ private fun OperatingMasterForm(
                 .padding(vertical = 13.dp),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
+        if (dist) {
+            Text(
+                DistributionMasterCopy.saveFootnote(tab),
+                color = theme.body,
+                fontFamily = PlusJakartaSans,
+                fontSize = 10.sp,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+        }
         Text(
             "Close",
             color = theme.body,
@@ -793,7 +928,7 @@ private fun MasterField(
 }
 
 internal fun defaultKindFor(tab: OperatingMasterTab): String = when (tab) {
-    OperatingMasterTab.Principals -> "DEALER"
+    OperatingMasterTab.Principals -> "CUSTOMER"
     OperatingMasterTab.Catalogue -> "SKU"
     OperatingMasterTab.Locations -> "WAREHOUSE"
     OperatingMasterTab.PriceLists -> "PRICE_LIST"

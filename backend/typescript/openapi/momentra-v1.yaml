@@ -256,6 +256,96 @@ paths:
           $ref: './schemas/responses.yaml#/Error404'
         '500':
           $ref: './schemas/responses.yaml#/Error500'
+  /business/gst/states:
+    get:
+      operationId: listGstStates
+      summary: Canonical India GST state / UT registry
+      tags: ["Business"]
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ProjectionEnvelope'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /business/gst/hsn:
+    get:
+      operationId: searchHsn
+      summary: Search HSN / SAC chapters (advisory rates)
+      description: >
+        Curated chapter-level HSN lookup. Returned gstRate is advisory for master
+        prefills — not a legal classification. Cess is not modeled.
+      tags: ["Business"]
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Code prefix or description fragment
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ProjectionEnvelope'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
+  /business/gst/validate-gstin:
+    get:
+      operationId: validateGstin
+      summary: Validate a GSTIN checksum / state match (read-only)
+      tags: ["Business"]
+      x-momentra-kind: read
+      x-momentra-impl: IMPLEMENTED
+      parameters:
+        - name: gstin
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/correlationIdHeader'
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/common.yaml#/ProjectionEnvelope'
+        '401':
+          $ref: './schemas/responses.yaml#/Error401'
+        '500':
+          $ref: './schemas/responses.yaml#/Error500'
   /business/moments/{momentId}/operating-events:
     post:
       operationId: recordOperatingEvent
@@ -276,6 +366,72 @@ paths:
           application/json:
             schema:
               type: object
+              description: >
+                Operating event write. SALE/SERVICE contract may include discount (≤ gross),
+                payments[{method,amount}] summing to receivedAmount, and explicit cessAmount
+                or cessRate (operator-entered only — never HSN/CBIC schedules).
+              properties:
+                eventType:
+                  type: string
+                title:
+                  type: string
+                amount:
+                  type: string
+                channelName:
+                  type: string
+                counterpartyName:
+                  type: string
+                note:
+                  type: string
+                paymentStatus:
+                  type: string
+                lines:
+                  type: array
+                  items:
+                    type: object
+                contract:
+                  type: object
+                  properties:
+                    entryMode:
+                      type: string
+                      enum: [QUICK, ITEMIZED]
+                    paymentState:
+                      type: string
+                      enum: [RECEIVED, PART_PAID, PAY_LATER, PAID]
+                    receivedAmount:
+                      type: string
+                    discount:
+                      type: string
+                      description: Document discount in rupees; must be ≤ gross before tax.
+                    cessAmount:
+                      type: string
+                      description: Explicit cess ₹. Prefer over cessRate when both set.
+                    cessRate:
+                      type: string
+                      description: Explicit cess % of taxable. Not derived from HSN tables.
+                    payments:
+                      type: array
+                      maxItems: 6
+                      description: Split tender; amounts must sum to receivedAmount.
+                      items:
+                        type: object
+                        required: [method, amount]
+                        properties:
+                          method:
+                            type: string
+                            maxLength: 40
+                          amount:
+                            type: string
+                    taxMode:
+                      type: string
+                    gstRate:
+                      type: string
+                    placeOfSupply:
+                      type: string
+                    tableNumber:
+                      type: string
+                    covers:
+                      type: string
       responses:
         '201':
           description: Success

@@ -14,7 +14,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
@@ -30,18 +29,19 @@ import com.example.momentra.ui.shell.business.shared.OperatingV12MomentsScreen
 import com.example.momentra.ui.shell.business.shared.OperatingV12PulseScreen
 import com.example.momentra.ui.shell.business.shared.OperatingV12Theme
 import com.example.momentra.ui.shell.business.shared.hasUsefulPulseChrome
+import com.example.momentra.ui.theme.MadeToOrderAmber
 
-// Domain palette "manufacturing" in design/tokens/business.tokens.json (MFG-PULSE-v12).
-internal val MfgBg = Color(0xFF18181B)
-internal val MfgCard = Color(0xFF27272A)
-internal val MfgNotice = Color(0xFF3F3F46)
-internal val MfgField = Color(0xFF18181B)
-internal val MfgBorder = Color(0xFF3F3F46)
-internal val MfgBrand = Color(0xFFF59E0B)
-internal val MfgAccent = Color(0xFFF59E0B)
-internal val MfgSecondary = Color(0xFFA1A1AA)
-internal val MfgInk = Color(0xFFFFFFFF)
-internal val MfgSoft = Color(0xFFFBBF24)
+// Domain palette "manufacturing" — shared ManufacturingAmber tokens (MFG-PULSE-v12).
+internal val MfgBg get() = com.example.momentra.ui.theme.ManufacturingAmber.canvas
+internal val MfgCard get() = com.example.momentra.ui.theme.ManufacturingAmber.surface
+internal val MfgNotice get() = com.example.momentra.ui.theme.ManufacturingAmber.canvasTop
+internal val MfgField get() = com.example.momentra.ui.theme.ManufacturingAmber.inset
+internal val MfgBorder get() = com.example.momentra.ui.theme.ManufacturingAmber.canvasTop
+internal val MfgBrand get() = com.example.momentra.ui.theme.ManufacturingAmber.accent
+internal val MfgAccent get() = com.example.momentra.ui.theme.ManufacturingAmber.accent
+internal val MfgSecondary get() = com.example.momentra.ui.theme.ManufacturingAmber.textBody
+internal val MfgInk get() = com.example.momentra.ui.theme.ManufacturingAmber.textPrimary
+internal val MfgSoft get() = com.example.momentra.ui.theme.ManufacturingAmber.accentSoft
 
 @Composable
 fun ManufacturingActive(
@@ -55,6 +55,10 @@ fun ManufacturingActive(
 ) {
     var sheet by remember { mutableStateOf<ManufacturingSheetState?>(null) }
     val theme = remember(model.subtype) { OperatingV12Theme.forSubtype(model.subtype) }
+    val isMto = model.subtype.equals("MADE_TO_ORDER", ignoreCase = true)
+    // MTO Pulse/Moments/Life/Memory use soft-amber zinc — never solid MFG hero bleed.
+    val canvasBg = if (isMto) MadeToOrderAmber.canvas else MfgBg
+    val boardTheme = if (isMto) MtoBoardSheetTheme else MfgSheetTheme
     val openCapture: (String) -> Unit = { code ->
         OperatingChromeState.quickAddHint = code.lowercase()
         onOpenQuickAdd()
@@ -63,9 +67,18 @@ fun ManufacturingActive(
         sheet = manufacturingSheetForPulseOrBoard(code)
     }
 
-    Box(modifier.fillMaxSize().background(MfgBg)) {
+    Box(modifier.fillMaxSize().background(canvasBg)) {
         if (tab == OperatingTab.QUICK_ADD) {
-            ManufacturingQuickAddHub(model, onRecord, onDecide)
+            // MTO mounts MadeToOrderQuickAddHub; plant journey stays on ManufacturingQuickAddHub.
+            if (isMto) {
+                com.example.momentra.ui.shell.business.mto.MadeToOrderQuickAddHub(
+                    model,
+                    onRecord,
+                    onDecide,
+                )
+            } else {
+                ManufacturingQuickAddHub(model, onRecord, onDecide)
+            }
         } else if (tab == OperatingTab.PULSE && !model.hasUsefulPulseChrome()) {
             // Keep empty Pulse outside verticalScroll — BusinessAppStateBody scrolls itself.
             // Only take over when setup has no budget/target/GST and feeds are quiet.
@@ -82,7 +95,7 @@ fun ManufacturingActive(
             Column(
                 Modifier
                     .fillMaxSize()
-                    .background(MfgBg)
+                    .background(canvasBg)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -125,7 +138,7 @@ fun ManufacturingActive(
             ManufacturingBoardSheet(
                 state = state,
                 model = model,
-                theme = MfgSheetTheme,
+                theme = boardTheme,
                 onDismiss = { sheet = null },
             )
         }
@@ -144,6 +157,20 @@ internal val MfgSheetTheme = com.example.momentra.ui.shell.business.shared.Opera
     body = MfgSecondary,
     warning = com.example.momentra.ui.shell.business.shared.OperatingSheetWarning,
     negative = com.example.momentra.ui.shell.business.shared.OperatingSheetNegative,
+)
+
+/** Soft-amber lead for MTO View-all / Pulse board sheets (vs solid MFG amber). */
+internal val MtoBoardSheetTheme = com.example.momentra.ui.shell.business.shared.OperatingSheetTheme(
+    accent = MadeToOrderAmber.accent,
+    accentSoft = MadeToOrderAmber.accentSoft,
+    canvas = MadeToOrderAmber.canvas,
+    surface = MadeToOrderAmber.surface,
+    inset = MadeToOrderAmber.inset,
+    border = MadeToOrderAmber.canvasTop,
+    ink = MadeToOrderAmber.textPrimary,
+    body = MadeToOrderAmber.textBody,
+    warning = MadeToOrderAmber.warning,
+    negative = MadeToOrderAmber.negative,
 )
 
 internal fun manufacturingSheetForCode(code: String): ManufacturingSheetState? = when (code) {

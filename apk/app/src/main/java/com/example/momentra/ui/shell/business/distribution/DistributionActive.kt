@@ -43,6 +43,13 @@ internal val DistSecondary = Color(0xFF94A3B8) // color.text.muted
 internal val DistInk = Color(0xFFFFFFFF) // color.text.primary
 internal val DistSuccess = Color(0xFFFFB598) // domain.distribution.accentSoft
 
+/** DST-QA / DST-MASTER / DST-PICKER sheet surface (Figma `#13203A`). */
+internal val DistQaSheet = Color(0xFF13203A)
+/** DST field / elevated chip fill (`#24365A`). */
+internal val DistQaField = Color(0xFF24365A)
+/** DST field hairline (`#2A3D63`). */
+internal val DistQaBorder = Color(0xFF2A3D63)
+
 @Composable
 fun DistributionActive(
     model: OperatingProjectionDto,
@@ -144,14 +151,14 @@ fun DistributionActive(
     }
 }
 
-/** Figma `DST-SHEET` tokens: orange accent on the distribution canvas. */
+/** Figma `DST-SHEET` / `DST-MASTER` tokens: orange accent on QA sheet surface `#13203A`. */
 internal val DistSheetTheme = com.example.momentra.ui.shell.business.shared.OperatingSheetTheme(
     accent = DistBrand,
     accentSoft = DistSuccess,
-    canvas = DistBg,
-    surface = DistCard,
-    inset = DistField,
-    border = DistBorder,
+    canvas = DistQaSheet,
+    surface = DistQaSheet,
+    inset = DistQaField,
+    border = DistQaBorder,
     ink = DistInk,
     body = DistSecondary,
     warning = com.example.momentra.ui.shell.business.shared.OperatingSheetWarning,

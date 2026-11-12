@@ -8,6 +8,9 @@ import com.example.momentra.data.api.OperatingMasterUpdateBody
  * means the body mapping (trims, blanks-to-null, GST-on-rate) can be unit tested without
  * a running composition.
  */
+// Callers: OperatingMastersSheet OperatingMasterForm (SKU save) + OperatingMasterMappingTest.
+// Existing draft mapper; writes OperatingMasterBody.conversionToBase. No duplicate purpose.
+// Instruction: Pass 1 leftover BS-04 packaging conversion + Pass 2/3 master reuse.
 data class OperatingMasterDraft(
     val kind: String,
     val name: String = "",
@@ -21,6 +24,8 @@ data class OperatingMasterDraft(
     val gstin: String = "",
     val billingState: String = "",
     val parentMasterId: String = "",
+    /** BS-04 — packaging units → base unit (e.g. 12 for a dozen carton). */
+    val conversionToBase: String = "",
     val momentId: String? = null,
 ) {
     /** Blank strings mean "not supplied", never an empty value on the wire. */
@@ -38,6 +43,7 @@ data class OperatingMasterDraft(
         code = code.nz(),
         momentId = momentId,
         unit = unit.nz(),
+        conversionToBase = conversionToBase.nz(),
         sellPrice = sellPrice.nz(),
         mrp = mrp.nz(),
         purchasePrice = purchasePrice.nz(),
@@ -53,6 +59,7 @@ data class OperatingMasterDraft(
         name = name.trim(),
         code = code.nz(),
         unit = unit.nz(),
+        conversionToBase = conversionToBase.nz(),
         sellPrice = sellPrice.nz(),
         mrp = mrp.nz(),
         purchasePrice = purchasePrice.nz(),

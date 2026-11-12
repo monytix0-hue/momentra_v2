@@ -430,14 +430,17 @@ fun WhyCaption(body: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** Slate-board variant: amber `Why` on a rose-tinted note, whole block at 50%. */
+/**
+ * SVC sheet Why note — lime “Why” + cream body on a lime-tinted plate
+ * (Figma `why-note` on masters / QA sheets).
+ */
 @Composable
 fun WhyNote(body: String, modifier: Modifier = Modifier, tinted: Boolean = false) {
     val base = if (tinted) {
         Modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(ServicesTeal.teal.copy(alpha = 0.12f))
-            .border(1.dp, ServicesTeal.teal.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+            .background(ServicesTeal.lime.copy(alpha = 0.12f))
+            .border(1.dp, ServicesTeal.lime.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
             .padding(10.dp)
     } else {
         Modifier.padding(horizontal = 2.dp)
@@ -448,13 +451,160 @@ fun WhyNote(body: String, modifier: Modifier = Modifier, tinted: Boolean = false
             .then(base),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            "Why",
-            style = ServicesTeal.why().copy(color = ServicesTeal.amber, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-            maxLines = 1,
-        )
-        Text(body, style = ServicesTeal.why().copy(color = ServicesTeal.tealSoft), modifier = Modifier.weight(1f))
+        Text("Why", style = ServicesTeal.whyLabel(), maxLines = 1)
+        Text(body, style = ServicesTeal.why(), modifier = Modifier.weight(1f))
     }
+}
+
+/** Sheet grab — 40×4 muted teal bar (Figma SVC masters). */
+@Composable
+fun TealSheetGrabber(modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center) {
+        Box(
+            Modifier
+                .width(40.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(ServicesTeal.grab),
+        )
+    }
+}
+
+/** Title + ✕ close + optional subtitle used by every SVC master sheet. */
+@Composable
+fun TealSheetHeader(
+    title: String,
+    subtitle: String?,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            title,
+            style = ServicesTeal.sheetTitle(),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(ServicesTeal.chip)
+                .clickable(onClick = onClose),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("✕", color = ServicesTeal.grab, fontSize = 13.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+        }
+    }
+    subtitle?.takeIf { it.isNotBlank() }?.let {
+        Text(it, style = ServicesTeal.sheetSubtitle(), maxLines = 2)
+    }
+}
+
+/**
+ * Mode / category chip.
+ * - Default (QA modes): selected = teal fill + lime border + dark ink
+ * - [limeSelected] (categories / invite-style): selected = lime fill + lime border
+ * Idle = deep teal fill + chipBorder + muted label (SVC Figma).
+ */
+@Composable
+fun TealModeChip(
+    text: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    limeSelected: Boolean = false,
+    onClick: (() -> Unit)? = null,
+) {
+    val click = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+    val fill = when {
+        selected && limeSelected -> ServicesTeal.lime
+        selected -> ServicesTeal.teal
+        else -> ServicesTeal.chip
+    }
+    Text(
+        text,
+        style = ServicesTeal.chipLabel(selected).copy(
+            color = if (selected) ServicesTeal.inkOnTeal else ServicesTeal.textBody,
+            fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.Bold
+            else androidx.compose.ui.text.font.FontWeight.Medium,
+        ),
+        maxLines = 1,
+        modifier = modifier
+            .clip(ServicesTeal.rPill)
+            .background(fill)
+            .border(
+                1.dp,
+                if (selected) ServicesTeal.lime else ServicesTeal.chipBorder,
+                ServicesTeal.rPill,
+            )
+            .then(click)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    )
+}
+
+/** Sticky footer CTA — teal→lime gradient + caption (Done / Save …). */
+@Composable
+fun TealGradientCta(
+    label: String,
+    caption: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    Column(
+        modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        val shape = ServicesTeal.rCta
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .shadow(
+                    elevation = if (enabled) 12.dp else 0.dp,
+                    shape = shape,
+                    clip = false,
+                    ambientColor = ServicesTeal.lime.copy(alpha = 0.55f),
+                    spotColor = ServicesTeal.lime.copy(alpha = 0.55f),
+                )
+                .clip(shape)
+                .background(
+                    if (enabled) {
+                        Brush.horizontalGradient(listOf(ServicesTeal.teal, ServicesTeal.lime))
+                    } else {
+                        Brush.horizontalGradient(listOf(ServicesTeal.chip, ServicesTeal.chip))
+                    },
+                )
+                .clickable(enabled = enabled, onClick = onClick)
+                .padding(vertical = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                label,
+                style = ServicesTeal.storyCtaTitle().copy(
+                    color = if (enabled) ServicesTeal.inkOnTeal else ServicesTeal.grab,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                ),
+                maxLines = 1,
+            )
+        }
+        Text(caption, style = ServicesTeal.footerCaption(), maxLines = 2)
+    }
+}
+
+/** Saved toast copy locked to SVC Figma. */
+@Composable
+fun TealSavedToast(modifier: Modifier = Modifier) {
+    Text(
+        "✓ Saved · sheet closes and returns back",
+        style = ServicesTeal.toastSaved(),
+        modifier = modifier.fillMaxWidth(),
+    )
 }
 
 /**
@@ -614,7 +764,7 @@ fun BoardHeroChip(
     }
 }
 
-/** Rose CTA used by the Quick Add hero (`+ Record Sale`). */
+/** Teal CTA used by the Quick Add hero (`+ Finalize Charge`). */
 @Composable
 fun TealCta(
     label: String,
@@ -623,18 +773,20 @@ fun TealCta(
     filled: Boolean = true,
 ) {
     val shape = RoundedCornerShape(16.dp)
+    // SVC-HUB hero CTA is cream `#FEF3C7` with teal ink (not white).
+    val cream = ServicesTeal.whyBody
     Row(
         modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(if (filled) Color.White else Color.White.copy(alpha = 0.12f))
+            .background(if (filled) cream else cream.copy(alpha = 0.12f))
             .then(
                 if (filled) Modifier.shadow(
                     elevation = 10.dp,
                     shape = shape,
                     clip = false,
-                    ambientColor = ServicesTeal.teal.copy(alpha = 0.6f),
-                    spotColor = ServicesTeal.teal.copy(alpha = 0.6f),
+                    ambientColor = ServicesTeal.lime.copy(alpha = 0.6f),
+                    spotColor = ServicesTeal.lime.copy(alpha = 0.6f),
                 ) else Modifier,
             )
             .clickable(onClick = onClick)
@@ -644,13 +796,16 @@ fun TealCta(
     ) {
         Text(
             label,
-            style = ServicesTeal.storyCtaTitle().copy(color = ServicesTeal.teal, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+            style = ServicesTeal.storyCtaTitle().copy(
+                color = ServicesTeal.teal,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            ),
             maxLines = 1,
         )
     }
 }
 
-/** Section label + trailing note over the Quick Add grids (`Core · 9` … `Retail journey`). */
+/** Section label + trailing note over the Quick Add grids (`Core · 9` … `Service journey`). */
 @Composable
 fun GridSectionHeader(title: String, note: String, modifier: Modifier = Modifier) {
     Row(
@@ -667,7 +822,8 @@ fun GridSectionHeader(title: String, note: String, modifier: Modifier = Modifier
         )
         Text(
             note,
-            style = ServicesTeal.rowCaption(ServicesTeal.amber).copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium).copy(fontSize = 11.sp),
+            // Figma hub trailing notes use body teal `#99F6E4`, not amber.
+            style = ServicesTeal.rowCaption(ServicesTeal.textBody).copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium).copy(fontSize = 11.sp),
             maxLines = 1,
         )
     }

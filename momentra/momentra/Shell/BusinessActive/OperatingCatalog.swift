@@ -44,6 +44,23 @@ enum BusinessOperatingVertical: String, CaseIterable {
         }
     }
 
+    /// Pulse canvas gradient start wash. Own `#1E1B4B` (shared dark indigo wash ≠ Client accent).
+    var canvasTop: Color {
+        switch self {
+        case .ownBusinessCampaign: return BusinessTokens.Colors.marketingOwnCanvasTop
+        case .clientCampaign: return BusinessTokens.Colors.marketingCanvasTop
+        default: return canvas
+        }
+    }
+
+    /// Soft link / View all — Own masters soft magenta `#E879F9`.
+    var softLink: Color {
+        switch self {
+        case .ownBusinessCampaign: return BusinessTokens.Colors.marketingOwnAccentSoftLink
+        default: return OperatingV12.viewAll
+        }
+    }
+
     var surface: Color {
         switch self {
         case .trading: return BusinessTokens.Colors.tradingSurface
@@ -108,10 +125,10 @@ enum BusinessOperatingVertical: String, CaseIterable {
         case .standardProduction: return "Plan. Make. Fulfil."
         case .madeToOrder: return "Quote. Confirm. Make. Invoice."
         case .clientCampaign: return "Plan. Spend. Report."
-        case .ownBusinessCampaign: return "Plan. Promote. Grow."
-        case .retailStore: return "Stock. Sell. Collect."
-        case .restaurantFood: return "Prep. Serve. Collect."
-        case .consumerService: return "Book. Serve. Charge."
+        case .ownBusinessCampaign: return "Plan. Launch. Measure."
+        case .retailStore: return "Stock. Sell. Settle."
+        case .restaurantFood: return "Order. Serve. Collect."
+        case .consumerService: return "Book. Deliver. Charge."
         }
     }
 
@@ -224,7 +241,12 @@ struct OperatingSheetSpec: Identifiable, Equatable {
 enum OperatingSheetChrome {
     static let periodFilters = ["This month", "Last month", "Custom range ›"]
 
-    static func figmaId(for code: String) -> String {
+    /// Figma `*-SHEET · View all · …` node id.
+    /// Default keeps DST `2561:*`; pass `vertical` for TRD/RTL/RST/SVC/MFG/MTO/MKT natives.
+    static func figmaId(for code: String, vertical: String? = nil) -> String {
+        if let vertical, let native = verticalFigmaId(for: code, vertical: vertical), !native.isEmpty {
+            return native
+        }
         switch code {
         case "TARGET_BUDGET": return "2561:29337"
         case "FINANCE": return "2561:29430"
@@ -244,8 +266,208 @@ enum OperatingSheetChrome {
         case "ME2": return "2561:30680"
         case "fulfilment": return "2561:30773"
         case "ME4": return "2561:30852"
+        // MFG Life · Production Operations — dedicated Production view-all.
+        case "production": return "2549:30941"
+        // Board codes with no DST frame — nearest vertical-native View-all.
+        case "sales": return "2513:30297"
+        case "services", "appointments": return "2538:30740"
+        case "channels": return "2574:29995"
+        case "customers": return "2513:30041"
+        case "M1": return "2574:29810"
+        case "M2": return "2574:29906"
+        case "M3": return "2574:29995"
+        case "L5": return "2574:30453"
+        case "ME3": return "2513:30751"
         default: return ""
         }
+    }
+
+    /// Vertical-native ids from Figma `TzLvwVwlPbeVB8ug1zB3GM`.
+    private static func verticalFigmaId(for code: String, vertical: String) -> String? {
+        let key = vertical.uppercased()
+        if key.contains("TRADING") || key == "TRD" {
+            switch code {
+            case "TARGET_BUDGET": return "2566:33638"
+            case "FINANCE": return "2566:33689"
+            case "PAYMENT_READINESS": return "2566:33760"
+            case "ATTENTION": return "2566:33822"
+            case "ACTIVITY": return "2566:33889"
+            case "GST": return "2566:33960"
+            case "orders": return "2566:34018"
+            case "stock": return "2566:34096"
+            case "network": return "2566:34169"
+            case "M4": return "2566:34237"
+            case "L1": return "2566:34317"
+            case "L2": return "2566:34380"
+            case "L3": return "2566:34466"
+            case "L4": return "2566:34542"
+            case "ME1": return "2566:34620"
+            case "ME2": return "2566:34695"
+            case "fulfilment": return "2566:34770"
+            case "ME4": return "2566:34832"
+            default: return nil
+            }
+        }
+        if key.contains("RETAIL") || key == "RTL" {
+            switch code {
+            case "TARGET_BUDGET": return "2513:29334"
+            case "ATTENTION": return "2513:29426"
+            case "PAYMENT_READINESS": return "2513:29520"
+            case "FINANCE": return "2513:29601"
+            case "ACTIVITY": return "2513:29688"
+            case "GST": return "2513:29770"
+            case "M1": return "2513:29859"
+            case "M2": return "2513:29948"
+            case "network", "customers", "M3": return "2513:30041"
+            case "M4": return "2513:30126"
+            case "L1": return "2513:30217"
+            case "sales", "L2": return "2513:30297"
+            case "L3": return "2513:30394"
+            case "L4", "stock": return "2513:30481"
+            case "ME1": return "2513:30570"
+            case "ME2": return "2513:30665"
+            case "ME3": return "2513:30751"
+            case "ME4": return "2513:30830"
+            default: return nil
+            }
+        }
+        if key.contains("RESTAURANT") || key.contains("FOOD") || key == "RST" {
+            switch code {
+            case "TARGET_BUDGET": return "2482:29487"
+            case "ATTENTION": return "2482:29639"
+            case "PAYMENT_READINESS": return "2482:29795"
+            case "FINANCE": return "2482:29938"
+            case "ACTIVITY": return "2482:30085"
+            case "GST": return "2482:30227"
+            case "M1": return "2482:30376"
+            case "M2": return "2482:30525"
+            case "network", "M3": return "2482:30680"
+            case "M4": return "2482:30827"
+            case "L1": return "2482:30978"
+            case "sales", "L2": return "2482:31120"
+            case "L3": return "2482:31277"
+            case "L4": return "2482:31424"
+            case "ME1": return "2482:31573"
+            case "ME2": return "2482:31730"
+            case "ME3": return "2482:31876"
+            case "ME4": return "2482:32017"
+            default: return nil
+            }
+        }
+        if (key.contains("SERVICE") && !key.contains("CAMPAIGN")) || key == "SVC" || key == "CONSUMER_SERVICE" {
+            switch code {
+            case "TARGET_BUDGET": return "2538:29731"
+            case "ATTENTION": return "2538:29832"
+            case "PAYMENT_READINESS": return "2538:29917"
+            case "FINANCE": return "2538:29999"
+            case "ACTIVITY": return "2538:30095"
+            case "GST": return "2538:30186"
+            case "M1": return "2538:30284"
+            case "M2": return "2538:30382"
+            case "network", "M3", "customers": return "2538:30473"
+            case "M4": return "2538:30559"
+            case "L1": return "2538:30659"
+            case "services", "appointments", "L2": return "2538:30740"
+            case "L3": return "2538:30846"
+            case "L4": return "2538:30942"
+            case "ME1": return "2538:31038"
+            case "ME2": return "2538:31131"
+            case "ME3": return "2538:31226"
+            case "ME4": return "2538:31306"
+            default: return nil
+            }
+        }
+        if key.contains("MADE_TO_ORDER") || key == "MTO" {
+            switch code {
+            case "TARGET_BUDGET": return "2694:29807"
+            case "ATTENTION": return "2694:29905"
+            case "PAYMENT_READINESS": return "2694:29992"
+            case "FINANCE": return "2694:30072"
+            case "ACTIVITY": return "2694:30165"
+            case "GST": return "2694:30258"
+            case "M1": return "2694:30353"
+            case "M2": return "2694:30453"
+            case "network", "M3", "customers": return "2694:30547"
+            case "M4": return "2694:30633"
+            case "L1": return "2694:30732"
+            case "orders", "L2": return "2694:30814"
+            case "L3": return "2694:30922"
+            case "production", "L4": return "2694:31015"
+            case "ME1": return "2694:31116"
+            case "ME2": return "2694:31209"
+            case "ME3": return "2694:31302"
+            case "ME4": return "2694:31382"
+            default: return nil
+            }
+        }
+        if key.contains("PRODUCTION") || key.contains("MANUFACTURING") || key == "MFG" || key == "STANDARD_PRODUCTION" {
+            switch code {
+            case "TARGET_BUDGET": return "2549:29728"
+            case "ATTENTION": return "2549:29829"
+            case "PAYMENT_READINESS": return "2549:29915"
+            case "FINANCE": return "2549:29997"
+            case "ACTIVITY": return "2549:30093"
+            case "GST": return "2549:30184"
+            case "M1": return "2549:30282"
+            case "M2": return "2549:30380"
+            case "network", "M3": return "2549:30471"
+            case "M4": return "2549:30558"
+            case "L1": return "2549:30658"
+            case "orders", "L2": return "2549:30739"
+            case "L3": return "2549:30845"
+            case "production", "L4": return "2549:30941"
+            case "ME1": return "2549:31039"
+            case "ME2": return "2549:31132"
+            case "ME3": return "2549:31227"
+            case "ME4": return "2549:31307"
+            default: return nil
+            }
+        }
+        if key.contains("OWN") || key == "OWN_BUSINESS_CAMPAIGN" || key == "MKT_OWN" {
+            switch code {
+            case "TARGET_BUDGET": return "2584:29250"
+            case "ATTENTION": return "2584:29346"
+            case "PAYMENT_READINESS": return "2584:29426"
+            case "FINANCE": return "2584:29503"
+            case "ACTIVITY": return "2584:29594"
+            case "M1": return "2584:30079"
+            case "M2": return "2584:30172"
+            case "M3", "channels": return "2584:30261"
+            case "M4": return "2584:30346"
+            case "L1": return "2584:30432"
+            case "L2": return "2584:30508"
+            case "L3": return "2584:30612"
+            case "L5": return "2584:30703"
+            case "ME1": return "2584:30790"
+            case "ME2": return "2584:30880"
+            case "ME3": return "2584:30970"
+            case "ME4": return "2584:31048"
+            default: return nil
+            }
+        }
+        if key.contains("CAMPAIGN") || key.contains("MARKETING") || key == "MKT" || key == "CLIENT_CAMPAIGN" {
+            switch code {
+            case "TARGET_BUDGET": return "2574:29365"
+            case "ATTENTION": return "2574:29464"
+            case "PAYMENT_READINESS": return "2574:29547"
+            case "FINANCE": return "2574:29627"
+            case "ACTIVITY": return "2574:29721"
+            case "M1": return "2574:29810"
+            case "M2": return "2574:29906"
+            case "M3", "channels": return "2574:29995"
+            case "M4": return "2574:30080"
+            case "L1": return "2574:30176"
+            case "L2": return "2574:30255"
+            case "L3": return "2574:30359"
+            case "L5": return "2574:30453"
+            case "ME1": return "2574:30547"
+            case "ME2": return "2574:30638"
+            case "ME3": return "2574:30731"
+            case "ME4": return "2574:30809"
+            default: return nil
+            }
+        }
+        return nil
     }
 
     static func statusFilters(for code: String) -> [String] {
@@ -925,6 +1147,24 @@ enum OperatingCaptureLayout: String, CaseIterable {
 
     var label: String {
         switch self {
+        case .sale: return "Record Sale"
+        case .purchase: return "Record Purchase"
+        case .collection: return "Record Collection"
+        case .payment: return "Record Payment"
+        case .spend: return "Record Expense"
+        case .stock: return "Stock Update"
+        case .saleReturn: return "Return / Credit Note"
+        case .budget: return "Budget / Target Revision"
+        case .update: return "Post Update / Issue"
+        case .approval: return "Approval / Reimbursement"
+        case .order: return "Order"
+        case .shipment: return "Delivery"
+        }
+    }
+
+    /// Short hub tile title (TRD-QA-01…12).
+    var hubLabel: String {
+        switch self {
         case .sale: return "Sale"
         case .purchase: return "Purchase"
         case .collection: return "Collection"
@@ -934,7 +1174,7 @@ enum OperatingCaptureLayout: String, CaseIterable {
         case .saleReturn: return "Return"
         case .budget: return "Budget"
         case .update: return "Update / Issue"
-        case .approval: return "Approval / Reimbursement"
+        case .approval: return "Approval"
         case .order: return "Order"
         case .shipment: return "Delivery"
         }
@@ -983,7 +1223,7 @@ enum OperatingMasterTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .principals: return "Principals & dealers"
+        case .principals: return "Business contacts"
         case .catalogue: return "Catalogue & SKU"
         case .locations: return "Warehouses & routes"
         case .priceLists: return "Price lists"
@@ -991,9 +1231,21 @@ enum OperatingMasterTab: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Marketing Own hub / sheet titles (Figma `2584:29768` / `29833` / `29924` / `29990`).
+    func title(ownMarketing: Bool) -> String {
+        guard ownMarketing else { return title }
+        switch self {
+        case .principals: return "Vendors & creators"
+        case .priceLists: return "Services & rate card"
+        case .locations: return "Channels & teams"
+        case .invite: return "Invite & QR"
+        default: return title
+        }
+    }
+
     var singular: String {
         switch self {
-        case .principals: return "principal or dealer"
+        case .principals: return "supplier or customer"
         case .catalogue: return "SKU"
         case .locations: return "warehouse or route"
         case .priceLists: return "price list"
@@ -1004,7 +1256,7 @@ enum OperatingMasterTab: String, CaseIterable, Identifiable {
     var note: String {
         switch self {
         case .principals:
-            return "Identity is stable here: a dealer row is referenced by id, never by its typed name."
+            return "Identity is stable here: a contact row is referenced by id. One record can be Supplier, Customer, or both."
         case .catalogue:
             return "A SKU carries unit precision and standing prices. A posted bill never rewrites it."
         case .locations:
@@ -1018,16 +1270,22 @@ enum OperatingMasterTab: String, CaseIterable, Identifiable {
 
     var kinds: Set<String> {
         switch self {
-        case .principals: return ["PRINCIPAL", "DEALER", "SUPPLIER", "BUYER", "CUSTOMER", "CHANNEL"]
-        case .catalogue: return ["SKU", "PRODUCT", "BATCH"]
-        case .locations: return ["WAREHOUSE", "LOCATION", "ROUTE"]
+        case .principals:
+            // Service clients share the principals tab (CUSTOMER/CLIENT/GUEST).
+            return ["PRINCIPAL", "DEALER", "SUPPLIER", "BUYER", "CUSTOMER", "CHANNEL", "CLIENT", "GUEST"]
+        case .catalogue:
+            // Service offerings + packages sit on catalogue alongside SKUs.
+            return ["SKU", "PRODUCT", "BATCH", "SERVICE", "PACKAGE", "ITEM", "CONSUMABLE"]
+        case .locations:
+            // Service rooms/chairs/staff are capacity masters on the locations tab.
+            return ["WAREHOUSE", "LOCATION", "ROUTE", "STAFF", "ROOM", "CHAIR", "CHANNEL"]
         case .priceLists, .invite: return []
         }
     }
 
     var defaultKind: String {
         switch self {
-        case .principals: return "DEALER"
+        case .principals: return "CUSTOMER"
         case .catalogue: return "SKU"
         case .locations: return "WAREHOUSE"
         case .priceLists: return "PRICE_LIST"
@@ -1044,6 +1302,8 @@ struct OperatingMasterDraft {
     var name: String = ""
     var code: String = ""
     var unit: String = ""
+    /// BS-04 — packaging conversion into the SKU base unit.
+    var conversionToBase: String = ""
     var sellPrice: String = ""
     var purchasePrice: String = ""
     var mrp: String = ""
@@ -1072,6 +1332,7 @@ struct OperatingMasterDraft {
             code: nz(code),
             momentId: momentId,
             unit: nz(unit),
+            conversionToBase: nz(conversionToBase),
             sellPrice: nz(sellPrice),
             mrp: nz(mrp),
             purchasePrice: nz(purchasePrice),
@@ -1089,6 +1350,7 @@ struct OperatingMasterDraft {
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
             code: nz(code),
             unit: nz(unit),
+            conversionToBase: nz(conversionToBase),
             sellPrice: nz(sellPrice),
             mrp: nz(mrp),
             purchasePrice: nz(purchasePrice),
@@ -1115,13 +1377,13 @@ enum OperatingContractVocabulary {
         let key = raw.trimmingCharacters(in: .whitespaces).uppercased()
         switch key {
         case "IN", "ADD", "RECEIVED": return "ADD"
-        case "OUT", "REDUCE", "ISSUED": return "REDUCE"
+        case "OUT", "REDUCE", "ISSUED", "WASTE", "USAGE": return "REDUCE"
         case "SET", "COUNT", "SET CURRENT", "SET CURRENT STOCK": return "SET"
         case "TRANSFER", "MOVE": return "TRANSFER"
         default:
             if key.hasPrefix("SET") { return "SET" }
             if key.hasPrefix("ADD") { return "ADD" }
-            if key.hasPrefix("REDUCE") { return "REDUCE" }
+            if key.hasPrefix("REDUCE") || key.hasPrefix("WASTE") || key.hasPrefix("USAGE") { return "REDUCE" }
             if key.hasPrefix("TRANSFER") { return "TRANSFER" }
             return "ADD"
         }
@@ -1137,7 +1399,8 @@ enum OperatingContractVocabulary {
         case "damage", "damaged": return "damage"
         case "waste": return "waste"
         case "return", "returned": return "return"
-        case "correction", "replenishment", "replenish": return "correction"
+        case "correction", "replenishment", "replenish", "usage", "par / spoilage", "par", "spoilage":
+            return "correction"
         case "transfer", "move": return "TRANSFER"
         default: return "correction"
         }

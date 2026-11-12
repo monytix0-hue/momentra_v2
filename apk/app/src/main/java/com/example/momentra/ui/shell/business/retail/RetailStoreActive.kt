@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,11 +49,13 @@ import com.example.momentra.ui.shell.business.appstate.BusinessAppStateScreen
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateSpecs
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
+import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
 import com.example.momentra.ui.shell.business.shared.OperatingTab
 import com.example.momentra.ui.shell.business.shared.hasUsefulPulseChrome
 import com.example.momentra.ui.shell.business.shared.operatingAttentionCtaLabel
 import com.example.momentra.ui.shell.business.shared.openOperatingAttention
 import com.example.momentra.ui.theme.RetailRose
+import kotlinx.coroutines.launch
 
 /**
  * Retail store active experience.
@@ -72,10 +75,23 @@ fun RetailStoreActive(
     onRecord: suspend (RetailEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
     momentId: String? = null,
+    companyId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var sheet by remember { mutableStateOf<RetailSheetState?>(null) }
     var storyConfig by remember { mutableStateOf(false) }
+    var posOpen by remember { mutableStateOf(false) }
+    var posError by remember { mutableStateOf<String?>(null) }
+    val holdContext = androidx.compose.ui.platform.LocalContext.current
+    val holdSession = remember(momentId, companyId) {
+        RetailHoldSession(
+            context = holdContext.applicationContext,
+            momentId = momentId,
+            companyId = companyId,
+        )
+    }
+    val scope = rememberCoroutineScope()
+    val openPos: () -> Unit = { posOpen = true }
 
     RoseScreenBackground(modifier) {
         when {
@@ -84,6 +100,8 @@ fun RetailStoreActive(
                 onRecord = onRecord,
                 onDecide = onDecide,
                 momentId = momentId,
+                companyId = companyId,
+                holdSession = holdSession,
             )
 
             tab == OperatingTab.PULSE && !model.hasUsefulPulseChrome() -> {
@@ -95,7 +113,7 @@ fun RetailStoreActive(
                         BusinessAppStatePhase.Empty,
                     ),
                     accent = BusinessAppStateAccent.Emerald,
-                    onPrimary = onOpenQuickAdd,
+                    onPrimary = openPos,
                     onSecondary = onOpenQuickAdd,
                 )
             }
@@ -121,6 +139,7 @@ fun RetailStoreActive(
                     OperatingTab.PULSE -> RetailPulse(
                         model = model,
                         onOpenQuickAdd = onOpenQuickAdd,
+                        onOpenPos = openPos,
                         onOpenSheet = { sheet = it },
                     )
                     OperatingTab.MOMENTS -> RetailMoments(
@@ -137,6 +156,9 @@ fun RetailStoreActive(
                     )
                     OperatingTab.QUICK_ADD -> Unit
                 }
+                posError?.let {
+                    Text(it, style = RetailRose.rowCaption(RetailRose.negative))
+                }
                 Spacer(Modifier.height(24.dp))
             }
         }
@@ -150,10 +172,31 @@ fun RetailStoreActive(
             onOpenQuickAdd = onOpenQuickAdd,
         )
     }
+    if (posOpen) {
+        OperatingSheetScrim(
+            onDismiss = { posOpen = false },
+            accent = RetailRose.rose,
+            surface = RetailRose.cardSlate,
+            border = RetailRose.roseBorder.copy(alpha = 0.45f),
+            topCorner = 28.dp,
+        ) {
+            RetailPosSheet(
+                model = model,
+                holdSession = holdSession,
+                onDismiss = { posOpen = false },
+                companyId = companyId,
+                momentId = momentId,
+                onSubmit = { draft ->
+                    onRecord(draft)
+                },
+            )
+        }
+    }
     if (storyConfig && momentId != null) {
-        com.example.momentra.ui.shell.business.shared.OperatingSheetScrim(
+        OperatingSheetScrim(
             onDismiss = { storyConfig = false },
             accent = RetailRose.rose,
+            topCorner = 28.dp,
         ) {
             RetailStoryConfigSheet(
                 model = model,
@@ -173,9 +216,10 @@ fun RetailStoreActive(
 private fun RetailPulse(
     model: OperatingProjectionDto,
     onOpenQuickAdd: () -> Unit,
+    onOpenPos: () -> Unit,
     onOpenSheet: (RetailSheetState) -> Unit,
 ) {
-    PulseHero(model = model, onOpenQuickAdd = onOpenQuickAdd)
+    PulseHero(model = model, onOpenQuickAdd = onOpenQuickAdd, onOpenPos = onOpenPos)
     AttentionCard(model = model, onOpen = onOpenSheet, onOpenQuickAdd = onOpenQuickAdd)
     TargetBudgetCard(model = model, onOpen = onOpenSheet)
     PaymentReadinessCard(model = model, onOpen = onOpenSheet)
@@ -186,7 +230,11 @@ private fun RetailPulse(
 
 /** Rose hero: eyebrow, promise line, one-line position + 40dp glyph well. */
 @Composable
-private fun PulseHero(model: OperatingProjectionDto, onOpenQuickAdd: () -> Unit) {
+private fun PulseHero(
+    model: OperatingProjectionDto,
+    onOpenQuickAdd: () -> Unit,
+    onOpenPos: () -> Unit = onOpenQuickAdd,
+) {
     val heroShape = RetailRose.rHero
     val identity = (model.title ?: "Retail Store").uppercase()
     val location = model.location?.takeIf { it.isNotBlank() }?.uppercase()
@@ -234,7 +282,7 @@ private fun PulseHero(model: OperatingProjectionDto, onOpenQuickAdd: () -> Unit)
             )
             if ("SALE" in model.quickAdds.map { it.code }) {
                 Spacer(Modifier.height(4.dp))
-                RoseCta("+  Record Sale", onClick = onOpenQuickAdd)
+                RoseCta("+  Record Sale", onClick = onOpenPos)
             }
         }
         HeroGlyph()
@@ -1337,6 +1385,61 @@ sealed interface RetailSheetState {
     data object Patterns : RetailSheetState
 }
 
+private fun RetailSheetState.chromeCode(): String = when (this) {
+    RetailSheetState.Attention -> "ATTENTION"
+    RetailSheetState.Target -> "TARGET_BUDGET"
+    RetailSheetState.Payment -> "PAYMENT_READINESS"
+    RetailSheetState.Finance -> "FINANCE"
+    RetailSheetState.Activity -> "ACTIVITY"
+    RetailSheetState.Gst -> "GST"
+    RetailSheetState.Commitments -> "M4"
+    RetailSheetState.MomentDetail -> "M1"
+    RetailSheetState.People -> "ME3"
+    RetailSheetState.Network -> "network"
+    RetailSheetState.LifeCurrent -> "L1"
+    RetailSheetState.LifeSales -> "sales"
+    RetailSheetState.LifeMoney -> "L3"
+    RetailSheetState.LifeOps -> "L4"
+    RetailSheetState.Monthly -> "ME1"
+    RetailSheetState.MoneyMemory -> "ME2"
+    RetailSheetState.PeopleMemory -> "ME3"
+    RetailSheetState.Patterns -> "ME4"
+}
+
+private fun RetailSheetState.sheetTitle(): String = when (this) {
+    RetailSheetState.Attention -> "Needs Attention"
+    RetailSheetState.Target -> "Target & Budget"
+    RetailSheetState.Payment -> "Payment Readiness"
+    RetailSheetState.Finance -> "Finance"
+    RetailSheetState.Activity -> "Activity"
+    RetailSheetState.Gst -> "GST Position"
+    RetailSheetState.Commitments -> "Open Commitments"
+    RetailSheetState.MomentDetail -> "My Retail Business"
+    RetailSheetState.People -> "People"
+    RetailSheetState.Network -> "Business Network"
+    RetailSheetState.LifeCurrent -> "Current Business"
+    RetailSheetState.LifeSales -> "Sales & Orders"
+    RetailSheetState.LifeMoney -> "Money Moving"
+    RetailSheetState.LifeOps -> "Operations / Stock"
+    RetailSheetState.Monthly -> "Monthly Memory"
+    RetailSheetState.MoneyMemory -> "Money Memory"
+    RetailSheetState.PeopleMemory -> "People & Activity"
+    RetailSheetState.Patterns -> "Patterns & Decisions"
+}
+
+private val RetailSheetTheme = com.example.momentra.ui.shell.business.shared.OperatingSheetTheme(
+    accent = RetailRose.rose,
+    accentSoft = RetailRose.roseSoft,
+    canvas = RetailRose.screenBottom,
+    surface = RetailRose.card,
+    inset = RetailRose.surfaceRow,
+    border = RetailRose.cardStroke,
+    ink = RetailRose.textPrimary,
+    body = RetailRose.textBody,
+    warning = RetailRose.warning,
+    negative = RetailRose.negative,
+)
+
 @Composable
 private fun RetailBoardSheet(
     state: RetailSheetState,
@@ -1344,96 +1447,116 @@ private fun RetailBoardSheet(
     onDismiss: () -> Unit,
     onOpenQuickAdd: () -> Unit,
 ) {
-    val title = when (state) {
-        RetailSheetState.Attention -> "Needs Attention"
-        RetailSheetState.Target -> "Target & Budget"
-        RetailSheetState.Payment -> "Payment Readiness"
-        RetailSheetState.Finance -> "Finance"
-        RetailSheetState.Activity -> "Activity"
-        RetailSheetState.Gst -> "GST Position"
-        RetailSheetState.Commitments -> "Open Commitments"
-        RetailSheetState.MomentDetail -> "My Retail Business"
-        RetailSheetState.People -> "People"
-        RetailSheetState.Network -> "Business Network"
-        RetailSheetState.LifeCurrent -> "Current Business"
-        RetailSheetState.LifeSales -> "Sales & Orders"
-        RetailSheetState.LifeMoney -> "Money Moving"
-        RetailSheetState.LifeOps -> "Operations / Stock"
-        RetailSheetState.Monthly -> "Monthly Memory"
-        RetailSheetState.MoneyMemory -> "Money Memory"
-        RetailSheetState.PeopleMemory -> "People & Activity"
-        RetailSheetState.Patterns -> "Patterns & Decisions"
+    val code = state.chromeCode()
+    val total = when (state) {
+        RetailSheetState.Attention -> model.attention.size
+        RetailSheetState.Payment, RetailSheetState.Finance -> model.paymentReadiness.size
+        RetailSheetState.Activity, RetailSheetState.LifeSales -> model.activity.size
+        RetailSheetState.People, RetailSheetState.PeopleMemory -> model.participants.size
+        else -> model.boards?.let { boards ->
+            listOfNotNull(boards.moments, boards.life, boards.memory)
+                .flatten()
+                .firstOrNull { it.code == code || (state == RetailSheetState.Network && it.code == "M3") || (state == RetailSheetState.MomentDetail && it.code == "M1") }
+                ?.rows?.size
+        } ?: 0
     }
-    com.example.momentra.ui.shell.business.shared.OperatingSheetScrim(
+    com.example.momentra.ui.shell.business.shared.OperatingSheetFrame(
+        title = state.sheetTitle(),
+        eyebrow = "",
+        model = model,
+        theme = RetailSheetTheme,
         onDismiss = onDismiss,
-        accent = RetailRose.rose,
-    ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = RetailRose.gutter, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center) {
-                Box(
-                    Modifier
-                        .width(40.dp).height(5.dp)
-                        .clip(RoundedCornerShape(100.dp))
-                        .background(Color.White.copy(alpha = 0.2f)),
-                )
-            }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(title, style = RetailRose.screenTitle(), modifier = Modifier.weight(1f))
-                Text(
-                    "Close",
-                    style = RetailRose.viewAll().copy(color = RetailRose.textBody),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .clickable(onClick = onDismiss)
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                )
-            }
-            Text(RetailFormat.periodLine(model.startDate, model.currency), style = RetailRose.roleLine(), maxLines = 1)
+        sheetCode = code,
+        totalCount = total,
+        visibleCount = { status ->
             when (state) {
-                RetailSheetState.Attention -> SheetAttention(model, onOpenQuickAdd)
-                RetailSheetState.Payment -> SheetPayment(model, receivables = false)
-                RetailSheetState.Finance -> SheetPayment(model, receivables = true)
-                RetailSheetState.Activity, RetailSheetState.LifeSales -> SheetActivity(model)
-                RetailSheetState.Commitments -> SheetSection(model, "M4")
-                RetailSheetState.MomentDetail -> SheetSection(model, "M1")
-                RetailSheetState.People -> SheetPeople(model)
-                RetailSheetState.Network -> SheetSection(model, "M3")
-                RetailSheetState.LifeCurrent -> SheetSection(model, "L1")
-                RetailSheetState.LifeMoney -> SheetSection(model, "L3")
-                RetailSheetState.LifeOps -> SheetSection(model, "L4")
-                RetailSheetState.Monthly -> SheetSection(model, "ME1")
-                RetailSheetState.MoneyMemory -> SheetSection(model, "ME2")
-                RetailSheetState.PeopleMemory -> SheetSection(model, "ME3")
-                RetailSheetState.Patterns -> SheetSection(model, "ME4")
-                RetailSheetState.Target -> SheetTarget(model)
-                RetailSheetState.Gst -> SheetGst(model)
+                RetailSheetState.Attention -> model.attention.count {
+                    val chip = when (it.severity?.uppercase()) {
+                        "CRITICAL" -> "Overdue"
+                        "HIGH" -> "Alert"
+                        else -> "Open"
+                    }
+                    com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, chip)
+                }
+                RetailSheetState.Payment, RetailSheetState.Finance -> model.paymentReadiness.count {
+                    com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.dueBucket)
+                }
+                RetailSheetState.Activity, RetailSheetState.LifeSales -> model.activity.count {
+                    com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.badge)
+                }
+                RetailSheetState.People, RetailSheetState.PeopleMemory -> model.participants.count {
+                    com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, null)
+                }
+                else -> model.boards?.let { boards ->
+                    listOfNotNull(boards.moments, boards.life, boards.memory)
+                        .flatten()
+                        .firstOrNull {
+                            it.code == code ||
+                                (state == RetailSheetState.Network && it.code == "M3") ||
+                                (state == RetailSheetState.MomentDetail && it.code == "M1")
+                        }
+                        ?.rows
+                        ?.count {
+                            com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.badge)
+                        }
+                } ?: total
             }
-            Spacer(Modifier.height(20.dp))
+        },
+        onFooterAction = { action ->
+            when (action) {
+                "PAYMENT" -> OperatingChromeState.quickAddHint = "payment"
+                "MEMORY" -> OperatingChromeState.storyConfigOpen = true
+                "ATTENTION" -> OperatingChromeState.quickAddHint = "issue"
+                else -> onOpenQuickAdd()
+            }
+        },
+    ) { status ->
+        when (state) {
+            RetailSheetState.Attention -> SheetAttention(model, status, onOpenQuickAdd)
+            RetailSheetState.Payment -> SheetPayment(model, status, receivables = false)
+            RetailSheetState.Finance -> SheetPayment(model, status, receivables = true)
+            RetailSheetState.Activity, RetailSheetState.LifeSales -> SheetActivity(model, status)
+            RetailSheetState.Commitments -> SheetSection(model, "M4", status)
+            RetailSheetState.MomentDetail -> SheetSection(model, "M1", status)
+            RetailSheetState.People -> SheetPeople(model, status)
+            RetailSheetState.Network -> SheetSection(model, "M3", status)
+            RetailSheetState.LifeCurrent -> SheetSection(model, "L1", status)
+            RetailSheetState.LifeMoney -> SheetSection(model, "L3", status)
+            RetailSheetState.LifeOps -> SheetSection(model, "L4", status)
+            RetailSheetState.Monthly -> SheetSection(model, "ME1", status)
+            RetailSheetState.MoneyMemory -> SheetSection(model, "ME2", status)
+            RetailSheetState.PeopleMemory -> SheetSection(model, "ME3", status)
+            RetailSheetState.Patterns -> SheetSection(model, "ME4", status)
+            RetailSheetState.Target -> SheetTarget(model)
+            RetailSheetState.Gst -> SheetGst(model)
         }
     }
 }
 
 @Composable
-private fun SheetAttention(model: OperatingProjectionDto, onOpenQuickAdd: () -> Unit) {
-    if (model.attention.isEmpty()) {
+private fun SheetAttention(model: OperatingProjectionDto, status: String, onOpenQuickAdd: () -> Unit) {
+    val rows = model.attention.filter {
+        val chip = when (it.severity?.uppercase()) {
+            "CRITICAL" -> "Overdue"
+            "HIGH" -> "Alert"
+            else -> "Open"
+        }
+        com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, chip)
+    }
+    if (rows.isEmpty()) {
         RoseEmpty("Nothing is waiting", "Approvals, overdue items and blockers will show here.")
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        model.attention.forEach { item -> AttentionRow(item, model, onOpenQuickAdd) }
+        rows.forEach { item -> AttentionRow(item, model, onOpenQuickAdd) }
     }
 }
 
 @Composable
-private fun SheetPayment(model: OperatingProjectionDto, receivables: Boolean) {
+private fun SheetPayment(model: OperatingProjectionDto, status: String, receivables: Boolean) {
     val rows: List<OperatingPaymentDto> = model.paymentReadiness.filter {
-        if (receivables) it.relevance == "RECEIVABLE" else it.relevance != "RECEIVABLE"
+        val side = if (receivables) it.relevance == "RECEIVABLE" else it.relevance != "RECEIVABLE"
+        side && com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.dueBucket)
     }
     if (rows.isEmpty()) {
         RoseEmpty(
@@ -1465,24 +1588,30 @@ private fun SheetPayment(model: OperatingProjectionDto, receivables: Boolean) {
 }
 
 @Composable
-private fun SheetActivity(model: OperatingProjectionDto) {
-    if (model.activity.isEmpty()) {
+private fun SheetActivity(model: OperatingProjectionDto, status: String) {
+    val rows = model.activity.filter {
+        com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.badge)
+    }
+    if (rows.isEmpty()) {
         RoseEmpty("Nothing recorded yet", "Sales, spend and settlement will show here.")
         return
     }
     Column {
-        model.activity.forEach { row -> ActivityDividedRow(row, model) }
+        rows.forEach { row -> ActivityDividedRow(row, model) }
     }
 }
 
 @Composable
-private fun SheetPeople(model: OperatingProjectionDto) {
-    if (model.participants.isEmpty()) {
+private fun SheetPeople(model: OperatingProjectionDto, status: String) {
+    val names = model.participants.filter {
+        com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, null)
+    }
+    if (names.isEmpty()) {
         RoseEmpty("No people yet", "Invite the shop floor, billing and approvers.")
         return
     }
     Column {
-        model.participants.forEach { name ->
+        names.forEach { name ->
             DividedRow(
                 title = name,
                 caption = if (name == model.partyName) roleLabel(model.role) else "Member",
@@ -1494,12 +1623,15 @@ private fun SheetPeople(model: OperatingProjectionDto) {
 }
 
 @Composable
-private fun SheetSection(model: OperatingProjectionDto, code: String) {
+private fun SheetSection(model: OperatingProjectionDto, code: String, status: String) {
     val section = (model.boards?.moments.orEmpty() + model.boards?.life.orEmpty() + model.boards?.memory.orEmpty())
         .firstOrNull { it.code == code }
     if (section == null) {
         RoseEmpty("Not available", "This board has not been recorded yet.")
         return
+    }
+    val rows = section.rows.filter {
+        com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.badge)
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (section.detail.isNotBlank()) {
@@ -1511,11 +1643,11 @@ private fun SheetSection(model: OperatingProjectionDto, code: String) {
                 if (!section.coverage.isNullOrBlank()) SeverityChip(section.coverage!!, RetailRose.warning)
             }
         }
-        if (section.rows.isEmpty()) {
+        if (rows.isEmpty()) {
             RoseEmpty("Nothing recorded yet", "Rows will appear as activity is recorded.")
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                section.rows.forEach { row -> BoardRowFor(row = row, model = model) }
+                rows.forEach { row -> BoardRowFor(row = row, model = model) }
             }
         }
     }

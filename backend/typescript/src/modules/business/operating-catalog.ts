@@ -22,6 +22,7 @@ import {
   salesCoverage,
   serviceFlowSummary,
   stockPositions,
+  isConfirmedOrder,
   type OperatingContract,
 } from './operating-retail-contract';
 import {
@@ -47,6 +48,7 @@ import type { OperatingMasterRecord } from './operating-masters';
 import {
   applyManufacturingBoardMetrics,
   applyTradingBoardMetrics,
+  marketingPulseMetrics,
   tradingPulseMetrics,
 } from './operating-board-metrics';
 import {
@@ -61,7 +63,20 @@ import {
   marketingProgress,
   marketingRoas,
   rollMarketingLedger,
+  MARKETING_KPI_METRICS,
   MARKETING_METRICS,
+  normalizeMarketingMetric,
+} from './operating-marketing';
+export {
+  defaultChannelsForSubtype,
+  UNIT_MASTER,
+  OPERATING_CHANNEL_DEFAULTS,
+} from './operating-channels';
+export {
+  MARKETING_KPI_METRICS,
+  MARKETING_METRICS,
+  normalizeMarketingMetric,
+  marketingMetricUnit,
 } from './operating-marketing';
 
 export const OPERATING_FAMILY_CODES = [
@@ -146,7 +161,7 @@ const QA = {
   COLLECTION: qa('COLLECTION', 'Add Collection', false, true, 'RECEIVABLE', true, true),
   BUDGET: qa('BUDGET', 'Revise Budget', false, false, 'NONE', true, true),
   TARGET: qa('TARGET', 'Revise Target', false, false, 'NONE', true, true),
-  UPDATE: qa('UPDATE', 'Add Update', false, false, 'NONE', false, false),
+  UPDATE: qa('UPDATE', 'Team Update / Issue', false, false, 'NONE', false, false),
   ISSUE: qa('ISSUE', 'Add Issue', false, false, 'NONE', false, false),
   APPROVAL: qa('APPROVAL', 'Request Approval', false, false, 'NONE', false, false),
   DELIVERABLE: qa('DELIVERABLE', 'Add Deliverable', false, false, 'NONE', false, false),
@@ -199,8 +214,13 @@ export interface OperatingFamily {
   subtypes: OperatingSubtype[];
 }
 
+/**
+ * v5.1 AT-01 Quick Add surface: 8 shared + INVOICE/COLLECTION for Client (=10).
+ * QA-09 is a single "Team Update / Issue" tile (`UPDATE`); ISSUE writes remain allowed
+ * when UPDATE is permitted (see recordOperatingEvent).
+ */
 const MARKETING_ADDS: QuickAddCode[] = [
-  'ACTIVITY', 'PROGRESS', 'SPEND', 'PAYMENT', 'REVISION', 'APPROVAL', 'UPDATE', 'ISSUE', 'RESULT',
+  'ACTIVITY', 'PROGRESS', 'SPEND', 'PAYMENT', 'REVISION', 'APPROVAL', 'UPDATE', 'RESULT',
 ];
 
 export const OPERATING_FAMILIES: OperatingFamily[] = [
@@ -216,7 +236,7 @@ export const OPERATING_FAMILIES: OperatingFamily[] = [
         label: 'Client Campaign',
         partyLabel: 'Client',
         quickAdds: [...MARKETING_ADDS, 'INVOICE', 'COLLECTION'],
-        targetMetrics: [...MARKETING_METRICS],
+        targetMetrics: [...MARKETING_KPI_METRICS, 'CLIENT_BILLING'],
         requiresChannel: false,
       },
       {
@@ -224,7 +244,7 @@ export const OPERATING_FAMILIES: OperatingFamily[] = [
         label: 'Own Business Campaign',
         partyLabel: 'Brand',
         quickAdds: [...MARKETING_ADDS],
-        targetMetrics: MARKETING_METRICS.filter((metric) => metric !== 'CLIENT_BILLING'),
+        targetMetrics: [...MARKETING_KPI_METRICS],
         requiresChannel: false,
       },
     ],
@@ -346,7 +366,13 @@ export function quickAddsForSubtype(subtype: string): QuickAddDef[] {
   const family = familyForSubtype(subtype);
   const sub = family?.subtypes.find((s) => s.code === subtype.toUpperCase());
   if (!sub) return [];
-  return sub.quickAdds.map((code) => QA[code]);
+  return sub.quickAdds.map((code) => {
+    const def = QA[code];
+    if (isMarketingSubtype(subtype) && code === 'UPDATE') {
+      return { ...def, label: 'Team Update / Issue' };
+    }
+    return def;
+  });
 }
 
 const FINANCE_VISIBLE = new Set<OperatingRole>(['OWNER_ADMIN', 'FINANCE', 'APPROVER']);
@@ -422,7 +448,13 @@ export interface OperatingPreferences {
   purchasePriceIncludesGst: string;
   gstEffectiveFrom: string;
   clientFee: string;
+  /** Client-approved media budget — commercial term; distinct from agency operating cost. */
+  clientApprovedMediaBudget: string;
+  /** Agency operating budget — Client Campaign only; distinct from media spend. */
+  agencyOperatingBudget: string;
   offering: string;
+  /** Campaign purpose label (leads / sales / awareness / …). */
+  campaignPurpose: string;
   creativeApprovalRequired: string;
   reportingCadence: string;
   conversionNumerator: string;
@@ -482,9 +514,18 @@ export function normalizeOperatingPreferences(
       if (!monthlyTarget) throw new Error('Monthly target must be a positive amount.');
     }
   }
-  const requestedMetric = String(prefs.targetMetric ?? '').toUpperCase();
+  const requestedRaw = String(prefs.targetMetric ?? '').toUpperCase();
+  const requestedMetric =
+    familyCode === 'MARKETING_CAMPAIGNS' ? normalizeMarketingMetric(requestedRaw) : requestedRaw;
   const fallbackMetrics = sub?.targetMetrics ?? ['REVENUE', 'ORDERS', 'CUSTOM_COUNT'];
-  const targetMetric = fallbackMetrics.includes(requestedMetric) ? requestedMetric : fallbackMetrics[0];
+  // Marketing still accepts legacy aliases (REVENUE → ATTRIBUTED_SALES) via normalizeMarketingMetric.
+  const acceptedMetrics =
+    familyCode === 'MARKETING_CAMPAIGNS'
+      ? [...new Set([...fallbackMetrics, ...MARKETING_METRICS])]
+      : fallbackMetrics;
+  const targetMetric = acceptedMetrics.includes(requestedMetric)
+    ? requestedMetric
+    : fallbackMetrics[0];
   const channels = Array.isArray(prefs.channels)
     ? prefs.channels.map((c) => String(c).trim()).filter(Boolean)
     : [];
@@ -568,7 +609,10 @@ function normalizeMarketingPreferences(
 ): Pick<
   OperatingPreferences,
   | 'clientFee'
+  | 'clientApprovedMediaBudget'
+  | 'agencyOperatingBudget'
   | 'offering'
+  | 'campaignPurpose'
   | 'creativeApprovalRequired'
   | 'reportingCadence'
   | 'conversionNumerator'
@@ -578,7 +622,10 @@ function normalizeMarketingPreferences(
 > {
   const empty = {
     clientFee: '',
+    clientApprovedMediaBudget: '',
+    agencyOperatingBudget: '',
     offering: '',
+    campaignPurpose: '',
     creativeApprovalRequired: '',
     reportingCadence: '',
     conversionNumerator: '',
@@ -589,9 +636,13 @@ function normalizeMarketingPreferences(
   if (familyCode !== 'MARKETING_CAMPAIGNS') return empty;
   const client = subtype === 'CLIENT_CAMPAIGN';
   const cadence = String(prefs.reportingCadence ?? '').trim().toUpperCase();
+  // Own marketing budget = monthlyBudget (Pulse budget). Client commercial buckets stay separate.
   return {
     clientFee: client ? positiveAmount(prefs.clientFee) ?? '' : '',
+    clientApprovedMediaBudget: client ? positiveAmount(prefs.clientApprovedMediaBudget) ?? '' : '',
+    agencyOperatingBudget: client ? positiveAmount(prefs.agencyOperatingBudget) ?? '' : '',
     offering: String(prefs.offering ?? '').trim(),
+    campaignPurpose: String(prefs.campaignPurpose ?? prefs.purpose ?? '').trim(),
     creativeApprovalRequired: String(prefs.creativeApprovalRequired ?? '').toUpperCase() === 'YES' ? 'YES' : '',
     reportingCadence: client && ['WEEKLY', 'MONTHLY', 'CUSTOM'].includes(cadence) ? cadence : '',
     conversionNumerator: String(prefs.conversionNumerator ?? '').trim(),
@@ -823,6 +874,14 @@ export interface OperatingProjection {
     covers: string | null;
     locationName: string | null;
     clientKey: string | null;
+    /** ORDER / SALE line payload for Bill-from-KOT and Fire/Reprint fidelity. */
+    lines?: Array<{
+      itemName: string;
+      quantity: string | null;
+      unit: string | null;
+      unitPrice: string | null;
+      masterId: string | null;
+    }> | null;
   }>;
   life: { channels: string[]; openCommitments: number; resultProgress: string };
   memory: { revisions: Array<{ id: string; title: string; occurredAt: string }> };
@@ -854,7 +913,10 @@ export interface MarketingInsight {
   clientContribution: string | null;
   campaignStatus: string;
   clientFee: string;
+  clientApprovedMediaBudget: string;
+  agencyOperatingBudget: string;
   offering: string;
+  campaignPurpose: string;
   creativeApprovalRequired: string;
   reportingCadence: string;
   orderAchievement: string | null;
@@ -1048,7 +1110,7 @@ export function operatingContinuity(
     }
   }
 
-  const orders = rows.filter((row) => row.eventType === 'ORDER' || row.eventType === 'CUSTOMER_ORDER');
+  const orders = rows.filter((row) => isConfirmedOrder(row));
   const ordered = orders.reduce((total, row) => total + num(row.quantity), 0);
   const dispatched = rows.filter((row) => row.eventType === 'SHIPMENT').reduce((total, row) => total + num(row.quantity), 0);
   const delivered = rows.filter((row) => row.eventType === 'DELIVERY').reduce((total, row) => total + num(row.quantity), 0);
@@ -1476,7 +1538,10 @@ export function projectOperatingMoment(args: {
         clientContribution: clientCampaign && visible ? money(netPostedSales(pulseEvents) - spent) : null,
         campaignStatus: args.prefs.campaignStatus || 'OPEN',
         clientFee: args.prefs.clientFee,
+        clientApprovedMediaBudget: args.prefs.clientApprovedMediaBudget,
+        agencyOperatingBudget: args.prefs.agencyOperatingBudget,
         offering: args.prefs.offering,
+        campaignPurpose: args.prefs.campaignPurpose,
         creativeApprovalRequired: args.prefs.creativeApprovalRequired,
         reportingCadence: args.prefs.reportingCadence,
         orderAchievement: (() => {
@@ -1500,8 +1565,7 @@ export function projectOperatingMoment(args: {
         roas: visible ? marketingRoas(pulseEvents) : null,
       }
     : null;
-  const quickAdds = (sub?.quickAdds ?? [])
-    .map((code) => QA[code])
+  const quickAdds = quickAddsForSubtype(args.prefs.subtype)
     .filter((def) => canSubmit(args.role, def))
     .map((def) => ({ code: def.code, label: def.label, needsAmount: def.needsAmount }));
   return {
@@ -1565,6 +1629,13 @@ export function projectOperatingMoment(args: {
       covers: row.contract?.covers ?? null,
       locationName: row.contract?.locationName ?? null,
       clientKey: row.contract?.clientKey ?? null,
+      lines: (row.lines ?? []).map((line) => ({
+        itemName: line.itemName,
+        quantity: line.quantity ?? null,
+        unit: line.unit ?? null,
+        unitPrice: line.unitPrice ?? null,
+        masterId: line.masterId ?? null,
+      })),
     })),
     life: {
       channels: args.prefs.channels,
@@ -1633,7 +1704,30 @@ export function projectOperatingMoment(args: {
               activity: pulseEvents.map((row) => ({ eventType: row.eventType })),
             },
           })
-        : null,
+        : isMarketingSubtype(args.prefs.subtype)
+          ? marketingPulseMetrics({
+              events: args.events,
+              visible,
+              currency: args.prefs.currency,
+              asOf,
+              prefs: args.prefs,
+              ownCampaign,
+              clientCampaign,
+              marketing: marketingInsight,
+              projection: {
+                budget: visible
+                  ? { amount: money(budget), spent: money(spent), remaining: money(budget - spent), configured: budgetConfigured }
+                  : null,
+                target: visible
+                  ? { metric: args.prefs.targetMetric, value: money(target), progress: money(progress), configured: targetConfigured }
+                  : null,
+                finance,
+                attention,
+                paymentReadiness: visibleReadiness,
+                activity: pulseEvents.map((row) => ({ eventType: row.eventType })),
+              },
+            })
+          : null,
   };
 }
 

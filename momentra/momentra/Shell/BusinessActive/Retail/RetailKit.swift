@@ -3,6 +3,10 @@ import SwiftUI
 /// Retail Store kit — Figma `RTL-HUB-v5` `2399:29887` (+ Pulse/Moments/Life/Memory frames).
 /// Port of Android `RetailStoreActive` / `RetailQuickAdds`.
 /// Moments/Life/Memory card IA lives in `RetailFamilyActiveScreens`.
+///
+/// **Utilities · 3 decision:** Figma hub shows Core · 9 + Support · 5 only. Hold /
+/// Transfer / Reprint remain required RTL screens (`2508:29333` / `29447` / `29537`).
+/// Keep a muted Utilities row for HTR discovery (same as Service) — do not delete.
 
 struct RetailActiveView: View {
     @ObservedObject var model: BusinessOperatingModel
@@ -56,6 +60,8 @@ struct RetailHubScreen: View {
             coreSection: "Core · 9",
             supportSection: "Support · 5",
             utilitySection: "Utilities · 3",
+            coreTrailing: "Retail journey",
+            supportTrailing: "Network · masters",
             model: model,
             onCapture: onCapture,
             onOpenMasters: onOpenMasters,
@@ -63,13 +69,13 @@ struct RetailHubScreen: View {
         )
     }
 
-    /// Android `RetailCoreTiles` order and captions.
+    /// Android `RetailCoreTiles` / `RetailUtilityTiles` order and captions (Phase 7/8 lock).
     static let core: [RetailFamilyHubTile] = [
         .capture(code: "SALE", title: "Sale", subtitle: "Quick or itemized", glyph: "bag", requires: "SALE"),
         .capture(code: "PURCHASE", title: "Purchase", subtitle: "Goods · receive", glyph: "cart", requires: "PURCHASE"),
         .capture(code: "COLLECTION", title: "Collection", subtitle: "Allocate open AR", glyph: "arrow.down.circle", requires: "COLLECTION"),
         .capture(code: "PAYMENT", title: "Payment", subtitle: "Settle open AP", glyph: "creditcard", requires: "PAYMENT"),
-        .capture(code: "SPEND", title: "Expense", subtitle: "Store running", glyph: "wallet.pass", requires: "SPEND"),
+        .capture(code: "SPEND", title: "Expense", subtitle: "Running cost", glyph: "wallet.pass", requires: "SPEND"),
         .capture(code: "STOCK", title: "Stock", subtitle: "Count · damage", glyph: "shippingbox", requires: "STOCK"),
         .capture(code: "ORDER", title: "Order", subtitle: "Optional customer", glyph: "list.bullet.rectangle", requires: "ORDER"),
         .capture(code: "STATUS", title: "Status", subtitle: "Dispatch / fulfil", glyph: "flag", requires: "ORDER"),
@@ -85,7 +91,8 @@ struct RetailHubScreen: View {
     ]
 
     static let utilities: [RetailFamilyHubTile] = [
-        .capture(code: "HOLD", title: "Hold", subtitle: "Park order", glyph: "pause.circle", requires: "ORDER"),
+        // Hold parks a POS draft — gate on SALE (Android `RetailUtilityTiles`), not ORDER.
+        .capture(code: "HOLD", title: "Hold", subtitle: "Park bill", glyph: "pause.circle", requires: "SALE"),
         .capture(code: "TRANSFER", title: "Transfer", subtitle: "Between stores", glyph: "arrow.left.arrow.right", requires: "STOCK"),
         .capture(code: "REPRINT", title: "Reprint", subtitle: "Receipt · bill", glyph: "printer", requires: "SALE"),
     ]

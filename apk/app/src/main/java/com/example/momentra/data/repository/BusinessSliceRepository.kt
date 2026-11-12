@@ -220,6 +220,13 @@ class BusinessSliceRepository(
         api.getOperatingDocument(momentId, eventId, kind).data
     }.recoverCatching { e -> throw mapError(e) }
 
+    suspend fun searchHsn(
+        query: String = "",
+        limit: Int = 25,
+    ): Result<com.example.momentra.data.api.HsnLookupResponseDto> = runCatching {
+        api.searchHsn(query.ifBlank { null }, limit).data
+    }.recoverCatching { e -> throw mapError(e) }
+
     suspend fun listMasters(
         companyId: String,
         kind: String? = null,

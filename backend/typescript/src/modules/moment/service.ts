@@ -24,6 +24,11 @@ import {
 } from './setup-persistence';
 import { bindInviteToMoment } from '../collaboration/invite-service';
 import { emitLeanBusinessEvent } from '../analytics/lean-events';
+import {
+  assertMarketingSubtypeStable,
+  isMarketingSubtype,
+  type MarketingEvent,
+} from '../business/operating-marketing';
 
 const participantRoleSchema = z.enum([
   'ORGANIZER',
@@ -33,6 +38,50 @@ const participantRoleSchema = z.enum([
   'CONTRIBUTOR',
   'OBSERVER',
 ]);
+
+/** Minimal event projection for marketing subtype lock after financial posts. */
+async function loadMarketingLockEvents(
+  client: PoolClient,
+  momentId: string
+): Promise<MarketingEvent[]> {
+  const rows = await client.query<{
+    operating_event_id: string;
+    event_type: string;
+    title: string;
+    amount: string | null;
+    payment_status: string;
+    approval_status: string;
+    occurred_at: Date;
+  }>(
+    `SELECT operating_event_id, event_type, title, amount::text, payment_status, approval_status, occurred_at
+     FROM business.operating_event
+     WHERE moment_id = $1
+     ORDER BY occurred_at DESC
+     LIMIT 200`,
+    [momentId]
+  );
+  return rows.rows.map((row) => ({
+    operatingEventId: row.operating_event_id,
+    eventType: row.event_type,
+    title: row.title,
+    amount: row.amount,
+    paymentStatus: row.payment_status,
+    approvalStatus: row.approval_status,
+    occurredAt: row.occurred_at.toISOString(),
+  }));
+}
+
+function assertMarketingSubtypeChange(
+  previousSubtype: string,
+  nextSubtype: string,
+  events: MarketingEvent[]
+): void {
+  if (!isMarketingSubtype(previousSubtype) && !isMarketingSubtype(nextSubtype)) return;
+  const check = assertMarketingSubtypeStable(previousSubtype, nextSubtype, events);
+  if (!check.ok) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, check.message, 409);
+  }
+}
 
 export const createMomentParticipantSchema = z
   .object({

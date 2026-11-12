@@ -288,6 +288,7 @@ internal fun OperatingSwitchMomentSheet(
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit,
 ) {
+    val dist = OperatingChromeState.distributionChrome
     var moments by remember { mutableStateOf<List<Triple<String, String, String?>>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
@@ -315,7 +316,7 @@ internal fun OperatingSwitchMomentSheet(
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Switch moment",
+                if (dist) DistributionMasterCopy.SWITCH_TITLE else "Switch moment",
                 color = theme.ink,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.SemiBold,
@@ -333,7 +334,16 @@ internal fun OperatingSwitchMomentSheet(
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             )
         }
-        Text("Switching a moment never moves its records. Each moment keeps its own ledger.", color = theme.body, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        Text(
+            if (dist) {
+                DistributionMasterCopy.SWITCH_SUBTITLE
+            } else {
+                "Switching a moment never moves its records. Each moment keeps its own ledger."
+            },
+            color = theme.body,
+            fontFamily = PlusJakartaSans,
+            fontSize = 12.sp,
+        )
         if (error != null) Text(error ?: "", color = theme.negative, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         moments.forEach { (id, title, code) ->
             val on = id == currentMomentId
@@ -363,7 +373,22 @@ internal fun OperatingSwitchMomentSheet(
                         fontSize = 11.sp,
                     )
                 }
-                if (on) OperatingBadgeChip("Current", theme)
+                if (on) {
+                    val currentLabel = when {
+                        code?.contains("MANUFACTUR", ignoreCase = true) == true ||
+                            code?.contains("PRODUCTION", ignoreCase = true) == true ||
+                            code?.contains("MADE_TO_ORDER", ignoreCase = true) == true -> "Current · Plant"
+                        else -> "Current"
+                    }
+                    // Own Switch Moment Figma uses soft secondary for "Current" (accentSoft).
+                    Text(
+                        currentLabel,
+                        color = theme.accentSoft,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.sp,
+                    )
+                }
             }
         }
     }

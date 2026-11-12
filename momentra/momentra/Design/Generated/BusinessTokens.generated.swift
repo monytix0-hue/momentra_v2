@@ -69,6 +69,11 @@ enum BusinessTokens {
         static let tradingOnAccent = Color(hex: "#090D16")
         static let tradingHeroStart = Color(hex: "#6EE7B7")
         static let tradingHeroEnd = Color(hex: "#10B981")
+        static let tradingSheetSurface = Color(hex: "#151D2E")
+        static let tradingLabel = Color(hex: "#8B97AD")
+        static let tradingHint = Color(hex: "#6B7790")
+        static let tradingValue = Color(hex: "#F1F5F9")
+        static let tradingWhyBody = Color(hex: "#CFEFF6")
         static let manufacturingCanvas = Color(hex: "#18181B")
         static let manufacturingCanvasTop = Color(hex: "#3F3F46")
         static let manufacturingCanvasDeep = Color(hex: "#09090B")
@@ -87,7 +92,7 @@ enum BusinessTokens {
         static let retailInset = Color(hex: "#170D11")
         static let retailAccent = Color(hex: "#F43F5E")
         static let retailAccentSoft = Color(hex: "#FB7185")
-        static let retailAccentDeep = Color(hex: "#BE123C")
+        static let retailAccentDeep = Color(hex: "#E11D48")
         static let retailOnAccent = Color(hex: "#FFFFFF")
         static let retailHeroStart = Color(hex: "#F43F5E")
         static let retailHeroEnd = Color(hex: "#F43F5E")
@@ -113,6 +118,10 @@ enum BusinessTokens {
         static let restaurantOnAccent = Color(hex: "#FFFFFF")
         static let restaurantHeroStart = Color(hex: "#881337")
         static let restaurantHeroEnd = Color(hex: "#EA580C")
+        /// Why-note body cream (`#FEF3C7`) — Restaurant Ember sheets.
+        static let restaurantWhyBody = Color(hex: "#FEF3C7")
+        /// Inactive chip / field hairline (`#57534E`).
+        static let restaurantHairline = Color(hex: "#57534E")
         static let distributionCanvas = Color(hex: "#0F172A")
         static let distributionCanvasTop = Color(hex: "#0B1226")
         static let distributionCanvasDeep = Color(hex: "#050A18")
@@ -136,12 +145,13 @@ enum BusinessTokens {
         static let marketingHeroStart = Color(hex: "#6366F1")
         static let marketingHeroEnd = Color(hex: "#8B5CF6")
         static let marketingOwnCanvas = Color(hex: "#0F172A")
-        static let marketingOwnCanvasTop = Color(hex: "#2A1030")
+        static let marketingOwnCanvasTop = Color(hex: "#1E1B4B")
         static let marketingOwnCanvasDeep = Color(hex: "#150618")
         static let marketingOwnSurface = Color(hex: "#2A1030")
         static let marketingOwnInset = Color(hex: "#18081C")
         static let marketingOwnAccent = Color(hex: "#D946EF")
         static let marketingOwnAccentSoft = Color(hex: "#F59E0B")
+        static let marketingOwnAccentSoftLink = Color(hex: "#E879F9")
         static let marketingOwnAccentDeep = Color(hex: "#A21CAF")
         static let marketingOwnOnAccent = Color(hex: "#FFFFFF")
         static let marketingOwnHeroStart = Color(hex: "#D946EF")
@@ -185,6 +195,11 @@ enum BusinessTokens {
             colors["trading.onAccent"] = tradingOnAccent
             colors["trading.heroStart"] = tradingHeroStart
             colors["trading.heroEnd"] = tradingHeroEnd
+            colors["trading.sheetSurface"] = tradingSheetSurface
+            colors["trading.label"] = tradingLabel
+            colors["trading.hint"] = tradingHint
+            colors["trading.value"] = tradingValue
+            colors["trading.whyBody"] = tradingWhyBody
             colors["manufacturing.canvas"] = manufacturingCanvas
             colors["manufacturing.canvasTop"] = manufacturingCanvasTop
             colors["manufacturing.canvasDeep"] = manufacturingCanvasDeep
@@ -229,6 +244,8 @@ enum BusinessTokens {
             colors["restaurant.onAccent"] = restaurantOnAccent
             colors["restaurant.heroStart"] = restaurantHeroStart
             colors["restaurant.heroEnd"] = restaurantHeroEnd
+            colors["restaurant.whyBody"] = restaurantWhyBody
+            colors["restaurant.hairline"] = restaurantHairline
             colors["distribution.canvas"] = distributionCanvas
             colors["distribution.canvasTop"] = distributionCanvasTop
             colors["distribution.canvasDeep"] = distributionCanvasDeep
@@ -258,6 +275,7 @@ enum BusinessTokens {
             colors["marketingOwn.inset"] = marketingOwnInset
             colors["marketingOwn.accent"] = marketingOwnAccent
             colors["marketingOwn.accentSoft"] = marketingOwnAccentSoft
+            colors["marketingOwn.accentSoftLink"] = marketingOwnAccentSoftLink
             colors["marketingOwn.accentDeep"] = marketingOwnAccentDeep
             colors["marketingOwn.onAccent"] = marketingOwnOnAccent
             colors["marketingOwn.heroStart"] = marketingOwnHeroStart

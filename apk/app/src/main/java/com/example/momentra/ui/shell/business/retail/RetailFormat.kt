@@ -113,7 +113,93 @@ object RetailFormat {
             exact(currency, token, true)
         }
     }
+
+    /**
+     * Client-side GST **estimate** from known line rates + amounts.
+     * Never posts to ledger — Charge / Purchase with real tax config do.
+     * Returns null when any positive line lacks a parseable rate (or all exempt → ZERO).
+     */
+    fun gstEstimate(
+        lineAmounts: List<BigDecimal>,
+        lineRates: List<String?>,
+        inclusive: Boolean = true,
+    ): BigDecimal? {
+        if (lineAmounts.isEmpty()) return null
+        var tax = BigDecimal.ZERO
+        var sawPositive = false
+        for (i in lineAmounts.indices) {
+            val amount = lineAmounts.getOrNull(i) ?: BigDecimal.ZERO
+            if (amount.signum() <= 0) continue
+            sawPositive = true
+            val raw = lineRates.getOrNull(i)?.trim().orEmpty()
+            // Blank on a priced line = missing rate → Unavailable (do not invent).
+            if (raw.isBlank()) return null
+            if (raw.equals("Exempt", true) || raw == "0") continue
+            val rate = raw.removeSuffix("%").toBigDecimalOrNull() ?: return null
+            if (rate.signum() < 0) return null
+            val piece = if (inclusive) {
+                // tax portion of inclusive amount: amount * rate / (100 + rate)
+                amount.multiply(rate)
+                    .divide(BigDecimal(100).add(rate), 4, RoundingMode.HALF_UP)
+            } else {
+                amount.multiply(rate).divide(BigDecimal(100), 4, RoundingMode.HALF_UP)
+            }
+            tax = tax.add(piece)
+        }
+        return if (sawPositive) tax.setScale(2, RoundingMode.HALF_UP) else null
+    }
+
+    /** Single-rate estimate when only a total + picker rate exist (Quick amount). */
+    fun gstEstimateOnTotal(
+        amount: BigDecimal?,
+        ratePercent: String?,
+        inclusive: Boolean = true,
+    ): BigDecimal? {
+        if (amount == null || amount.signum() <= 0) return null
+        return gstEstimate(listOf(amount), listOf(ratePercent), inclusive)
+    }
 }
+
+/**
+ * Legacy plain-text duplicate body — prefer [retailReceiptShareText] / [RetailReceiptPreview].
+ * Kept for call-sites that only have flat SALE fields. Never allocates a fiscal bill number.
+ */
+fun retailReceiptDuplicateText(
+    storeTitle: String,
+    billLabel: String,
+    title: String,
+    amount: String?,
+    currency: String,
+    occurredAt: String?,
+    channel: String?,
+    tender: String?,
+    counterparty: String?,
+    note: String?,
+    reason: String,
+): String = retailReceiptShareText(
+    RetailReceiptModel(
+        storeName = storeTitle.ifBlank { "Harbor Mart" },
+        locationLine = null,
+        gstin = null,
+        occurredAt = occurredAt,
+        refLabel = billLabel,
+        duplicate = true,
+        lines = emptyList(),
+        amountOnly = true,
+        amountOnlyTitle = title,
+        subtotal = null,
+        gstEstimate = null,
+        tender = tender ?: channel,
+        total = amount?.takeIf { it.isNotBlank() }?.let { RetailFormat.exact(currency, it) },
+        currency = currency,
+        reason = reason,
+        footerHonesty = listOfNotNull(
+            counterparty?.takeIf { it.isNotBlank() }?.let { "Customer · $it" },
+            note?.takeIf { it.isNotBlank() },
+            "Client duplicate · receipt.pdf API not allocated yet",
+        ).joinToString(" · "),
+    ),
+)
 
 /** Which rose tone a severity maps to, matching the Figma severity chips. */
 fun retailSeverityColor(severity: String?): androidx.compose.ui.graphics.Color = when (severity?.uppercase()) {

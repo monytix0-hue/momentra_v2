@@ -122,7 +122,11 @@ data class BusinessActiveTheme(
             memoryTitle = "Campaign",
             heroGradient = Brush.horizontalGradient(listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))),
         )
+        /** Own Pulse/hub — plum canvas/card; magenta→amber hero (Figma `2582:29187`). */
         val MarketingOwn = Marketing.copy(
+            bg = Color(0xFF0F172A),
+            card = Color(0xFF2A1030),
+            border = Color(0xFFD946EF).copy(alpha = 0.28f),
             accent = Color(0xFFD946EF),
             accentSolid = Color(0xFFA21CAF),
             accentLight = Color(0xFFE879F9),
@@ -158,51 +162,84 @@ data class BusinessActiveTheme(
             lifeTitle = "Distribution",
             memoryTitle = "Distribution",
         )
+        // Domain Color System 4 Retail · S `#F43F5E` (RTL-PULSE-v12 `2399:29655`).
         val Retail = BusinessOperations.copy(
-            accent = Color(0xFF34D399),
-            accentSolid = Color(0xFF10B981),
-            accentLight = Color(0xFF6EE7B7),
+            bg = Color(0xFF0B0A1F),
+            card = Color(0xFF2A1A1F),
+            border = Color(0xFFE11D48).copy(alpha = 0.40f),
+            accent = Color(0xFFF43F5E),
+            accentSolid = Color(0xFFE11D48),
+            accentLight = Color(0xFFFB7185),
+            accentSoft = Color(0x33F43F5E),
+            text = Color(0xFFFFFFFF),
             typeLabel = "Retail Store",
             pulseTitle = "Retail",
             momentsTitle = "Retail",
             lifeTitle = "Retail",
             memoryTitle = "Retail",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFFF43F5E), Color(0xFFF43F5E))),
         )
+        // Domain Color System 6 Restaurant · S `#EA580C` / P `#881337` (RST-PULSE-v12 `2400:29655`).
         val Food = BusinessRunway.copy(
+            bg = Color(0xFF1C1917),
+            card = Color(0xFF292524),
+            border = Color(0xFFEA580C).copy(alpha = 0.35f),
+            accent = Color(0xFFEA580C),
+            accentSolid = Color(0xFF881337),
+            accentLight = Color(0xFFFCD34D),
+            accentSoft = Color(0x33EA580C),
+            text = Color(0xFFFFFFFF),
             typeLabel = "Restaurant / Food",
             pulseTitle = "Food",
             momentsTitle = "Food",
             lifeTitle = "Food",
             memoryTitle = "Food",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFF881337), Color(0xFFEA580C))),
         )
+        // Domain Color System 5 Services · P `#0D9488` / S `#84CC16` (SVC-PULSE-v12 `2401:29655`).
         val ConsumerService = BusinessOperations.copy(
+            bg = Color(0xFF042F2E),
+            card = Color(0xFF134E4A),
+            border = Color(0xFF0D9488).copy(alpha = 0.35f),
+            accent = Color(0xFF0D9488),
+            accentSolid = Color(0xFF115E59),
+            accentLight = Color(0xFF84CC16),
+            accentSoft = Color(0x330D9488),
+            text = Color(0xFFFFFFFF),
             typeLabel = "Consumer Service",
             pulseTitle = "Service",
             momentsTitle = "Service",
             lifeTitle = "Service",
             memoryTitle = "Service",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFF0D9488), Color(0xFF84CC16))),
         )
         // Domain Color System 3 Manufacturing · S `#F59E0B` / soft `#FBBF24` (MFG-PULSE-v12).
         val Manufacturing = BusinessOperations.copy(
+            bg = Color(0xFF18181B),
+            card = Color(0xFF27272A),
             accent = Color(0xFFF59E0B),
             accentSolid = Color(0xFFB45309),
             accentLight = Color(0xFFFBBF24),
+            accentSoft = Color(0x33F59E0B),
             typeLabel = "Standard Production",
             pulseTitle = "Production",
             momentsTitle = "Production",
             lifeTitle = "Production",
             memoryTitle = "Production",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFFF59E0B), Color(0xFFB45309))),
         )
-        // MTO shares manufacturing amber; soft amber leads for job-order chrome.
+        // MTO shares manufacturing accent `#F59E0B`; hero soft leads with `#FBBF24` (MFG-PULSE / tokens).
         val MadeToOrder = Manufacturing.copy(
-            accent = Color(0xFFFBBF24),
-            accentSolid = Color(0xFFF59E0B),
-            accentLight = Color(0xFFFDE68A),
+            accent = Color(0xFFF59E0B),
+            accentSolid = Color(0xFFB45309),
+            accentLight = Color(0xFFFBBF24),
+            accentSoft = Color(0x33F59E0B),
             typeLabel = "Made-to-Order",
             pulseTitle = "Made-to-Order",
             momentsTitle = "Made-to-Order",
             lifeTitle = "Made-to-Order",
             memoryTitle = "Made-to-Order",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFFFBBF24), Color(0xFFF59E0B))),
         )
 
         fun forKind(kind: BusinessSetupKind): BusinessActiveTheme = when (kind) {

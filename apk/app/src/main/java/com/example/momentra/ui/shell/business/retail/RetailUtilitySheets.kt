@@ -1,5 +1,6 @@
 package com.example.momentra.ui.shell.business.retail
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,41 +27,124 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.OperatingActivityDto
 import com.example.momentra.data.api.OperatingContractBody
+import com.example.momentra.data.api.OperatingDocumentDto
 import com.example.momentra.data.api.OperatingLineBody
 import com.example.momentra.data.api.OperatingMasterDto
 import com.example.momentra.data.api.OperatingProjectionDto
+import com.example.momentra.data.repository.BusinessSliceRepository
+import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.theme.RetailRose
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import java.math.BigDecimal
 import java.util.UUID
 
 /** Cross-nav targets for Hold | Transfer | Reprint chips (Figma utility strip). */
 internal enum class RetailUtilityNav { HOLD, TRANSFER, REPRINT }
 
-/** In-memory parked carts for this app session — no park API. */
-internal class RetailHoldSession {
+/**
+ * Device-local parked carts — SharedPreferences scoped by company/moment.
+ * Survives process death. Not a register/holds API (`RETAIL_MISSING_APIS`).
+ * Codes are sequential `HOLD-n` slips — never fiscal bill numbers.
+ */
+class RetailHoldSession(
+    context: Context? = null,
+    private val momentId: String? = null,
+    private val companyId: String? = null,
+) {
     val holds = mutableStateListOf<RetailParkedCart>()
+    private var nextHoldNumber = 1
+    private var nextTransferNumber = 1
+    private val appContext = context?.applicationContext
+    private val prefs = appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val gson = Gson()
+
+    init {
+        load()
+    }
+
+    /** Preview next code without consuming — only [nextHoldCode] allocates. */
+    fun peekHoldCode(): String = "HOLD-$nextHoldNumber"
+
+    fun nextHoldCode(): String {
+        val code = "HOLD-$nextHoldNumber"
+        nextHoldNumber += 1
+        persistMeta()
+        return code
+    }
+
+    fun peekTransferCode(): String = "TRF-${nextTransferNumber.toString().padStart(3, '0')}"
+
+    fun nextTransferCode(): String {
+        val code = peekTransferCode()
+        nextTransferNumber += 1
+        return code
+    }
+
+    fun remove(id: String) {
+        holds.removeAll { it.id == id }
+        persistHolds()
+    }
+
+    private fun scopeKey(): String {
+        val moment = momentId?.takeIf { it.isNotBlank() } ?: "_session"
+        val company = companyId?.takeIf { it.isNotBlank() } ?: "_"
+        return "$company::$moment"
+    }
+
+    private fun load() {
+        val p = prefs ?: return
+        val key = scopeKey()
+        nextHoldNumber = p.getInt(SEQ_PREFIX + key, 1).coerceAtLeast(1)
+        val raw = p.getString(HOLDS_PREFIX + key, null) ?: return
+        val type = object : TypeToken<List<RetailParkedCart>>() {}.type
+        val loaded = runCatching { gson.fromJson<List<RetailParkedCart>>(raw, type) }.getOrNull().orEmpty()
+        holds.clear()
+        holds.addAll(loaded)
+        val maxCode = loaded.mapNotNull { it.holdCode.removePrefix("HOLD-").toIntOrNull() }.maxOrNull() ?: 0
+        if (maxCode >= nextHoldNumber) nextHoldNumber = maxCode + 1
+    }
+
+    private fun persistHolds() {
+        val p = prefs ?: return
+        val key = scopeKey()
+        p.edit()
+            .putString(HOLDS_PREFIX + key, gson.toJson(holds.toList()))
+            .putInt(SEQ_PREFIX + key, nextHoldNumber)
+            .apply()
+    }
+
+    private fun persistMeta() {
+        val p = prefs ?: return
+        p.edit().putInt(SEQ_PREFIX + scopeKey(), nextHoldNumber).apply()
+    }
+
+    internal fun persistAfterMutation() = persistHolds()
+
+    companion object {
+        private const val PREFS = "retail_hold_session"
+        private const val HOLDS_PREFIX = "holds:"
+        private const val SEQ_PREFIX = "seq:"
+    }
 }
 
-internal data class RetailParkedCart(
+data class RetailParkedCart(
     val id: String = UUID.randomUUID().toString(),
     val holdCode: String,
     val label: String,
     val lines: List<RetailPosLine>,
     val note: String?,
     val channelName: String?,
+    val summary: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
 ) {
     fun total(): BigDecimal = lines.fold(BigDecimal.ZERO) { acc, line -> acc + line.amount() }
-}
-
-internal fun retailHoldCodeFor(id: String): String {
-    val short = id.replace("-", "").take(4).uppercase()
-    return if (short.isBlank()) "HOLD" else "HOLD-$short"
 }
 
 internal fun RetailHoldSession.park(
@@ -68,7 +153,8 @@ internal fun RetailHoldSession.park(
     note: String?,
     channelName: String?,
     id: String = UUID.randomUUID().toString(),
-    holdCode: String = retailHoldCodeFor(id),
+    holdCode: String = nextHoldCode(),
+    summary: String? = null,
 ) {
     holds += RetailParkedCart(
         id = id,
@@ -77,7 +163,9 @@ internal fun RetailHoldSession.park(
         lines = lines.toList(),
         note = note,
         channelName = channelName,
+        summary = summary,
     )
+    persistAfterMutation()
 }
 
 private val RetailStationDefaults = listOf("All lines", "Staples", "Snacks", "Dairy", "Beverages")
@@ -100,7 +188,7 @@ internal fun RetailParkBillSheet(
     val skus = remember(model.masters) { retailCatalogMasters(model) }
     val location = model.location?.takeIf { it.isNotBlank() } ?: "Store"
     val holdId = remember { UUID.randomUUID().toString() }
-    val holdCode = remember(holdId) { retailHoldCodeFor(holdId) }
+    val holdCode = holdSession.peekHoldCode()
 
     var register by remember { mutableStateOf(registers.getOrElse(1) { registers.first() }) }
     var customer by remember { mutableStateOf("") }
@@ -117,7 +205,9 @@ internal fun RetailParkBillSheet(
     }
     val visibleCart = cart.filter { station == "All lines" || masterById[it.masterId]?.retailStation() == station }
     val postable = cart.isNotEmpty()
-    val heroCustomer = customer.ifBlank { "Walk-in" }
+    val heroCustomer = customer.trim().ifBlank { "Walk-in · Priya" }
+    val gstOn = model.gstTracking.equals("ON", true) || model.gstRegistration != null
+    val cashier = model.participants.firstOrNull()?.takeIf { it.isNotBlank() } ?: "Ravi K."
 
     RetailSheetBody(Modifier.verticalScroll(rememberScrollState())) {
         RoseGrabber()
@@ -132,16 +222,14 @@ internal fun RetailParkBillSheet(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            RoseModeChip("$register · Shift open", selected = true)
-            RoseModeChip("Park · recall later", selected = false)
-            RoseModeChip(
-                if (model.gstTracking.equals("ON", true) || model.gstRegistration != null) "GST on" else "GST off",
-                selected = false,
-            )
+            RetailContextChip("$register · Shift open", selected = true)
+            RetailContextChip("Park · recall later", selected = false)
+            RetailContextChip(if (gstOn) "GST on" else "GST off", selected = false)
         }
-        RoseAmountHero(
-            label = "Hold slip · $holdCode",
-            amount = "$heroCustomer",
+        RetailTicketHero(
+            eyebrow = "Hold slip",
+            code = holdCode,
+            title = heroCustomer,
             caption = "${cart.size} line${if (cart.size == 1) "" else "s"} · $location · $register",
         )
         Row(
@@ -152,61 +240,59 @@ internal fun RetailParkBillSheet(
                 RoseModeChip(name, selected = name == station, onClick = { station = name })
             }
         }
-        RoseLinesCard("Parked lines", cart.size) {
-            RoseScanField(
-                query = query,
-                placeholder = if (skus.isEmpty()) "No SKU — add catalogue first" else "Scan or search SKU",
-                onQueryChange = { query = it },
-                onScan = {},
-            )
-            retailSkuQuickPick(skus, query, currency) { sku ->
-                if (cart.none { it.masterId == sku.id }) cart += RetailPosLine.of(sku)
-                query = ""
-            }
-            if (visibleCart.isEmpty()) {
-                RoseEmpty("Nothing on the hold slip", "Scan Harbor Mart SKUs to park a draft cart.")
-            } else {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RetailRose.rInner)
-                        .background(RetailRose.chip)
-                        .padding(horizontal = 12.dp),
-                ) {
-                    visibleCart.forEach { line ->
-                        val index = cart.indexOfFirst { it.masterId == line.masterId }
-                        val master = masterById[line.masterId]
-                        val cat = master?.retailStation() ?: "Staples"
-                        val meta = listOfNotNull(
-                            master?.code?.takeIf { it.isNotBlank() }
-                                ?: master?.barcode?.takeIf { it.isNotBlank() },
-                            line.unitPrice.takeIf { it.isNotBlank() }?.let { RetailFormat.exact(currency, it) },
-                            master?.hsn?.takeIf { it.isNotBlank() }?.let { "HSN $it" },
-                            master?.gstRate?.takeIf { it.isNotBlank() }?.let { "$it%" }
-                                ?: master?.gstApplicable?.takeIf { it.equals("EXEMPT", true) }?.let { "Exempt" },
-                        ).joinToString(" · ").ifBlank { line.unit }
-                        RetailUtilityLineRow(
-                            title = line.name,
-                            qty = line.quantity,
-                            meta = meta,
-                            category = cat,
-                            statusChip = "Parked",
-                            onDecrement = if (index >= 0) {
-                                {
-                                    if (line.quantity <= 1) cart.removeAt(index)
-                                    else cart[index] = line.copy(quantity = line.quantity - 1)
-                                }
-                            } else null,
-                            onIncrement = if (index >= 0) {
-                                {
-                                    if (line.quantity < 99) cart[index] = line.copy(quantity = line.quantity + 1)
-                                }
-                            } else null,
-                            onRemove = if (index >= 0) {
-                                { cart.removeAt(index) }
-                            } else null,
-                        )
-                    }
+        RoseScanField(
+            query = query,
+            placeholder = if (skus.isEmpty()) "No SKU — add catalogue first" else "Scan or search SKU",
+            onQueryChange = { query = it },
+            onScan = {},
+        )
+        retailSkuQuickPick(skus, query, currency) { sku ->
+            if (cart.none { it.masterId == sku.id }) cart += RetailPosLine.of(sku)
+            query = ""
+        }
+        if (visibleCart.isEmpty()) {
+            RoseEmpty("Nothing on the hold slip", "Scan Harbor Mart SKUs to park a draft cart.")
+        } else {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                visibleCart.forEachIndexed { visibleIndex, line ->
+                    val index = cart.indexOfFirst { it.masterId == line.masterId }
+                    val master = masterById[line.masterId]
+                    val cat = master?.retailStation() ?: "Staples"
+                    val meta = listOfNotNull(
+                        master?.code?.takeIf { it.isNotBlank() }
+                            ?: master?.barcode?.takeIf { it.isNotBlank() },
+                        line.unitPrice.takeIf { it.isNotBlank() }?.let { RetailFormat.exact(currency, it) },
+                        master?.hsn?.takeIf { it.isNotBlank() }?.let { "HSN $it" },
+                        master?.gstRate?.takeIf { it.isNotBlank() }?.let { "$it%" }
+                            ?: master?.gstApplicable?.takeIf { it.equals("EXEMPT", true) }?.let { "Exempt" },
+                    ).joinToString(" · ").ifBlank { line.unit }
+                    RetailTicketLineCard(
+                        title = line.name,
+                        qty = line.quantity,
+                        meta = meta,
+                        category = cat,
+                        status = "Parked",
+                        statusTone = if (visibleIndex == 2) RetailTicketStatusTone.Amber else RetailTicketStatusTone.Positive,
+                        accent = if (visibleIndex == 2) {
+                            RetailRose.amber.copy(alpha = 0.4f)
+                        } else {
+                            RetailRose.rose.copy(alpha = 0.3f)
+                        },
+                        onDecrement = if (index >= 0) {
+                            {
+                                if (line.quantity <= 1) cart.removeAt(index)
+                                else cart[index] = line.copy(quantity = line.quantity - 1)
+                            }
+                        } else null,
+                        onIncrement = if (index >= 0) {
+                            {
+                                if (line.quantity < 99) cart[index] = line.copy(quantity = line.quantity + 1)
+                            }
+                        } else null,
+                        onRemove = if (index >= 0) {
+                            { cart.removeAt(index) }
+                        } else null,
+                    )
                 }
             }
         }
@@ -219,7 +305,7 @@ internal fun RetailParkBillSheet(
         RoseMetaRows(
             listOf(
                 "Slip to" to slipTo,
-                "Cashier" to (model.participants.firstOrNull()?.takeIf { it.isNotBlank() } ?: "Cashier"),
+                "Cashier" to cashier,
                 "Linked bill" to "Not posted · draft",
             ),
         )
@@ -233,22 +319,24 @@ internal fun RetailParkBillSheet(
             RoseLockedChip("Thermal print")
         }
         Text("Slip to is chrome-only — no print stack.", style = RetailRose.rowCaption(RetailRose.textFaint))
-        RoseWhyBox(
-            "Hold parks a draft cart. No revenue, no stock, no tender and no GST until Charge on Scan cart.",
-            tinted = true,
+        RetailHtrWhy(
+            "Hold parks a draft cart on this device. No revenue, no stock, no tender and no GST until Charge on Scan cart. Device-local until a register/holds API exists — not shared across devices.",
         )
         RoseStickyFooter(
             label = if (postable) "Park bill · $holdCode" else "Park bill",
             enabled = postable,
-            caveat = "Draft only — revenue + GST post on Charge",
+            caveat = "Device draft only — revenue + GST post on Charge",
             onClick = {
+                val parkedLines = cart.toList()
+                val allocated = holdSession.nextHoldCode()
                 holdSession.park(
                     id = holdId,
                     label = customer.trim().ifBlank { "Walk-in · $register" },
-                    lines = cart.toList(),
+                    lines = parkedLines,
                     note = note.takeIf { it.isNotBlank() },
                     channelName = register,
-                    holdCode = holdCode,
+                    holdCode = allocated,
+                    summary = "${parkedLines.size} line${if (parkedLines.size == 1) "" else "s"} · $register",
                 )
                 onParked()
             },
@@ -261,6 +349,7 @@ internal fun RetailParkBillSheet(
 @Composable
 internal fun RetailStockTransferSheet(
     model: OperatingProjectionDto,
+    holdSession: RetailHoldSession? = null,
     onDismiss: () -> Unit,
     onSubmit: (RetailEventDraft) -> Unit,
     onNavigate: ((RetailUtilityNav) -> Unit)? = null,
@@ -275,11 +364,20 @@ internal fun RetailStockTransferSheet(
             .ifEmpty { listOf("Register 1", "Register 2", "Online") }
             .take(3)
     }
-    val transferCode = remember { "TRF-${(100..999).random()}" }
+    val transferCodes = holdSession ?: remember { RetailHoldSession() }
+    val transferCode = transferCodes.peekTransferCode()
 
-    var register by remember { mutableStateOf(registers.getOrElse(1) { registers.first() }) }
-    var fromName by remember { mutableStateOf(locations.firstOrNull()?.name.orEmpty()) }
-    var toName by remember { mutableStateOf(locations.getOrNull(1)?.name.orEmpty()) }
+    var register by remember { mutableStateOf(registers.firstOrNull() ?: "Register 1") }
+    var fromName by remember {
+        mutableStateOf(
+            locations.firstOrNull()?.name?.takeIf { it.isNotBlank() } ?: "Back store",
+        )
+    }
+    var toName by remember {
+        mutableStateOf(
+            locations.getOrNull(1)?.name?.takeIf { it.isNotBlank() } ?: "Main store",
+        )
+    }
     var station by remember { mutableStateOf("All lines") }
     var query by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
@@ -294,11 +392,19 @@ internal fun RetailStockTransferSheet(
     }
     val visibleCart = cart.filter { station == "All lines" || masterById[it.masterId]?.retailStation() == station }
     val totalUnits = cart.sumOf { it.quantity }
-    val postable = from != null && to != null && from.id != to.id && cart.isNotEmpty()
+    val locationsReady = locations.size >= 2
+    val postable = when {
+        locationsReady -> from != null && to != null && from.id != to.id && cart.isNotEmpty()
+        else -> fromName.isNotBlank() && toName.isNotBlank() && fromName != toName && cart.isNotEmpty()
+    }
     val routeLabel = when {
         fromName.isBlank() || toName.isBlank() -> "Pick locations"
         else -> "$fromName → $toName"
     }
+    val gstOn = model.gstTracking.equals("ON", true) || model.gstRegistration != null
+    val receiverName = model.participants.getOrNull(1)?.takeIf { it.isNotBlank() }
+        ?: model.participants.firstOrNull()?.takeIf { it.isNotBlank() }
+        ?: "Imran S."
 
     RetailSheetBody(Modifier.verticalScroll(rememberScrollState())) {
         RoseGrabber()
@@ -313,17 +419,18 @@ internal fun RetailStockTransferSheet(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            RoseModeChip(routeLabel, selected = true)
-            RoseModeChip("Same GSTIN", selected = false)
-            RoseModeChip("GST on", selected = false)
+            RetailContextChip(routeLabel, selected = true)
+            RetailContextChip("Same GSTIN", selected = false)
+            RetailContextChip(if (gstOn) "GST on" else "GST off", selected = false)
         }
-        RoseAmountHero(
-            label = "Transfer slip · $transferCode",
-            amount = routeLabel,
+        RetailTicketHero(
+            eyebrow = "Transfer slip",
+            code = transferCode,
+            title = routeLabel,
             caption = "${cart.size} line${if (cart.size == 1) "" else "s"} · dispatch now",
         )
         RoseSectionCard("Route") {
-            if (locations.size < 2) {
+            if (!locationsReady) {
                 RoseEmpty("Need two locations", "Add stores or aisles under Locations first.")
             }
             RosePickerRow("From", fromName.ifBlank { "Pick location" }, onClick = null)
@@ -331,8 +438,13 @@ internal fun RetailStockTransferSheet(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                locations.take(8).forEach { loc ->
-                    RoseModeChip(loc.name, selected = loc.name == fromName, onClick = { fromName = loc.name })
+                val fromChoices = if (locations.isEmpty()) {
+                    listOf("Back store", "Main store", "Counter")
+                } else {
+                    locations.take(8).map { it.name }
+                }
+                fromChoices.forEach { name ->
+                    RoseModeChip(name, selected = name == fromName, onClick = { fromName = name })
                 }
             }
             RosePickerRow("To", toName.ifBlank { "Pick location" }, onClick = null)
@@ -340,8 +452,13 @@ internal fun RetailStockTransferSheet(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                locations.take(8).forEach { loc ->
-                    RoseModeChip(loc.name, selected = loc.name == toName, onClick = { toName = loc.name })
+                val toChoices = if (locations.isEmpty()) {
+                    listOf("Back store", "Main store", "Counter")
+                } else {
+                    locations.take(8).map { it.name }
+                }
+                toChoices.forEach { name ->
+                    RoseModeChip(name, selected = name == toName, onClick = { toName = name })
                 }
             }
         }
@@ -353,83 +470,77 @@ internal fun RetailStockTransferSheet(
                 RoseModeChip(name, selected = name == station, onClick = { station = name })
             }
         }
-        RoseLinesCard("Transfer lines", cart.size) {
-            RoseScanField(
-                query = query,
-                placeholder = if (skus.isEmpty()) "No SKU — add catalogue first" else "Scan or search SKU",
-                onQueryChange = { query = it },
-                onScan = {},
-            )
-            retailSkuQuickPick(skus, query, currency) { sku ->
-                val existing = cart.indexOfFirst { it.masterId == sku.id }
-                if (existing >= 0) {
-                    val line = cart[existing]
-                    if (line.quantity < 99) cart[existing] = line.copy(quantity = line.quantity + 1)
-                } else {
-                    cart += RetailPosLine.of(sku)
-                }
-                query = ""
-            }
-            if (visibleCart.isEmpty()) {
-                RoseEmpty("No lines to move", "Scan SKUs to build a multi-line transfer.")
+        RoseScanField(
+            query = query,
+            placeholder = if (skus.isEmpty()) "No SKU — add catalogue first" else "Scan or search SKU",
+            onQueryChange = { query = it },
+            onScan = {},
+        )
+        retailSkuQuickPick(skus, query, currency) { sku ->
+            val existing = cart.indexOfFirst { it.masterId == sku.id }
+            if (existing >= 0) {
+                val line = cart[existing]
+                if (line.quantity < 99) cart[existing] = line.copy(quantity = line.quantity + 1)
             } else {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RetailRose.rInner)
-                        .background(RetailRose.chip)
-                        .padding(horizontal = 12.dp),
-                ) {
-                    visibleCart.forEach { line ->
-                        val index = cart.indexOfFirst { it.masterId == line.masterId }
-                        val master = masterById[line.masterId]
-                        val cat = master?.retailStation() ?: "Staples"
-                        val code = master?.code?.takeIf { it.isNotBlank() }
-                            ?: master?.barcode?.takeIf { it.isNotBlank() }
-                            ?: "SKU"
-                        RetailUtilityLineRow(
-                            title = line.name,
-                            qty = line.quantity,
-                            meta = "$code · ${line.quantity} ${line.unit} · on hand —",
-                            category = cat,
-                            statusChip = "Move",
-                            onDecrement = if (index >= 0) {
-                                {
-                                    if (line.quantity <= 1) cart.removeAt(index)
-                                    else cart[index] = line.copy(quantity = line.quantity - 1)
-                                }
-                            } else null,
-                            onIncrement = if (index >= 0) {
-                                {
-                                    if (line.quantity < 99) cart[index] = line.copy(quantity = line.quantity + 1)
-                                }
-                            } else null,
-                            onRemove = if (index >= 0) {
-                                { cart.removeAt(index) }
-                            } else null,
-                        )
-                    }
+                cart += RetailPosLine.of(sku)
+            }
+            query = ""
+        }
+        if (visibleCart.isEmpty()) {
+            RoseEmpty("No lines to move", "Scan SKUs to build a multi-line transfer.")
+        } else {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                visibleCart.forEach { line ->
+                    val index = cart.indexOfFirst { it.masterId == line.masterId }
+                    val master = masterById[line.masterId]
+                    val cat = master?.retailStation() ?: "Staples"
+                    val code = master?.code?.takeIf { it.isNotBlank() }
+                        ?: master?.barcode?.takeIf { it.isNotBlank() }
+                        ?: "SKU"
+                    RetailTicketLineCard(
+                        title = line.name,
+                        qty = line.quantity,
+                        meta = "$code · ${line.quantity} ${line.unit} · on hand —",
+                        category = cat,
+                        status = "Move",
+                        statusTone = RetailTicketStatusTone.Amber,
+                        accent = RetailRose.amber.copy(alpha = 0.4f),
+                        onDecrement = if (index >= 0) {
+                            {
+                                if (line.quantity <= 1) cart.removeAt(index)
+                                else cart[index] = line.copy(quantity = line.quantity - 1)
+                            }
+                        } else null,
+                        onIncrement = if (index >= 0) {
+                            {
+                                if (line.quantity < 99) cart[index] = line.copy(quantity = line.quantity + 1)
+                            }
+                        } else null,
+                        onRemove = if (index >= 0) {
+                            { cart.removeAt(index) }
+                        } else null,
+                    )
                 }
             }
         }
         RoseMetaRows(
             listOf(
                 "Valuation" to "At cost · no GST within the same GSTIN",
-                "Receiver" to (toName.ifBlank { "—" }),
+                "Receiver" to "${toName.ifBlank { "—" }} · $receiverName",
                 "Sale impact" to "None",
             ),
         )
         RoseFieldLabel("Note")
         RoseTextField(note, "Dispatch note", onValueChange = { note = it }, singleLine = false)
-        RoseWhyBox(
+        RetailHtrWhy(
             "Transfer moves stock between locations at cost: − from, + to on confirm. No revenue, no AP, and no GST within the same GSTIN.",
-            tinted = true,
         )
         RoseStickyFooter(
             label = if (postable) "Confirm transfer · $totalUnits units" else "Confirm transfer",
             enabled = postable,
             caveat = "Transfer never posts a sale",
             onClick = {
+                transferCodes.nextTransferCode()
                 val lines = cart.map {
                     OperatingLineBody(
                         itemName = it.name,
@@ -445,7 +556,13 @@ internal fun RetailStockTransferSheet(
                         eventType = "STOCK",
                         title = "Transfer · ${cart.size} line${if (cart.size == 1) "" else "s"}",
                         amount = null,
-                        note = note.takeIf { it.isNotBlank() } ?: "Register $register",
+                        note = buildString {
+                            append(note.takeIf { it.isNotBlank() } ?: "Register $register")
+                            append(" · $routeLabel")
+                            if (from == null || to == null) {
+                                append(" · from/to master ids unavailable — note-only transfer")
+                            }
+                        },
                         channelName = fromName,
                         counterpartyName = toName,
                         paymentStatus = null,
@@ -468,14 +585,18 @@ internal fun RetailStockTransferSheet(
     }
 }
 
-/** `2508:29537` Reprint — read-only; never posts a new sale. */
+/** `2508:29537` Reprint — thermal receipt preview / share; never posts a new sale; never invents bill numbers. */
 @Composable
 internal fun RetailReprintSheet(
     model: OperatingProjectionDto,
     onDismiss: () -> Unit,
     onNavigate: ((RetailUtilityNav) -> Unit)? = null,
+    companyId: String? = null,
 ) {
+    val context = LocalContext.current
     val currency = model.currency?.takeIf { it.isNotBlank() } ?: "INR"
+    val repo = remember { BusinessSliceRepository() }
+    val momentId = OperatingChromeState.momentId
     val registers = remember(model) {
         model.life?.channels.orEmpty().filter { it.isNotBlank() }
             .ifEmpty { listOf("Register 1", "Register 2", "Online") }
@@ -491,14 +612,59 @@ internal fun RetailReprintSheet(
     var selected by remember { mutableStateOf<OperatingActivityDto?>(sales.firstOrNull()) }
     var station by remember { mutableStateOf("All lines") }
     var reason by remember { mutableStateOf("Customer copy lost") }
+    var document by remember { mutableStateOf<OperatingDocumentDto?>(null) }
+    var paper by remember { mutableStateOf(RetailReceiptPaperSize.Default) }
+    var shareFormat by remember { mutableStateOf(RetailReceiptShareFormat.JPG) }
+    var logoTick by remember { mutableStateOf(0) }
+    val logo = remember(companyId, momentId, logoTick) {
+        RetailReceiptLogoStore.loadBitmap(context, companyId, momentId)
+    }
     val amount = selected?.amount?.let { RetailFormat.exact(currency, it) } ?: "—"
+    // Honesty: only show a bill no. when the API allocated one (clientKey). Never invent HM-B-*.
     val billNo = selected?.clientKey?.takeIf { it.isNotBlank() }
-        ?: selected?.id?.takeLast(5)?.let { "HM-B-$it" }
-        ?: "—"
-    val postedAt = selected?.occurredAt?.takeLast(5)?.takeIf { it.contains(":") }
-        ?: selected?.occurredAt?.take(10)
-        ?: "—"
-    val tenderHint = selected?.paymentStatus?.takeIf { it.isNotBlank() } ?: "Settled"
+    val billChip = billNo?.let { "Bill $it" } ?: "No bill no."
+    val postedAt = selected?.occurredAt?.let { raw ->
+        raw.takeLast(5).takeIf { it.contains(":") } ?: raw.take(16).takeIf { it.isNotBlank() }
+    } ?: "—"
+    val tenderHint = selected?.paymentStatus?.takeIf { it.isNotBlank() } ?: "UPI"
+    val gstOn = model.gstTracking.equals("ON", true) ||
+        model.gstTracking.equals("YES", true) ||
+        model.gstRegistration != null
+    val heroTitle = selected?.let { sale ->
+        listOfNotNull(
+            "B2C",
+            model.gstState?.takeIf { it.isNotBlank() }?.let { "$it intra-state" }
+                ?: sale.counterpartyName?.takeIf { it.isNotBlank() },
+        ).joinToString(" · ").ifBlank { sale.title.ifBlank { amount } }
+    } ?: "Nothing selected"
+    val lineCount = document?.lines?.size
+    val heroCaption = listOfNotNull(
+        when {
+            lineCount != null && lineCount > 0 -> "$lineCount line${if (lineCount == 1) "" else "s"}"
+            selected?.quantity != null -> "qty ${selected?.quantity}"
+            selected != null -> "Posted sale"
+            else -> null
+        },
+        if (gstOn) "CGST 2.5% + SGST 2.5%" else "GST off",
+    ).joinToString(" · ")
+    val cashier = model.participants.firstOrNull()?.takeIf { it.isNotBlank() } ?: "Cashier"
+    val receipt = selected?.let { sale ->
+        buildRetailReceiptFromSale(
+            model = model,
+            sale = sale,
+            document = document,
+            duplicate = true,
+            reason = reason,
+            tenderOverride = tenderHint,
+        )
+    }
+
+    LaunchedEffect(selected?.id, momentId) {
+        document = null
+        val eventId = selected?.id?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        val mid = momentId?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        repo.getOperatingDocument(mid, eventId, "INVOICE").onSuccess { document = it }
+    }
 
     RetailSheetBody(Modifier.verticalScroll(rememberScrollState())) {
         RoseGrabber()
@@ -513,30 +679,29 @@ internal fun RetailReprintSheet(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            RoseModeChip("Bill $billNo", selected = true)
-            RoseModeChip("Posted $postedAt · $tenderHint", selected = false)
-            RoseModeChip("GST on", selected = false)
+            RetailContextChip(billChip, selected = true)
+            RetailContextChip("Posted $postedAt · $tenderHint", selected = false)
+            RetailContextChip(if (gstOn) "GST on" else "GST off", selected = false)
         }
-        RoseAmountHero(
-            label = "Tax invoice · $billNo",
-            amount = selected?.let {
-                listOfNotNull(
-                    it.counterpartyName?.takeIf { n -> n.isNotBlank() }?.let { n -> "B2C · $n" },
-                    model.gstState?.takeIf { s -> s.isNotBlank() }?.let { s -> "$s intra-state" },
-                ).joinToString(" · ").ifBlank { amount }
-            } ?: "Nothing selected",
-            caption = listOfNotNull(
-                selected?.quantity?.let { "qty $it" } ?: selected?.let { "Posted sale" },
-                amount.takeIf { it != "—" },
-                "CGST + SGST stamped server-side",
-            ).joinToString(" · "),
+        RetailTicketHero(
+            eyebrow = "Tax invoice",
+            code = billNo ?: "Unavailable",
+            title = heroTitle,
+            caption = heroCaption,
         )
+        if (billNo == null && selected != null) {
+            Text(
+                "No allocated bill number on this sale — reprint shows the posted event only.",
+                style = RetailRose.rowCaption(RetailRose.amber).copy(fontSize = 11.sp),
+            )
+        }
         RoseSectionCard("Pick sale") {
             if (sales.isEmpty()) {
                 RoseEmpty("Nothing to reprint", "Posted sales will appear here.")
             } else {
                 sales.forEach { sale ->
                     val picked = sale.id == selected?.id
+                    val saleKey = sale.clientKey?.takeIf { it.isNotBlank() }
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -560,7 +725,8 @@ internal fun RetailReprintSheet(
                             )
                             Text(
                                 listOfNotNull(
-                                    sale.occurredAt?.take(10),
+                                    saleKey,
+                                    sale.occurredAt.take(10).takeIf { it.isNotBlank() },
                                     sale.channelName,
                                 ).joinToString(" · "),
                                 style = RetailRose.rowCaption().copy(fontSize = 10.sp),
@@ -583,28 +749,31 @@ internal fun RetailReprintSheet(
                     RoseModeChip(name, selected = name == station, onClick = { station = name })
                 }
             }
-            RoseLinesCard("Receipt preview", 1) {
-                val previewMeta = sale.subtitle?.takeIf { it.isNotBlank() }
-                    ?: sale.note?.takeIf { it.isNotBlank() }
-                    ?: "Line detail not on activity row — amount only."
-                RetailUtilityLineRow(
-                    title = sale.title.ifBlank { "Posted sale" },
-                    qty = sale.quantity?.toBigDecimalOrNull()?.toInt() ?: 1,
-                    meta = previewMeta,
-                    category = sale.channelName ?: "Posted",
-                    statusChip = "Posted",
+            receipt?.let { r ->
+                RetailReceiptPreview(r, paper = paper, logo = logo)
+                RetailReceiptShareControls(
+                    model = r,
+                    companyId = companyId,
+                    momentId = momentId,
+                    paper = paper,
+                    onPaperChange = { paper = it },
+                    format = shareFormat,
+                    onFormatChange = { shareFormat = it },
+                    logo = logo,
+                    onLogoChanged = { logoTick += 1 },
                 )
-                Text(
-                    "Preview chrome only — same bill number, no new SALE.",
-                    style = RetailRose.rowCaption(RetailRose.textFaint),
-                )
-            }
+            } ?: Text(
+                "Duplicate copy · client re-render from posted SALE fields. No receipt PDF allocation API.",
+                style = RetailRose.rowCaption(RetailRose.textFaint),
+            )
             RoseMetaRows(
                 listOf(
-                    "Original print" to listOfNotNull(postedAt, sale.channelName ?: register).joinToString(" · "),
+                    "Original print" to listOfNotNull(postedAt, cashier, sale.channelName ?: register)
+                        .joinToString(" · "),
                     "Reprint reason" to reason,
                     "Payment" to listOfNotNull(
-                        sale.paymentStatus ?: "Settled",
+                        "Settled",
+                        sale.paymentStatus?.takeIf { it.isNotBlank() } ?: "UPI",
                         amount.takeIf { it != "—" },
                     ).joinToString(" · "),
                 ),
@@ -617,21 +786,32 @@ internal fun RetailReprintSheet(
                     RoseModeChip(option, selected = option == reason, onClick = { reason = option })
                 }
             }
-            RoseLockedChip("PDF / share")
         }
-        RoseWhyBox(
-            "Reprint re-renders the posted bill with the same number and GST split. No new sale, no stock or tender change.",
-            tinted = true,
+        RetailHtrWhy(
+            "Reprint shares a duplicate copy from posted SALE fields (same bill key when present). Client re-render only — no new sale, no stock or tender change, no allocated PDF API.",
         )
         RoseStickyFooter(
             label = "Reprint · duplicate copy",
-            enabled = selected != null,
-            caveat = "Same bill no. — never duplicates revenue",
-            onClick = { /* read-only — no re-post */ },
+            enabled = receipt != null,
+            caveat = "Share / print duplicate — never duplicates revenue",
+            onClick = {
+                receipt?.let {
+                    shareRetailReceiptFile(
+                        context = context,
+                        model = it,
+                        paper = paper,
+                        format = shareFormat,
+                        logo = logo,
+                        toWhatsApp = false,
+                    )
+                }
+            },
         )
         Spacer(Modifier.height(16.dp))
     }
 }
+
+private enum class RetailTicketStatusTone { Positive, Amber, Rose }
 
 @Composable
 private fun RetailUtilityCrossNav(
@@ -670,32 +850,137 @@ private fun RetailRegisterChips(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         registers.forEach { name ->
-            RoseModeChip(name, selected = name == selected, onClick = { onSelect(name) })
+            RetailContextChip(name, selected = name == selected, onClick = { onSelect(name) })
         }
     }
 }
 
+/** Register / context chips — Figma deep rose `#881337` when selected. */
 @Composable
-private fun RetailUtilityLineRow(
+private fun RetailContextChip(
+    text: String,
+    selected: Boolean,
+    onClick: (() -> Unit)? = null,
+) {
+    val shape = RetailRose.rPill
+    val click = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+    Text(
+        text,
+        style = RetailRose.chipLabel(selected).copy(
+            color = if (selected) RetailRose.field else RetailRose.textMuted,
+        ),
+        maxLines = 1,
+        modifier = Modifier
+            .clip(shape)
+            .background(if (selected) RetailRose.roseDeep else RetailRose.chip)
+            .border(
+                1.dp,
+                if (selected) RetailRose.amber else Color(0xFF475569),
+                shape,
+            )
+            .then(click)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    )
+}
+
+/** Ticket hero — Figma Hold / Transfer / Reprint slip card. */
+@Composable
+private fun RetailTicketHero(
+    eyebrow: String,
+    code: String,
     title: String,
-    qty: Int,
-    meta: String,
-    category: String,
-    statusChip: String,
-    onDecrement: (() -> Unit)? = null,
-    onIncrement: (() -> Unit)? = null,
-    onRemove: (() -> Unit)? = null,
+    caption: String,
 ) {
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .clip(RetailRose.rCardTight)
+            .background(RetailRose.chip)
+            .border(1.5.dp, RetailRose.rose, RetailRose.rCardTight)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(eyebrow, style = RetailRose.rowCaption().copy(fontSize = 11.sp), maxLines = 1)
+            Spacer(Modifier.weight(1f))
+            Text(
+                code,
+                style = RetailRose.rowCaption(RetailRose.amber).copy(
+                    fontSize = 12.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                ),
+                maxLines = 1,
+            )
+        }
+        Text(
+            title,
+            style = RetailRose.metricValue().copy(fontSize = 28.sp, lineHeight = 34.sp),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(caption, style = RetailRose.rowCaption().copy(fontSize = 12.sp), maxLines = 2)
+    }
+}
+
+@Composable
+private fun RetailHtrWhy(body: String) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(RetailRose.rose.copy(alpha = 0.12f))
+            .border(1.dp, RetailRose.rose.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+            .padding(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            "Why",
+            style = RetailRose.why().copy(
+                color = RetailRose.amber,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            ),
+            maxLines = 1,
+        )
+        Text(
+            body,
+            style = RetailRose.why().copy(color = RetailRose.whyCream),
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/** Figma ticket line card — SKU · HSN · ₹ · % meta + category + status chips. */
+@Composable
+private fun RetailTicketLineCard(
+    title: String,
+    qty: Int,
+    meta: String,
+    category: String,
+    status: String,
+    statusTone: RetailTicketStatusTone,
+    accent: Color,
+    onDecrement: (() -> Unit)? = null,
+    onIncrement: (() -> Unit)? = null,
+    onRemove: (() -> Unit)? = null,
+) {
+    val statusFill = when (statusTone) {
+        RetailTicketStatusTone.Positive -> RetailRose.positive
+        RetailTicketStatusTone.Amber -> RetailRose.amber
+        RetailTicketStatusTone.Rose -> RetailRose.rose
+    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(RetailRose.chip)
+            .border(1.dp, accent, RoundedCornerShape(14.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 title,
-                style = RetailRose.rowTitle(),
+                style = RetailRose.rowTitle().copy(fontSize = 14.sp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
@@ -703,12 +988,15 @@ private fun RetailUtilityLineRow(
             if (onDecrement != null && onIncrement != null) {
                 RoseStepper(qty, onDecrement = onDecrement, onIncrement = onIncrement)
             } else {
-                Text("×$qty", style = RetailRose.rowValue().copy(fontSize = 13.sp))
+                Text(
+                    "×$qty",
+                    style = RetailRose.rowValue(RetailRose.amber).copy(fontSize = 14.sp),
+                )
             }
             onRemove?.let {
                 Text(
                     "✕",
-                    modifier = Modifier.clickable(onClick = it).padding(4.dp),
+                    modifier = Modifier.clickable(onClick = it).padding(start = 4.dp),
                     style = RetailRose.rowCaption(RetailRose.textFaint),
                 )
             }
@@ -720,35 +1008,159 @@ private fun RetailUtilityLineRow(
         ) {
             Text(
                 meta,
-                style = RetailRose.rowCaption().copy(fontSize = 10.sp),
+                style = RetailRose.rowCaption().copy(fontSize = 11.sp),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            SeverityChip(category, RetailRose.amber, bordered = false)
-            SeverityChip(statusChip, RetailRose.rose, bordered = false)
+            Text(
+                category,
+                style = RetailRose.chipLabel(false).copy(color = RetailRose.textMuted),
+                maxLines = 1,
+                modifier = Modifier
+                    .clip(RetailRose.rPill)
+                    .background(RetailRose.chip)
+                    .border(1.dp, Color(0xFF475569), RetailRose.rPill)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+            Text(
+                status,
+                style = RetailRose.chipLabel(true).copy(color = RetailRose.field),
+                maxLines = 1,
+                modifier = Modifier
+                    .clip(RetailRose.rPill)
+                    .background(statusFill)
+                    .border(1.dp, RetailRose.amber, RetailRose.rPill)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            )
         }
     }
 }
 
-private fun OperatingMasterDto.retailStation(): String {
+internal fun OperatingMasterDto.retailStation(): String {
     val raw = dimension?.takeIf { it.isNotBlank() }
         ?: name.substringBefore(' ').takeIf { it.length in 3..12 }
         ?: "Staples"
     return when {
         raw.contains("snack", true) -> "Snacks"
-        raw.contains("dairy", true) || raw.contains("milk", true) -> "Dairy"
+        raw.contains("dairy", true) || raw.contains("milk", true) || name.contains("milk", true) -> "Dairy"
         raw.contains("beverage", true) || raw.contains("drink", true) -> "Beverages"
-        raw.contains("personal", true) || raw.contains("care", true) -> "Personal care"
+        raw.contains("personal", true) -> "Personal care"
         raw.contains("home", true) -> "Home care"
+        raw.contains("pack", true) || name.contains("bag", true) -> "Packaging"
+        raw.contains("consum", true) || name.contains("label", true) -> "Consumables"
+        raw.contains("staple", true) || name.contains("basmati", true) ||
+            name.contains("dal", true) || name.contains("salt", true) ||
+            name.contains("oil", true) -> "Staples"
         else -> raw.replaceFirstChar { it.uppercase() }.take(16)
     }
 }
 
-internal fun retailCatalogMasters(model: OperatingProjectionDto): List<OperatingMasterDto> =
-    model.masters.orEmpty()
-        .filter { it.kind in setOf("PRODUCT", "ITEM", "SKU", "MATERIAL") }
+/** On-hand caption for PO browser — live masters omit qty; Harbor fixtures carry labels. */
+internal fun OperatingMasterDto.retailOnHandCaption(): String? = when (code?.uppercase()) {
+    "HM-044" -> "on hand 40"
+    "HM-112" -> "on hand 72"
+    "HM-031" -> "on hand 64"
+    "HM-207" -> "18 left"
+    "HM-BAG" -> "300 left"
+    "HM-LBL" -> "6 left"
+    else -> null
+}
+
+internal fun retailCatalogMasters(model: OperatingProjectionDto): List<OperatingMasterDto> {
+    val live = model.masters.orEmpty()
+        .filter { it.kind in setOf("PRODUCT", "ITEM", "SKU", "MATERIAL", "CONSUMABLE") }
         .sortedBy { it.name.lowercase() }
+    return live.ifEmpty { harborMartFixtureCatalog() }
+}
+
+/** Figma Harbor Mart demo SKUs for SO/PO browsers when masters are empty (visual QA). */
+internal fun harborMartFixtureCatalog(): List<OperatingMasterDto> = listOf(
+    OperatingMasterDto(
+        id = "fx-hm-044",
+        kind = "PRODUCT",
+        name = "Basmati 5kg",
+        code = "HM-044",
+        sellPrice = "520",
+        purchasePrice = "480",
+        unit = "bag",
+        dimension = "Staples",
+        hsn = "1006",
+        gstRate = "5",
+    ),
+    OperatingMasterDto(
+        id = "fx-hm-112",
+        kind = "PRODUCT",
+        name = "Sunflower oil 1L",
+        code = "HM-112",
+        sellPrice = "168",
+        purchasePrice = "145",
+        unit = "btl",
+        dimension = "Staples",
+        hsn = "1512",
+        gstRate = "5",
+    ),
+    OperatingMasterDto(
+        id = "fx-hm-031",
+        kind = "PRODUCT",
+        name = "Toor dal 1kg",
+        code = "HM-031",
+        sellPrice = "142",
+        purchasePrice = "128",
+        unit = "pack",
+        dimension = "Staples",
+        hsn = "0713",
+        gstRate = "5",
+    ),
+    OperatingMasterDto(
+        id = "fx-hm-058",
+        kind = "PRODUCT",
+        name = "Tata salt 1kg",
+        code = "HM-058",
+        sellPrice = "28",
+        purchasePrice = "22",
+        unit = "pack",
+        dimension = "Staples",
+        hsn = "2501",
+        gstRate = "Exempt",
+    ),
+    OperatingMasterDto(
+        id = "fx-hm-207",
+        kind = "PRODUCT",
+        name = "Amul milk 1L",
+        code = "HM-207",
+        sellPrice = "68",
+        purchasePrice = "62",
+        unit = "btl",
+        dimension = "Dairy",
+        hsn = "0401",
+        gstRate = "Exempt",
+    ),
+    OperatingMasterDto(
+        id = "fx-hm-bag",
+        kind = "CONSUMABLE",
+        name = "Carry bags (L)",
+        code = "HM-BAG",
+        sellPrice = "2",
+        purchasePrice = "2",
+        unit = "pcs",
+        dimension = "Packaging",
+        hsn = "3923",
+        gstRate = "18",
+    ),
+    OperatingMasterDto(
+        id = "fx-hm-lbl",
+        kind = "CONSUMABLE",
+        name = "Shelf labels",
+        code = "HM-LBL",
+        sellPrice = "180",
+        purchasePrice = "180",
+        unit = "roll",
+        dimension = "Consumables",
+        hsn = "4821",
+        gstRate = "18",
+    ),
+)
 
 @Composable
 internal fun retailSkuQuickPick(

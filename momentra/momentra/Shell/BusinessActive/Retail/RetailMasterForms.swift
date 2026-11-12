@@ -76,14 +76,34 @@ enum RetailMasterFormKind: String, Identifiable {
             return "Create Stock Item is a master write. Purchase Order only references saved items; input GST posts on Purchase / GRN."
         }
     }
+
+    var toastCaption: String {
+        switch self {
+        case .supplier: return "Supplier saved · available in Purchase Order"
+        case .location: return "Location saved · stock point ready"
+        case .product, .stockItem: return "Master saved · available in browser on next open"
+        }
+    }
+
+    var editTitle: String {
+        switch self {
+        case .supplier: return "Edit supplier"
+        case .location: return "Edit location"
+        case .product: return "Edit product / SKU"
+        case .stockItem: return "Edit stock item"
+        }
+    }
 }
 
-/// Rose chrome wrapper around master create/edit — used from `OperatingMastersView` on retail.
+/// Rose chrome wrapper around master create/edit — used from `RetailMastersView` / `OperatingMastersView`.
 struct RetailMasterFormSheet: View {
     let theme: OperatingTheme
     let kind: RetailMasterFormKind
     let model: BusinessOperatingModel
-    let onSave: (OperatingMasterDraft) async -> Bool
+    var existing: OperatingMasterPayload? = nil
+    var onSaved: () -> Void = {}
+    /// Legacy callbacks kept for `OperatingMastersView` nesting.
+    var onSave: ((OperatingMasterDraft) async -> Bool)? = nil
     var onUpdate: ((String, OperatingMasterDraft, Int) async -> Bool)? = nil
 
     @Environment(\.dismiss) private var dismiss
@@ -92,6 +112,7 @@ struct RetailMasterFormSheet: View {
     @State private var isCreate = true
     @State private var editingId: String?
     @State private var editingVersion: Int = 1
+    @State private var showToast = false
 
     // UI-local / note-mapped Figma fields
     @State private var legalName = ""
@@ -120,15 +141,27 @@ struct RetailMasterFormSheet: View {
         theme: OperatingTheme,
         kind: RetailMasterFormKind,
         model: BusinessOperatingModel,
-        onSave: @escaping (OperatingMasterDraft) async -> Bool,
+        existing: OperatingMasterPayload? = nil,
+        onSaved: @escaping () -> Void = {},
+        onSave: ((OperatingMasterDraft) async -> Bool)? = nil,
         onUpdate: ((String, OperatingMasterDraft, Int) async -> Bool)? = nil
     ) {
         self.theme = theme
         self.kind = kind
         self.model = model
+        self.existing = existing
+        self.onSaved = onSaved
         self.onSave = onSave
         self.onUpdate = onUpdate
-        _draft = State(initialValue: OperatingMasterDraft(kind: kind.defaultMasterKind, name: ""))
+        _draft = State(initialValue: OperatingMasterDraft(
+            kind: kind.defaultMasterKind,
+            name: existing?.name ?? ""
+        ))
+        _isCreate = State(initialValue: existing == nil)
+        if let existing {
+            _editingId = State(initialValue: existing.id)
+            _editingVersion = State(initialValue: existing.version ?? 1)
+        }
     }
 
     private var candidates: [OperatingMasterPayload] {
@@ -151,70 +184,81 @@ struct RetailMasterFormSheet: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                RoseGrabber()
-                RoseSheetHeader(
-                    theme: theme,
-                    title: isCreate ? kind.title : "Edit \(kind.defaultMasterKind.lowercased())",
-                    subtitle: kind.subtitle,
-                    qaCode: kind.figmaNode,
-                    onClose: { dismiss() }
-                )
+        ZStack(alignment: .top) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    RoseGrabber()
+                    RoseSheetHeader(
+                        theme: theme,
+                        title: isCreate ? kind.title : kind.editTitle,
+                        subtitle: kind.subtitle,
+                        qaCode: kind.figmaNode,
+                        onClose: { dismiss() }
+                    )
 
-                RoseCreateEditMode(
-                    theme: theme,
-                    isCreate: $isCreate,
-                    // D2: Edit without onUpdate would silently create — lock instead.
-                    editLocked: onUpdate == nil
-                ) {
-                    // Edit mode entered — picker below
-                }
-                .onChange(of: isCreate) { _, create in
-                    if create { clearForCreate() }
-                }
+                    RoseCreateEditMode(
+                        theme: theme,
+                        isCreate: $isCreate,
+                        // Only lock edit when a create-only callback is wired without update/model fallback.
+                        editLocked: onSave != nil && onUpdate == nil
+                    ) {
+                        // Edit mode entered — picker below
+                    }
+                    .onChange(of: isCreate) { _, create in
+                        if create { clearForCreate() }
+                    }
 
-                if !isCreate {
-                    RoseSectionCard(theme: theme, label: "Edit existing") {
-                        if candidates.isEmpty {
-                            RoseEmptyCard(
-                                theme: theme,
-                                title: "No masters yet",
-                                bodyText: "Create one first, then edit from here."
-                            )
-                        } else {
-                            ForEach(candidates.prefix(8), id: \.id) { master in
-                                RosePickerRow(theme: theme, label: master.kind, value: master.name) {
-                                    hydrate(master)
+                    if !isCreate {
+                        RoseSectionCard(theme: theme, label: "Edit existing") {
+                            if candidates.isEmpty {
+                                RoseEmptyCard(
+                                    theme: theme,
+                                    title: "No masters yet",
+                                    bodyText: "Create one first, then edit from here."
+                                )
+                            } else {
+                                ForEach(candidates.prefix(8), id: \.id) { master in
+                                    RosePickerRow(theme: theme, label: master.kind, value: master.name) {
+                                        hydrate(master)
+                                    }
                                 }
                             }
                         }
                     }
+
+                    switch kind {
+                    case .supplier: supplierFields
+                    case .location: locationFields
+                    case .product: productFields
+                    case .stockItem: stockItemFields
+                    }
+
+                    RoseWhyBox(theme: theme, text: kind.why)
+
+                    RoseStickyFooter(
+                        theme: theme,
+                        title: saving ? "Saving…" : kind.cta,
+                        caption: kind.toastCaption,
+                        disabled: draft.name.trimmingCharacters(in: .whitespaces).isEmpty
+                            || (!isCreate && editingId == nil),
+                        loading: saving,
+                        formStyle: kind == .supplier,
+                        action: { Task { await save() } }
+                    )
                 }
-
-                switch kind {
-                case .supplier: supplierFields
-                case .location: locationFields
-                case .product: productFields
-                case .stockItem: stockItemFields
-                }
-
-                RoseWhyBox(theme: theme, text: kind.why)
-
-                RoseStickyFooter(
-                    theme: theme,
-                    title: saving ? "Saving…" : kind.cta,
-                    disabled: draft.name.trimmingCharacters(in: .whitespaces).isEmpty
-                        || (!isCreate && (editingId == nil || onUpdate == nil)),
-                    loading: saving,
-                    action: { Task { await save() } }
-                )
+                .padding(16)
+                .padding(.bottom, 24)
             }
-            .padding(16)
-            .padding(.bottom, 24)
+            .background(theme.canvas)
+
+            if showToast {
+                RoseSavedToast()
+                    .padding(.top, 12)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
         }
-        .background(theme.canvas)
         .task {
+            if let existing { hydrate(existing) }
             if model.masters.isEmpty { await model.loadMasters() }
         }
     }
@@ -314,6 +358,13 @@ struct RetailMasterFormSheet: View {
         }
         RoseFieldLabel(text: "HSN / SAC")
         RoseTextField(theme: theme, placeholder: "1006 · Rice", text: $draft.hsn)
+        HsnLookupHints(query: draft.hsn, accent: theme.accent) { code, rate in
+            draft.hsn = code
+            if let rate, !rate.isEmpty, rate != "0" {
+                draft.gstRate = rate
+                gstChip = "\(rate)%"
+            }
+        }
         RoseFieldLabel(text: "Default location")
         RoseChipRow(theme: theme, options: locationNames, selection: $defaultLocation)
         RoseFieldLabel(text: "Unit")
@@ -372,6 +423,13 @@ struct RetailMasterFormSheet: View {
         }
         RoseFieldLabel(text: "HSN code")
         RoseTextField(theme: theme, placeholder: "HSN code", text: $draft.hsn)
+        HsnLookupHints(query: draft.hsn, accent: theme.accent) { code, rate in
+            draft.hsn = code
+            if let rate, !rate.isEmpty {
+                draft.gstRate = rate
+                gstChip = rate == "0" ? "Exempt" : "\(rate)%"
+            }
+        }
         RosePickerRow(theme: theme, label: "Default location", value: defaultLocation) {
             if let idx = locationNames.firstIndex(of: defaultLocation) {
                 defaultLocation = locationNames[(idx + 1) % locationNames.count]
@@ -509,13 +567,28 @@ struct RetailMasterFormSheet: View {
         if kind == .stockItem {
             draft.gstRate = String(gstChip.dropLast())
         }
-        if !isCreate {
-            guard let id = editingId, let onUpdate else { return }
-            let ok = await onUpdate(id, draft, editingVersion)
-            if ok { dismiss() }
-            return
+        let ok: Bool
+        if !isCreate, let id = editingId {
+            if let onUpdate {
+                ok = await onUpdate(id, draft, editingVersion)
+            } else {
+                let updated = await model.updateMaster(
+                    id: id,
+                    draft: draft,
+                    expectedVersion: editingVersion
+                )
+                ok = updated != nil && model.writeError == nil
+            }
+        } else if let onSave {
+            ok = await onSave(draft)
+        } else {
+            let created = await model.createMaster(draft)
+            ok = created != nil && model.writeError == nil
         }
-        let ok = await onSave(draft)
-        if ok { dismiss() }
+        guard ok else { return }
+        withAnimation { showToast = true }
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        onSaved()
+        dismiss()
     }
 }

@@ -440,14 +440,17 @@ fun EmberWhyCaption(body: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** Board variant: ember `Why` on an optional ember-tinted note box. */
+/**
+ * Board / sheet Why note — Figma RST-QA: gold “Why” + cream `#FEF3C7` body on an
+ * ember-tinted plate (`rgba(234,88,12,0.12)` / border `@0.4`).
+ */
 @Composable
 fun EmberWhyNote(body: String, modifier: Modifier = Modifier, tinted: Boolean = false) {
     val base = if (tinted) {
         Modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(RestaurantEmber.ember.copy(alpha = 0.10f))
-            .border(1.dp, RestaurantEmber.ember.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+            .background(RestaurantEmber.ember.copy(alpha = 0.12f))
+            .border(1.dp, RestaurantEmber.sheetBorder, RoundedCornerShape(10.dp))
             .padding(10.dp)
     } else {
         Modifier.padding(horizontal = 2.dp)
@@ -460,10 +463,16 @@ fun EmberWhyNote(body: String, modifier: Modifier = Modifier, tinted: Boolean = 
     ) {
         Text(
             "Why",
-            style = RestaurantEmber.why().copy(color = RestaurantEmber.ember, fontWeight = FontWeight.Bold),
+            style = RestaurantEmber.why().copy(color = RestaurantEmber.gold, fontWeight = FontWeight.Bold),
             maxLines = 1,
         )
-        Text(body, style = RestaurantEmber.why().copy(color = RestaurantEmber.textBody), modifier = Modifier.weight(1f))
+        Text(
+            body,
+            style = RestaurantEmber.why().copy(
+                color = if (tinted) RestaurantEmber.whyBody else RestaurantEmber.textBody,
+            ),
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -793,13 +802,19 @@ fun EmberIconWell(iconRes: Int, modifier: Modifier = Modifier, size: Int = 36) {
     }
 }
 
-/** Chip used by the POS / KOT mode rows: filled ember when selected, `#44403c` otherwise. */
+/**
+ * Mode / channel / tender chip — Figma active = fill + gold border + dark ink;
+ * inactive = `#44403c` + `#57534e` hairline. Pass [selectedFill] for tender green.
+ */
 @Composable
 fun EmberModeChip(
     text: String,
     selected: Boolean,
     modifier: Modifier = Modifier,
     locked: String? = null,
+    selectedFill: Color = RestaurantEmber.ember,
+    /** Wine context chips use light ink; ember/tender chips keep dark ink. */
+    selectedInk: Color = RestaurantEmber.inkOnEmber,
     onClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(999.dp)
@@ -807,23 +822,29 @@ fun EmberModeChip(
     val click = if (onClick != null && enabled) Modifier.clickable(onClick = onClick) else Modifier
     Text(
         text,
-        style = RestaurantEmber.chipLabel(selected).copy(
+        style = RestaurantEmber.chipLabel(selected && locked == null).copy(
             color = when {
                 locked != null -> RestaurantEmber.textFaint
-                selected -> Color.White
+                selected -> selectedInk
                 else -> RestaurantEmber.textBody
             },
         ),
         maxLines = 1,
         modifier = modifier
             .clip(shape)
-            .background(if (selected) RestaurantEmber.ember else RestaurantEmber.chip)
+            .background(
+                when {
+                    locked != null -> RestaurantEmber.chip.copy(alpha = 0.5f)
+                    selected -> selectedFill
+                    else -> RestaurantEmber.chip
+                },
+            )
             .border(
                 1.dp,
                 when {
                     locked != null -> RestaurantEmber.hairline.copy(alpha = 0.5f)
-                    selected -> RestaurantEmber.ember
-                    else -> Color.Transparent
+                    selected -> RestaurantEmber.gold
+                    else -> RestaurantEmber.hairline
                 },
                 shape,
             )
@@ -832,7 +853,7 @@ fun EmberModeChip(
     )
 }
 
-/** Filled ember CTA used in every sheet footer. */
+/** Wine → ember sticky CTA — Figma RST-QA footer (`#881337` → `#EA580C`, white label, r16). */
 @Composable
 fun EmberPrimaryButton(
     label: String,
@@ -840,26 +861,43 @@ fun EmberPrimaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RestaurantEmber.rRow
-    Text(
-        label,
-        style = RestaurantEmber.storyCtaTitle().copy(color = if (enabled) Color.White else RestaurantEmber.textFaint),
-        maxLines = 1,
+    val shape = RestaurantEmber.rSheetCta
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(51.dp)
+            .height(52.dp)
             .shadow(
-                elevation = if (enabled) 10.dp else 0.dp,
+                elevation = if (enabled) 12.dp else 0.dp,
                 shape = shape,
                 clip = false,
-                ambientColor = RestaurantEmber.ember.copy(alpha = 0.45f),
-                spotColor = RestaurantEmber.ember.copy(alpha = 0.45f),
+                ambientColor = RestaurantEmber.ember.copy(alpha = 0.6f),
+                spotColor = RestaurantEmber.ember.copy(alpha = 0.6f),
             )
             .clip(shape)
-            .background(if (enabled) RestaurantEmber.ember else RestaurantEmber.surfaceWell)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 15.dp, horizontal = 12.dp),
-    )
+            .background(
+                if (enabled) {
+                    Brush.horizontalGradient(
+                        listOf(RestaurantEmber.heroStart, RestaurantEmber.heroEnd),
+                    )
+                } else {
+                    Brush.horizontalGradient(
+                        listOf(RestaurantEmber.surfaceWell, RestaurantEmber.surfaceWell),
+                    )
+                },
+            )
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            style = RestaurantEmber.storyCtaTitle().copy(
+                color = if (enabled) Color.White else RestaurantEmber.textFaint,
+                fontSize = 15.sp,
+            ),
+            maxLines = 1,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+    }
 }
 
 /** Tile icons (all real Figma vectors in `res/drawable`). */

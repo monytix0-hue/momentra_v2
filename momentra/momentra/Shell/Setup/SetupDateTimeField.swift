@@ -89,15 +89,19 @@ struct SetupDateTimeField: View {
     let label: String
     @Binding var isoValue: String?
     var testTag: String = "setup.datetime"
+    /// Optional override for the label color (e.g. trading due-date danger `#EF4444`).
+    var labelColor: Color? = nil
 
     @State private var showPicker = false
     @State private var draftDate = Date()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(label)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(SetupTokens.textPrimary)
+            if !label.isEmpty {
+                Text(label)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(labelColor ?? SetupTokens.textPrimary)
+            }
             Button {
                 showPicker = true
             } label: {

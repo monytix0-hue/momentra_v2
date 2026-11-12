@@ -166,6 +166,12 @@ struct OperatingCatalogTests {
         #expect(RestaurantHubScreen.core.contains { if case let .capture(code, _, _, _, _, _) = $0 { return code == "KOT" }; return false })
         #expect(ServiceHubScreen.core.first?.title == "Finalize Charge")
         #expect(ServiceHubScreen.core.contains { if case let .capture(code, title, _, _, _, _) = $0 { return code == "APPOINTMENT" && title == "Booking" }; return false })
+        #expect(ServiceHubScreen.utilities.contains { if case let .capture(_, _, _, _, requires, _) = $0 { return requires == "APPOINTMENT" }; return false })
+        #expect(BusinessOperatingVertical.consumerService.motionLine == "Book. Deliver. Charge.")
+        #expect(ServiceCaptureCopy.tagline == "Book. Deliver. Charge.")
+        #expect(ServiceCaptureCopy.cta("SERVICE") == "Post charge")
+        #expect(ServiceCaptureCopy.cta("APPOINTMENT") == "Save booking")
+        #expect(ServiceCaptureCopy.why("HOLD").contains("no revenue"))
         #expect(OperatingCaptureLayout.forMode("APPOINTMENT") == .order)
         #expect(OperatingCaptureLayout.forMode("SERVICE") == .sale)
     }
@@ -185,9 +191,13 @@ struct OperatingCatalogTests {
 
     // MARK: Masters
 
+    // Under test: OperatingMasterTab kinds/defaultKind (OperatingCatalog.swift).
+    // Existing file OperatingMasterMappingTests.swift. Instruction: Pass 2/3 QA-01 CUSTOMER default.
     @Test func masterTabsMatchTheKindsTheyOwn() {
         #expect(OperatingMasterTab.principals.kinds.contains("DEALER"))
         #expect(OperatingMasterTab.principals.kinds.contains("PRINCIPAL"))
+        #expect(OperatingMasterTab.principals.kinds.contains("CUSTOMER"))
+        #expect(OperatingMasterTab.principals.defaultKind == "CUSTOMER")
         #expect(OperatingMasterTab.catalogue.kinds.contains("SKU"))
         #expect(OperatingMasterTab.locations.kinds.contains("WAREHOUSE"))
         #expect(OperatingMasterTab.locations.kinds.contains("ROUTE"))
@@ -254,6 +264,15 @@ struct OperatingMasterMappingTests {
         let body = draft.toCreateBody()
         #expect(body.parentMasterId == "master-1")
         #expect(body.kind == "BATCH")
+    }
+
+    @Test func packagingConversionTravelsOnCreateAndUpdate() {
+        var draft = OperatingMasterDraft(kind: "SKU", name: "Carton")
+        draft.unit = "CTN"
+        draft.conversionToBase = "12"
+        #expect(draft.toCreateBody().conversionToBase == "12")
+        draft.conversionToBase = "24"
+        #expect(draft.toUpdateBody(expectedVersion: 2).conversionToBase == "24")
     }
 
     @Test func saveRequiresAName() {

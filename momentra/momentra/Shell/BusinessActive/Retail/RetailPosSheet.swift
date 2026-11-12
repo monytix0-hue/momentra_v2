@@ -1,8 +1,9 @@
 import SwiftUI
+import UIKit
 
 /// Retail POS — Figma RTL-QA-01 ALT: Scan cart · Hold recall · Quick amount.
 /// Posts `SALE` via `BusinessOperatingModel.record`. Quick amount has no lines / no stock movement.
-/// Hold recall restores a session park into Scan cart — Charge still posts from Scan cart.
+/// Hold recall restores a device-local park into Scan cart — Charge still posts from Scan cart.
 struct RetailPosSheet: View {
     let theme: OperatingTheme
     @ObservedObject var model: BusinessOperatingModel
@@ -18,6 +19,12 @@ struct RetailPosSheet: View {
     @State private var posMode: PosMode = .scanCart
     @State private var salesMode = ""
     @State private var tender = "UPI"
+    @State private var splitTender = false
+    @State private var splitUpi = ""
+    @State private var splitCash = ""
+    @State private var splitCard = ""
+    @State private var discount = ""
+    @State private var cessAmount = ""
     @State private var skuQuery = ""
     @State private var holdQuery = ""
     @State private var customer = ""
@@ -28,8 +35,15 @@ struct RetailPosSheet: View {
     @State private var recalledDraftId: String?
     @State private var selectedHoldId: String?
     @State private var showSkuPicker = false
+    @State private var showBarcodeScanner = false
     @State private var gstPicker = "Inclusive · selection only"
     @State private var billPrint = "Thermal · share UPI QR"
+    @State private var postedReceipt: RetailReceiptModel?
+    @State private var shareItems: [Any] = []
+    @State private var showShareSheet = false
+    @State private var paper: RetailReceiptPaperSize = .default
+    @State private var shareFormat: RetailReceiptShareFormat = .jpg
+    @State private var logo: UIImage? = nil
 
     private var currency: String { model.currency }
 
@@ -66,31 +80,64 @@ struct RetailPosSheet: View {
 
     private var cartUnits: Int { cart.reduce(0) { $0 + $1.quantity } }
 
-    private var subtotal: Decimal {
-        cart.reduce(Decimal.zero) { $0 + $1.amount }
+    private var gross: Decimal {
+        switch posMode {
+        case .quickAmount:
+            return PosSettlement.parseAmount(quickAmount)
+        case .scanCart, .holdRecall:
+            return cart.reduce(Decimal.zero) { $0 + $1.amount }
+        }
+    }
+
+    private var subtotal: Decimal { gross }
+
+    private var discountValue: Decimal { PosSettlement.parseAmount(discount) }
+    private var cessValue: Decimal { PosSettlement.parseAmount(cessAmount) }
+    private var payable: Decimal { PosSettlement.payable(gross: gross, discount: discountValue, cessAmount: cessValue) }
+    private var splitAmounts: [String: String] {
+        ["UPI": splitUpi, "Cash": splitCash, "Card": splitCard]
+    }
+    private var paymentsPreview: [OperatingPaymentInput]? {
+        PosSettlement.buildPayments(
+            split: splitTender,
+            primary: tender,
+            payable: payable,
+            splitAmounts: splitAmounts
+        )
+    }
+    private var splitOk: Bool {
+        !splitTender || PosSettlement.splitSumsToPayable(splitAmounts, payable: payable)
+    }
+    private var discountOk: Bool { discountValue <= gross || gross <= 0 }
+    private var tenderLabel: String {
+        PosSettlement.tenderLabel(split: splitTender, primary: tender, payments: paymentsPreview)
     }
 
     private var subtotalText: String {
-        guard !cart.isEmpty else { return "—" }
-        return OperatingV12Money.amount(NSDecimalNumber(decimal: subtotal).stringValue, currency: currency)
+        guard gross > 0 else { return "—" }
+        return OperatingV12Money.amount(NSDecimalNumber(decimal: gross).stringValue, currency: currency)
     }
 
     private var payableText: String {
-        switch posMode {
-        case .quickAmount:
-            let amount = quickAmount.trimmingCharacters(in: .whitespaces)
-            return amount.isEmpty ? "—" : OperatingV12Money.amount(amount, currency: currency)
-        case .scanCart, .holdRecall:
-            return cart.isEmpty ? "—" : subtotalText
-        }
+        guard payable > 0 else { return "—" }
+        return OperatingV12Money.amount(NSDecimalNumber(decimal: payable).stringValue, currency: currency)
+    }
+
+    private var discountText: String {
+        guard discountValue > 0 else { return "—" }
+        return "−" + OperatingV12Money.amount(NSDecimalNumber(decimal: discountValue).stringValue, currency: currency)
     }
 
     private var postable: Bool {
         switch posMode {
         case .quickAmount:
-            return (Decimal(string: quickAmount) ?? 0) > 0
+            return payable > 0 && discountOk && splitOk
         case .scanCart:
-            return !cart.isEmpty && cart.allSatisfy { ($0.unitPrice as NSString).doubleValue > 0 }
+            return !cart.isEmpty
+                && cart.allSatisfy { ($0.unitPrice as NSString).doubleValue > 0 }
+                && discountOk
+                && splitOk
+                && payable > 0
         case .holdRecall:
             return false
         }
@@ -101,43 +148,60 @@ struct RetailPosSheet: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                RoseGrabber()
-                RoseSheetHeader(
-                    theme: theme,
-                    title: "POS Sale",
-                    subtitle: headerSubtitle,
-                    qaCode: "RTL-QA-01",
-                    onClose: { dismiss() }
-                )
-                RoseContextLine(
-                    text: "\(model.title) · Sale ≠ stock unless itemized · Quick amount never moves SKU"
-                )
+        Group {
+            if let receipt = postedReceipt {
+                postedReceiptBody(receipt)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        RoseGrabber()
+                        RoseSheetHeader(
+                            theme: theme,
+                            title: "POS Sale",
+                            showAltBadge: posMode != .scanCart,
+                            onClose: { dismiss() }
+                        )
+                        RoseRegisterContext(text: registerContext)
 
-                RoseFieldLabel(text: "Mode")
-                RoseChipRow(theme: theme, options: PosMode.allCases.map(\.rawValue), selection: Binding(
-                    get: { posMode.rawValue },
-                    set: { raw in
-                        if let next = PosMode(rawValue: raw) {
-                            posMode = next
+                        RoseChipRow(theme: theme, options: PosMode.allCases.map(\.rawValue), selection: Binding(
+                            get: { posMode.rawValue },
+                            set: { raw in
+                                if let next = PosMode(rawValue: raw) {
+                                    posMode = next
+                                }
+                            }
+                        ))
+
+                        switch posMode {
+                        case .quickAmount:
+                            quickBody
+                        case .scanCart:
+                            scanBody
+                        case .holdRecall:
+                            holdRecallBody
                         }
                     }
-                ))
-
-                switch posMode {
-                case .quickAmount:
-                    quickBody
-                case .scanCart:
-                    scanBody
-                case .holdRecall:
-                    holdRecallBody
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 28)
                 }
             }
-            .padding(16)
-            .padding(.bottom, 24)
         }
-        .background(theme.canvas)
+        .background(RoseSheetChrome.sheet)
+        .sheet(isPresented: $showShareSheet) {
+            ActivityShareSheet(items: shareItems)
+        }
+        .fullScreenCover(isPresented: $showBarcodeScanner) {
+            RetailBarcodeScanner(
+                title: "Scan SKU",
+                subtitle: "Point at a product barcode or QR",
+                onCode: { code in
+                    showBarcodeScanner = false
+                    applyPosScan(code)
+                },
+                onDismiss: { showBarcodeScanner = false }
+            )
+        }
         .task {
             if salesMode.isEmpty || !channels.contains(salesMode) {
                 salesMode = channels.first ?? "Counter"
@@ -145,18 +209,67 @@ struct RetailPosSheet: View {
             if model.masters.isEmpty {
                 await model.loadMasters()
             }
+            logo = RetailReceiptLogoStore.loadImage(
+                companyId: model.companyId,
+                momentId: model.momentId
+            )
         }
     }
 
-    private var headerSubtitle: String {
-        switch posMode {
-        case .quickAmount: return "Amount only · no stock"
-        case .scanCart:
-            if cart.isEmpty { return "Scan cart" }
-            return "\(cart.count) lines · \(cartUnits) unit\(cartUnits == 1 ? "" : "s")"
-        case .holdRecall:
-            return "\(parked.count) hold\(parked.count == 1 ? "" : "s") · draft only"
+    @ViewBuilder
+    private func postedReceiptBody(_ receipt: RetailReceiptModel) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                RoseGrabber()
+                RoseSheetHeader(
+                    theme: theme,
+                    title: "Sale posted",
+                    subtitle: "Customer copy · share or print",
+                    onClose: { dismiss() }
+                )
+                RetailReceiptPreview(model: receipt, paper: paper, logo: logo)
+                Text("Charge already posted. This slip is a client render — no second SALE, no fiscal bill allocation.")
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(RoseSheetChrome.textMuted)
+                RetailReceiptShareControls(
+                    theme: theme,
+                    model: receipt,
+                    companyId: model.companyId,
+                    momentId: model.momentId,
+                    paper: $paper,
+                    format: $shareFormat,
+                    logo: $logo
+                ) { items in
+                    shareItems = items
+                    showShareSheet = true
+                }
+                RoseStickyFooter(
+                    theme: theme,
+                    title: "Done",
+                    caption: "Receipt is client copy until receipt.pdf API exists",
+                    action: { dismiss() }
+                )
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 28)
         }
+    }
+
+    /// Figma register strip — Register/Shift are chrome labels; place + title from projection.
+    private var registerContext: String {
+        let store = model.title.trimmingCharacters(in: .whitespaces).isEmpty ? "Harbor Mart" : model.title
+        let trimmedLocation = model.projection?.location?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let place: String = {
+            if !trimmedLocation.isEmpty { return trimmedLocation }
+            if let channel = model.projection?.life?.channels.first(where: {
+                $0.localizedCaseInsensitiveContains("Andheri")
+            }) {
+                return channel
+            }
+            return "Andheri"
+        }()
+        return "Register 2 · Shift open · \(place) · \(store)"
     }
 
     private var footerTitle: String {
@@ -174,47 +287,74 @@ struct RetailPosSheet: View {
         }
     }
 
+    private var footerCaption: String {
+        switch posMode {
+        case .scanCart:
+            return "Idempotent post · draft kept on picker · original QA-01 untouched"
+        case .quickAmount:
+            return "No stock move · draft kept on mode switch"
+        case .holdRecall:
+            return "Does not post · Charge still required on Scan cart"
+        }
+    }
+
     // MARK: - Quick amount
 
     @ViewBuilder
     private var quickBody: some View {
         RoseAmountHero(
             theme: theme,
-            label: "Sale amount · \(currency)",
+            label: "Sale amount",
             amountText: payableText,
             caption: "No SKU lines · revenue only · stock unchanged"
         )
 
-        RoseSectionCard(theme: theme, label: "Keypad") {
-            Text("tap to enter")
-                .font(.plusJakarta(size: 11))
-                .foregroundStyle(OperatingV12.subtitle)
+        RoseSectionCard(theme: theme, label: "Keypad", trailing: "tap to enter") {
             RoseNumericKeypad(theme: theme, value: $quickAmount)
         }
 
         quickTotals
 
-        RoseTenderChips(theme: theme, tender: $tender, options: ["UPI", "Cash", "Card"])
+        RoseFieldLabel(text: "Discount")
+        RoseTextField(theme: theme, placeholder: "0", text: $discount)
+        RoseTenderChips(
+            theme: theme,
+            tender: $tender,
+            splitTender: $splitTender,
+            splitUpi: $splitUpi,
+            splitCash: $splitCash,
+            splitCard: $splitCard,
+            splitOk: splitOk
+        )
 
         RosePickerRow(
             theme: theme,
             label: "Customer",
             value: customer.isEmpty ? "Walk-in (cash/UPI)" : customer
         )
-        RosePickerRow(theme: theme, label: "Channel", value: salesMode.isEmpty ? "In-store" : salesMode) {
+        RosePickerRow(
+            theme: theme,
+            label: "Channel",
+            value: salesMode.isEmpty ? "In-store · Register 2" : "In-store · \(salesMode)"
+        ) {
             cycleChannel()
         }
-        RosePickerRow(theme: theme, label: "GST", value: gstPicker) {
+        RosePickerRow(theme: theme, label: "GST", value: gstPicker.hasPrefix("Inclusive") ? "Inclusive 5%" : "Exclusive · selection only") {
             gstPicker = gstPicker.hasPrefix("Inclusive")
                 ? "Exclusive · selection only"
                 : "Inclusive · selection only"
         }
 
-        RoseMoreDetails(title: "More details") {
+        RoseMoreDetails(title: "More details", hint: "Notes · Attachment · Tags") {
             RoseFieldLabel(text: "Customer")
             RoseTextField(theme: theme, placeholder: "Walk-in or named credit buyer", text: $customer)
             RoseFieldLabel(text: "Note")
             RoseTextField(theme: theme, placeholder: "Notes · Attachment · Tags", text: $note)
+            RoseFieldLabel(text: "Cess ₹ (optional · explicit only)")
+            RoseTextField(theme: theme, placeholder: "0", text: $cessAmount)
+            Text("Cess is operator-entered only — no HSN/CBIC schedule lookup.")
+                .font(.plusJakarta(size: 10))
+                .foregroundStyle(OperatingV12.subtitle.opacity(0.8))
         }
 
         RoseWhyBox(
@@ -225,34 +365,79 @@ struct RetailPosSheet: View {
         RoseStickyFooter(
             theme: theme,
             title: footerTitle,
+            caption: footerCaption,
             disabled: !postable,
             loading: saving,
             action: { Task { await post() } }
         )
     }
 
+    private var quickGstEstimate: Decimal? {
+        guard gstPicker.hasPrefix("Inclusive") else { return nil }
+        let rate = gstPicker.split(separator: " ").compactMap { token -> String? in
+            let t = token.trimmingCharacters(in: CharacterSet(charactersIn: "%"))
+            return Decimal(string: t) != nil ? t : nil
+        }.first
+        return RetailGstEstimate.onTotal(Decimal(string: quickAmount), ratePercent: rate ?? "5", inclusive: true)
+    }
+
+    private var scanGstEstimate: Decimal? {
+        RetailGstEstimate.from(
+            amounts: cart.map(\.amount),
+            rates: cart.map(\.gstRate),
+            inclusive: true
+        )
+    }
+
     private var quickTotals: some View {
-        VStack(spacing: 8) {
-            RoseUnavailableGstRow(
-                theme: theme,
-                label: "GST (inclusive)",
-                caption: "Unavailable — no client tax engine"
-            )
+        VStack(spacing: 6) {
             HStack {
-                Text("Discount")
+                Text("Subtotal")
                     .font(.plusJakarta(size: 12))
-                    .foregroundStyle(OperatingV12.subtitle)
+                    .foregroundStyle(RoseSheetChrome.textBody)
                 Spacer()
-                Text("− ₹0")
-                    .font(.plusJakarta(size: 14, weight: .semibold))
-                    .foregroundStyle(OperatingV12.title)
+                Text(subtotalText)
+                    .font(.plusJakarta(size: 12, weight: .medium))
+                    .foregroundStyle(RoseSheetChrome.textBody)
             }
-            Divider().overlay(theme.border.opacity(0.4))
-            HStack {
+            if discountValue > 0 {
+                HStack {
+                    Text("Discount")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(RoseSheetChrome.textBody)
+                    Spacer()
+                    Text(discountText)
+                        .font(.plusJakarta(size: 12, weight: .medium))
+                        .foregroundStyle(RoseSheetChrome.tenderSelected)
+                }
+            }
+            if cessValue > 0 {
+                HStack {
+                    Text("Cess")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(RoseSheetChrome.textBody)
+                    Spacer()
+                    Text(OperatingV12Money.amount(NSDecimalNumber(decimal: cessValue).stringValue, currency: currency))
+                        .font(.plusJakarta(size: 12, weight: .medium))
+                        .foregroundStyle(RoseSheetChrome.textBody)
+                }
+            }
+            RoseGstEstimateRow(
+                theme: theme,
+                label: gstPicker.hasPrefix("Inclusive") ? "GST (inclusive est.)" : "GST (exclusive · selection)",
+                estimate: quickGstEstimate,
+                currency: model.currency,
+                captionWhenKnown: "Estimate from keypad + rate — GST posts only on Charge",
+                captionWhenMissing: "Unavailable — pick Inclusive rate or wait for tax config on post"
+            )
+            Rectangle()
+                .fill(RoseSheetChrome.roseBorder)
+                .frame(height: 1)
+            HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Payable now")
-                        .font(.plusJakarta(size: 10))
-                        .foregroundStyle(OperatingV12.subtitle)
+                        .font(.plusJakarta(size: 11, weight: .medium))
+                        .foregroundStyle(RoseSheetChrome.textBody)
                     Text(payableText)
                         .font(.plusJakarta(size: 24, weight: .bold))
                         .foregroundStyle(OperatingV12.title)
@@ -260,21 +445,21 @@ struct RetailPosSheet: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("Tender")
-                        .font(.plusJakarta(size: 10))
-                        .foregroundStyle(OperatingV12.subtitle)
-                    Text(tender)
-                        .font(.plusJakarta(size: 14, weight: .bold))
-                        .foregroundStyle(Color(red: 0.13, green: 0.77, blue: 0.37))
+                        .font(.plusJakarta(size: 10, weight: .bold))
+                        .foregroundStyle(RoseSheetChrome.label)
+                    Text(tenderLabel)
+                        .font(.plusJakarta(size: 13, weight: .bold))
+                        .foregroundStyle(RoseSheetChrome.tenderSelected)
                 }
             }
         }
-        .padding(12)
-        .background(Color.black.opacity(0.24))
+        .padding(16)
+        .background(RoseSheetChrome.sheet)
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(theme.accent.opacity(0.35), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(theme.accent, lineWidth: 1.5)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     // MARK: - Scan cart
@@ -284,10 +469,17 @@ struct RetailPosSheet: View {
         RoseFieldLabel(text: "Scan or search SKU")
         RoseScanField(
             theme: theme,
-            placeholder: catalogue.isEmpty ? "Add SKU under Catalogue first" : "Barcode or product name",
+            placeholder: catalogue.isEmpty ? "Add SKU under Catalogue first" : "HM-044  ·  tap to scan",
             query: $skuQuery,
             actionLabel: "Scan",
-            action: addSku,
+            action: {
+                let typed = skuQuery.trimmingCharacters(in: .whitespaces)
+                if typed.isEmpty {
+                    if !catalogue.isEmpty { showBarcodeScanner = true }
+                } else {
+                    addSku()
+                }
+            },
             disabled: catalogue.isEmpty
         )
         if catalogue.isEmpty {
@@ -304,12 +496,22 @@ struct RetailPosSheet: View {
 
         scanTotals
 
-        RoseTenderChips(theme: theme, tender: $tender, options: ["UPI", "Cash", "Card"])
+        RoseFieldLabel(text: "Discount")
+        RoseTextField(theme: theme, placeholder: "0", text: $discount)
+        RoseTenderChips(
+            theme: theme,
+            tender: $tender,
+            splitTender: $splitTender,
+            splitUpi: $splitUpi,
+            splitCash: $splitCash,
+            splitCard: $splitCard,
+            splitOk: splitOk
+        )
 
         RosePickerRow(
             theme: theme,
             label: "Customer",
-            value: customer.isEmpty ? "Walk-in · B2C" : customer
+            value: customer.isEmpty ? "Walk-in · B2C · MH intra-state" : customer
         )
         RosePickerRow(theme: theme, label: "Bill / print", value: billPrint) {
             billPrint = billPrint.hasPrefix("Thermal")
@@ -317,23 +519,44 @@ struct RetailPosSheet: View {
                 : "Thermal · share UPI QR"
         }
 
-        RoseMoreDetails(title: "More details") {
+        RoseMoreDetails(title: "More details", hint: "Notes · Loyalty · Hold bill") {
             RoseFieldLabel(text: "Customer")
             RoseTextField(theme: theme, placeholder: "Walk-in or credit buyer", text: $customer)
             RoseFieldLabel(text: "Sales channel")
             RoseChipRow(theme: theme, options: channels, selection: $salesMode)
             RoseFieldLabel(text: "Note")
             RoseTextField(theme: theme, placeholder: "Notes · Loyalty · Hold bill", text: $note)
+            RoseFieldLabel(text: "Cess ₹ (optional · explicit only)")
+            RoseTextField(theme: theme, placeholder: "0", text: $cessAmount)
+            Text("Cess is operator-entered only — no HSN/CBIC schedule lookup.")
+                .font(.plusJakarta(size: 10))
+                .foregroundStyle(OperatingV12.subtitle.opacity(0.8))
+            Button("Hold bill · park cart") {
+                RetailParkedSaleStore.shared.parkCurrentCart(
+                    momentId: model.momentId,
+                    cart: cart,
+                    channel: salesMode,
+                    customer: customer,
+                    note: note,
+                    tender: tender,
+                    currency: currency
+                )
+                posMode = .holdRecall
+            }
+            .font(.plusJakarta(size: 13, weight: .bold))
+            .foregroundStyle(RoseSheetChrome.label)
+            .disabled(cart.isEmpty)
         }
 
         RoseWhyBox(
             theme: theme,
-            text: "POS posts one itemized sale + linked tender receipt atomically. Stock − on post when tracked. Hold is draft only — no revenue, no stock. Quick amount stays amount-only."
+            text: "POS posts one itemized sale + linked tender receipt atomically. Stock − on post when tracked. Hold is draft only — no revenue, no stock. Quick amount stays the original sheet."
         )
 
         RoseStickyFooter(
             theme: theme,
             title: footerTitle,
+            caption: footerCaption,
             disabled: !postable,
             loading: saving,
             action: { Task { await post() } }
@@ -341,58 +564,76 @@ struct RetailPosSheet: View {
     }
 
     private var scanTotals: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             HStack {
                 Text("Subtotal")
                     .font(.plusJakarta(size: 12))
-                    .foregroundStyle(OperatingV12.subtitle)
+                    .foregroundStyle(RoseSheetChrome.textBody)
                 Spacer()
-                Text(payableText)
-                    .font(.plusJakarta(size: 14, weight: .semibold))
-                    .foregroundStyle(OperatingV12.title)
+                Text(subtotalText)
+                    .font(.plusJakarta(size: 12, weight: .medium))
+                    .foregroundStyle(RoseSheetChrome.textBody)
             }
-            HStack {
-                Text("Discount")
-                    .font(.plusJakarta(size: 12))
-                    .foregroundStyle(OperatingV12.subtitle)
-                Spacer()
-                Text("− ₹0")
-                    .font(.plusJakarta(size: 14, weight: .semibold))
-                    .foregroundStyle(OperatingV12.title)
+            if discountValue > 0 {
+                HStack {
+                    Text("Discount")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(RoseSheetChrome.textBody)
+                    Spacer()
+                    Text(discountText)
+                        .font(.plusJakarta(size: 12, weight: .medium))
+                        .foregroundStyle(RoseSheetChrome.tenderSelected)
+                }
             }
-            RoseUnavailableGstRow(
+            if cessValue > 0 {
+                HStack {
+                    Text("Cess")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(RoseSheetChrome.textBody)
+                    Spacer()
+                    Text(OperatingV12Money.amount(NSDecimalNumber(decimal: cessValue).stringValue, currency: currency))
+                        .font(.plusJakarta(size: 12, weight: .medium))
+                        .foregroundStyle(RoseSheetChrome.textBody)
+                }
+            }
+            RoseGstEstimateRow(
                 theme: theme,
-                label: "CGST + SGST (incl.)",
-                caption: "Unavailable — stamped server-side on bill"
+                label: "CGST + SGST (incl. est.)",
+                estimate: scanGstEstimate,
+                currency: model.currency,
+                captionWhenKnown: "Estimate from line rates — GST posts only on Charge",
+                captionWhenMissing: "Unavailable — rate missing on line / master"
             )
-            Divider().overlay(theme.border.opacity(0.4))
-            HStack {
+            Rectangle()
+                .fill(RoseSheetChrome.roseBorder)
+                .frame(height: 1)
+            HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Payable now")
-                        .font(.plusJakarta(size: 10))
-                        .foregroundStyle(OperatingV12.subtitle)
+                        .font(.plusJakarta(size: 11, weight: .medium))
+                        .foregroundStyle(RoseSheetChrome.textBody)
                     Text(payableText)
-                        .font(.plusJakarta(size: 24, weight: .bold))
+                        .font(.plusJakarta(size: 28, weight: .bold))
                         .foregroundStyle(OperatingV12.title)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("Tender")
-                        .font(.plusJakarta(size: 10))
-                        .foregroundStyle(OperatingV12.subtitle)
-                    Text(tender)
-                        .font(.plusJakarta(size: 14, weight: .bold))
-                        .foregroundStyle(Color(red: 0.13, green: 0.77, blue: 0.37))
+                        .font(.plusJakarta(size: 10, weight: .bold))
+                        .foregroundStyle(RoseSheetChrome.label)
+                    Text(tenderLabel)
+                        .font(.plusJakarta(size: 13, weight: .bold))
+                        .foregroundStyle(RoseSheetChrome.tenderSelected)
                 }
             }
         }
-        .padding(12)
-        .background(Color.black.opacity(0.24))
+        .padding(16)
+        .background(RoseSheetChrome.sheet)
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(theme.accent.opacity(0.35), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(theme.accent, lineWidth: 1.5)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     // MARK: - Hold recall
@@ -400,19 +641,24 @@ struct RetailPosSheet: View {
     @ViewBuilder
     private var holdRecallBody: some View {
         RoseFieldLabel(text: "Find parked bill")
-        RoseTextField(theme: theme, placeholder: "Name · table · bill #", text: $holdQuery)
+        RoseTextField(
+            theme: theme,
+            placeholder: "Name · table · bill #",
+            text: $holdQuery,
+            trailing: "⌕"
+        )
 
-        RoseSectionCard(theme: theme, label: "Parked on this register") {
-            Text(parked.isEmpty ? "No holds · draft only" : "\(parked.count) holds · draft only")
-                .font(.plusJakarta(size: 11))
-                .foregroundStyle(OperatingV12.subtitle)
-
+        RoseSectionCard(
+            theme: theme,
+            label: "Parked on this register",
+            trailing: parked.isEmpty ? "No holds · draft only" : "\(parked.count) holds · draft only"
+        ) {
             if filteredParked.isEmpty {
                 RoseEmptyCard(
                     theme: theme,
                     title: parked.isEmpty ? "No parked bills" : "No matches",
                     bodyText: parked.isEmpty
-                        ? "Park a bill from Utilities → Hold, then recall here."
+                        ? "Park from Scan cart → More details · Hold bill, or Utilities · Hold."
                         : "Try another name or bill #."
                 )
             } else {
@@ -425,14 +671,14 @@ struct RetailPosSheet: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(draft.parkDisplayId)
                                         .font(.plusJakarta(size: 10, weight: .bold))
-                                        .foregroundStyle(theme.accent)
+                                        .foregroundStyle(RoseSheetChrome.label)
                                     Text(draft.label)
                                         .font(.plusJakarta(size: 14, weight: .bold))
                                         .foregroundStyle(OperatingV12.title)
                                         .lineLimit(1)
                                     Text(holdMeta(draft))
                                         .font(.plusJakarta(size: 11))
-                                        .foregroundStyle(OperatingV12.subtitle)
+                                        .foregroundStyle(RoseSheetChrome.textBody)
                                         .lineLimit(1)
                                 }
                                 Spacer(minLength: 0)
@@ -441,16 +687,18 @@ struct RetailPosSheet: View {
                                         .font(.plusJakarta(size: 14, weight: .bold))
                                         .foregroundStyle(OperatingV12.title)
                                     Text(draft.ageLabel)
-                                        .font(.plusJakarta(size: 10))
-                                        .foregroundStyle(OperatingV12.subtitle)
+                                        .font(.plusJakarta(size: 10, weight: .medium))
+                                        .foregroundStyle(RoseSheetChrome.textBody)
                                 }
                             }
                             .padding(12)
-                            .background(selectedHoldId == draft.id ? theme.accent.opacity(0.16) : theme.inset)
+                            .background(RoseSheetChrome.sheet)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     .strokeBorder(
-                                        selectedHoldId == draft.id ? theme.accent : theme.border.opacity(0.4),
+                                        selectedHoldId == draft.id
+                                            ? theme.accent
+                                            : theme.accent.opacity(0.30),
                                         lineWidth: 1
                                     )
                             )
@@ -459,54 +707,63 @@ struct RetailPosSheet: View {
                         .buttonStyle(.plain)
                     }
                 }
-                Text("Empty holds auto-expire end of shift · session parks only")
+                Text("Empty holds auto-expire end of shift")
                     .font(.plusJakarta(size: 11))
-                    .foregroundStyle(OperatingV12.subtitle)
+                    .foregroundStyle(RoseSheetChrome.textBody)
             }
         }
 
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Selected")
-                    .font(.plusJakarta(size: 11))
-                    .foregroundStyle(OperatingV12.subtitle)
+                    .font(.plusJakarta(size: 11, weight: .medium))
+                    .foregroundStyle(RoseSheetChrome.textBody)
                 Spacer()
                 Text(selectedHold?.parkDisplayId ?? "—")
                     .font(.plusJakarta(size: 11, weight: .bold))
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(RoseSheetChrome.label)
             }
             Text(selectedHold.map { OperatingV12Money.amount($0.amount, currency: currency) } ?? "—")
                 .font(.plusJakarta(size: 28, weight: .bold))
                 .foregroundStyle(OperatingV12.title)
             Text("Tap Recall to refill Scan cart — still draft until Charge")
                 .font(.plusJakarta(size: 11))
-                .foregroundStyle(OperatingV12.subtitle)
+                .foregroundStyle(RoseSheetChrome.textBody)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.black.opacity(0.24))
+        .background(RoseSheetChrome.sheet)
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(theme.accent.opacity(0.35), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(theme.accent, lineWidth: 1.5)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-        RoseMoreDetails(title: "More details") {
-            Text("Void hold · Merge · Transfer register — chrome only on this sheet.")
+        RoseMoreDetails(title: "More details", hint: "Void hold · Merge · Transfer register") {
+            Text("Void / merge / transfer register — chrome only. Session parks are not server-backed yet.")
                 .font(.plusJakarta(size: 11))
-                .foregroundStyle(OperatingV12.subtitle)
+                .foregroundStyle(RoseSheetChrome.textBody)
+            if let hold = selectedHold {
+                Button("Void \(hold.parkDisplayId)") {
+                    RetailParkedSaleStore.shared.remove(id: hold.id, momentId: model.momentId)
+                    selectedHoldId = nil
+                }
+                .font(.plusJakarta(size: 13, weight: .bold))
+                .foregroundStyle(theme.warning)
+            }
             RoseFieldLabel(text: "Note")
             RoseTextField(theme: theme, placeholder: "Recall note", text: $note)
         }
 
         RoseWhyBox(
             theme: theme,
-            text: "Hold is draft cart JSON only — no revenue, no stock, no tender. Recall opens Scan cart with lines restored. Void discards draft."
+            text: "Hold is a device-local draft cart — no revenue, no stock, no tender. Survives app restart on this phone until recall/charge. Not shared across devices until a register API exists. Recall opens Scan cart; Charge clears the hold."
         )
 
         RoseStickyFooter(
             theme: theme,
             title: footerTitle,
+            caption: footerCaption,
             disabled: !recallReady,
             loading: false,
             action: { recallSelectedToScanCart() }
@@ -586,11 +843,11 @@ struct RetailPosSheet: View {
             HStack {
                 Button("+ Add line") { showSkuPicker.toggle() }
                     .font(.plusJakarta(size: 13, weight: .bold))
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(RoseSheetChrome.label)
                 Spacer()
                 Button("Recent · Favourites") { showSkuPicker.toggle() }
                     .font(.plusJakarta(size: 11))
-                    .foregroundStyle(OperatingV12.subtitle)
+                    .foregroundStyle(RoseSheetChrome.textBody)
             }
             .padding(.top, 4)
 
@@ -632,7 +889,7 @@ struct RetailPosSheet: View {
                 if let code = line.skuCode, !code.isEmpty {
                     Text(code)
                         .font(.plusJakarta(size: 10, weight: .bold))
-                        .foregroundStyle(theme.accent)
+                        .foregroundStyle(RoseSheetChrome.label)
                 }
                 Text(line.name)
                     .font(.plusJakarta(size: 13, weight: .semibold))
@@ -675,10 +932,14 @@ struct RetailPosSheet: View {
     }
 
     private func holdMeta(_ draft: RetailParkedSale) -> String {
-        [
+        let tenderBit = draft.tender.isEmpty ? "pending" : "\(draft.tender.lowercased()) pending"
+        if draft.meta.trimmingCharacters(in: .whitespaces).isEmpty == false,
+           draft.meta != " · " {
+            return draft.meta
+        }
+        return [
             "\(draft.lines.count) line\(draft.lines.count == 1 ? "" : "s")",
-            model.title,
-            draft.channel.isEmpty ? "Session" : draft.channel,
+            tenderBit,
         ].joined(separator: " · ")
     }
 
@@ -690,17 +951,37 @@ struct RetailPosSheet: View {
 
     private func addSku() {
         let typed = skuQuery.trimmingCharacters(in: .whitespaces)
-        guard !catalogue.isEmpty else { return }
+        guard !catalogue.isEmpty, !typed.isEmpty else { return }
         let match = catalogue.first { ($0.code ?? "").caseInsensitiveCompare(typed) == .orderedSame }
             ?? catalogue.first { ($0.barcode ?? "").caseInsensitiveCompare(typed) == .orderedSame }
-            ?? catalogue.first { typed.isEmpty == false && $0.name.localizedCaseInsensitiveContains(typed) }
-            ?? catalogue.first
-        if let match { add(match) }
-        skuQuery = ""
+            ?? catalogue.first { $0.name.localizedCaseInsensitiveContains(typed) }
+        if let match {
+            add(match)
+            skuQuery = ""
+        }
+    }
+
+    private func applyPosScan(_ raw: String) {
+        let typed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty else { return }
+        let match = catalogue.first { ($0.code ?? "").caseInsensitiveCompare(typed) == .orderedSame }
+            ?? catalogue.first { ($0.barcode ?? "").caseInsensitiveCompare(typed) == .orderedSame }
+            ?? catalogue.first { $0.name.localizedCaseInsensitiveContains(typed) }
+        if let match {
+            add(match)
+            skuQuery = ""
+        } else {
+            skuQuery = typed
+        }
     }
 
     private func add(_ sku: OperatingMasterPayload) {
-        guard cart.count < 24, !cart.contains(where: { $0.masterId == sku.id }) else { return }
+        if let index = cart.firstIndex(where: { $0.masterId == sku.id }) {
+            guard cart[index].quantity < 99 else { return }
+            cart[index].quantity += 1
+            return
+        }
+        guard cart.count < 24 else { return }
         cart.append(RetailPosLine.of(sku))
     }
 
@@ -740,16 +1021,41 @@ struct RetailPosSheet: View {
         defer { saving = false }
 
         let guest = customer.trimmingCharacters(in: .whitespaces)
+        let gstOn = (model.projection?.gstTracking ?? "").uppercased() == "YES"
+            && (model.projection?.gstRegistration ?? "").uppercased() == "REGULAR"
+        let taxMode: String = {
+            guard gstOn else { return "NOT_CONFIGURED" }
+            switch (model.projection?.salePriceIncludesGst ?? "").uppercased() {
+            case "YES": return "INCLUSIVE"
+            case "NO": return "EXCLUSIVE"
+            default: return "INCLUSIVE"
+            }
+        }()
         var contract = OperatingContractInput()
-        contract.taxMode = "NOT_CONFIGURED"
+        contract.taxMode = taxMode
+        if gstOn {
+            contract.placeOfSupply = model.projection?.gstState?.nilIfBlank
+        }
+        let payablePlain = PosSettlement.money(payable)
+        contract.paymentState = "RECEIVED"
+        contract.receivedAmount = payablePlain
+        if discountValue > 0 { contract.discount = PosSettlement.money(discountValue) }
+        if cessValue > 0 { contract.cessAmount = PosSettlement.money(cessValue) }
+        contract.payments = PosSettlement.buildPayments(
+            split: splitTender,
+            primary: tender,
+            payable: payable,
+            splitAmounts: splitAmounts
+        )
 
         let input: OperatingEventInput
         switch posMode {
         case .quickAmount:
             let amount = quickAmount.trimmingCharacters(in: .whitespaces)
             contract.entryMode = "QUICK"
-            contract.paymentState = "RECEIVED"
-            contract.receivedAmount = amount
+            if gstOn, let rate = quickGstRateHint() {
+                contract.gstRate = rate
+            }
             input = OperatingEventInput(
                 momentId: model.momentId,
                 eventType: "SALE",
@@ -763,8 +1069,6 @@ struct RetailPosSheet: View {
             )
         case .scanCart:
             contract.entryMode = "ITEMIZED"
-            contract.paymentState = "RECEIVED"
-            contract.receivedAmount = NSDecimalNumber(decimal: subtotal).stringValue
             let title: String = {
                 if !guest.isEmpty { return "Sale · \(guest)" }
                 return "Sale · \(cart.count) item\(cart.count == 1 ? "" : "s")"
@@ -773,7 +1077,7 @@ struct RetailPosSheet: View {
                 momentId: model.momentId,
                 eventType: "SALE",
                 title: title,
-                amount: NSDecimalNumber(decimal: subtotal).stringValue,
+                amount: NSDecimalNumber(decimal: gross).stringValue,
                 note: noteLine(),
                 channelName: salesMode,
                 counterpartyName: guest.isEmpty ? nil : guest,
@@ -783,7 +1087,15 @@ struct RetailPosSheet: View {
                         quantity: "\($0.quantity)",
                         unit: $0.unit,
                         unitPrice: $0.unitPrice,
-                        masterId: $0.masterId
+                        masterId: productionMasterId($0.masterId),
+                        taxMode: taxMode == "NOT_CONFIGURED" ? nil : taxMode,
+                        gstRate: $0.gstRate.flatMap { rate in
+                            let trimmed = rate.trimmingCharacters(in: .whitespaces)
+                            if trimmed.isEmpty || trimmed == "0" || trimmed.caseInsensitiveCompare("Exempt") == .orderedSame {
+                                return nil
+                            }
+                            return trimmed
+                        }
                     )
                 },
                 contract: contract,
@@ -793,28 +1105,49 @@ struct RetailPosSheet: View {
             return
         }
 
+        let wantsThermal = billPrint.hasPrefix("Thermal")
+        let receiptSnapshot: RetailReceiptModel? = {
+            guard wantsThermal, posMode == .scanCart else { return nil }
+            let title: String = guest.isEmpty
+                ? "Sale · \(cart.count) item\(cart.count == 1 ? "" : "s")"
+                : "Sale · \(guest)"
+            return RetailReceiptBuilder.fromPosCart(
+                model: model,
+                title: title,
+                lines: cart,
+                totalPlain: payablePlain,
+                tender: tenderLabel,
+                customer: guest.isEmpty ? nil : guest,
+                quickAmountOnly: false,
+                gstEstimatePlain: scanGstEstimate.map { NSDecimalNumber(decimal: $0).stringValue }
+            )
+        }()
+
         let ok = await model.record(input)
         if ok {
             if let id = recalledDraftId {
                 RetailParkedSaleStore.shared.remove(id: id, momentId: model.momentId)
             }
-            dismiss()
+            if let receiptSnapshot {
+                postedReceipt = receiptSnapshot
+            } else {
+                dismiss()
+            }
         }
     }
 
     private func noteLine() -> String? {
-        let bits = [
-            "Tender: \(tender)",
-            note.trimmingCharacters(in: .whitespaces).isEmpty ? nil : note.trimmingCharacters(in: .whitespaces),
-        ].compactMap { $0 }
-        return bits.isEmpty ? nil : bits.joined(separator: " · ")
+        let trimmed = note.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
-// MARK: - Parked POS drafts (session / in-memory)
+// MARK: - Parked POS drafts (device-local durable)
 
-struct RetailParkedSale: Identifiable, Equatable {
+struct RetailParkedSale: Identifiable, Equatable, Codable {
     let id: String
+    /// Device-local slip id (`HOLD-22`) — not a fiscal bill number.
+    let holdCode: String
     let label: String
     let meta: String
     let amount: String
@@ -825,10 +1158,7 @@ struct RetailParkedSale: Identifiable, Equatable {
     let lines: [RetailPosLine]
     let parkedAt: Date
 
-    var parkDisplayId: String {
-        let short = id.replacingOccurrences(of: "-", with: "").prefix(4).uppercased()
-        return short.isEmpty ? "HOLD" : "HOLD-\(short)"
-    }
+    var parkDisplayId: String { holdCode }
 
     var ageLabel: String {
         let mins = max(0, Int(Date().timeIntervalSince(parkedAt) / 60))
@@ -838,9 +1168,26 @@ struct RetailParkedSale: Identifiable, Equatable {
     }
 }
 
+/// Device-local park store (UserDefaults) — no register / holds API (`RETAIL_MISSING_APIS`).
+/// Survives process death; scoped by moment. Not shared across devices.
 final class RetailParkedSaleStore {
     static let shared = RetailParkedSaleStore()
     private var byMoment: [String: [RetailParkedSale]] = [:]
+    private var nextHoldNumber = 1
+    private let defaults = UserDefaults.standard
+    private let holdsKey = "retail.parked.holds.v1"
+    private let seqKey = "retail.parked.hold_seq.v1"
+
+    private init() {
+        load()
+    }
+
+    func nextHoldCode() -> String {
+        let code = "HOLD-\(nextHoldNumber)"
+        nextHoldNumber += 1
+        defaults.set(nextHoldNumber, forKey: seqKey)
+        return code
+    }
 
     func list(momentId: String) -> [RetailParkedSale] {
         (byMoment[momentId] ?? []).sorted { $0.parkedAt > $1.parkedAt }
@@ -850,10 +1197,30 @@ final class RetailParkedSaleStore {
         var list = byMoment[momentId] ?? []
         list.insert(draft, at: 0)
         byMoment[momentId] = Array(list.prefix(8))
+        persist()
     }
 
     func remove(id: String, momentId: String) {
         byMoment[momentId] = (byMoment[momentId] ?? []).filter { $0.id != id }
+        persist()
+    }
+
+    private func load() {
+        nextHoldNumber = max(1, defaults.integer(forKey: seqKey))
+        guard let data = defaults.data(forKey: holdsKey),
+              let decoded = try? JSONDecoder().decode([String: [RetailParkedSale]].self, from: data)
+        else { return }
+        byMoment = decoded
+        let maxCode = decoded.values.flatMap { $0 }
+            .compactMap { Int($0.holdCode.replacingOccurrences(of: "HOLD-", with: "")) }
+            .max() ?? 0
+        if maxCode >= nextHoldNumber { nextHoldNumber = maxCode + 1 }
+    }
+
+    private func persist() {
+        guard let data = try? JSONEncoder().encode(byMoment) else { return }
+        defaults.set(data, forKey: holdsKey)
+        defaults.set(nextHoldNumber, forKey: seqKey)
     }
 }
 
@@ -874,6 +1241,7 @@ extension RetailParkedSaleStore {
         let meta = [channel, "Tender \(tender)"].joined(separator: " · ")
         let draft = RetailParkedSale(
             id: UUID().uuidString,
+            holdCode: nextHoldCode(),
             label: label,
             meta: meta,
             amount: amount,
@@ -888,7 +1256,7 @@ extension RetailParkedSaleStore {
     }
 }
 
-struct RetailPosLine: Identifiable, Equatable {
+struct RetailPosLine: Identifiable, Equatable, Codable {
     let id: String
     let masterId: String?
     let name: String
@@ -897,6 +1265,8 @@ struct RetailPosLine: Identifiable, Equatable {
     var unitPrice: String
     var skuCode: String? = nil
     var hsn: String? = nil
+    /// Master GST % for client estimate rows — never posted as fabricated tax.
+    var gstRate: String? = nil
 
     var amount: Decimal {
         let price = Decimal(string: unitPrice) ?? 0
@@ -912,8 +1282,71 @@ struct RetailPosLine: Identifiable, Equatable {
             quantity: 1,
             unitPrice: sku.sellPrice ?? "",
             skuCode: sku.code?.nilIfBlank ?? sku.barcode?.nilIfBlank,
-            hsn: sku.hsn?.nilIfBlank
+            hsn: sku.hsn?.nilIfBlank,
+            gstRate: sku.gstRate?.nilIfBlank
         )
+    }
+}
+
+/// Harbor fixture ids (`fx-*`) must never ride a production Charge.
+private func productionMasterId(_ masterId: String?) -> String? {
+    guard let id = masterId?.trimmingCharacters(in: .whitespaces), !id.isEmpty else { return nil }
+    if id.lowercased().hasPrefix("fx-") { return nil }
+    return id
+}
+
+private extension RetailPosSheet {
+    func quickGstRateHint() -> String? {
+        guard gstPicker.hasPrefix("Inclusive") || gstPicker.hasPrefix("Exclusive") else { return nil }
+        let match = gstPicker.split(separator: " ").compactMap { token -> String? in
+            let cleaned = token.replacingOccurrences(of: "%", with: "")
+            return Decimal(string: cleaned) != nil ? cleaned : nil
+        }.first
+        return match ?? "5"
+    }
+}
+
+// MARK: - Client GST estimate (UI only)
+
+enum RetailGstEstimate {
+    /// Returns estimate when every positive line has a rate (or Exempt/0); else nil → Unavailable.
+    /// Matches APK HALF_UP: per-line scale-4, then total scale-2 (`.plain` == round half away from 0).
+    static func from(amounts: [Decimal], rates: [String?], inclusive: Bool = true) -> Decimal? {
+        guard !amounts.isEmpty else { return nil }
+        var tax = Decimal.zero
+        var sawPositive = false
+        for i in amounts.indices {
+            let amount = amounts[i]
+            guard amount > 0 else { continue }
+            sawPositive = true
+            let raw = (rates.indices.contains(i) ? rates[i] : nil)?.trimmingCharacters(in: .whitespaces) ?? ""
+            if raw.isEmpty { return nil }
+            if raw.compare("Exempt", options: .caseInsensitive) == .orderedSame || raw == "0" { continue }
+            let cleaned = raw.replacingOccurrences(of: "%", with: "")
+            guard let rate = Decimal(string: cleaned), rate >= 0 else { return nil }
+            var piece: Decimal
+            if inclusive {
+                let denom = Decimal(100) + rate
+                guard denom != 0 else { return nil }
+                piece = amount * rate / denom
+            } else {
+                piece = amount * rate / Decimal(100)
+            }
+            var pieceIn = piece
+            var pieceOut = Decimal()
+            NSDecimalRound(&pieceOut, &pieceIn, 4, .plain)
+            tax += pieceOut
+        }
+        guard sawPositive else { return nil }
+        var rounded = tax
+        var result = Decimal()
+        NSDecimalRound(&result, &rounded, 2, .plain)
+        return result
+    }
+
+    static func onTotal(_ amount: Decimal?, ratePercent: String?, inclusive: Bool = true) -> Decimal? {
+        guard let amount, amount > 0 else { return nil }
+        return from(amounts: [amount], rates: [ratePercent], inclusive: inclusive)
     }
 }
 

@@ -72,6 +72,20 @@ fun OperatingV12HubScreen(
             HubTile("PRODUCTION", "Production", "Output · batch · scrap", R.drawable.qa_factory, requires = listOf("PRODUCTION")),
             HubTile("BUDGET", "Budget", "Versioned revise", R.drawable.qa_budget, requires = listOf("BUDGET")),
         )
+    } else if (theme.isTrading) {
+        // TRD-QA-01…12 hub titles — match Figma capture sheet names.
+        listOf(
+            HubTile("SALE", "Sale", "TRD-QA-01 · amount · buyer", R.drawable.qa_receipt, requires = listOf("SALE")),
+            HubTile("PURCHASE", "Purchase", "TRD-QA-02 · supplier · goods", R.drawable.qa_wallet, requires = listOf("PURCHASE")),
+            HubTile("COLLECTION", "Collection", "TRD-QA-03 · allocate AR", R.drawable.qa_arrow_left_right, requires = listOf("COLLECTION")),
+            HubTile("PAYMENT", "Payment", "TRD-QA-04 · settle AP", R.drawable.qa_credit_card, requires = listOf("PAYMENT")),
+            HubTile("SPEND", "Expense", "TRD-QA-05 · paid / later", R.drawable.qa_budget, requires = listOf("SPEND")),
+            HubTile("STOCK", "Stock", "TRD-QA-06 · set · add · reduce", R.drawable.qa_package, requires = listOf("STOCK")),
+            HubTile("RETURN", "Return", "TRD-QA-07 · credit note", R.drawable.qa_arrow_left_right, requires = listOf("RETURN")),
+            HubTile("BUDGET", "Budget", "TRD-QA-08 · versioned revise", R.drawable.qa_budget, requires = listOf("BUDGET")),
+            HubTile("ORDER", "Order", "TRD-QA-11 · commitment only", R.drawable.qa_clipboard, requires = listOf("ORDER", "CUSTOMER_ORDER")),
+            HubTile("SHIPMENT", "Delivery", "TRD-QA-12 · goods move", R.drawable.qa_shipment, requires = listOf("SHIPMENT", "DELIVERY")),
+        )
     } else {
         listOf(
             HubTile("SALE", "Sale", "Invoice · buyer · GST", R.drawable.qa_receipt, requires = listOf("SALE")),
@@ -91,7 +105,7 @@ fun OperatingV12HubScreen(
             when {
                 plantHub -> "Vendors & buyers"
                 theme.isTrading -> "Suppliers & buyers"
-                else -> "Principals & dealers"
+                else -> "Business contacts"
             },
             when {
                 plantHub -> "Vendors · customers"
@@ -120,8 +134,19 @@ fun OperatingV12HubScreen(
             master = "Locations",
         ),
         HubTile("INVITE", "Invite & QR", "Join · people · roles", R.drawable.qa_qr, master = "Invite"),
-        HubTile("UPDATE", "Issue", "Update · blocker · risk", R.drawable.qa_alert, requires = listOf("UPDATE", "ISSUE")),
-    )
+        HubTile(
+            "UPDATE",
+            if (theme.isTrading) "Update / Issue" else "Issue",
+            if (theme.isTrading) "TRD-QA-09 · ops signal" else "Update · blocker · risk",
+            R.drawable.qa_alert,
+            requires = listOf("UPDATE", "ISSUE"),
+        ),
+        if (theme.isTrading) {
+            HubTile("APPROVAL", "Approval", "TRD-QA-10 · decide · reimburse", R.drawable.qa_shield, requires = listOf("UPDATE", "ISSUE", "PAYMENT"))
+        } else {
+            null
+        },
+    ).filterNotNull()
     val utilities = if (plantHub) {
         listOf(
             HubTile("REWORK", "Rework / Scrap", "Rework · scrap · job work", R.drawable.qa_alert, requires = listOf("STOCK")),

@@ -56,7 +56,10 @@ struct OperatingPartsBrowserView: View {
     @State private var query = ""
     @State private var selectedCat = ""
 
+    private var distSku: Bool { kind == .parts && theme.isDistributionCapture }
+
     private var categories: [String] {
+        if distSku { return DistributionMasterCopy.skuCategories }
         switch kind {
         case .parts: return ["Raw", "WIP", "Jobs", "Consumables", "Spares"]
         case .materials: return ["Raw", "Consumables", "Finished", "Packing", "Spares"]
@@ -80,10 +83,18 @@ struct OperatingPartsBrowserView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(kind == .parts ? "Parts & products" : "Materials")
+                    Text(
+                        distSku
+                            ? DistributionMasterCopy.skuBrowserTitle
+                            : (kind == .parts ? "Parts & products" : "Materials")
+                    )
                         .font(.plusJakarta(size: 14, weight: .bold))
                         .foregroundStyle(theme.ink)
-                    Text(kind == .parts ? "Tap Add · qty per quote / job line" : (contextLabel ?? "Job materials + on-hand"))
+                    Text(
+                        distSku
+                            ? DistributionMasterCopy.skuBrowserHint
+                            : (kind == .parts ? "Tap Add · qty per quote / job line" : (contextLabel ?? "Job materials + on-hand"))
+                    )
                         .font(.plusJakarta(size: 11))
                         .foregroundStyle(theme.body)
                 }
@@ -100,7 +111,12 @@ struct OperatingPartsBrowserView: View {
             }
 
             HStack {
-                TextField(kind == .parts ? "Search part, drawing or HSN" : "Search material or HSN", text: $query)
+                TextField(
+                    distSku
+                        ? DistributionMasterCopy.skuBrowserSearch
+                        : (kind == .parts ? "Search part, drawing or HSN" : "Search material or HSN"),
+                    text: $query
+                )
                     .font(.plusJakarta(size: 13, weight: .medium))
                     .foregroundStyle(theme.ink)
                 Text("Scan")
@@ -157,11 +173,19 @@ struct OperatingPartsBrowserView: View {
 
             Button(action: onCreateNew) {
                 HStack {
-                    Text(kind == .parts ? "+ New part / SKU" : "+ New BOM")
+                    Text(
+                        distSku
+                            ? DistributionMasterCopy.skuBrowserCreate
+                            : (kind == .parts ? "+ New part / SKU" : "+ New BOM")
+                    )
                         .font(.plusJakarta(size: 13, weight: .bold))
                         .foregroundStyle(theme.accent)
                     Spacer()
-                    Text(kind == .parts ? "Name · HSN · GST · UOM" : "Components · qty · scrap %")
+                    Text(
+                        distSku
+                            ? DistributionMasterCopy.skuBrowserCreateHint
+                            : (kind == .parts ? "Name · HSN · GST · UOM" : "Components · qty · scrap %")
+                    )
                         .font(.plusJakarta(size: 11))
                         .foregroundStyle(theme.body)
                 }
@@ -176,7 +200,7 @@ struct OperatingPartsBrowserView: View {
             .buttonStyle(.plain)
         }
         .padding(14)
-        .background(theme.surface)
+        .background(distSku ? theme.captureSheet : theme.surface)
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(theme.accent.opacity(0.40), lineWidth: 1)

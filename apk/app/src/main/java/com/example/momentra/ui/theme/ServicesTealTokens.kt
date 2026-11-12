@@ -43,17 +43,24 @@ object ServicesTeal {
     val negative = Color(0xFFEF4444)
     val warning = Color(0xFFF59E0B)
 
-    val textPrimary = Color(0xFFF0FDFA)
+    val textPrimary = Color(0xFFFAFAF9)
+    val textPrimarySoft = Color(0xFFF0FDFA)
     val textBody = Color(0xFF99F6E4)
     val textMuted = Color(0xFF5EEAD4)
     val textFaint = Color(0xFF64748B)
     val inkOnTeal = Color(0xFF042F2E)
+    /** Why-note body from SVC Figma (`#FEF3C7`). */
+    val whyBody = Color(0xFFFEF3C7)
 
     val cardStroke = Color(0xFF0D9488).copy(alpha = 0.35f)
     val cardStrokeStrong = Color(0xFF0D9488).copy(alpha = 0.50f)
     val divider = Color(0xFF115E59)
     val hairline = Color.White.copy(alpha = 0.06f)
     val tileStroke = Color(0xFF0D9488)
+    /** Inactive chip border from SVC Figma (`#0F766E`). */
+    val chipBorder = Color(0xFF0F766E)
+    val grab = Color(0xFF8FBFBA)
+    val sheetBorder = Color(0xFF84CC16).copy(alpha = 0.40f)
 
     val rPill = RoundedCornerShape(999.dp)
     val rHero = RoundedCornerShape(24.dp)
@@ -65,6 +72,8 @@ object ServicesTeal {
     val rInner = RoundedCornerShape(12.dp)
     val rHeroIcon = RoundedCornerShape(12.dp)
     val rStoryCta = RoundedCornerShape(18.dp)
+    val rSheet = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    val rCta = RoundedCornerShape(16.dp)
     val chipStroke = Color.White.copy(alpha = 0.06f)
 
     val gutter = 16.dp
@@ -192,8 +201,49 @@ object ServicesTeal {
         fontWeight = FontWeight.Normal,
         fontSize = 11.sp,
         lineHeight = 14.sp,
-        color = Color.White.copy(alpha = 0.5f),
+        color = whyBody,
         textAlign = TextAlign.Start,
+    )
+
+    fun whyLabel() = TextStyle(
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Bold,
+        fontSize = 11.sp,
+        lineHeight = 14.sp,
+        color = lime,
+    )
+
+    fun sheetTitle() = TextStyle(
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Bold,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        color = textPrimary,
+    )
+
+    fun sheetSubtitle() = TextStyle(
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 15.sp,
+        color = grab,
+    )
+
+    fun footerCaption() = TextStyle(
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Normal,
+        fontSize = 10.sp,
+        lineHeight = 13.sp,
+        color = grab,
+        textAlign = TextAlign.Center,
+    )
+
+    fun toastSaved() = TextStyle(
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        lineHeight = 14.sp,
+        color = textBody,
     )
 
     fun heroEyebrow() = TextStyle(

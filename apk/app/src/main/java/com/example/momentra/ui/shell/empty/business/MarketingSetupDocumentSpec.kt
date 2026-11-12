@@ -51,22 +51,23 @@ internal object MarketingSetupDocumentSpec {
                 "People & Roles",
                 "Invite teammates and pick a role on Invite & QR. No separate Add person.",
             ),
+            // BS-06 — marketing uses Campaign Resources & Providers, not inventory catalogue.
             SetupSectionSpec(
                 "03",
-                "Catalogue, Stock & Network",
+                "Campaign Resources & Providers",
                 if (own) {
-                    "Vendors · creators · agency/media · platforms. No client in Own Business."
+                    "Resources, providers, prices and tax in one place. No warehouse or SKU setup."
                 } else {
-                    "Clients, vendors, channels & teams your campaign reads from."
+                    "Campaign resources, providers, prices and tax. No warehouse or SKU setup."
                 },
             ),
             SetupSectionSpec(
                 "04",
                 "Channels & Monthly Plan",
                 if (own) {
-                    "Channels, own marketing budget and targets."
+                    "Channels, own marketing budget and KPI targets."
                 } else {
-                    "Channels, client commercials, budget and targets."
+                    "Channels, client commercials, budget and KPI targets."
                 },
             ),
             SetupSectionSpec("05", "GST & Tax Details", "Set up GST once to make buying and selling easier."),
@@ -93,10 +94,45 @@ internal object MarketingSetupDocumentSpec {
 
     fun inviteAccessNote(roleCode: String): String = inviteRoleAccess(roleCode)
 
-    fun metricLabel(code: String): String = code.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
+    fun metricLabel(code: String): String = when (code.trim().uppercase()) {
+        "LEADS" -> "Leads"
+        "QUALIFIED_LEADS" -> "Qualified Leads"
+        "ENQUIRIES" -> "Enquiries"
+        "REACH" -> "Reach"
+        "IMPRESSIONS" -> "Impressions"
+        "ENGAGEMENTS", "ENGAGEMENT" -> "Engagements"
+        "ENGAGEMENT_RATE" -> "Engagement Rate"
+        "CLICKS" -> "Clicks"
+        "CTR" -> "CTR"
+        "WEBSITE_VISITS" -> "Website Visits"
+        "CONVERSIONS" -> "Conversions"
+        "CONVERSION_RATE" -> "Conversion Rate"
+        "ORDERS" -> "Orders"
+        "ATTRIBUTED_SALES", "REVENUE" -> "Attributed Sales"
+        "ROAS" -> "ROAS"
+        "REGISTRATIONS" -> "Registrations"
+        "ATTENDANCE" -> "Attendance"
+        "CUSTOM", "CUSTOM_COUNT" -> "Custom"
+        "CLIENT_BILLING" -> "Client Billing"
+        else -> code.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
+    }
 
-    fun metricCode(label: String): String =
-        label.trim().uppercase().replace(' ', '_').ifBlank { "LEADS" }
+    fun metricCode(label: String): String {
+        val compact = label.trim().uppercase().replace(' ', '_')
+        return when (compact) {
+            "ATTRIBUTED_SALES", "REVENUE" -> "ATTRIBUTED_SALES"
+            "ENGAGEMENTS", "ENGAGEMENT" -> "ENGAGEMENTS"
+            "CUSTOM", "CUSTOM_COUNT", "COUNT" -> "CUSTOM"
+            else -> compact.ifBlank { "LEADS" }
+        }
+    }
+
+    fun metricUnit(code: String): String = when (code.trim().uppercase()) {
+        "ATTRIBUTED_SALES", "REVENUE", "CLIENT_BILLING" -> "₹"
+        "ENGAGEMENT_RATE", "CTR", "CONVERSION_RATE" -> "%"
+        "ROAS" -> "Ratio"
+        else -> "Count"
+    }
 
     fun currencyLabels(): List<String> = listOf("INR · ₹", "USD · $", "EUR · €", "GBP · £")
 
@@ -202,7 +238,12 @@ internal object MarketingSetupDocumentSpec {
         "purchasePriceIncludesGst",
         "gstEffectiveFrom",
         "clientFee",
+        "clientApprovedMediaBudget",
+        "agencyOperatingBudget",
         "offering",
+        "campaignPurpose",
+        "creativeApprovalRequired",
+        "reportingCadence",
         "campaignStatus",
     )
 
@@ -228,7 +269,12 @@ internal object MarketingSetupDocumentSpec {
         purchasePriceIncludesGst: String = salePriceIncludesGst,
         gstEffectiveFrom: String = "",
         clientFee: String = "",
+        clientApprovedMediaBudget: String = "",
+        agencyOperatingBudget: String = "",
         offering: String = "",
+        campaignPurpose: String = "",
+        creativeApprovalRequired: String = "",
+        reportingCadence: String = "",
     ): Map<String, Any> {
         val own = isOwn(subtypeCode)
         return mapOf(
@@ -254,7 +300,12 @@ internal object MarketingSetupDocumentSpec {
             "purchasePriceIncludesGst" to purchasePriceIncludesGst.trim().uppercase(),
             "gstEffectiveFrom" to gstEffectiveFrom.trim(),
             "clientFee" to if (own) "" else clientFee.trim(),
+            "clientApprovedMediaBudget" to if (own) "" else clientApprovedMediaBudget.trim(),
+            "agencyOperatingBudget" to if (own) "" else agencyOperatingBudget.trim(),
             "offering" to offering.trim(),
+            "campaignPurpose" to campaignPurpose.trim(),
+            "creativeApprovalRequired" to if (creativeApprovalRequired.trim().uppercase() == "YES") "YES" else "",
+            "reportingCadence" to if (own) "" else reportingCadence.trim().uppercase(),
             "campaignStatus" to "OPEN",
         )
     }
@@ -317,6 +368,10 @@ internal class MarketingSetupDocState(
     var channels by mutableStateOf(emptySet<String>())
     var budget by mutableStateOf("")
     var clientFee by mutableStateOf("")
+    var clientApprovedMediaBudget by mutableStateOf("")
+    var agencyOperatingBudget by mutableStateOf("")
+    var creativeApprovalRequired by mutableStateOf(false)
+    var reportingCadence by mutableStateOf("")
     var mediaApproved by mutableStateOf("")
     var target by mutableStateOf("")
     var metric by mutableStateOf(
@@ -360,6 +415,9 @@ internal class MarketingSetupDocState(
         }
         if (MarketingSetupDocumentSpec.isOwn(code)) {
             clientFee = ""
+            clientApprovedMediaBudget = ""
+            agencyOperatingBudget = ""
+            reportingCadence = ""
             mediaApproved = ""
         }
     }
@@ -408,6 +466,11 @@ internal class MarketingSetupDocState(
         string("monthlyBudget")?.let { budget = formatIndianAmount(it) }
         string("monthlyTarget")?.let { target = formatIndianAmount(it) }
         string("clientFee")?.let { clientFee = formatIndianAmount(it) }
+        string("clientApprovedMediaBudget")?.let { clientApprovedMediaBudget = formatIndianAmount(it) }
+        string("agencyOperatingBudget")?.let { agencyOperatingBudget = formatIndianAmount(it) }
+        string("campaignPurpose")?.let { purpose = it }
+        string("creativeApprovalRequired")?.let { creativeApprovalRequired = it.equals("YES", ignoreCase = true) }
+        string("reportingCadence")?.let { reportingCadence = it.uppercase() }
         string("targetMetric")?.let { metric = MarketingSetupDocumentSpec.metricLabel(it) }
         @Suppress("UNCHECKED_CAST")
         (preferences["channels"] as? List<*>)?.mapNotNull { it?.toString()?.trim() }?.let { list ->
@@ -458,6 +521,11 @@ internal class MarketingSetupDocState(
         salePriceIncludesGst = MarketingSetupDocumentSpec.gstPricingCode(gstPricing),
         gstEffectiveFrom = gstEffectiveFrom,
         clientFee = plainAmount(clientFee),
+        clientApprovedMediaBudget = plainAmount(clientApprovedMediaBudget),
+        agencyOperatingBudget = plainAmount(agencyOperatingBudget),
         offering = offering,
+        campaignPurpose = purpose,
+        creativeApprovalRequired = if (creativeApprovalRequired) "YES" else "",
+        reportingCadence = reportingCadence,
     )
 }

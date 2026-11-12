@@ -18,10 +18,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,12 +33,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.momentra.R
 import com.example.momentra.data.api.OperatingProjectionDto
-import com.example.momentra.ui.shell.business.shared.BusinessInviteQr
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureDraft
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
-import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
+import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
 import com.example.momentra.ui.theme.ServicesTeal
 
@@ -55,10 +56,51 @@ fun ServiceQuickAddHub(
     onDismiss: () -> Unit = {},
 ) {
     val allowed = model.quickAdds.map { it.code }.toSet()
+    val scope = rememberCoroutineScope()
     var sheet by remember { mutableStateOf<ServiceCaptureSheet?>(null) }
+    var utilityTab by remember { mutableStateOf<ServiceUtilityTab?>(null) }
     var mastersOpen by remember { mutableStateOf<ServiceMastersTab?>(null) }
     var approvalOpen by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var savedToast by remember { mutableStateOf(false) }
+
+    LaunchedEffect(OperatingChromeState.quickAddHint) {
+        val hint = OperatingChromeState.quickAddHint?.uppercase() ?: return@LaunchedEffect
+        when (hint) {
+            "HOLD" -> {
+                utilityTab = ServiceUtilityTab.Hold
+                sheet = null
+            }
+            "TRANSFER" -> {
+                utilityTab = ServiceUtilityTab.Transfer
+                sheet = null
+            }
+            "REPRINT" -> {
+                utilityTab = ServiceUtilityTab.Reprint
+                sheet = null
+            }
+            else -> {
+                sheet = ServiceCaptureSheet.entries.firstOrNull {
+                    it.eventType.equals(hint, ignoreCase = true) ||
+                        it.mode.equals(hint, ignoreCase = true) ||
+                        it.name == hint
+                } ?: when (hint) {
+                    "SERVICE", "SALE", "CHARGE" -> ServiceCaptureSheet.SERVICE
+                    "APPOINTMENT", "BOOKING" -> ServiceCaptureSheet.APPOINTMENT
+                    "PURCHASE" -> ServiceCaptureSheet.PURCHASE
+                    "COLLECTION" -> ServiceCaptureSheet.COLLECTION
+                    "PAYMENT" -> ServiceCaptureSheet.PAYMENT
+                    "SPEND", "EXPENSE" -> ServiceCaptureSheet.SPEND
+                    "STOCK" -> ServiceCaptureSheet.STOCK
+                    "BUDGET", "TARGET" -> ServiceCaptureSheet.BUDGET
+                    "STATUS" -> ServiceCaptureSheet.STATUS
+                    "ISSUE", "UPDATE" -> ServiceCaptureSheet.ISSUE
+                    else -> null
+                }
+            }
+        }
+        OperatingChromeState.quickAddHint = null
+    }
 
     Column(
         Modifier
@@ -79,7 +121,7 @@ fun ServiceQuickAddHub(
 
         QuickAddHero(hasService = "SERVICE" in allowed, onRecord = { sheet = ServiceCaptureSheet.SERVICE })
 
-        GridSectionHeader("Core · 9", "Service journey")
+        GridSectionHeader("Core · 9", "Services journey")
         QuickAddGrid(
             tiles = ServiceCoreTiles,
             allowed = allowed,
@@ -88,7 +130,7 @@ fun ServiceQuickAddHub(
             onApproval = { approvalOpen = true },
         )
 
-        GridSectionHeader("Support · 5", "Network · masters")
+        GridSectionHeader("Support · 5", "Clients · masters")
         QuickAddGrid(
             tiles = ServiceSupportTiles,
             allowed = allowed,
@@ -97,18 +139,22 @@ fun ServiceQuickAddHub(
             onApproval = { approvalOpen = true },
         )
 
+        // Hold / Transfer / Reprint are not on SVC-HUB-v5 `2401:29887` but remain required
+        // SVC screens. Keep a compact Utilities row for discovery (same decision as iOS
+        // ServiceHubScreen) instead of folding into Support · 5 or Pulse-only deep-links.
         GridSectionHeader("Utilities · 3", "Hold · move · reprint")
         QuickAddGrid(
             tiles = ServiceUtilityTiles,
             allowed = allowed,
-            onSheet = { sheet = it },
+            onSheet = { open ->
+                open.toUtilityTab()?.let { utilityTab = it } ?: run { sheet = open }
+            },
             onMasters = { mastersOpen = it },
             onApproval = { approvalOpen = true },
         )
 
         WhyNote(
-            "Boundaries: finalized charge = revenue once. Booking ≠ charge. Collection/payment allocate — never duplicate facts. " +
-                "Empty analytics = Unavailable.",
+            "Boundaries: book→assign→perform→finalize charge→collect. Appointment state ≠ financial state. Empty = Unavailable.",
             tinted = true,
         )
 
@@ -122,31 +168,74 @@ fun ServiceQuickAddHub(
     }
 
     sheet?.let { open ->
-        OperatingSheetScrim(onDismiss = { sheet = null }, accent = ServicesTeal.teal) {
-            OperatingCaptureSheet(
-                title = open.title,
-                icon = open.icon,
-                eventType = open.eventType,
-                mode = open.mode,
+        OperatingSheetScrim(
+            onDismiss = { sheet = null },
+            accent = ServicesTeal.teal,
+            surface = ServicesTeal.card,
+            border = ServicesTeal.sheetBorder,
+            topCorner = 28.dp,
+        ) {
+            ServiceMoneyCaptureSheet(
+                sheet = open,
                 model = model,
-                channelLabel = when (open) {
-                    ServiceCaptureSheet.SERVICE, ServiceCaptureSheet.COLLECTION -> "Service channel"
-                    ServiceCaptureSheet.APPOINTMENT, ServiceCaptureSheet.STATUS -> "Room / staff"
-                    else -> "Channel"
-                },
-                variant = "service",
                 onDismiss = { sheet = null },
                 onSubmit = { draft ->
-                    runCatching { onRecord(draft.toService()) }
-                        .onFailure { error = it.message }
-                    sheet = null
+                    scope.launch {
+                        runCatching { onRecord(draft) }
+                            .onSuccess {
+                                savedToast = true
+                                sheet = null
+                            }
+                            .onFailure { error = it.message }
+                    }
                 },
             )
         }
     }
 
+    utilityTab?.let { open ->
+        OperatingSheetScrim(
+            onDismiss = { utilityTab = null },
+            accent = ServicesTeal.lime,
+            surface = ServicesTeal.card,
+            border = ServicesTeal.sheetBorder,
+        ) {
+            ServiceHoldTransferReprintSheet(
+                initial = open,
+                model = model,
+                onDismiss = { utilityTab = null },
+                onSubmit = { draft ->
+                    scope.launch {
+                        runCatching { onRecord(draft) }
+                            .onSuccess {
+                                savedToast = true
+                                utilityTab = null
+                            }
+                            .onFailure { error = it.message }
+                    }
+                },
+                onReprintDone = {
+                    savedToast = true
+                    utilityTab = null
+                },
+            )
+        }
+    }
+    if (savedToast) {
+        LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(1400)
+            savedToast = false
+        }
+        TealSavedToast(Modifier.padding(horizontal = ServicesTeal.gutter, vertical = 8.dp))
+    }
+
     mastersOpen?.let { open ->
-        OperatingSheetScrim(onDismiss = { mastersOpen = null }, accent = ServicesTeal.teal) {
+        OperatingSheetScrim(
+            onDismiss = { mastersOpen = null },
+            accent = ServicesTeal.lime,
+            surface = ServicesTeal.card,
+            border = ServicesTeal.sheetBorder,
+        ) {
             ServiceMastersSheet(
                 tab = open,
                 model = model,
@@ -175,24 +264,24 @@ fun ServiceQuickAddHub(
     }
 }
 
-/** Rose gradient hero with the `+ Record Sale` white pill. */
+/** Teal→lime hero with the cream `+ Finalize Charge` pill (SVC-HUB-v5 `2401:29887`). */
 @Composable
 private fun QuickAddHero(hasService: Boolean, onRecord: () -> Unit) {
     val shape = ServicesTeal.rHero
     Box(
         Modifier
             .fillMaxWidth()
-            .shadow(12.dp, shape, clip = false, ambientColor = ServicesTeal.tealDeep.copy(alpha = 0.5f), spotColor = ServicesTeal.tealDeep.copy(alpha = 0.5f))
-            .shadow(24.dp, shape, clip = false, ambientColor = ServicesTeal.teal.copy(alpha = 0.3f), spotColor = ServicesTeal.teal.copy(alpha = 0.3f))
+            .shadow(12.dp, shape, clip = false, ambientColor = ServicesTeal.lime.copy(alpha = 0.3f), spotColor = ServicesTeal.lime.copy(alpha = 0.3f))
+            .shadow(24.dp, shape, clip = false, ambientColor = ServicesTeal.teal.copy(alpha = 0.5f), spotColor = ServicesTeal.teal.copy(alpha = 0.5f))
             .clip(shape)
-            .background(Brush.linearGradient(listOf(ServicesTeal.teal, ServicesTeal.teal)))
+            .background(Brush.linearGradient(listOf(ServicesTeal.teal, ServicesTeal.lime)))
             .padding(20.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Text("CONSUMER SERVICE", style = ServicesTeal.heroEyebrow(), maxLines = 1)
-            Text("Book. Charge. Settle.", style = ServicesTeal.heroHeadline(), maxLines = 1)
+            Text("CONSUMER SERVICES", style = ServicesTeal.heroEyebrow(), maxLines = 1)
+            Text("Book. Deliver. Charge.", style = ServicesTeal.heroHeadline(), maxLines = 1)
             Text(
-                "A booking is not revenue until the charge is finalized. Named clients are required for credit. Settlement never reposts the charge.",
+                "Booking and completion are not revenue. Finalized charge posts once. Deposits stay distinct until allocated.",
                 style = ServicesTeal.heroBody(),
                 maxLines = 3,
             )
@@ -216,28 +305,28 @@ private data class QuickTile(
 )
 
 private val ServiceCoreTiles = listOf(
-    QuickTile("Finalize Charge", "Service · GST", ServiceTileIcons.sale, ServiceCaptureSheet.SERVICE, requires = "SERVICE"),
-    QuickTile("Purchase", "Goods · receive", ServiceTileIcons.purchase, ServiceCaptureSheet.PURCHASE, requires = "PURCHASE"),
-    QuickTile("Collection", "Allocate open AR", ServiceTileIcons.collection, ServiceCaptureSheet.COLLECTION, requires = "COLLECTION"),
-    QuickTile("Payment", "Settle open AP", ServiceTileIcons.payment, ServiceCaptureSheet.PAYMENT, requires = "PAYMENT"),
-    QuickTile("Expense", "Store running", ServiceTileIcons.expense, ServiceCaptureSheet.SPEND, requires = "SPEND"),
-    QuickTile("Stock", "Count · damage", ServiceTileIcons.stock, ServiceCaptureSheet.STOCK, requires = "STOCK"),
-    QuickTile("Booking", "Schedule · room", ServiceTileIcons.order, ServiceCaptureSheet.APPOINTMENT, requires = "APPOINTMENT"),
-    QuickTile("Status", "Room · staff · hold", ServiceTileIcons.status, ServiceCaptureSheet.STATUS, requires = "APPOINTMENT"),
-    QuickTile("Budget", "Target · revise", ServiceTileIcons.budget, ServiceCaptureSheet.BUDGET, requires = "BUDGET"),
+    QuickTile("Charge", "Finalize / walk-in", ServiceTileIcons.sale, ServiceCaptureSheet.SERVICE, requires = "SERVICE"),
+    QuickTile("Purchase", "Supplies · receive", ServiceTileIcons.purchase, ServiceCaptureSheet.PURCHASE, requires = "PURCHASE"),
+    QuickTile("Collection", "Charge AR", ServiceTileIcons.collection, ServiceCaptureSheet.COLLECTION, requires = "COLLECTION"),
+    QuickTile("Payment", "Settle AP", ServiceTileIcons.payment, ServiceCaptureSheet.PAYMENT, requires = "PAYMENT"),
+    QuickTile("Expense", "Service running", ServiceTileIcons.expense, ServiceCaptureSheet.SPEND, requires = "SPEND"),
+    QuickTile("Stock", "Supply count", ServiceTileIcons.stock, ServiceCaptureSheet.STOCK, requires = "STOCK"),
+    QuickTile("Booking", "Appoint / walk-in", ServiceTileIcons.order, ServiceCaptureSheet.APPOINTMENT, requires = "APPOINTMENT"),
+    QuickTile("Status", "Start · complete", ServiceTileIcons.status, ServiceCaptureSheet.STATUS, requires = "APPOINTMENT"),
+    QuickTile("Budget", "Versioned revise", ServiceTileIcons.budget, ServiceCaptureSheet.BUDGET, requires = "BUDGET"),
 )
 
 private val ServiceSupportTiles = listOf(
-    QuickTile("Clients", "Customers · CRM", ServiceTileIcons.suppliers, masterTab = ServiceMastersTab.Clients, wide = false),
-    QuickTile("Services", "Menu · rate card", ServiceTileIcons.catalogue, masterTab = ServiceMastersTab.Services, wide = false),
-    QuickTile("Rooms & Staff", "Capacity · roster", ServiceTileIcons.locations, masterTab = ServiceMastersTab.RoomsStaff, wide = false),
+    QuickTile("Clients", "Guests · patients", ServiceTileIcons.suppliers, masterTab = ServiceMastersTab.Clients, wide = false),
+    QuickTile("Services", "Offerings · packages", ServiceTileIcons.catalogue, masterTab = ServiceMastersTab.Services, wide = false),
+    QuickTile("Rooms", "Rooms · chairs · staff", ServiceTileIcons.locations, masterTab = ServiceMastersTab.RoomsStaff, wide = false),
     QuickTile("Invite & QR", "Join · people · roles", ServiceTileIcons.invite, masterTab = ServiceMastersTab.Invite, wide = true),
-    QuickTile("Issue", "Hold · transfer · reprint", ServiceTileIcons.issue, ServiceCaptureSheet.ISSUE, requires = "UPDATE", wide = true),
+    QuickTile("Issue", "Update · approval", ServiceTileIcons.issue, ServiceCaptureSheet.ISSUE, requires = "UPDATE", wide = true),
 )
 
 private val ServiceUtilityTiles = listOf(
     QuickTile("Hold", "Park booking", ServiceTileIcons.status, ServiceCaptureSheet.HOLD, requires = "APPOINTMENT"),
-    QuickTile("Transfer", "Between rooms", ServiceTileIcons.collection, ServiceCaptureSheet.TRANSFER, requires = "UPDATE"),
+    QuickTile("Transfer", "Between rooms", ServiceTileIcons.collection, ServiceCaptureSheet.TRANSFER, requires = "APPOINTMENT"),
     QuickTile("Reprint", "Receipt · bill", ServiceTileIcons.issue, ServiceCaptureSheet.REPRINT, requires = "SERVICE"),
 )
 
@@ -309,171 +398,6 @@ private fun QuickAddGrid(
 }
 
 // ---------------------------------------------------------------------------------
-// Masters screens (Suppliers · Catalogue · Locations · Invite & QR)
-// ---------------------------------------------------------------------------------
-
-enum class ServiceMastersTab(val title: String, val masterKind: String?) {
-    Clients("Clients", "CUSTOMER"),
-    Services("Services", "PRODUCT"),
-    RoomsStaff("Rooms & Staff", "LOCATION"),
-    Invite("Invite & QR", null),
-}
-
-/** Masters surface backed by real `masters` rows + the existing master-create endpoint. */
-@Composable
-private fun ServiceMastersSheet(
-    tab: ServiceMastersTab,
-    model: OperatingProjectionDto,
-    momentId: String?,
-    onClose: () -> Unit,
-    onRecord: suspend (ServiceEventDraft) -> Unit,
-    onError: (String) -> Unit,
-) {
-    var createOpen by remember { mutableStateOf(false) }
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = ServicesTeal.gutter, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center) {
-            Box(
-                Modifier
-                    .width(40.dp).height(5.dp)
-                    .clip(RoundedCornerShape(100.dp))
-                    .background(Color.White.copy(alpha = 0.2f)),
-            )
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(tab.title, style = ServicesTeal.screenTitle(), modifier = Modifier.weight(1f))
-            Text(
-                "Close",
-                style = ServicesTeal.viewAll().copy(color = ServicesTeal.textBody),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .clickable(onClick = onClose)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-            )
-        }
-        when (tab) {
-            ServiceMastersTab.Invite -> InviteAndQr(model, momentId, onError)
-            else -> MasterList(
-                tab = tab,
-                model = model,
-                onCreate = { createOpen = true },
-            )
-        }
-        Spacer(Modifier.height(20.dp))
-    }
-
-    if (createOpen) {
-        OperatingSheetScrim(onDismiss = { createOpen = false }, accent = ServicesTeal.teal) {
-            OperatingCaptureSheet(
-                title = "New ${tab.title.trimEnd('s')}",
-                icon = when (tab) {
-                    ServiceMastersTab.Clients -> ServiceTileIcons.suppliers
-                    ServiceMastersTab.Services -> ServiceTileIcons.catalogue
-                    ServiceMastersTab.RoomsStaff -> ServiceTileIcons.locations
-                    ServiceMastersTab.Invite -> ServiceTileIcons.invite
-                },
-                eventType = "UPDATE",
-                mode = "MASTERS",
-                model = model,
-                onDismiss = { createOpen = false },
-                onSubmit = { draft ->
-                    runCatching { onRecord(draft.toService()) }.onFailure { onError(it.message ?: "Could not save") }
-                    createOpen = false
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun MasterList(
-    tab: ServiceMastersTab,
-    model: OperatingProjectionDto,
-    onCreate: () -> Unit,
-) {
-    val rows = model.masters.orEmpty().filter { master ->
-        when (tab) {
-            ServiceMastersTab.Clients -> master.kind in setOf("CUSTOMER", "CLIENT", "STAFF")
-            ServiceMastersTab.Services -> master.kind in setOf("PRODUCT", "ITEM", "SERVICE", "CONSUMABLE")
-            ServiceMastersTab.RoomsStaff -> master.kind in setOf("LOCATION", "CHANNEL", "STAFF")
-            ServiceMastersTab.Invite -> false
-        }
-    }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(ServicesTeal.rCardTight)
-            .background(ServicesTeal.teal)
-            .clickable(onClick = onCreate)
-            .padding(vertical = 14.dp),
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            "New ${tab.title.trimEnd('s').lowercase()}",
-            style = ServicesTeal.storyCtaTitle(),
-            maxLines = 1,
-        )
-    }
-    if (rows.isEmpty()) {
-        TealEmpty("Nothing here yet", "Records you add will be listed here.", glyph = "◇")
-        WhyNote(
-            when (tab) {
-                ServiceMastersTab.Services -> "Rate-card rows only change on an explicit master record — never from a quick charge."
-                ServiceMastersTab.RoomsStaff -> "Rooms and staff group capacity. Opening a new room does not move bookings."
-                else -> "Named clients are required for credit and collection tracking."
-            },
-        )
-        return
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        rows.forEach { master ->
-            AccentRow(
-                title = master.name.ifBlank { "Unnamed" },
-                caption = listOfNotNull(
-                    master.kind.lowercase().replaceFirstChar { it.uppercase() },
-                    master.unit?.takeIf { it.isNotBlank() }?.let { "UOM $it" },
-                    master.gstRate?.takeIf { it.isNotBlank() }?.let { "GST $it%" },
-                ).joinToString(" · "),
-                accent = ServicesTeal.teal,
-                severityLabel = master.barcode?.takeIf { it.isNotBlank() }?.let { "Scan" },
-                severityColor = ServicesTeal.cyan,
-            )
-        }
-    }
-    WhyNote(
-        when (tab) {
-            ServiceMastersTab.Services -> "Rate-card rows only change on an explicit master record — never from a quick charge."
-            ServiceMastersTab.RoomsStaff -> "Rooms and staff group capacity. Opening a new room does not move bookings."
-            else -> "Named partners are required for credit and payable tracking."
-        },
-    )
-}
-
-/** Invite & QR `2506:29333` — real mint, real QR, real contacts (shared surface). */
-@Composable
-private fun InviteAndQr(
-    model: OperatingProjectionDto,
-    momentId: String?,
-    onError: (String) -> Unit,
-) {
-    BusinessInviteQr(
-        momentId = momentId,
-        title = model.title.orEmpty(),
-        role = model.role,
-        palette = TealInvitePalette,
-        iconRes = ServiceTileIcons.invite,
-        noun = "service",
-        onError = onError,
-    )
-}
-
-
-// ---------------------------------------------------------------------------------
 // Draft contract (matches the pre-existing `POST …/operating-events` body)
 // ---------------------------------------------------------------------------------
 
@@ -523,7 +447,7 @@ internal fun OperatingCaptureDraft.toService() = ServiceEventDraft(
     lines = lines,
 )
 
-/** The ten capture sheets, named for the Figma frames. */
+/** The ten capture sheets, named for the Figma frames (SVC-QA-01…10). Hold/Transfer/Reprint → Phase 5. */
 internal enum class ServiceCaptureSheet(
     val title: String,
     val eventType: String,
@@ -532,33 +456,21 @@ internal enum class ServiceCaptureSheet(
 ) {
     SERVICE("Finalize Charge", "SERVICE", "SERVICE", ServiceTileIcons.sale),
     PURCHASE("Record Purchase", "PURCHASE", "PURCHASE", ServiceTileIcons.purchase),
-    COLLECTION("Money Collection", "COLLECTION", "COLLECTION", ServiceTileIcons.collection),
+    COLLECTION("Record Collection", "COLLECTION", "COLLECTION", ServiceTileIcons.collection),
     PAYMENT("Record Payment", "PAYMENT", "PAYMENT", ServiceTileIcons.payment),
     SPEND("Record Expense", "SPEND", "SPEND", ServiceTileIcons.expense),
     STOCK("Stock Update", "STOCK", "STOCK", ServiceTileIcons.stock),
     APPOINTMENT("Booking", "APPOINTMENT", "APPOINTMENT", ServiceTileIcons.order),
-    STATUS("Status / Assignment", "APPOINTMENT", "APPOINTMENT", ServiceTileIcons.status),
-    BUDGET("Revise Budget", "BUDGET", "BUDGET", ServiceTileIcons.budget),
-    ISSUE("Issue / Update", "ISSUE", "ISSUE", ServiceTileIcons.issue),
-    HOLD("Hold / release", "APPOINTMENT", "APPOINTMENT", ServiceTileIcons.status),
-    TRANSFER("Transfer", "UPDATE", "UPDATE", ServiceTileIcons.collection),
-    REPRINT("Reprint receipt", "SERVICE", "SERVICE", ServiceTileIcons.issue),
+    /** Mode `STATUS` keeps eventType APPOINTMENT so ops updates never post revenue. */
+    STATUS("Status / Assignment", "APPOINTMENT", "STATUS", ServiceTileIcons.status),
+    BUDGET("Budget / Target Revision", "BUDGET", "BUDGET", ServiceTileIcons.budget),
+    ISSUE("Issue / Approval / Update", "ISSUE", "ISSUE", ServiceTileIcons.issue),
+    /** Hold parks a slot only — never revenue / GST. */
+    HOLD("Appointment hold", "APPOINTMENT", "HOLD", ServiceTileIcons.status),
+    /** Transfer reassigns staff/room on open bookings — never a charge. */
+    TRANSFER("Staff / room transfer", "APPOINTMENT", "TRANSFER", ServiceTileIcons.collection),
+    /** Reprint re-renders a posted invoice — same number, no new charge. */
+    REPRINT("Reprint invoice", "SERVICE", "REPRINT", ServiceTileIcons.issue),
 }
 
 
-internal val TealInvitePalette = com.example.momentra.ui.shell.business.shared.InvitePalette(
-    accent = ServicesTeal.teal,
-    accentMuted = ServicesTeal.tealMuted,
-    card = ServicesTeal.card,
-    field = ServicesTeal.field,
-    chip = ServicesTeal.chip,
-    chipStroke = ServicesTeal.chipStroke,
-    divider = ServicesTeal.divider,
-    qrPlate = ServicesTeal.card,
-    textPrimary = ServicesTeal.textPrimary,
-    textBody = ServicesTeal.textBody,
-    textMuted = ServicesTeal.textMuted,
-    textFaint = ServicesTeal.textFaint,
-    warning = ServicesTeal.warning,
-    negative = ServicesTeal.negative,
-)

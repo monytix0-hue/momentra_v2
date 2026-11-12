@@ -100,6 +100,10 @@ export const recordOperatingEventSchema = z
     budgetCategory: z.string().max(80).optional(),
     paymentState: z.enum(['PAID', 'PART_PAID', 'PAY_LATER']).optional(),
     activityStatus: z.enum(['OPEN', 'DONE', 'IN_PROGRESS', 'BLOCKED', 'POSTPONED', 'COMPLETED', 'CANCELLED']).optional(),
+    /** Activity assignee display name (ATT-09). Not the vendor/counterparty. */
+    ownerName: z.string().max(120).optional(),
+    /** ISSUE severity for ATT-10 blocking deliverables. */
+    issueSeverity: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
     attributedSales: amountSchema.optional(),
     revisionKind: z.enum(['BUDGET', 'TARGET', 'CATEGORY']).optional(),
     effectiveAt: z.string().max(40).optional(),
@@ -166,6 +170,15 @@ export const recordOperatingEventSchema = z
         taxAmount: amountSchema.nullish(),
         gstRate: amountSchema.nullish(),
         discount: amountSchema.nullish(),
+        /** Explicit operator-entered cess ₹ — never from HSN/CBIC schedules. */
+        cessAmount: amountSchema.nullish(),
+        /** Explicit operator-entered cess % of taxable. */
+        cessRate: amountSchema.nullish(),
+        /** Split tender instruments; amounts must sum to receivedAmount when present. */
+        payments: z
+          .array(z.object({ method: z.string().min(1).max(40), amount: amountSchema }))
+          .max(6)
+          .nullish(),
         taxJurisdiction: z.enum(['INTRA', 'INTER']).nullish(),
         placeOfSupply: z.string().max(80).nullish(),
         originalCurrency: z.string().max(8).nullish(),
@@ -597,8 +610,13 @@ export async function recordOperatingEvent(
   const prefs = prefsOf(setup.preferences);
   const postedType = body.eventType.toUpperCase() === 'SALE' && prefs.subtype === 'CLIENT_CAMPAIGN' ? 'INVOICE' : body.eventType;
   const def = quickAddDef(postedType);
+  const subtypeQuickAdds = familyForSubtype(prefs.subtype)?.subtypes.find((s) => s.code === prefs.subtype)?.quickAdds ?? [];
+  // Marketing QA-09 is one hub tile (UPDATE) that may post UPDATE or ISSUE.
+  const marketingTeamUpdate =
+    isMarketingSubtype(prefs.subtype) && def?.code === 'ISSUE' && subtypeQuickAdds.includes('UPDATE');
   const allowed = def && (
-    familyForSubtype(prefs.subtype)?.subtypes.find((s) => s.code === prefs.subtype)?.quickAdds.includes(def.code)
+    subtypeQuickAdds.includes(def.code)
+    || marketingTeamUpdate
     || (prefs.subtype === 'CLIENT_CAMPAIGN' && body.eventType.toUpperCase() === 'SALE')
   );
   if (!def || !allowed) {
@@ -678,6 +696,7 @@ export async function recordOperatingEvent(
             lines: body.lines,
             contract: writeContract,
             gst: tradingGstContext(prefs),
+            masterRefs: await loadTradingMasterRefs(client, scope.companyId, body),
           },
           existing
         )
@@ -820,6 +839,8 @@ export async function recordOperatingEvent(
   if (body.budgetCategory) payload.budgetCategory = body.budgetCategory;
   if (body.paymentState) payload.paymentState = body.paymentState;
   if (body.activityStatus) payload.activityStatus = body.activityStatus;
+  if (body.ownerName) payload.ownerName = body.ownerName.trim();
+  if (body.issueSeverity) payload.issueSeverity = body.issueSeverity;
   if (body.attributedSales) payload.attributedSales = body.attributedSales;
   if (body.revisionKind) payload.revisionKind = body.revisionKind;
   if (body.effectiveAt) payload.effectiveAt = body.effectiveAt;
@@ -1276,6 +1297,10 @@ export async function reviseOperatingEvent(
         contract: parseOperatingContract(body.contract) ?? current.contract ?? undefined,
         revisingId: eventId,
         gst: tradingGstContext(prefs),
+        masterRefs: await loadTradingMasterRefs(client, scope.companyId, {
+          lines: body.lines ?? current.lines,
+          master: body.master,
+        }),
       },
       existing
     );
