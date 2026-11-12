@@ -367,9 +367,15 @@ struct RestaurantUtilitySheet: View {
     }
 }
 
-private extension String {
+extension String {
     var nilIfBlank: String? {
         let t = trimmingCharacters(in: .whitespacesAndNewlines)
         return t.isEmpty ? nil : t
+    }
+}
+
+extension Optional where Wrapped == String {
+    var nilIfBlank: String? {
+        self?.nilIfBlank
     }
 }

@@ -1,0 +1,18 @@
+appId: resolvingpoint.momentra
+---
+- tapOn: "Wholesale"
+- tapOn: "B2B Direct"
+- scrollUntilVisible:
+    element: "Monthly budget"
+    direction: DOWN
+    timeout: 5000
+- tapOn: "Monthly budget"
+- inputText: "500000"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Monthly sales target|Monthly target|Sales target"
+    direction: DOWN
+    timeout: 8000
+- tapOn:
+    text: "Monthly sales target|Monthly target|.*target.*"
+  optional: true

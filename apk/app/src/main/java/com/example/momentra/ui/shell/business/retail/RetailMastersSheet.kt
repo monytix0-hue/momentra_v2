@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,7 +55,7 @@ import kotlinx.coroutines.launch
  * `2506:29475` Catalogue, `2506:29555` Locations.
  *
  * Structural port of [com.example.momentra.ui.shell.business.service.ServiceMastersSheet]
- * with rose Harbor Mart chrome and fixtures when projection masters are empty.
+ * with rose chrome; empty masters show empty states (no demo fixtures).
  */
 enum class MastersTab(
     val title: String,
@@ -88,14 +89,6 @@ enum class MastersTab(
         }
 }
 
-private val CatalogueCategories = listOf(
-    "Staples",
-    "Snacks",
-    "Personal care",
-    "Beverages",
-    "Home care",
-)
-
 @Composable
 internal fun RetailMastersSheet(
     tab: MastersTab,
@@ -112,15 +105,33 @@ internal fun RetailMastersSheet(
     var supplierQuery by remember { mutableStateOf("") }
     var toast by remember { mutableStateOf<String?>(null) }
     var brandingMessage by remember { mutableStateOf<String?>(null) }
+    var localMasters by remember(model.masters) { mutableStateOf(model.masters.orEmpty()) }
     val scope = rememberCoroutineScope()
-    val brand = model.title?.takeIf { it.isNotBlank() } ?: "Harbor Mart"
+    val repo = remember { com.example.momentra.data.repository.BusinessSliceRepository() }
+    val brand = model.title?.takeIf { it.isNotBlank() } ?: "Store"
 
-    val rows = remember(model.masters, tab) {
-        model.masters.orEmpty()
+    LaunchedEffect(model.masters) {
+        localMasters = model.masters.orEmpty()
+    }
+
+    fun reloadMastersAfterWrite() {
+        scope.launch {
+            val cid = companyId?.takeIf { it.isNotBlank() }
+            if (cid != null) {
+                repo.listMasters(cid).onSuccess { localMasters = it }
+            }
+            com.example.momentra.ui.shell.business.shared.OperatingChromeState.refresh += 1
+        }
+    }
+
+    val rows = remember(localMasters, tab) {
+        localMasters
             .filter { tab.kinds.contains(it.kind.uppercase()) }
             .sortedBy { it.name.lowercase() }
     }
 
+    // Box so create/edit form scrim overlays the browser (sibling Column would zero-height it).
+    Box(Modifier.fillMaxSize()) {
     Column(
         Modifier
             .fillMaxSize()
@@ -231,24 +242,14 @@ internal fun RetailMastersSheet(
         WhyNote(tab.why, tinted = true)
 
         RoseGradientCta(
-            label = when (tab) {
-                MastersTab.Invite, MastersTab.Catalogue -> "Done"
-                MastersTab.Suppliers -> "Save supplier"
-                MastersTab.Locations -> "Save locations"
-            },
+            label = "Done",
             caption = when (tab) {
-                MastersTab.Invite -> "3 invites pending · roles apply on join"
-                MastersTab.Suppliers -> "Supplier saved · available in Purchase Order"
-                MastersTab.Catalogue -> {
-                    val shown = if (rows.isEmpty()) demoCatalogue().size else rows.size
-                    "$shown of ${if (rows.isEmpty()) 38 else maxOf(shown, 38)} products · $category"
-                }
-                MastersTab.Locations -> "Locations saved · stock points update"
+                MastersTab.Invite -> "Invites apply when the teammate joins"
+                MastersTab.Suppliers -> "${rows.size} supplier${if (rows.size == 1) "" else "s"} · available in Purchase Order"
+                MastersTab.Catalogue -> "${rows.size} product${if (rows.size == 1) "" else "s"} · $category"
+                MastersTab.Locations -> "${rows.size} location${if (rows.size == 1) "" else "s"} · stock points"
             },
-            onClick = {
-                toast = RetailCaptureCopy.SAVED_TOAST
-                onClose()
-            },
+            onClick = onClose,
         )
 
         toast?.let { RoseSavedToast(message = it) }
@@ -282,6 +283,7 @@ internal fun RetailMastersSheet(
                                 toast = RetailCaptureCopy.SAVED_TOAST
                                 formKind = null
                                 editing = null
+                                reloadMastersAfterWrite()
                             }
                     }
                 },
@@ -289,10 +291,12 @@ internal fun RetailMastersSheet(
                     toast = RetailCaptureCopy.SAVED_TOAST
                     formKind = null
                     editing = null
+                    reloadMastersAfterWrite()
                 },
             )
         }
     }
+    } // Box
 }
 
 @Composable
@@ -311,21 +315,7 @@ private fun SuppliersList(
     )
 
     if (rows.isEmpty()) {
-        val items = demoSuppliers().filter {
-            query.isBlank() ||
-                it.name.contains(query, ignoreCase = true) ||
-                it.caption.contains(query, ignoreCase = true) ||
-                it.badge.contains(query, ignoreCase = true)
-        }
-        if (items.isEmpty()) {
-            RoseEmpty("Nothing here yet", "Named partners are required for credit and payable tracking.")
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items.forEach { supplier ->
-                    SupplierCard(supplier = supplier, onEdit = { onEdit(null) })
-                }
-            }
-        }
+        RoseEmpty("Nothing here yet", "Named partners are required for credit and payable tracking.")
     } else {
         val paired = rows.mapIndexed { index, master ->
             master to SupplierRowUi(
@@ -373,7 +363,7 @@ private fun CatalogueList(
         verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        CatalogueCategories.forEach { chip ->
+        RetailCaptureCopy.catalogueCategories.forEach { chip ->
             RoseModeChip(
                 text = chip,
                 selected = chip == category,
@@ -384,20 +374,25 @@ private fun CatalogueList(
     }
 
     if (rows.isEmpty()) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            demoCatalogue().forEach { row ->
-                CatalogueRow(row = row, onEdit = { onEdit(null) })
-            }
-        }
+        RoseEmpty(
+            "No products yet",
+            "Create a product — GST posts on bill / POS Sale, never on Sales Order save.",
+        )
     } else {
+        val filtered = rows.filter { master ->
+            val cat = master.category?.takeIf { it.isNotBlank() }
+                ?: categoryFromNote(master)
+            cat == null || cat.equals(category, ignoreCase = true)
+        }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            rows.forEachIndexed { index, master ->
+            filtered.forEachIndexed { index, master ->
+                val cat = master.category?.takeIf { it.isNotBlank() }
+                    ?: categoryFromNote(master)
+                    ?: category
+                val sub = master.subcategory?.takeIf { it.isNotBlank() }
                 val row = CatalogueRowUi(
                     name = master.name.ifBlank { "Unnamed product" },
-                    meta = listOfNotNull(
-                        categoryFromNote(master) ?: category,
-                        aisleHint(index),
-                    ).joinToString(" · "),
+                    meta = listOfNotNull(cat, sub).joinToString(" · "),
                     price = master.sellPrice?.takeIf { it.isNotBlank() }
                         ?.let { RetailFormat.exact(currency, it) }
                         ?: "—",
@@ -436,11 +431,10 @@ private fun LocationsList(
     onEdit: (OperatingMasterDto?) -> Unit,
 ) {
     if (rows.isEmpty()) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            demoLocations().forEach { location ->
-                LocationCard(location = location, onEdit = { onEdit(null) })
-            }
-        }
+        RoseEmpty(
+            "No locations yet",
+            "Locations are stock and sale points. Stock moves only on GRN, Sale or Transfer.",
+        )
     } else {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             rows.forEachIndexed { index, master ->
@@ -515,16 +509,15 @@ private fun SupplierCard(supplier: SupplierRowUi, onEdit: () -> Unit) {
                         .background(RetailRose.amber)
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 )
-            } else {
-                MastersOutlineAction("Edit", compact = true, onClick = onEdit)
             }
+            MastersOutlineAction("Edit", compact = true, onClick = onEdit)
         }
         Text(supplier.caption, style = RetailRose.rowCaption().copy(fontSize = 11.sp), maxLines = 1)
     }
 }
 
 @Composable
-private fun CatalogueRow(row: CatalogueRowUi, onEdit: () -> Unit) {
+private fun CatalogueRow(row: CatalogueRowUi, onEdit: (() -> Unit)?) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -564,7 +557,14 @@ private fun CatalogueRow(row: CatalogueRowUi, onEdit: () -> Unit) {
                 .background(RetailRose.roseDeep)
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         )
-        MastersOutlineAction("Edit", compact = true, onClick = onEdit)
+        if (onEdit != null) {
+            MastersOutlineAction("Edit", compact = true, onClick = onEdit)
+        } else {
+            Text(
+                "Demo",
+                style = RetailRose.rowCaption().copy(fontSize = 10.sp),
+            )
+        }
     }
 }
 
@@ -742,16 +742,10 @@ private fun ownerLine(model: OperatingProjectionDto): String {
 }
 
 private fun categoryFromNote(master: OperatingMasterDto): String? {
-    val dim = master.dimension?.takeIf { it.isNotBlank() }
-    if (dim != null) return dim
+    master.category?.takeIf { it.isNotBlank() }?.let { return it }
     val hay = listOfNotNull(master.code, master.name).joinToString(" ")
-    return CatalogueCategories.firstOrNull { hay.contains(it, ignoreCase = true) }
+    return RetailCaptureCopy.catalogueCategories.firstOrNull { hay.contains(it, ignoreCase = true) }
         ?: listOf("FMCG", "Packaging", "Staples").firstOrNull { hay.contains(it, ignoreCase = true) }
-}
-
-private fun aisleHint(index: Int): String = when (index % 4) {
-    0, 1, 2 -> "Aisle 3"
-    else -> "Aisle 5"
 }
 
 private fun locationTypeLabel(kind: String): String = when (kind.uppercase()) {
@@ -782,42 +776,3 @@ private data class LocationRowUi(
     val busy: Boolean,
 )
 
-/** Harbor Mart fixtures for visual QA when projection masters are empty. */
-private fun demoSuppliers(): List<SupplierRowUi> = listOf(
-    SupplierRowUi(
-        name = "Sunrise FMCG",
-        badge = "FMCG",
-        preferred = true,
-        caption = "GSTIN 27AABCF1234K1Z5 · +91 98201 22334",
-        selected = true,
-    ),
-    SupplierRowUi(
-        name = "Metro Foods",
-        badge = "Staples",
-        preferred = false,
-        caption = "GSTIN 27AAECM5678L1Z2 · +91 98922 55667",
-        selected = false,
-    ),
-    SupplierRowUi(
-        name = "PackPro",
-        badge = "Packaging",
-        preferred = false,
-        caption = "GSTIN 27AAHCS9012M1Z9 · +91 99670 88990",
-        selected = false,
-    ),
-)
-
-private fun demoCatalogue(): List<CatalogueRowUi> = listOf(
-    CatalogueRowUi("Basmati Rice 5kg", "Staples · Aisle 3", "₹649", "GST 5%", RetailRose.rose),
-    CatalogueRowUi("Sunflower Oil 1L", "Staples · Aisle 3", "₹189", "GST 5%", RetailRose.positive),
-    CatalogueRowUi("Tata Salt 1kg", "Staples · Aisle 3", "₹28", "GST 5%", RetailRose.positive),
-    CatalogueRowUi("Parle-G 800g", "Snacks · Aisle 5", "₹95", "GST 5%", RetailRose.positive),
-)
-
-private fun demoLocations(): List<LocationRowUi> = listOf(
-    LocationRowUi("Main store", "Store · 6 open bills", busy = true),
-    LocationRowUi("Back store", "Store · 3 open bills", busy = false),
-    LocationRowUi("Warehouse", "Store · 1 open bills", busy = false),
-    LocationRowUi("Counter 1", "Counter · 4 open bills", busy = true),
-    LocationRowUi("Counter 2", "Counter · 2 open bills", busy = false),
-)

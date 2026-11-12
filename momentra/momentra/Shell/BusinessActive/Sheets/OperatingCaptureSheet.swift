@@ -63,6 +63,11 @@ struct OperatingCaptureSheet: View {
         var amountPaidNow = ""
         var goodsStatus = "Deliver Later"
         var quoteStatus = "Sent"
+        /// GST fields for trading SALE when projection.gstTracking == YES.
+        var taxMode = "Not configured"
+        var gstRate = ""
+        /// `INTRA` | `INTER` | ""
+        var supplyChoice = ""
     }
 
     private var layout: OperatingCaptureLayout? {
@@ -190,10 +195,58 @@ struct OperatingCaptureSheet: View {
         }
     }
 
-    /// Trading TRD sheets derive title from counterparty / SKU / description — amount or qty is the gate.
+    /// Trading Itemized uses Product / Qty / Unit / Price — not the Quick amount field.
+    private var tradingItemized: Bool {
+        draft.entryMode.localizedCaseInsensitiveContains("Item")
+    }
+
+    private var tradingChannelsConfigured: Bool {
+        (model.projection?.life?.channels ?? []).contains {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    private var tradingGstOn: Bool {
+        (model.projection?.gstTracking ?? "").caseInsensitiveCompare("YES") == .orderedSame
+    }
+
+    private var tradingItemizedLineReady: Bool {
+        let name = draft.itemName.trimmingCharacters(in: .whitespaces)
+        let sku = draft.sku.trimmingCharacters(in: .whitespaces)
+        let product = !name.isEmpty || !sku.isEmpty
+        return product
+            && !draft.quantity.trimmingCharacters(in: .whitespaces).isEmpty
+            && !draft.unit.trimmingCharacters(in: .whitespaces).isEmpty
+            && !draft.itemPrice.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// Trading TRD sheets: Quick amount needs amount; Itemized needs a full line (+ channel/GST when required).
     private var tradingCanSave: Bool {
         switch layout {
-        case .sale, .purchase, .collection, .payment, .spend, .budget, .saleReturn:
+        case .sale, .purchase:
+            let moneyOk = tradingItemized
+                ? tradingItemizedLineReady
+                : !draft.amount.trimmingCharacters(in: .whitespaces).isEmpty
+            // Channel is required on SALE when configured — not on PURCHASE.
+            let channelOk = layout != .sale
+                || !tradingChannelsConfigured
+                || !draft.channel.trimmingCharacters(in: .whitespaces).isEmpty
+            let partyOk: Bool = {
+                if layout == .purchase {
+                    return !draft.counterparty.trimmingCharacters(in: .whitespaces).isEmpty
+                }
+                let settled = draft.paymentChoice == "Received" || draft.paymentChoice == "Fully Paid"
+                return settled || !draft.counterparty.trimmingCharacters(in: .whitespaces).isEmpty
+            }()
+            let gstOk: Bool = {
+                guard tradingGstOn, layout == .sale || layout == .purchase else { return true }
+                let modeOk = draft.taxMode == "Inclusive" || draft.taxMode == "Exclusive"
+                let rateOk = !draft.gstRate.trimmingCharacters(in: .whitespaces).isEmpty
+                let supplyOk = draft.supplyChoice == "INTRA" || draft.supplyChoice == "INTER"
+                return modeOk && rateOk && supplyOk
+            }()
+            return moneyOk && channelOk && partyOk && gstOk
+        case .collection, .payment, .spend, .budget, .saleReturn:
             return !draft.amount.trimmingCharacters(in: .whitespaces).isEmpty
         case .stock, .shipment:
             return !draft.quantity.trimmingCharacters(in: .whitespaces).isEmpty
@@ -297,10 +350,24 @@ struct OperatingCaptureSheet: View {
                 case "SALE":
                     if draft.entryMode == "Quick Sale" { draft.entryMode = "Quick amount" }
                     if draft.paymentChoice == "Fully Paid" { draft.paymentChoice = "Received" }
+                    if draft.taxMode == "Not configured" {
+                        switch (model.projection?.salePriceIncludesGst ?? "").uppercased() {
+                        case "YES": draft.taxMode = "Inclusive"
+                        case "NO": draft.taxMode = "Exclusive"
+                        default: break
+                        }
+                    }
                 case "PURCHASE":
                     if draft.entryMode == "Quick Sale" || draft.entryMode == "Quick amount" { draft.entryMode = "Quick cost" }
                     if draft.paymentChoice == "Fully Paid" || draft.paymentChoice == "Received" { draft.paymentChoice = "Pay later" }
                     if draft.goodsStatus == "Deliver Later" { draft.goodsStatus = "Received now" }
+                    if draft.taxMode == "Not configured" {
+                        switch (model.projection?.purchasePriceIncludesGst ?? "").uppercased() {
+                        case "YES": draft.taxMode = "Inclusive"
+                        case "NO": draft.taxMode = "Exclusive"
+                        default: break
+                        }
+                    }
                 case "SPEND":
                     if draft.entryMode == "Quick Sale" || draft.entryMode == "Quick amount" { draft.entryMode = "Quick" }
                     if draft.paymentChoice == "Fully Paid" || draft.paymentChoice == "Received" { draft.paymentChoice = "Paid" }
@@ -434,7 +501,44 @@ struct OperatingCaptureSheet: View {
         if draft.paymentChoice != "Received" {
             setupDateField("Due date (C)", selection: $draft.dueAt, danger: true)
         }
-        field("Channel (C · if enabled)", text: $draft.channel)
+        if tradingChannelsConfigured {
+            field("Channel (M)", text: $draft.channel)
+        }
+        if itemized {
+            segmented("Delivery status", options: ["Fully Delivered", "Partially Delivered", "Deliver Later"], selection: $draft.goodsStatus)
+            Text("Delivery status does not post stock. Inventory follows fulfilment / Delivery Quick Add.")
+                .font(.plusJakarta(size: 12))
+                .foregroundStyle(theme.muted)
+        }
+        if tradingGstOn {
+            segmented(
+                "Sale price",
+                options: ["Price includes GST", "GST added separately"],
+                selection: Binding(
+                    get: {
+                        draft.taxMode == "Inclusive" ? "Price includes GST"
+                            : draft.taxMode == "Exclusive" ? "GST added separately" : ""
+                    },
+                    set: { picked in
+                        draft.taxMode = picked.hasPrefix("Price") ? "Inclusive" : "Exclusive"
+                    }
+                )
+            )
+            field("GST rate %", text: $draft.gstRate, decimal: true)
+            segmented(
+                "Supply",
+                options: ["Inside your state", "Outside your state"],
+                selection: Binding(
+                    get: {
+                        draft.supplyChoice == "INTRA" ? "Inside your state"
+                            : draft.supplyChoice == "INTER" ? "Outside your state" : ""
+                    },
+                    set: { picked in
+                        draft.supplyChoice = picked.hasPrefix("Inside") ? "INTRA" : "INTER"
+                    }
+                )
+            )
+        }
         TradingMoreDetails(theme: theme, open: $moreDetailsOpen, note: $draft.note)
     }
 
@@ -450,6 +554,7 @@ struct OperatingCaptureSheet: View {
                 field("Quantity", text: $draft.quantity, decimal: true)
                 field("Unit", text: $draft.unit)
             }
+            field("Unit price", text: $draft.itemPrice, decimal: true)
         }
         field("Supplier / supplier (C/M)", text: $draft.counterparty)
         setupDateField("Purchase date (M)", selection: $draft.occurredAt)
@@ -458,6 +563,35 @@ struct OperatingCaptureSheet: View {
             field("Paid now (C)", text: $draft.amountPaidNow, decimal: true)
         }
         segmented("Goods (M)", options: ["Received now", "Receive later"], selection: $draft.goodsStatus)
+        if tradingGstOn {
+            segmented(
+                "Purchase price",
+                options: ["Price includes GST", "GST added separately"],
+                selection: Binding(
+                    get: {
+                        draft.taxMode == "Inclusive" ? "Price includes GST"
+                            : draft.taxMode == "Exclusive" ? "GST added separately" : ""
+                    },
+                    set: { picked in
+                        draft.taxMode = picked.hasPrefix("Price") ? "Inclusive" : "Exclusive"
+                    }
+                )
+            )
+            field("GST rate %", text: $draft.gstRate, decimal: true)
+            segmented(
+                "Supply",
+                options: ["Inside your state", "Outside your state"],
+                selection: Binding(
+                    get: {
+                        draft.supplyChoice == "INTRA" ? "Inside your state"
+                            : draft.supplyChoice == "INTER" ? "Outside your state" : ""
+                    },
+                    set: { picked in
+                        draft.supplyChoice = picked.hasPrefix("Inside") ? "INTRA" : "INTER"
+                    }
+                )
+            )
+        }
         TradingMoreDetails(theme: theme, open: $moreDetailsOpen, note: $draft.note)
     }
 
@@ -791,7 +925,12 @@ struct OperatingCaptureSheet: View {
             field(counterpartyLabel, text: $draft.counterparty)
         }
         if [.sale, .purchase, .stock, .saleReturn, .order, .shipment].contains(layout) {
-            field(theme.isOpsQaCapture ? "Channel (C · if enabled)" : "Channel (optional)", text: $draft.channel)
+            // Sale channel is required when the moment has channels — match Android Channel (M).
+            let channelLabel: String = {
+                if layout == .sale, theme.isOpsQaCapture { return "Channel (M)" }
+                return theme.isOpsQaCapture ? "Channel (C · if enabled)" : "Channel (optional)"
+            }()
+            field(channelLabel, text: $draft.channel)
         }
         if [.sale, .purchase, .stock, .saleReturn, .order, .shipment].contains(layout) {
             if layout != .sale || itemizedSale || !theme.isOpsQaCapture {
@@ -812,6 +951,12 @@ struct OperatingCaptureSheet: View {
                 }
                 if draft.paymentChoice != "Received" {
                     setupDateField("Due date (C)", selection: $draft.dueAt, danger: true)
+                }
+                if itemizedSale {
+                    segmented("Delivery status", options: ["Fully Delivered", "Partially Delivered", "Deliver Later"], selection: $draft.goodsStatus)
+                    Text("Delivery status does not post stock. Inventory follows fulfilment / Delivery Quick Add.")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(theme.muted)
                 }
             } else {
                 segmented("Payment status", options: ["Fully Paid", "Partially Paid", "Pay Later"], selection: $draft.paymentChoice)
@@ -977,6 +1122,9 @@ struct OperatingCaptureSheet: View {
                                     if draft.unit.isEmpty { draft.unit = sku.unit ?? "" }
                                     if draft.itemPrice.isEmpty {
                                         draft.itemPrice = sku.sellPrice ?? sku.purchasePrice ?? ""
+                                    }
+                                    if draft.gstRate.isEmpty, let rate = sku.gstRate, !rate.isEmpty {
+                                        draft.gstRate = rate
                                     }
                                 } label: {
                                     VStack(alignment: .leading, spacing: 2) {
@@ -1492,11 +1640,30 @@ struct OperatingCaptureSheet: View {
             default: return displayTitle
             }
         }()
+        let itemizedSaleOrPurchase = tradingItemized && (layout == .sale || layout == .purchase)
+        let lineTotal: String? = {
+            guard itemizedSaleOrPurchase else { return nil }
+            guard let qty = Decimal(string: draft.quantity.trimmingCharacters(in: .whitespaces)),
+                  let price = Decimal(string: draft.itemPrice.trimmingCharacters(in: .whitespaces)),
+                  qty > 0, price > 0 else { return nil }
+            let total = NSDecimalNumber(decimal: qty * price)
+            let formatter = NumberFormatter()
+            formatter.minimumFractionDigits = 2
+            formatter.maximumFractionDigits = 2
+            formatter.numberStyle = .decimal
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            return formatter.string(from: total)
+        }()
+        let resolvedAmount: String? = {
+            let typed = draft.amount.trimmingCharacters(in: .whitespaces)
+            if !typed.isEmpty { return typed }
+            return lineTotal
+        }()
         var input = OperatingEventInput(
             momentId: model.momentId,
             eventType: eventType,
             title: tradingFallbackTitle,
-            amount: draft.amount.isEmpty ? nil : draft.amount,
+            amount: resolvedAmount,
             note: draft.note.isEmpty ? nil : draft.note,
             channelName: draft.channel.isEmpty ? nil : draft.channel,
             counterpartyName: draft.counterparty.isEmpty ? nil : draft.counterparty,
@@ -1525,7 +1692,7 @@ struct OperatingCaptureSheet: View {
             switch draft.paymentChoice {
             case "Fully Paid", "Received":
                 contract.paymentState = "RECEIVED"
-                contract.receivedAmount = draft.amount.isEmpty ? nil : draft.amount
+                contract.receivedAmount = resolvedAmount
             case "Partially Paid", "Part paid":
                 contract.paymentState = "PART_PAID"
                 contract.receivedAmount = draft.amountPaidNow.isEmpty ? nil : draft.amountPaidNow
@@ -1537,6 +1704,18 @@ struct OperatingCaptureSheet: View {
                 case "Fully Delivered": contract.goodsStatus = "DELIVERED"
                 case "Partially Delivered": contract.goodsStatus = "PARTIAL"
                 default: contract.goodsStatus = "LATER"
+                }
+            }
+            if tradingGstOn {
+                switch draft.taxMode {
+                case "Inclusive": contract.taxMode = "INCLUSIVE"
+                case "Exclusive": contract.taxMode = "EXCLUSIVE"
+                default: break
+                }
+                let rate = draft.gstRate.trimmingCharacters(in: .whitespaces)
+                if !rate.isEmpty { contract.gstRate = rate }
+                if draft.supplyChoice == "INTRA" || draft.supplyChoice == "INTER" {
+                    contract.taxJurisdiction = draft.supplyChoice
                 }
             }
         }
@@ -1570,14 +1749,29 @@ struct OperatingCaptureSheet: View {
             switch draft.paymentChoice {
             case "Paid":
                 contract.paymentState = "PAID"
-                contract.receivedAmount = draft.amount.isEmpty ? nil : draft.amount
+                contract.receivedAmount = resolvedAmount
             case "Part paid":
                 contract.paymentState = "PART_PAID"
                 contract.receivedAmount = draft.amountPaidNow.isEmpty ? nil : draft.amountPaidNow
             default:
                 contract.paymentState = "PAY_LATER"
             }
-            contract.goodsStatus = draft.goodsStatus.localizedCaseInsensitiveContains("later") ? "LATER" : "RECEIVED"
+            // Goods chips map to receiptState (server), not goodsStatus.
+            contract.receiptState = draft.goodsStatus.localizedCaseInsensitiveContains("later")
+                ? "AWAITING"
+                : "RECEIVED"
+            if tradingGstOn {
+                switch draft.taxMode {
+                case "Inclusive": contract.taxMode = "INCLUSIVE"
+                case "Exclusive": contract.taxMode = "EXCLUSIVE"
+                default: break
+                }
+                let rate = draft.gstRate.trimmingCharacters(in: .whitespaces)
+                if !rate.isEmpty { contract.gstRate = rate }
+                if draft.supplyChoice == "INTRA" || draft.supplyChoice == "INTER" {
+                    contract.taxJurisdiction = draft.supplyChoice
+                }
+            }
         }
         if layout == .spend && theme.isOpsQaCapture {
             switch draft.paymentChoice {
@@ -1642,7 +1836,31 @@ struct OperatingCaptureSheet: View {
             contract.stockReason = OperatingContractVocabulary.stockReason(draft.stockReason) ?? "TRANSFER"
             contract.ownership = OperatingContractVocabulary.ownership(draft.ownership)
         }
-        if !draft.masterId.isNilOrEmpty {
+        if itemizedSaleOrPurchase {
+            let name = draft.itemName.trimmingCharacters(in: .whitespaces)
+            let sku = draft.sku.trimmingCharacters(in: .whitespaces)
+            let lineName = !name.isEmpty ? name : (!sku.isEmpty ? sku : draft.title)
+            if !lineName.trimmingCharacters(in: .whitespaces).isEmpty {
+                input.lineItems = [
+                    .init(
+                        itemName: lineName,
+                        quantity: draft.quantity.isEmpty ? nil : draft.quantity,
+                        unit: draft.unit.isEmpty ? nil : draft.unit,
+                        unitPrice: draft.itemPrice.isEmpty ? nil : draft.itemPrice,
+                        masterId: draft.masterId,
+                        taxMode: tradingGstOn
+                            ? (draft.taxMode == "Inclusive" ? "INCLUSIVE"
+                                : draft.taxMode == "Exclusive" ? "EXCLUSIVE" : nil)
+                            : nil,
+                        gstRate: {
+                            guard tradingGstOn else { return nil }
+                            let rate = draft.gstRate.trimmingCharacters(in: .whitespaces)
+                            return rate.isEmpty ? nil : rate
+                        }()
+                    ),
+                ]
+            }
+        } else if !draft.masterId.isNilOrEmpty {
             input.lineItems = [
                 .init(
                     itemName: draft.sku.isEmpty ? draft.title : draft.sku,

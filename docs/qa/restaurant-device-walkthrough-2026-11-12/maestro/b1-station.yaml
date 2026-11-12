@@ -1,0 +1,13 @@
+appId: resolvingpoint.momentra
+---
+- tapOn: "Stations"
+- extendedWaitUntil:
+    visible: "Station"
+    timeout: 8000
+- tapOn: "Add station"
+- extendedWaitUntil:
+    visible: "Save station"
+    timeout: 8000
+- tapOn:
+    text: ".*"
+    index: 0

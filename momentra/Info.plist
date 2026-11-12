@@ -34,7 +34,7 @@
 	<key>SENTRY_DSN</key>
 	<string></string>
 	<key>NSCameraUsageDescription</key>
-	<string>Momentra uses the camera to capture photos and to scan invite QR codes so you can join a group.</string>
+	<string>Momentra uses the camera to capture photos, scan invite QR codes, and scan product SKU codes or barcodes in retail.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Momentra needs photo library access so you can attach photos to wedding memories.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

@@ -7,6 +7,8 @@ import SwiftUI
 struct RestaurantPosSheet: View {
     let theme: OperatingTheme
     @ObservedObject var model: BusinessOperatingModel
+    /// In-memory ticket from KOT handoff — seed cart immediately without waiting for refetch.
+    var initialKotTicket: OperatingActivityPayload? = nil
 
     @Environment(\.dismiss) private var dismiss
 
@@ -42,6 +44,7 @@ struct RestaurantPosSheet: View {
     @State private var saving = false
     @State private var moreOpen = false
     @State private var showKotPicker = false
+    @State private var didSeedHandoff = false
 
     private var currency: String { model.currency }
 
@@ -58,17 +61,21 @@ struct RestaurantPosSheet: View {
     }
 
     private var openKots: [OperatingActivityPayload] {
-        (model.projection?.activity ?? [])
+        let base = (model.projection?.activity ?? [])
             .filter { $0.eventType.uppercased() == "ORDER" }
             .filter {
                 let status = ($0.status ?? "").uppercased()
                 return status != "COMPLETED" && status != "CANCELLED" && status != "DONE"
             }
             .sorted { $0.occurredAt > $1.occurredAt }
+        guard let handoff = initialKotTicket else { return base }
+        if base.contains(where: { $0.id == handoff.id }) { return base }
+        return [handoff] + base
     }
 
     private var linkedKot: OperatingActivityPayload? {
         openKots.first { $0.id == parentKotId }
+            ?? initialKotTicket.flatMap { $0.id == parentKotId ? $0 : nil }
     }
 
     private var subtotal: Decimal {
@@ -213,6 +220,13 @@ struct RestaurantPosSheet: View {
             applyModeDefaults(mode)
             if model.masters.isEmpty {
                 await model.loadMasters()
+            }
+            // Prefer in-memory handoff ticket so Bill-from-KOT lines appear before projection refresh.
+            if let handoff = initialKotTicket, !didSeedHandoff {
+                parentKotId = handoff.id
+                showKotPicker = true
+                applyKot(handoff)
+                didSeedHandoff = true
             }
         }
     }

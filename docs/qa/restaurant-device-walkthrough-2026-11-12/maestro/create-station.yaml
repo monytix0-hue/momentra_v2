@@ -1,0 +1,24 @@
+appId: resolvingpoint.momentra
+---
+- tapOn:
+    id: "bottom.quickadd"
+- scrollUntilVisible:
+    element: "Stations"
+    direction: DOWN
+    timeout: 15000
+- tapOn: "Stations"
+- tapOn: "+ Add station"
+- extendedWaitUntil:
+    visible: "Save station"
+    timeout: 12000
+- tapOn: "e.g. Grill"
+- eraseText
+- inputText: "Tandoor"
+- scrollUntilVisible:
+    element: "Save station"
+    direction: DOWN
+    timeout: 8000
+- tapOn: "Save station"
+- extendedWaitUntil:
+    visible: ".*[Ss]aved.*"
+    timeout: 20000

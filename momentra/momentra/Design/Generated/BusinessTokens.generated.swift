@@ -96,6 +96,10 @@ enum BusinessTokens {
         static let retailOnAccent = Color(hex: "#FFFFFF")
         static let retailHeroStart = Color(hex: "#F43F5E")
         static let retailHeroEnd = Color(hex: "#F43F5E")
+        /// Soft rose wash (`#FFE4E6`) — Retail Why body / soft note fill.
+        static let retailWhyBody = Color(hex: "#FFE4E6")
+        /// Sheet / tile / chip slate (`#1E293B`) — Retail POS chrome.
+        static let retailSheet = Color(hex: "#1E293B")
         static let servicesCanvas = Color(hex: "#042F2E")
         static let servicesCanvasTop = Color(hex: "#115E59")
         static let servicesCanvasDeep = Color(hex: "#022C22")
@@ -222,6 +226,8 @@ enum BusinessTokens {
             colors["retail.onAccent"] = retailOnAccent
             colors["retail.heroStart"] = retailHeroStart
             colors["retail.heroEnd"] = retailHeroEnd
+            colors["retail.whyBody"] = retailWhyBody
+            colors["retail.sheet"] = retailSheet
             colors["services.canvas"] = servicesCanvas
             colors["services.canvasTop"] = servicesCanvasTop
             colors["services.canvasDeep"] = servicesCanvasDeep

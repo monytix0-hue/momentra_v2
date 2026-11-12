@@ -1,0 +1,6 @@
+appId: resolvingpoint.momentra
+---
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: ".*Quickadds.*|.*Sale.*|.*Outstanding.*|.*Northstar.*"
+    timeout: 20000

@@ -67,6 +67,8 @@ internal fun RestaurantPosSheet(
     onSubmit: (RestaurantEventDraft) -> Unit,
     /** When opened from KOT “Bill from KOT · POS”, pre-select that ticket. */
     initialParentKotId: String? = null,
+    /** In-memory ticket from KOT handoff — seed cart immediately without waiting for refetch. */
+    initialKotTicket: OperatingActivityDto? = null,
 ) {
     val currency = model.currency?.takeIf { it.isNotBlank() } ?: "INR"
     val venue = model.title?.takeIf { it.isNotBlank() } ?: "Spice Route BKC"
@@ -75,10 +77,12 @@ internal fun RestaurantPosSheet(
             .filter { it.kind.uppercase() == "MENU_DISH" }
             .sortedBy { it.name.lowercase() }
     }
-    val openKots = remember(model.activity) {
-        openOrders(model)
+    val openKots = remember(model.activity, initialKotTicket?.id) {
+        val base = openOrders(model)
             .filter { it.status?.uppercase() !in setOf("COMPLETED", "CANCELLED") }
             .sortedByDescending { it.occurredAt }
+        val handoff = initialKotTicket ?: return@remember base
+        if (base.any { it.id == handoff.id }) base else listOf(handoff) + base
     }
 
     var mode by remember { mutableStateOf(PosMode.InDining) }
@@ -102,17 +106,15 @@ internal fun RestaurantPosSheet(
     var packaging by remember { mutableStateOf("Standard") }
     var printChoice by remember { mutableStateOf("Thermal + KOT") }
     var moreOpen by remember { mutableStateOf(false) }
-    var showKotPicker by remember { mutableStateOf(initialParentKotId != null) }
-    var parentKotId by remember { mutableStateOf(initialParentKotId) }
+    var showKotPicker by remember { mutableStateOf(initialParentKotId != null || initialKotTicket != null) }
+    var parentKotId by remember { mutableStateOf(initialParentKotId ?: initialKotTicket?.id) }
     val cart = remember { mutableStateListOf<PosLine>() }
 
-    LaunchedEffect(initialParentKotId, openKots) {
-        val handoffId = initialParentKotId ?: return@LaunchedEffect
-        val handoff = openKots.firstOrNull { it.id == handoffId } ?: return@LaunchedEffect
-        parentKotId = handoff.id
+    fun seedFromTicket(ticket: OperatingActivityDto) {
+        parentKotId = ticket.id
         showKotPicker = true
         applyKotContext(
-            ticket = handoff,
+            ticket = ticket,
             menuDishes = menuDishes,
             cart = cart,
             onMode = { label ->
@@ -125,7 +127,21 @@ internal fun RestaurantPosSheet(
         )
     }
 
+    // Prefer in-memory handoff ticket so Bill-from-KOT lines appear before operating refetch.
+    LaunchedEffect(initialKotTicket?.id) {
+        val handoff = initialKotTicket ?: return@LaunchedEffect
+        seedFromTicket(handoff)
+    }
+
+    LaunchedEffect(initialParentKotId, openKots) {
+        val handoffId = initialParentKotId ?: return@LaunchedEffect
+        if (initialKotTicket?.id == handoffId && cart.isNotEmpty()) return@LaunchedEffect
+        val handoff = openKots.firstOrNull { it.id == handoffId } ?: return@LaunchedEffect
+        seedFromTicket(handoff)
+    }
+
     val linkedKot = openKots.firstOrNull { it.id == parentKotId }
+        ?: initialKotTicket?.takeIf { it.id == parentKotId }
     val subtotal = cart.fold(BigDecimal.ZERO) { total, line -> total + line.amount() }
     val discountBd = PosSettlement.parseAmount(discount)
     val cessBd = PosSettlement.parseAmount(cessAmount)

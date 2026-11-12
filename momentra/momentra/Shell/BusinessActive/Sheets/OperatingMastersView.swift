@@ -321,28 +321,30 @@ struct OperatingMastersView: View {
     }
 
     private var inviteBlock: some View {
-        if theme.isMarketingQaCapture {
-            // Client indigo Invite + Own soft-magenta Invite (`2584:29990`).
-            MarketingClientInviteBlock(theme: theme, model: model)
-        } else {
-            OperatingCard(theme: theme) {
-                Text(
-                    theme.isDistributionCapture
-                        ? "Invite team"
-                        : "Invite a person into this company"
-                )
-                    .font(.plusJakarta(size: 15, weight: .semibold))
-                    .foregroundStyle(theme.ink)
-                Text(
-                    theme.isDistributionCapture
-                        ? DistributionMasterCopy.tabNote(.invite)
-                        : "An invite grants a role and its access. Joining is not approval, and approval is not payment."
-                )
-                    .font(.plusJakarta(size: 12))
-                    .foregroundStyle(theme.body)
-                Text("Use the company Invite sheet to issue a code or QR.")
-                    .font(.plusJakarta(size: 12))
-                    .foregroundStyle(theme.muted)
+        Group {
+            if theme.isMarketingQaCapture {
+                // Client indigo Invite + Own soft-magenta Invite (`2584:29990`).
+                MarketingClientInviteBlock(theme: theme, model: model)
+            } else {
+                OperatingCard(theme: theme) {
+                    Text(
+                        theme.isDistributionCapture
+                            ? "Invite team"
+                            : "Invite a person into this company"
+                    )
+                        .font(.plusJakarta(size: 15, weight: .semibold))
+                        .foregroundStyle(theme.ink)
+                    Text(
+                        theme.isDistributionCapture
+                            ? DistributionMasterCopy.tabNote(.invite)
+                            : "An invite grants a role and its access. Joining is not approval, and approval is not payment."
+                    )
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(theme.body)
+                    Text("Use the company Invite sheet to issue a code or QR.")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(theme.muted)
+                }
             }
         }
     }

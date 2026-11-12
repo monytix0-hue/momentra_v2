@@ -134,7 +134,10 @@ private struct RestaurantCaptureForm: View {
             if model.masters.isEmpty { await model.loadMasters() }
         }
         .sheet(item: $masterFormKind) { kind in
-            RestaurantMasterFormSheet(theme: theme, kind: kind, model: model) {
+            RestaurantMasterFormSheet(theme: theme, kind: kind, model: model) { savedName in
+                if kind == .vendor, !savedName.isEmpty {
+                    draft.counterparty = savedName
+                }
                 masterFormKind = nil
                 Task { await model.loadMasters() }
             }
@@ -223,11 +226,53 @@ private struct RestaurantCaptureForm: View {
             style: .tender
         )
 
-        EmberPickerRow(
-            label: "Supplier",
-            value: draft.counterparty.isEmpty ? "Select supplier" : draft.counterparty,
-            action: { cycleSupplier() }
-        )
+        VStack(alignment: .leading, spacing: 6) {
+            EmberFieldLabel(text: "Supplier")
+            HStack(spacing: 8) {
+                Button {
+                    cycleSupplier()
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(draft.counterparty.isEmpty ? "Select supplier" : draft.counterparty)
+                            .font(.plusJakarta(size: 14, weight: .medium))
+                            .foregroundStyle(
+                                draft.counterparty.isEmpty
+                                    ? EmberSheetChrome.textFaint
+                                    : EmberSheetChrome.textPrimary
+                            )
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("›")
+                            .font(.plusJakarta(size: 16, weight: .bold))
+                            .foregroundStyle(EmberSheetChrome.textBody)
+                    }
+                    .padding(12)
+                    .background(EmberSheetChrome.chip)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(EmberSheetChrome.hairline, lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    masterFormKind = .vendor
+                } label: {
+                    Text("+")
+                        .font(.plusJakarta(size: 22, weight: .bold))
+                        .foregroundStyle(EmberSheetChrome.ember)
+                        .frame(width: 46, height: 46)
+                        .background(EmberSheetChrome.chip)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(EmberSheetChrome.hairline, lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("New vendor")
+            }
+        }
         EmberPickerRow(
             label: "Deliver to",
             value: draft.location.isEmpty ? kitchenLine : draft.location,
@@ -892,7 +937,8 @@ private struct RestaurantCaptureForm: View {
     }
 
     private func cycleSupplier() {
-        let suppliers = model.masters.filter { $0.kind.uppercased().contains("SUPPLIER") || $0.kind.uppercased().contains("VENDOR") }
+        let kinds: Set<String> = ["VENDOR", "SUPPLIER", "PRINCIPAL"]
+        let suppliers = model.masters.filter { kinds.contains($0.kind.uppercased()) }
         guard !suppliers.isEmpty else {
             draft.counterparty = draft.counterparty.isEmpty ? "Fresh Farm" : nextFixture(["Fresh Farm", "Dairy Co", "Spice Traders"], current: draft.counterparty)
             return

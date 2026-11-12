@@ -36,6 +36,7 @@ struct RetailPosSheet: View {
     @State private var selectedHoldId: String?
     @State private var showSkuPicker = false
     @State private var showBarcodeScanner = false
+    @State private var scanBanner: String?
     @State private var gstPicker = "Inclusive · selection only"
     @State private var billPrint = "Thermal · share UPI QR"
     @State private var postedReceipt: RetailReceiptModel?
@@ -469,7 +470,7 @@ struct RetailPosSheet: View {
         RoseFieldLabel(text: "Scan or search SKU")
         RoseScanField(
             theme: theme,
-            placeholder: catalogue.isEmpty ? "Add SKU under Catalogue first" : "HM-044  ·  tap to scan",
+            placeholder: catalogue.isEmpty ? "Add SKU under Catalogue first" : "SKU code · tap to scan",
             query: $skuQuery,
             actionLabel: "Scan",
             action: {
@@ -482,6 +483,12 @@ struct RetailPosSheet: View {
             },
             disabled: catalogue.isEmpty
         )
+        if let scanBanner {
+            Text(scanBanner)
+                .font(.plusJakarta(size: 12, weight: .medium))
+                .foregroundStyle(theme.negative)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
         if catalogue.isEmpty {
             RoseEmptyCard(
                 theme: theme,
@@ -952,26 +959,25 @@ struct RetailPosSheet: View {
     private func addSku() {
         let typed = skuQuery.trimmingCharacters(in: .whitespaces)
         guard !catalogue.isEmpty, !typed.isEmpty else { return }
-        let match = catalogue.first { ($0.code ?? "").caseInsensitiveCompare(typed) == .orderedSame }
-            ?? catalogue.first { ($0.barcode ?? "").caseInsensitiveCompare(typed) == .orderedSame }
-            ?? catalogue.first { $0.name.localizedCaseInsensitiveContains(typed) }
-        if let match {
+        if let match = retailMatchCatalogSku(catalogue, query: typed) {
             add(match)
             skuQuery = ""
+            scanBanner = nil
+        } else {
+            scanBanner = "No product for this code — pick from catalogue or add under Catalogue."
         }
     }
 
     private func applyPosScan(_ raw: String) {
         let typed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !typed.isEmpty else { return }
-        let match = catalogue.first { ($0.code ?? "").caseInsensitiveCompare(typed) == .orderedSame }
-            ?? catalogue.first { ($0.barcode ?? "").caseInsensitiveCompare(typed) == .orderedSame }
-            ?? catalogue.first { $0.name.localizedCaseInsensitiveContains(typed) }
-        if let match {
+        if let match = retailMatchCatalogSku(catalogue, query: typed) {
             add(match)
             skuQuery = ""
+            scanBanner = nil
         } else {
             skuQuery = typed
+            scanBanner = "No product for this code — pick from catalogue or add under Catalogue."
         }
     }
 
@@ -1119,7 +1125,10 @@ struct RetailPosSheet: View {
                 tender: tenderLabel,
                 customer: guest.isEmpty ? nil : guest,
                 quickAmountOnly: false,
-                gstEstimatePlain: scanGstEstimate.map { NSDecimalNumber(decimal: $0).stringValue }
+                gstEstimatePlain: scanGstEstimate.map { NSDecimalNumber(decimal: $0).stringValue },
+                enteredBy: RetailReceiptBuilder.enteredBy(
+                    fallback: model.projection?.participants?.first
+                )
             )
         }()
 
@@ -1295,6 +1304,25 @@ private func productionMasterId(_ masterId: String?) -> String? {
     return id
 }
 
+/// Match order: exact code → exact barcode → name contains (min length 2).
+func retailMatchCatalogSku(_ skus: [OperatingMasterPayload], query: String) -> OperatingMasterPayload? {
+    let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !q.isEmpty else { return nil }
+    if let byCode = skus.first(where: { ($0.code ?? "").caseInsensitiveCompare(q) == .orderedSame }) {
+        return byCode
+    }
+    if let byBarcode = skus.first(where: {
+        let barcode = ($0.barcode ?? "").trimmingCharacters(in: .whitespaces)
+        return !barcode.isEmpty && barcode.caseInsensitiveCompare(q) == .orderedSame
+    }) {
+        return byBarcode
+    }
+    if q.count >= 2 {
+        return skus.first(where: { $0.name.localizedCaseInsensitiveContains(q) })
+    }
+    return nil
+}
+
 private extension RetailPosSheet {
     func quickGstRateHint() -> String? {
         guard gstPicker.hasPrefix("Inclusive") || gstPicker.hasPrefix("Exclusive") else { return nil }
@@ -1347,12 +1375,5 @@ enum RetailGstEstimate {
     static func onTotal(_ amount: Decimal?, ratePercent: String?, inclusive: Bool = true) -> Decimal? {
         guard let amount, amount > 0 else { return nil }
         return from(amounts: [amount], rates: [ratePercent], inclusive: inclusive)
-    }
-}
-
-private extension String {
-    var nilIfBlank: String? {
-        let t = trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.isEmpty ? nil : t
     }
 }

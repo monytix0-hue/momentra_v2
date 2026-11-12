@@ -36,6 +36,23 @@ enum RetailCaptureCopy {
     static let opsModes: Set<String> = ["ORDER", "STOCK", "STATUS"]
 
     static let soCatalogueCategories = ["Staples", "Snacks", "Personal care", "Beverages", "Home care"]
+    static let catalogueCategories = soCatalogueCategories
+
+    /// Subcategory chips keyed by Category (payload.subcategory).
+    static func catalogueSubcategories(_ category: String) -> [String] {
+        switch category {
+        case "Staples": return ["Grains", "Oils", "Pulses", "Spices", "Salt and sugar"]
+        case "Snacks": return ["Biscuits", "Namkeen", "Chips", "Sweets"]
+        case "Personal care": return ["Soap", "Hair", "Oral", "Skin"]
+        case "Beverages": return ["Soft drinks", "Juice", "Tea and coffee", "Water"]
+        case "Home care": return ["Cleaners", "Detergent", "Kitchen"]
+        default: return []
+        }
+    }
+
+    static func defaultSubcategory(_ category: String) -> String {
+        catalogueSubcategories(category).first ?? ""
+    }
     static let poStockCategories = ["Staples", "Beverages", "Dairy", "Packaging", "Home care", "Consumables"]
 
     static func modeChips(_ mode: String) -> [String] {
@@ -248,8 +265,8 @@ enum RetailCaptureCopy {
 
     static func scanPlaceholder(_ mode: String) -> String {
         switch mode.uppercased() {
-        case "PURCHASE": return "INV-8841  ·  tap to scan"
-        case "STOCK": return "HM-044  ·  tap to scan"
+        case "PURCHASE": return "SKU code · tap to scan"
+        case "STOCK": return "SKU code · tap to scan"
         default: return "Scan · tap"
         }
     }

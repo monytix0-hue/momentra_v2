@@ -194,8 +194,8 @@ struct MtoMasterFormSheet: View {
             title: name,
             amount: kind == .part && !sell.isEmpty ? sell : nil,
             note: note,
-            counterpartyName: kind == .vendor ? name : (kind == .bom ? issueFrom : nil),
             channelName: kind == .bom ? defaultLine : (kind == .part ? defaultStore : nil),
+            counterpartyName: kind == .vendor ? name : (kind == .bom ? issueFrom : nil),
             unit: kind == .part || kind == .bom ? unit : nil,
             masterKind: masterKind
         ))

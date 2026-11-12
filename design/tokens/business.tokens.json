@@ -117,7 +117,9 @@
         "accentDeep": { "$type": "color", "$value": "#E11D48", "$extensions": { "figma": "RTL roseBorder / inactive chip stroke" } },
         "onAccent": { "$type": "color", "$value": "#FFFFFF", "$extensions": { "figma": "RTL POS CTA ink (Figma white)" } },
         "heroStart": { "$type": "color", "$value": "#F43F5E", "$extensions": { "figma": "RTL-PULSE-v12 hero (solid)" } },
-        "heroEnd": { "$type": "color", "$value": "#F43F5E", "$extensions": { "figma": "RTL-PULSE-v12 hero (solid)" } }
+        "heroEnd": { "$type": "color", "$value": "#F43F5E", "$extensions": { "figma": "RTL-PULSE-v12 hero (solid)" } },
+        "whyBody": { "$type": "color", "$value": "#FFE4E6", "$extensions": { "figma": "RTL Why body soft rose wash" } },
+        "sheet": { "$type": "color", "$value": "#1E293B", "$extensions": { "figma": "RTL POS sheet / tile slate" } }
       },
       "services": {
         "canvas": { "$type": "color", "$value": "#042F2E", "$extensions": { "figma": "SVC-PULSE-v12 2401:29655 canvas gradient mid" } },

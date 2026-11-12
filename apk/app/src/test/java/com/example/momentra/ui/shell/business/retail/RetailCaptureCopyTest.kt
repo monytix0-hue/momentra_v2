@@ -74,6 +74,20 @@ class RetailCaptureCopyTest {
     }
 
     @Test
+    fun catalogueSubcategoriesMatchLockedTaxonomy() {
+        assertEquals(
+            listOf("Grains", "Oils", "Pulses", "Spices", "Salt and sugar"),
+            RetailCaptureCopy.catalogueSubcategories("Staples"),
+        )
+        assertEquals("Grains", RetailCaptureCopy.defaultSubcategory("Staples"))
+        assertEquals(
+            listOf("Biscuits", "Namkeen", "Chips", "Sweets"),
+            RetailCaptureCopy.catalogueSubcategories("Snacks"),
+        )
+        assertTrue(RetailCaptureCopy.catalogueSubcategories("Unknown").isEmpty())
+    }
+
+    @Test
     fun phase4OrderStockStatusCopyMatchesFigma() {
         assertEquals("Sales Order", RetailCaptureCopy.sheetTitle("ORDER"))
         assertEquals("Purchase Order", RetailCaptureCopy.sheetTitle("PURCHASE_ORDER"))

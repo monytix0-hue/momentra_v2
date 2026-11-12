@@ -27,6 +27,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import com.example.momentra.data.api.OperatingProjectionDto
+import com.example.momentra.ui.shell.business.mto.MtoToastHost
+import com.example.momentra.ui.shell.business.mto.MtoToastKind
+import com.example.momentra.ui.shell.business.mto.MtoToastSpec
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureDraft
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
@@ -200,8 +203,27 @@ fun RetailQuickAddHub(
                     companyId = companyId,
                     onSubmit = { draft ->
                         scope.launch {
-                            runCatching { onRecord(draft) }.onFailure { error = it.message }
-                            sheet = null
+                            error = null
+                            runCatching { onRecord(draft) }
+                                .onSuccess {
+                                    if (draft.eventType.equals("COLLECTION", true) ||
+                                        draft.eventType.equals("PAYMENT", true)
+                                    ) {
+                                        MtoToastHost.show(
+                                            MtoToastSpec(
+                                                kind = MtoToastKind.Saved,
+                                                title = RetailCaptureCopy.SAVED_TOAST,
+                                                body = RetailCaptureCopy.TAGLINE,
+                                                actionLabel = "Done",
+                                                accent = RetailRose.positive,
+                                            ),
+                                        )
+                                    }
+                                    sheet = null
+                                }
+                                .onFailure {
+                                    error = it.message ?: "Could not save"
+                                }
                         }
                     },
                     onMasterSubmit = { draft ->

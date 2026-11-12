@@ -1,0 +1,30 @@
+appId: resolvingpoint.momentra
+---
+- tapOn: "✕"
+- scrollUntilVisible:
+    element: "Vendors"
+    direction: UP
+    timeout: 8000
+- scrollUntilVisible:
+    element: "Vendors"
+    direction: DOWN
+    timeout: 8000
+- tapOn: "Vendors"
+- extendedWaitUntil:
+    visible: ".*[Vv]endor.*"
+    timeout: 8000
+- tapOn: ".*New vendor.*|\\+ New.*"
+- extendedWaitUntil:
+    visible: "Save vendor"
+    timeout: 10000
+- tapOn: "e.g. Coastal Fish Co."
+- eraseText
+- inputText: "Fresh Farm QA"
+- scrollUntilVisible:
+    element: "Save vendor.*"
+    direction: DOWN
+    timeout: 8000
+- tapOn: "Save vendor.*"
+- extendedWaitUntil:
+    visible: ".*[Ss]aved.*|Fresh Farm QA"
+    timeout: 20000

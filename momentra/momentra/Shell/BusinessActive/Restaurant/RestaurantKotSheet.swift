@@ -6,6 +6,8 @@ import SwiftUI
 struct RestaurantKotSheet: View {
     let theme: OperatingTheme
     @ObservedObject var model: BusinessOperatingModel
+    /// Handoff into POS Bill with the selected in-memory ticket (avoids empty wait for refetch).
+    var onBillFromKot: ((OperatingActivityPayload) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
 
@@ -226,6 +228,25 @@ struct RestaurantKotSheet: View {
                 }
 
                 EmberWhyBox(text: whyCopy)
+
+                if let onBillFromKot, let selectedTicket, tab != .send {
+                    Button {
+                        onBillFromKot(selectedTicket)
+                    } label: {
+                        Text("Bill from KOT · POS")
+                            .font(.plusJakarta(size: 13, weight: .semibold))
+                            .foregroundStyle(EmberSheetChrome.textPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(EmberSheetChrome.chip)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .strokeBorder(EmberSheetChrome.ember, lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 EmberStickyFooter(
                     title: footerTitle,

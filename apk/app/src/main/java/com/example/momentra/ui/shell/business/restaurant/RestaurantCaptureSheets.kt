@@ -61,7 +61,7 @@ internal fun RestaurantCaptureSheet(
     onMasterSubmit: ((RestaurantEventDraft) -> Unit)? = null,
 ) {
     when (kind) {
-        RestaurantSheetKind.Purchase -> RestaurantPurchaseSheet(model, onDismiss, onSubmit)
+        RestaurantSheetKind.Purchase -> RestaurantPurchaseSheet(model, onDismiss, onSubmit, onMasterSubmit)
         RestaurantSheetKind.Collection -> RestaurantCollectionSheet(model, onDismiss, onSubmit)
         RestaurantSheetKind.Payment -> RestaurantPaymentSheet(model, onDismiss, onSubmit)
         RestaurantSheetKind.Spend -> RestaurantExpenseSheet(model, onDismiss, onSubmit)
@@ -101,11 +101,14 @@ private fun newCaptureLine(seed: Int = 0) = CaptureLineDraft(
 
 // ── Phase 4: Purchase `2400:30129` ───────────────────────────────────────────
 
+private val purchaseSupplierKinds = setOf("VENDOR", "SUPPLIER", "PRINCIPAL")
+
 @Composable
 private fun RestaurantPurchaseSheet(
     model: OperatingProjectionDto,
     onDismiss: () -> Unit,
     onSubmit: (RestaurantEventDraft) -> Unit,
+    onMasterSubmit: ((RestaurantEventDraft) -> Unit)? = null,
 ) {
     val currency = model.currency ?: "INR"
     val kitchen = RestaurantCaptureCopy.kitchenLine(model.title, model.location)
@@ -116,8 +119,16 @@ private fun RestaurantPurchaseSheet(
     var tender by remember { mutableStateOf("Pay later") }
     var note by remember { mutableStateOf("") }
     var moreOpen by remember { mutableStateOf(false) }
+    var createForm by remember { mutableStateOf<RestaurantMasterFormKind?>(null) }
     val lines = remember { mutableStateListOf(newCaptureLine(1), newCaptureLine(2)) }
-    val suppliers = model.masters.orEmpty().filter { it.kind.equals("SUPPLIER", true) }
+    val localVendors = remember { mutableStateListOf<String>() }
+    val fromModelSuppliers = model.masters.orEmpty()
+        .filter { it.kind.uppercase() in purchaseSupplierKinds }
+        .sortedBy { it.name.lowercase() }
+    val knownSupplierNames = fromModelSuppliers.map { it.name.lowercase() }.toSet()
+    val suppliers = fromModelSuppliers + localVendors
+        .filter { it.isNotBlank() && it.lowercase() !in knownSupplierNames }
+        .map { OperatingMasterDto(id = "local-$it", kind = "VENDOR", name = it) }
     val filledCount = lines.count { it.name.isNotBlank() }
     val goods = lines.goodsTotal()
     val amountStr = goods.stripTrailingZeros().toPlainString()
@@ -188,14 +199,39 @@ private fun RestaurantPurchaseSheet(
         }
         EmberChipRow(listOf("Pay later", "UPI now", "Cash"), tender, tenderStyle = true) { tender = it }
         EmberFieldLabel("Supplier")
-        EmberChevronField(
-            label = "Supplier",
-            value = supplier.ifBlank { suppliers.firstOrNull()?.name ?: "Select supplier" },
-            onClick = {
-                supplier = suppliers.firstOrNull()?.name?.takeIf { it.isNotBlank() }
-                    ?: supplier.ifBlank { "Fresh Farm" }
-            },
-        )
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(Modifier.weight(1f)) {
+                EmberChevronField(
+                    label = "",
+                    value = supplier.ifBlank { suppliers.firstOrNull()?.name ?: "Select supplier" },
+                    onClick = {
+                        supplier = suppliers.firstOrNull()?.name?.takeIf { it.isNotBlank() }
+                            ?: supplier.ifBlank { "Fresh Farm" }
+                    },
+                )
+            }
+            Box(
+                Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(RestaurantEmber.chip)
+                    .border(1.dp, RestaurantEmber.hairline, RoundedCornerShape(12.dp))
+                    .clickable(
+                        onClickLabel = RestaurantCaptureCopy.PURCHASE_NEW_VENDOR,
+                    ) { createForm = RestaurantMasterFormKind.Vendor },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "+",
+                    style = RestaurantEmber.rowValue(RestaurantEmber.ember).copy(fontSize = 22.sp),
+                    maxLines = 1,
+                )
+            }
+        }
         suppliers.take(3).forEach { row ->
             EmberChevronField(label = "", value = row.name, onClick = { supplier = row.name })
         }
@@ -247,6 +283,34 @@ private fun RestaurantPurchaseSheet(
                         staffName = owner,
                     ),
                 ),
+            )
+        }
+    }
+
+    createForm?.let { kind ->
+        com.example.momentra.ui.shell.business.shared.OperatingSheetScrim(
+            onDismiss = { createForm = null },
+            accent = RestaurantEmber.ember,
+            surface = RestaurantEmber.card,
+            border = RestaurantEmber.sheetBorder,
+            topCorner = RestaurantEmber.sheetTopCorner,
+        ) {
+            RestaurantMasterFormSheet(
+                kind = kind,
+                model = model,
+                onDismiss = { createForm = null },
+                onSubmit = { draft ->
+                    val name = draft.master?.name?.takeIf { it.isNotBlank() } ?: draft.title
+                    if (name.isNotBlank()) {
+                        supplier = name
+                        if (localVendors.none { it.equals(name, ignoreCase = true) }) {
+                            localVendors.add(name)
+                        }
+                    }
+                    (onMasterSubmit ?: onSubmit)(draft)
+                    createForm = null
+                    captureSavedToast()
+                },
             )
         }
     }

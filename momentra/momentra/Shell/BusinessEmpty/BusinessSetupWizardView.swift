@@ -987,7 +987,6 @@ struct BusinessSetupWizardView: View {
         }
     }
 
-    @ViewBuilder
     /// Opening a §04 row. Masters are company-scoped, and a freshly created draft may not have a
     /// company yet, so one is created the first time a row is actually used — an untouched
     /// document never leaves a company behind. When that is needed the sheet waits for the id:

@@ -251,6 +251,7 @@ internal fun RetailPosSheet(
                     customer = customer.takeIf { it.isNotBlank() },
                     quickAmountOnly = true,
                     gstEstimatePlain = quickGstEstimate?.stripTrailingZeros()?.toPlainString(),
+                    enteredBy = retailReceiptEnteredBy(context),
                 )
             }
             RetailPosMode.ScanCart -> {
@@ -303,6 +304,7 @@ internal fun RetailPosSheet(
                     customer = customer.takeIf { it.isNotBlank() },
                     quickAmountOnly = false,
                     gstEstimatePlain = scanGstEstimate?.stripTrailingZeros()?.toPlainString(),
+                    enteredBy = retailReceiptEnteredBy(context),
                 )
             }
             RetailPosMode.HoldRecall -> return
@@ -341,13 +343,13 @@ internal fun RetailPosSheet(
     fun applyPosScan(raw: String) {
         val trimmed = raw.trim()
         if (trimmed.isBlank()) return
-        val match = skus.firstOrNull {
-            it.barcode.equals(trimmed, true) ||
-                it.code.equals(trimmed, true) ||
-                it.name.contains(trimmed, true)
+        val match = retailMatchCatalogSku(skus, trimmed)
+        if (match != null) {
+            addMatchedSku(match)
+        } else {
+            query = trimmed
+            retailUnmatchedScanToast()
         }
-        if (match != null) addMatchedSku(match)
-        else query = trimmed
     }
 
     if (postedReceipt != null) {
@@ -416,8 +418,8 @@ internal fun RetailPosSheet(
                     placeholder = if (skus.isEmpty()) {
                         "No SKU — add under Catalogue"
                     } else {
-                        skus.firstOrNull()?.code?.takeIf { it.isNotBlank() }?.let { "$it  ·  tap to scan" }
-                            ?: "Barcode or product name  ·  tap to scan"
+                        if (skus.isEmpty()) "Add SKU under Catalogue first"
+                        else "SKU code · tap to scan"
                     },
                     onQueryChange = { query = it },
                     onScan = {

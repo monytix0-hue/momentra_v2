@@ -42,6 +42,19 @@ enum ServiceCaptureCopy {
         }
     }
 
+    static func amountHint(_ mode: String) -> String {
+        switch mode.uppercased() {
+        case "SERVICE": return "From booking or walk-in"
+        case "PURCHASE", "VENDOR": return "Supplier total"
+        case "COLLECTION": return "Package balance"
+        case "PAYMENT", "REIMBURSE": return "Open AP"
+        case "SPEND": return "Running cost"
+        case "APPOINTMENT", "BOOKING": return "Not revenue"
+        case "BUDGET", "TARGET": return "Effective-dated"
+        default: return "Positive amount"
+        }
+    }
+
     static func why(_ mode: String) -> String {
         switch mode.uppercased() {
         case "SERVICE":

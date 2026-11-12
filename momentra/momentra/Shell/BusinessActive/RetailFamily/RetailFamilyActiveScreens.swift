@@ -1301,10 +1301,3 @@ private enum RetailFamilyFormat {
         return "\(days + 1)"
     }
 }
-
-private extension String {
-    var nilIfBlank: String? {
-        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-}
