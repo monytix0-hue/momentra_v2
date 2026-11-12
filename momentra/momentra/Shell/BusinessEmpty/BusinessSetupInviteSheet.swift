@@ -28,6 +28,8 @@ struct BusinessSetupInviteSheet: View {
     @State private var saved = false
     @State private var showShare = false
     @State private var shareItems: [Any] = []
+    /// Distinguishes Media buyer vs Creative when both mint as CONTRIBUTOR.
+    @State private var selectedRoleLabel: String = ""
 
     private static let contactPreviewLimit = 5
 
@@ -155,10 +157,19 @@ struct BusinessSetupInviteSheet: View {
             Text("Role")
                 .font(.plusJakarta(size: 11, weight: .bold))
                 .foregroundStyle(theme.accent)
-            HStack(spacing: 6) {
+            FlowLayout(spacing: 6) {
                 ForEach(BusinessSetupDocSpec.roles(theme.vertical)) { role in
-                    let selected = role.code == roleCode
+                    let selected: Bool = {
+                        if theme.vertical.isMarketing {
+                            let label = selectedRoleLabel.isEmpty
+                                ? BusinessSetupDocSpec.roleLabel(roleCode, vertical: theme.vertical)
+                                : selectedRoleLabel
+                            return role.label == label
+                        }
+                        return role.code == roleCode
+                    }()
                     Button {
+                        selectedRoleLabel = role.label
                         onRoleChange(role.code)
                     } label: {
                         Text(role.label)

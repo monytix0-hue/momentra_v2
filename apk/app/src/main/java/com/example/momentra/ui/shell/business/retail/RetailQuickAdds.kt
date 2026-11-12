@@ -1,7 +1,6 @@
 package com.example.momentra.ui.shell.business.retail
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,31 +11,25 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.momentra.data.api.OperatingProjectionDto
-import com.example.momentra.ui.shell.business.shared.BusinessInviteQr
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureDraft
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
-import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
-import com.example.momentra.ui.shell.business.shared.RoseInvitePalette
 import com.example.momentra.ui.theme.RetailRose
 
 /**
@@ -45,6 +38,11 @@ import com.example.momentra.ui.theme.RetailRose
  * 9 core tiles (3 × 3) + 5 support tiles (3 + 2 wide). Tile order, labels and
  * captions match the frame; a tile the role cannot submit renders locked instead of
  * disappearing, so the grid keeps its shape.
+ *
+ * **Utilities · 3 decision:** Figma hub shows Core · 9 + Support · 5 only (no Hold /
+ * Transfer / Reprint band). Those remain required RTL screens (`2508:29333` / `29447` /
+ * `29537`). Keep a muted Utilities row for HTR discovery — same as Service —
+ * rather than deleting HTR or folding into Support · 5.
  */
 @Composable
 fun RetailQuickAddHub(
@@ -52,13 +50,24 @@ fun RetailQuickAddHub(
     onRecord: suspend (RetailEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
     momentId: String? = null,
+    companyId: String? = null,
     onDismiss: () -> Unit = {},
+    holdSession: RetailHoldSession? = null,
 ) {
     val allowed = model.quickAdds.map { it.code }.toSet()
     var sheet by remember { mutableStateOf<RetailSheet?>(null) }
     var mastersOpen by remember { mutableStateOf<MastersTab?>(null) }
     var approvalOpen by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val holdContext = androidx.compose.ui.platform.LocalContext.current
+    val parks = holdSession ?: remember(momentId, companyId) {
+        RetailHoldSession(
+            context = holdContext.applicationContext,
+            momentId = momentId,
+            companyId = companyId,
+        )
+    }
 
     Column(
         Modifier
@@ -97,13 +106,15 @@ fun RetailQuickAddHub(
             onApproval = { approvalOpen = true },
         )
 
-        GridSectionHeader("Utilities · 3", "Hold · move · reprint")
+        // Figma RTL-HUB omits Utilities; kept muted for HTR discovery (see file KDoc).
+        GridSectionHeader("Utilities · 3", "Hold · move · reprint", muted = true)
         QuickAddGrid(
             tiles = RetailUtilityTiles,
             allowed = allowed,
             onSheet = { sheet = it },
             onMasters = { mastersOpen = it },
             onApproval = { approvalOpen = true },
+            muted = true,
         )
 
         WhyNote(
@@ -122,31 +133,101 @@ fun RetailQuickAddHub(
     }
 
     sheet?.let { open ->
-        OperatingSheetScrim(onDismiss = { sheet = null }, accent = RetailRose.rose) {
-            OperatingCaptureSheet(
-                title = open.title,
-                icon = open.icon,
-                eventType = open.eventType,
-                mode = open.mode,
-                model = model,
-                channelLabel = if (open == RetailSheet.SALE || open == RetailSheet.COLLECTION) "Sales channel" else "Channel",
-                variant = "standard",
-                onDismiss = { sheet = null },
-                onSubmit = { draft ->
-                    runCatching { onRecord(draft.toRetail()) }
-                        .onFailure { error = it.message }
-                    sheet = null
-                },
-            )
+        OperatingSheetScrim(
+            onDismiss = { sheet = null },
+            accent = RetailRose.rose,
+            surface = RetailRose.cardSlate,
+            border = RetailRose.roseBorder.copy(alpha = 0.45f),
+            topCorner = 28.dp,
+        ) {
+            when (open) {
+                RetailSheet.SALE -> RetailPosSheet(
+                    model = model,
+                    holdSession = parks,
+                    onDismiss = { sheet = null },
+                    companyId = companyId,
+                    momentId = momentId,
+                    onSubmit = { draft ->
+                        onRecord(draft)
+                    },
+                )
+                RetailSheet.HOLD -> RetailParkBillSheet(
+                    model = model,
+                    holdSession = parks,
+                    onDismiss = { sheet = null },
+                    onNavigate = { dest ->
+                        sheet = when (dest) {
+                            RetailUtilityNav.HOLD -> RetailSheet.HOLD
+                            RetailUtilityNav.TRANSFER -> RetailSheet.TRANSFER
+                            RetailUtilityNav.REPRINT -> RetailSheet.REPRINT
+                        }
+                    },
+                )
+                RetailSheet.TRANSFER -> RetailStockTransferSheet(
+                    model = model,
+                    holdSession = parks,
+                    onDismiss = { sheet = null },
+                    onNavigate = { dest ->
+                        sheet = when (dest) {
+                            RetailUtilityNav.HOLD -> RetailSheet.HOLD
+                            RetailUtilityNav.TRANSFER -> RetailSheet.TRANSFER
+                            RetailUtilityNav.REPRINT -> RetailSheet.REPRINT
+                        }
+                    },
+                    onSubmit = { draft ->
+                        scope.launch {
+                            runCatching { onRecord(draft) }.onFailure { error = it.message }
+                            sheet = null
+                        }
+                    },
+                )
+                RetailSheet.REPRINT -> RetailReprintSheet(
+                    model = model,
+                    onDismiss = { sheet = null },
+                    companyId = companyId,
+                    onNavigate = { dest ->
+                        sheet = when (dest) {
+                            RetailUtilityNav.HOLD -> RetailSheet.HOLD
+                            RetailUtilityNav.TRANSFER -> RetailSheet.TRANSFER
+                            RetailUtilityNav.REPRINT -> RetailSheet.REPRINT
+                        }
+                    },
+                )
+                else -> RetailCaptureSheet(
+                    sheet = open,
+                    model = model,
+                    onDismiss = { sheet = null },
+                    companyId = companyId,
+                    onSubmit = { draft ->
+                        scope.launch {
+                            runCatching { onRecord(draft) }.onFailure { error = it.message }
+                            sheet = null
+                        }
+                    },
+                    onMasterSubmit = { draft ->
+                        scope.launch {
+                            runCatching { onRecord(draft) }.onFailure { error = it.message }
+                            // Keep Order sheet open; projection refresh fills the browser.
+                        }
+                    },
+                )
+            }
         }
     }
 
     mastersOpen?.let { open ->
-        OperatingSheetScrim(onDismiss = { mastersOpen = null }, accent = RetailRose.rose) {
+        OperatingSheetScrim(
+            onDismiss = { mastersOpen = null },
+            accent = RetailRose.rose,
+            surface = RetailRose.cardSlate,
+            border = RetailRose.roseBorder.copy(alpha = 0.45f),
+            topCorner = 28.dp,
+        ) {
             RetailMastersSheet(
                 tab = open,
                 model = model,
                 momentId = momentId,
+                companyId = companyId,
                 onClose = { mastersOpen = null },
                 onRecord = onRecord,
                 onError = { error = it },
@@ -215,7 +296,7 @@ private val RetailCoreTiles = listOf(
     QuickTile("Purchase", "Goods · receive", RetailTileIcons.purchase, RetailSheet.PURCHASE, requires = "PURCHASE"),
     QuickTile("Collection", "Allocate open AR", RetailTileIcons.collection, RetailSheet.COLLECTION, requires = "COLLECTION"),
     QuickTile("Payment", "Settle open AP", RetailTileIcons.payment, RetailSheet.PAYMENT, requires = "PAYMENT"),
-    QuickTile("Expense", "Store running", RetailTileIcons.expense, RetailSheet.SPEND, requires = "SPEND"),
+    QuickTile("Expense", "Running cost", RetailTileIcons.expense, RetailSheet.SPEND, requires = "SPEND"),
     QuickTile("Stock", "Count · damage", RetailTileIcons.stock, RetailSheet.STOCK, requires = "STOCK"),
     QuickTile("Order", "Optional customer", RetailTileIcons.order, RetailSheet.ORDER, requires = "ORDER"),
     QuickTile("Status", "Dispatch / fulfil", RetailTileIcons.status, RetailSheet.STATUS, requires = "ORDER"),
@@ -231,7 +312,7 @@ private val RetailSupportTiles = listOf(
 )
 
 private val RetailUtilityTiles = listOf(
-    QuickTile("Hold", "Park order", RetailTileIcons.hold, RetailSheet.HOLD, requires = "ORDER"),
+    QuickTile("Hold", "Park bill", RetailTileIcons.hold, RetailSheet.HOLD, requires = "SALE"),
     QuickTile("Transfer", "Between stores", RetailTileIcons.transfer, RetailSheet.TRANSFER, requires = "STOCK"),
     QuickTile("Reprint", "Receipt · bill", RetailTileIcons.reprint, RetailSheet.REPRINT, requires = "SALE"),
 )
@@ -244,6 +325,7 @@ private fun QuickAddGrid(
     onSheet: (RetailSheet) -> Unit,
     onMasters: (MastersTab) -> Unit,
     onApproval: () -> Unit,
+    muted: Boolean = false,
 ) {
     val columns = 3
     val rows = buildList {
@@ -288,6 +370,7 @@ private fun QuickAddGrid(
                         label = tile.label,
                         caption = tile.caption,
                         locked = locked,
+                        muted = muted,
                         modifier = Modifier.weight(weight),
                         onClick = {
                             when {
@@ -304,171 +387,6 @@ private fun QuickAddGrid(
 }
 
 // ---------------------------------------------------------------------------------
-// Masters screens (Suppliers · Catalogue · Locations · Invite & QR)
-// ---------------------------------------------------------------------------------
-
-enum class MastersTab(val title: String, val masterKind: String?) {
-    Suppliers("Suppliers", "SUPPLIER"),
-    Catalogue("Catalogue", "PRODUCT"),
-    Locations("Locations", "LOCATION"),
-    Invite("Invite & QR", null),
-}
-
-/** Masters surface backed by real `masters` rows + the existing master-create endpoint. */
-@Composable
-private fun RetailMastersSheet(
-    tab: MastersTab,
-    model: OperatingProjectionDto,
-    momentId: String?,
-    onClose: () -> Unit,
-    onRecord: suspend (RetailEventDraft) -> Unit,
-    onError: (String) -> Unit,
-) {
-    var createOpen by remember { mutableStateOf(false) }
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = RetailRose.gutter, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center) {
-            Box(
-                Modifier
-                    .width(40.dp).height(5.dp)
-                    .clip(RoundedCornerShape(100.dp))
-                    .background(Color.White.copy(alpha = 0.2f)),
-            )
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(tab.title, style = RetailRose.screenTitle(), modifier = Modifier.weight(1f))
-            Text(
-                "Close",
-                style = RetailRose.viewAll().copy(color = RetailRose.textBody),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .clickable(onClick = onClose)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-            )
-        }
-        when (tab) {
-            MastersTab.Invite -> InviteAndQr(model, momentId, onError)
-            else -> MasterList(
-                tab = tab,
-                model = model,
-                onCreate = { createOpen = true },
-            )
-        }
-        Spacer(Modifier.height(20.dp))
-    }
-
-    if (createOpen) {
-        OperatingSheetScrim(onDismiss = { createOpen = false }, accent = RetailRose.rose) {
-            OperatingCaptureSheet(
-                title = "New ${tab.title.trimEnd('s')}",
-                icon = when (tab) {
-                    MastersTab.Suppliers -> RetailTileIcons.suppliers
-                    MastersTab.Catalogue -> RetailTileIcons.catalogue
-                    MastersTab.Locations -> RetailTileIcons.locations
-                    MastersTab.Invite -> RetailTileIcons.invite
-                },
-                eventType = "UPDATE",
-                mode = "MASTERS",
-                model = model,
-                onDismiss = { createOpen = false },
-                onSubmit = { draft ->
-                    runCatching { onRecord(draft.toRetail()) }.onFailure { onError(it.message ?: "Could not save") }
-                    createOpen = false
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun MasterList(
-    tab: MastersTab,
-    model: OperatingProjectionDto,
-    onCreate: () -> Unit,
-) {
-    val rows = model.masters.orEmpty().filter { master ->
-        when (tab) {
-            MastersTab.Suppliers -> master.kind.equals("SUPPLIER", true)
-            MastersTab.Catalogue -> master.kind in setOf("PRODUCT", "ITEM", "SKU", "MATERIAL")
-            MastersTab.Locations -> master.kind in setOf("LOCATION", "STORE", "CHANNEL")
-            MastersTab.Invite -> false
-        }
-    }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RetailRose.rCardTight)
-            .background(RetailRose.rose)
-            .clickable(onClick = onCreate)
-            .padding(vertical = 14.dp),
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            "New ${tab.title.trimEnd('s').lowercase()}",
-            style = RetailRose.storyCtaTitle(),
-            maxLines = 1,
-        )
-    }
-    if (rows.isEmpty()) {
-        RoseEmpty("Nothing here yet", "Records you add will be listed here.", glyph = "◇")
-        WhyNote(
-            when (tab) {
-                MastersTab.Catalogue -> "Catalogue rows only change on an explicit master record — never from a quick sale."
-                MastersTab.Locations -> "A location groups stock. Opening a new one does not move existing quantities."
-                else -> "Named partners are required for credit and payable tracking."
-            },
-        )
-        return
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        rows.forEach { master ->
-            AccentRow(
-                title = master.name.ifBlank { "Unnamed" },
-                caption = listOfNotNull(
-                    master.kind.lowercase().replaceFirstChar { it.uppercase() },
-                    master.unit?.takeIf { it.isNotBlank() }?.let { "UOM $it" },
-                    master.gstRate?.takeIf { it.isNotBlank() }?.let { "GST $it%" },
-                ).joinToString(" · "),
-                accent = RetailRose.rose,
-                severityLabel = master.barcode?.takeIf { it.isNotBlank() }?.let { "Scan" },
-                severityColor = RetailRose.cyan,
-            )
-        }
-    }
-    WhyNote(
-        when (tab) {
-            MastersTab.Catalogue -> "Catalogue rows only change on an explicit master record — never from a quick sale."
-            MastersTab.Locations -> "A location groups stock. Opening a new one does not move existing quantities."
-            else -> "Named partners are required for credit and payable tracking."
-        },
-    )
-}
-
-/** Invite & QR `2506:29333` — real mint, real QR, real contacts (shared surface). */
-@Composable
-private fun InviteAndQr(
-    model: OperatingProjectionDto,
-    momentId: String?,
-    onError: (String) -> Unit,
-) {
-    BusinessInviteQr(
-        momentId = momentId,
-        title = model.title.orEmpty(),
-        role = model.role,
-        palette = RoseInvitePalette,
-        iconRes = RetailTileIcons.invite,
-        noun = "store",
-        onError = onError,
-    )
-}
-
-
-// ---------------------------------------------------------------------------------
 // Draft contract (matches the pre-existing `POST …/operating-events` body)
 // ---------------------------------------------------------------------------------
 
@@ -481,9 +399,9 @@ data class RetailEventDraft(
     val title: String,
     val amount: String?,
     val note: String?,
-    val channelName: String?,
-    val counterpartyName: String?,
-    val paymentStatus: String?,
+    val channelName: String? = null,
+    val counterpartyName: String? = null,
+    val paymentStatus: String? = null,
     val occurredAt: String? = null,
     val quantity: String? = null,
     val unit: String? = null,
@@ -495,6 +413,8 @@ data class RetailEventDraft(
     val dueAt: String? = null,
     val contract: com.example.momentra.data.api.OperatingContractBody? = null,
     val lines: List<com.example.momentra.data.api.OperatingLineBody>? = null,
+    val master: com.example.momentra.data.api.OperatingMasterBody? = null,
+    val activityStatus: String? = null,
 )
 
 internal fun OperatingCaptureDraft.toRetail() = RetailEventDraft(
@@ -516,6 +436,27 @@ internal fun OperatingCaptureDraft.toRetail() = RetailEventDraft(
     dueAt = dueAt,
     contract = contract,
     lines = lines,
+    master = masterKind?.let { kind ->
+        com.example.momentra.data.api.OperatingMasterBody(
+            kind = kind,
+            name = title,
+            unit = unit,
+            sellPrice = unitPrice,
+            gstApplicable = masterGstApplicable,
+            gstClassification = masterGstClassification,
+            gstRate = masterGstRate,
+            priceIncludesGst = masterPriceIncludesGst,
+            salePriceIncludesGst = masterSalePriceIncludesGst,
+            purchasePriceIncludesGst = masterPurchasePriceIncludesGst,
+            gstEffectiveFrom = masterGstEffectiveFrom,
+            hsn = masterHsn,
+            gstRegistration = masterGstRegistration,
+            businessState = masterBusinessState,
+            billingState = masterBillingState,
+            deliveryState = masterDeliveryState,
+            gstin = masterGstin,
+        )
+    },
 )
 
 /** The ten capture sheets, named for the Figma frames. */
@@ -527,15 +468,17 @@ internal enum class RetailSheet(
 ) {
     SALE("Record Sale", "SALE", "SALE", RetailTileIcons.sale),
     PURCHASE("Record Purchase", "PURCHASE", "PURCHASE", RetailTileIcons.purchase),
-    COLLECTION("Money Collection", "COLLECTION", "COLLECTION", RetailTileIcons.collection),
+    COLLECTION("Record Collection", "COLLECTION", "COLLECTION", RetailTileIcons.collection),
     PAYMENT("Record Payment", "PAYMENT", "PAYMENT", RetailTileIcons.payment),
     SPEND("Record Expense", "SPEND", "SPEND", RetailTileIcons.expense),
     STOCK("Stock Update", "STOCK", "STOCK", RetailTileIcons.stock),
-    ORDER("Record Order", "ORDER", "ORDER", RetailTileIcons.order),
+    /** Opens SO/PO sheet; Save posts ORDER commitment only — never SALE/AP/stock/GST. */
+    ORDER("Sales Order", "ORDER", "ORDER", RetailTileIcons.order),
+    /** Ops status only — activityStatus on ORDER parent; never SALE/STOCK. */
     STATUS("Status / Assignment", "ORDER", "ORDER", RetailTileIcons.status),
-    BUDGET("Revise Budget", "BUDGET", "BUDGET", RetailTileIcons.budget),
-    ISSUE("Issue / Update", "ISSUE", "ISSUE", RetailTileIcons.issue),
-    HOLD("Hold / release", "ORDER", "HOLD", RetailTileIcons.hold),
+    BUDGET("Budget / Target Revision", "BUDGET", "BUDGET", RetailTileIcons.budget),
+    ISSUE("Issue / Approval / Update", "ISSUE", "ISSUE", RetailTileIcons.issue),
+    HOLD("Hold / Park bill", "ORDER", "HOLD", RetailTileIcons.hold),
     TRANSFER("Transfer stock", "STOCK", "TRANSFER", RetailTileIcons.transfer),
     REPRINT("Reprint receipt", "SALE", "REPRINT", RetailTileIcons.reprint),
 }

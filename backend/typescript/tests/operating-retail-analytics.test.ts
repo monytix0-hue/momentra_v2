@@ -798,6 +798,7 @@ describe('consumer service analytics CS / CS-L', () => {
         event('ord', 'ORDER', {
           title: 'Table 12',
           channelName: 'In-dining',
+          lines: [{ itemName: 'Butter chicken', quantity: '1', unit: 'plate' }],
           contract: fired.contract,
         }),
       ],
@@ -808,6 +809,8 @@ describe('consumer service analytics CS / CS-L', () => {
     assert.equal(activity?.locationName, 'Tandoor');
     assert.equal(activity?.clientKey, 'KOT-442');
     assert.equal(activity?.status, 'PREPARING');
+    assert.equal(activity?.lines?.length, 1);
+    assert.equal(activity?.lines?.[0]?.itemName, 'Butter chicken');
   });
 
   it('ALL-05: quick amount never moves stock', () => {
@@ -1017,5 +1020,52 @@ describe('retail food consumer v4 GST and boundaries', () => {
     ]);
     assert.equal(returned[0]?.onHand, 1);
     assert.equal(matchingIdempotency([{ operatingEventId: 'sale', idempotencyKey: 'retry' }], 'retry')?.operatingEventId, 'sale');
+  });
+});
+
+describe('CF-05 quotation vs confirmed order', () => {
+  it('isConfirmedOrder excludes unaccepted quotations', async () => {
+    const { isConfirmedOrder, postedSalesSummary } = await import(
+      '../src/modules/business/operating-retail-contract'
+    );
+    assert.equal(isConfirmedOrder({ eventType: 'ORDER', contract: { quotationStatus: 'SENT' } }), false);
+    assert.equal(isConfirmedOrder({ eventType: 'ORDER', contract: { quotationStatus: 'DRAFT' } }), false);
+    assert.equal(isConfirmedOrder({ eventType: 'ORDER', contract: { quotationStatus: 'ACCEPTED', orderStatus: 'PLACED' } }), true);
+    assert.equal(isConfirmedOrder({ eventType: 'ORDER', contract: { orderStatus: 'PLACED' } }), true);
+    assert.equal(isConfirmedOrder({ eventType: 'ORDER', contract: { quotationStatus: 'ACCEPTED', orderStatus: 'CANCELLED' } }), false);
+    assert.equal(isConfirmedOrder({ eventType: 'SALE' }), false);
+
+    const summary = postedSalesSummary(
+      [
+        {
+          operatingEventId: 'q1',
+          eventType: 'ORDER',
+          title: 'Quote',
+          amount: '1000',
+          approvalStatus: 'NONE',
+          contract: { quotationStatus: 'SENT', orderStatus: 'PLACED' },
+        } as RetailEvent,
+        {
+          operatingEventId: 'o1',
+          eventType: 'ORDER',
+          title: 'Confirmed',
+          amount: '2000',
+          approvalStatus: 'NONE',
+          contract: { quotationStatus: 'ACCEPTED', orderStatus: 'PLACED' },
+        } as RetailEvent,
+        {
+          operatingEventId: 's1',
+          eventType: 'SALE',
+          title: 'Sale',
+          amount: '500',
+          approvalStatus: 'NONE',
+          contract: { entryMode: 'QUICK', paymentState: 'RECEIVED' },
+        } as RetailEvent,
+      ],
+      true,
+      'INR'
+    );
+    assert.match(summary, /Open orders 1/);
+    assert.match(summary, /Posted sales 1/);
   });
 });

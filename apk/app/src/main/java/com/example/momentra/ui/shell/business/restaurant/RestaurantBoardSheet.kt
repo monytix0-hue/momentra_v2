@@ -18,11 +18,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,6 +35,7 @@ import com.example.momentra.data.api.OperatingBoardSectionDto
 import com.example.momentra.data.api.OperatingPaymentDto
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
+import com.example.momentra.ui.shell.business.shared.OperatingSheetChrome
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
 import com.example.momentra.ui.theme.RestaurantEmber
 
@@ -48,7 +54,18 @@ internal fun RestaurantBoardSheet(
     onOpenQuickAdd: () -> Unit = {},
     onRange: ((RestaurantSheetRoute) -> Unit)? = null,
 ) {
-    OperatingSheetScrim(onDismiss = onDismiss, accent = RestaurantEmber.ember) {
+    val sheetCode = route.chromeCode()
+    val statusFilters = sheetCode?.let { OperatingSheetChrome.statusFilters(it) }.orEmpty()
+    var status by remember(sheetCode) { mutableStateOf(statusFilters.firstOrNull() ?: "All") }
+    val footerCta = sheetCode?.let { OperatingSheetChrome.footerCta(it) }
+
+    OperatingSheetScrim(
+        onDismiss = onDismiss,
+        accent = RestaurantEmber.ember,
+        surface = RestaurantEmber.card,
+        border = RestaurantEmber.sheetBorder,
+        topCorner = RestaurantEmber.sheetTopCorner,
+    ) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -94,17 +111,42 @@ internal fun RestaurantBoardSheet(
                 maxLines = 2,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlineEmberChip("This month", onClick = onRange?.let { { it(RestaurantSheetRoute.MonthPicker) } })
-                OutlineEmberChip("Last month")
-                OutlineEmberChip("Custom range ›", onClick = onRange?.let { { it(RestaurantSheetRoute.DatePicker) } })
+                OutlineEmberChip(
+                    "This month",
+                    onClick = {
+                        OperatingChromeState.applySheetPeriod("This month")
+                        onRange?.invoke(RestaurantSheetRoute.MonthPicker)
+                    },
+                )
+                OutlineEmberChip(
+                    "Last month",
+                    onClick = { OperatingChromeState.applySheetPeriod("Last month") },
+                )
+                OutlineEmberChip(
+                    "Custom range ›",
+                    onClick = {
+                        OperatingChromeState.applySheetPeriod("Custom range ›")
+                        onRange?.invoke(RestaurantSheetRoute.DatePicker)
+                    },
+                )
+            }
+            if (statusFilters.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    statusFilters.forEach { option ->
+                        OutlineEmberChip(
+                            option,
+                            onClick = { status = option },
+                        )
+                    }
+                }
             }
 
             when (route) {
-                RestaurantSheetRoute.Attention -> SheetAttention(model, onOpenQuickAdd)
-                RestaurantSheetRoute.Payment -> SheetPayment(model, receivables = false)
-                RestaurantSheetRoute.Finance -> SheetPayment(model, receivables = true)
-                RestaurantSheetRoute.Activity, RestaurantSheetRoute.LifeSales -> SheetActivity(model)
-                RestaurantSheetRoute.People -> SheetPeople(model)
+                RestaurantSheetRoute.Attention -> SheetAttention(model, status, onOpenQuickAdd)
+                RestaurantSheetRoute.Payment -> SheetPayment(model, status, receivables = false)
+                RestaurantSheetRoute.Finance -> SheetPayment(model, status, receivables = true)
+                RestaurantSheetRoute.Activity, RestaurantSheetRoute.LifeSales -> SheetActivity(model, status)
+                RestaurantSheetRoute.People -> SheetPeople(model, status)
                 RestaurantSheetRoute.Target -> SheetTarget(model)
                 RestaurantSheetRoute.Gst -> SheetGst(model)
                 RestaurantSheetRoute.StoryConfig -> EmberEmpty(
@@ -120,25 +162,77 @@ internal fun RestaurantBoardSheet(
                 else -> {
                     val code = route.boardCode
                     if (code != null) {
-                        SheetSection(model, code)
+                        SheetSection(model, code, status)
                     } else {
                         EmberEmpty("Not available", "This board has not been recorded yet.")
                     }
                 }
+            }
+            if (footerCta != null && sheetCode != null) {
+                Text(
+                    footerCta,
+                    color = RestaurantEmber.screenBottom,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(RestaurantEmber.ember)
+                        .clickable {
+                            when (OperatingSheetChrome.footerAction(sheetCode)) {
+                                "PAYMENT" -> OperatingChromeState.quickAddHint = "payment"
+                                "MEMORY" -> OperatingChromeState.storyConfigOpen = true
+                                "ATTENTION" -> OperatingChromeState.quickAddHint = "issue"
+                                else -> onOpenQuickAdd()
+                            }
+                            onDismiss()
+                        }
+                        .padding(vertical = 14.dp),
+                )
             }
             Spacer(Modifier.height(20.dp))
         }
     }
 }
 
+private fun RestaurantSheetRoute.chromeCode(): String? = when (this) {
+    RestaurantSheetRoute.Attention -> "ATTENTION"
+    RestaurantSheetRoute.Target -> "TARGET_BUDGET"
+    RestaurantSheetRoute.Payment -> "PAYMENT_READINESS"
+    RestaurantSheetRoute.Finance -> "FINANCE"
+    RestaurantSheetRoute.Activity -> "ACTIVITY"
+    RestaurantSheetRoute.Gst -> "GST"
+    RestaurantSheetRoute.Commitments -> "M4"
+    RestaurantSheetRoute.MomentDetail -> "M1"
+    RestaurantSheetRoute.People -> "ME3"
+    RestaurantSheetRoute.Network -> "network"
+    RestaurantSheetRoute.LifeCurrent -> "L1"
+    RestaurantSheetRoute.LifeSales -> "sales"
+    RestaurantSheetRoute.LifeMoney -> "L3"
+    RestaurantSheetRoute.LifeOps -> "L4"
+    RestaurantSheetRoute.Monthly -> "ME1"
+    RestaurantSheetRoute.MoneyMemory -> "ME2"
+    RestaurantSheetRoute.PeopleMemory -> "ME3"
+    RestaurantSheetRoute.Patterns -> "ME4"
+    else -> boardCode
+}
+
 @Composable
-private fun SheetAttention(model: OperatingProjectionDto, onOpenQuickAdd: () -> Unit) {
-    if (model.attention.isEmpty()) {
+private fun SheetAttention(model: OperatingProjectionDto, status: String, onOpenQuickAdd: () -> Unit) {
+    val rows = model.attention.filter { item ->
+        val hasSource = item.sourceEventId != null || item.id.startsWith("open-") || item.cta != null
+        OperatingSheetChrome.matchesStatus(
+            status,
+            restaurantSeverityLabel(item.kind, item.severity, hasSource),
+        )
+    }
+    if (rows.isEmpty()) {
         EmberEmpty("Nothing is waiting", "Approvals, overdue bills and blockers will show here.")
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        model.attention.forEach { item ->
+        rows.forEach { item ->
             val hasSource = item.sourceEventId != null || item.id.startsWith("open-") || item.cta != null
             val label = restaurantSeverityLabel(item.kind, item.severity, hasSource)
             val color = if (hasSource) restaurantSeverityColor(item.severity) else RestaurantEmber.warning
@@ -166,9 +260,10 @@ private fun SheetAttention(model: OperatingProjectionDto, onOpenQuickAdd: () -> 
 }
 
 @Composable
-private fun SheetPayment(model: OperatingProjectionDto, receivables: Boolean) {
+private fun SheetPayment(model: OperatingProjectionDto, status: String, receivables: Boolean) {
     val rows: List<OperatingPaymentDto> = model.paymentReadiness.filter {
-        if (receivables) it.relevance == "RECEIVABLE" else it.relevance != "RECEIVABLE"
+        val side = if (receivables) it.relevance == "RECEIVABLE" else it.relevance != "RECEIVABLE"
+        side && OperatingSheetChrome.matchesStatus(status, it.dueBucket)
     }
     if (rows.isEmpty()) {
         EmberEmpty(
@@ -204,13 +299,16 @@ private fun SheetPayment(model: OperatingProjectionDto, receivables: Boolean) {
 }
 
 @Composable
-private fun SheetActivity(model: OperatingProjectionDto) {
-    if (model.activity.isEmpty()) {
+private fun SheetActivity(model: OperatingProjectionDto, status: String) {
+    val rows = model.activity.filter {
+        OperatingSheetChrome.matchesStatus(status, it.badge)
+    }
+    if (rows.isEmpty()) {
         EmberEmpty("Nothing recorded yet", "Bills, kitchen tickets and settlement will show here.")
         return
     }
     Column {
-        model.activity.forEach { row ->
+        rows.forEach { row ->
             EmberDividedRow(
                 title = row.title.ifBlank { restaurantEventLabel(row.eventType) },
                 caption = listOfNotNull(
@@ -235,13 +333,17 @@ private fun SheetActivity(model: OperatingProjectionDto) {
 }
 
 @Composable
-private fun SheetPeople(model: OperatingProjectionDto) {
-    if (model.participants.isEmpty()) {
+private fun SheetPeople(model: OperatingProjectionDto, status: String) {
+    // Participants have no badge — blank matches All / Open via matchesStatus.
+    val names = model.participants.filter {
+        OperatingSheetChrome.matchesStatus(status, null)
+    }
+    if (names.isEmpty()) {
         EmberEmpty("No people yet", "Invite the kitchen, floor and billing team.")
         return
     }
     Column {
-        model.participants.forEach { name ->
+        names.forEach { name ->
             val isOwner = name == model.partyName
             EmberDividedRow(
                 title = name,
@@ -334,13 +436,16 @@ private fun SheetGst(model: OperatingProjectionDto) {
 }
 
 @Composable
-private fun SheetSection(model: OperatingProjectionDto, code: String) {
+private fun SheetSection(model: OperatingProjectionDto, code: String, status: String) {
     val section: OperatingBoardSectionDto? =
         (model.boards?.moments.orEmpty() + model.boards?.life.orEmpty() + model.boards?.memory.orEmpty())
             .firstOrNull { it.code == code }
     if (section == null) {
         EmberEmpty("Not available", "This board has not been recorded yet.")
         return
+    }
+    val rows = section.rows.filter {
+        OperatingSheetChrome.matchesStatus(status, it.badge)
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (section.detail.isNotBlank()) {
@@ -354,11 +459,11 @@ private fun SheetSection(model: OperatingProjectionDto, code: String) {
                 }
             }
         }
-        if (section.rows.isEmpty()) {
+        if (rows.isEmpty()) {
             EmberEmpty("Nothing recorded yet", "Rows will appear as activity is recorded.")
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                section.rows.forEach { row ->
+                rows.forEach { row ->
                     EmberBoardRow(
                         eyebrow = row.title.ifBlank { restaurantEventLabel(row.eventType) },
                         value = listOfNotNull(

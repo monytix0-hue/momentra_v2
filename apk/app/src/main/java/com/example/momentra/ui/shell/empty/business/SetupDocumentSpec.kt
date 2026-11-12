@@ -59,30 +59,30 @@ internal object SetupDocumentSpec {
     const val RESTAURANT_FOOD = "RESTAURANT_FOOD"
     const val CONSUMER_SERVICE = "CONSUMER_SERVICE"
 
+    /** Corrections BS-01 / BS-02 — retail / food / service channel seeds. */
     val retailChannels: List<String> = listOf(
-        "Walk-in counter",
-        "WhatsApp / phone",
+        "In-store",
+        "Online",
         "Marketplace",
-        "Delivery apps",
-        "Wholesale desk",
+        "Social Commerce",
         "Other",
     )
 
     val restaurantChannels: List<String> = listOf(
-        "In-dining",
+        "Dine-in",
         "Takeaway",
-        "Cloud / delivery",
+        "Own Delivery",
+        "Aggregator",
         "Catering",
-        "Events",
         "Other",
     )
 
     val serviceChannels: List<String> = listOf(
         "Walk-in",
-        "Appointment booking",
-        "Home visit",
-        "WhatsApp / phone",
+        "Appointment",
         "Online",
+        "On-site",
+        "Referral",
         "Other",
     )
 
@@ -96,13 +96,13 @@ internal object SetupDocumentSpec {
     /** The role every §02 chip defaults to; also the fallback for an unknown saved code. */
     const val DEFAULT_INVITE_ROLE = "OPERATIONS_LEAD"
 
-    /** Manufacturing plant / workshop channels (MFG-SETUP-v6 / MTO-SETUP). */
+    /** Manufacturing plant / workshop channels (corrections BS-01 / BS-02). */
     val manufacturingChannels: List<String> = listOf(
-        "Direct / plant gate",
-        "Dealer / distributor",
+        "Direct B2B",
+        "Distributor",
+        "Dealer Network",
         "Export",
-        "Job-work / subcontract",
-        "Online / marketplace",
+        "Online",
         "Other",
     )
 

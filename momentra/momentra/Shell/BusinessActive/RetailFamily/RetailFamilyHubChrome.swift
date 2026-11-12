@@ -59,6 +59,9 @@ struct RetailFamilyHubScreen: View {
     let coreSection: String
     let supportSection: String
     let utilitySection: String
+    /// Amber section trailers — Figma RTL-HUB uses `Retail journey` / `Network · masters`.
+    var coreTrailing: String? = nil
+    var supportTrailing: String? = nil
     @ObservedObject var model: BusinessOperatingModel
     var onCapture: (String) -> Void
     var onOpenMasters: (OperatingMasterTab) -> Void
@@ -74,9 +77,31 @@ struct RetailFamilyHubScreen: View {
                 header
                 contextChips
                 hero
-                section(title: coreSection, trailing: "Tap to record", tiles: core)
-                section(title: supportSection, trailing: "Role-gated", tiles: support)
-                section(title: utilitySection, trailing: "Utilities", tiles: utilities)
+                section(
+                    title: coreSection,
+                    trailing: coreTrailing ?? (
+                        theme.vertical == .consumerService ? "Services journey" : "Tap to record"
+                    ),
+                    tiles: core
+                )
+                section(
+                    title: supportSection,
+                    trailing: supportTrailing ?? (
+                        theme.vertical == .consumerService ? "Clients · masters" : "Role-gated"
+                    ),
+                    tiles: support
+                )
+                // Figma hubs (RTL-HUB / SVC-HUB) omit Utilities · 3, but Hold/Transfer/Reprint
+                // remain required screens — keep a muted discovery row (see RetailHubScreen /
+                // ServiceHubScreen). Skip when the kit passes an empty list.
+                if !utilities.isEmpty {
+                    section(
+                        title: utilitySection,
+                        trailing: "Hold · move · reprint",
+                        tiles: utilities,
+                        muted: true
+                    )
+                }
                 whyCard
             }
             .padding(.horizontal, 16)
@@ -128,8 +153,16 @@ struct RetailFamilyHubScreen: View {
                         .foregroundStyle(theme.accent)
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        // SVC-HUB cream CTA `#FEF3C7`; other retail-family kits keep white.
+                        .background(theme.vertical == .consumerService ? Color(hex: "#FEF3C7") : Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .shadow(
+                            color: theme.vertical == .consumerService
+                                ? Color(hex: "#84CC16").opacity(0.55)
+                                : .clear,
+                            radius: 12,
+                            y: 6
+                        )
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 4)
@@ -152,21 +185,28 @@ struct RetailFamilyHubScreen: View {
         allowed.isEmpty || allowed.contains(heroCapture.uppercased())
             || (heroCapture == "POS" && allowed.contains("SALE"))
             || (heroCapture == "KOT" && allowed.contains("ORDER"))
+            || (heroCapture == "STATUS" && allowed.contains("ORDER"))
             || (heroCapture == "SERVICE" && allowed.contains("SERVICE"))
     }
 
-    private func section(title: String, trailing: String, tiles: [RetailFamilyHubTile]) -> some View {
+    private func section(
+        title: String,
+        trailing: String,
+        tiles: [RetailFamilyHubTile],
+        muted: Bool = false
+    ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(title)
-                    .font(.plusJakarta(size: 13, weight: .bold))
-                    .foregroundStyle(OperatingV12.title)
+                    .font(.plusJakarta(size: muted ? 12 : 13, weight: .bold))
+                    .foregroundStyle(muted ? OperatingV12.subtitle : OperatingV12.title)
                 Spacer()
                 Text(trailing)
                     .font(.plusJakarta(size: 11, weight: .medium))
-                    .foregroundStyle(OperatingV12.subtitle)
+                    .foregroundStyle(OperatingV12.subtitle.opacity(muted ? 0.85 : 1))
             }
             grid(tiles)
+                .opacity(muted ? 0.92 : 1)
         }
     }
 

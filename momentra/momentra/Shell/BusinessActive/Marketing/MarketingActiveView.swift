@@ -73,7 +73,13 @@ struct MarketingActiveView: View {
             }
             .padding(.bottom, 32)
         }
-        .background(theme.canvas)
+        .background(
+            LinearGradient(
+                colors: [theme.canvasTop, theme.canvas],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
         .task { await model.load() }
         .onChange(of: refreshToken) { _, _ in
             Task { await model.load() }
@@ -159,7 +165,7 @@ struct MarketingActiveView: View {
             }
             .padding(.horizontal, 16)
         case let .error(message):
-            OperatingV12Card(theme: theme) {
+            OperatingV12Card(theme: theme, fill: theme.isMarketingOwnCapture ? theme.surface : OperatingV12.surface) {
                 Text("Couldn't load this campaign")
                     .font(.plusJakarta(size: 14, weight: .bold))
                     .foregroundStyle(OperatingV12.title)
@@ -181,7 +187,7 @@ struct MarketingActiveView: View {
             }
             .padding(.horizontal, 16)
         case .empty:
-            OperatingV12Card(theme: theme) {
+            OperatingV12Card(theme: theme, fill: theme.isMarketingOwnCapture ? theme.surface : OperatingV12.surface) {
                 Text("This campaign is closed")
                     .font(.plusJakarta(size: 14, weight: .bold))
                     .foregroundStyle(OperatingV12.title)
@@ -308,6 +314,8 @@ private struct MarketingV12QuickActions: View {
 
 // MARK: - Pulse (`MKT-PULSE-v12` / `MKT-OWN-PULSE-v12`)
 
+/// Marketing Pulse — GST Position is an intentional omit vs Retail/Restaurant/Service/MFG:
+/// MKT-PULSE-v12 tracks leads/budget/AR, not tax filing position.
 private struct MarketingPulseScreen: View {
     @ObservedObject var model: BusinessOperatingModel
     let theme: OperatingTheme
@@ -367,9 +375,7 @@ private struct MarketingPulseScreen: View {
         if let pacing = mkt?.pacing, !pacing.isEmpty { parts.append(pacing) }
         if let cpl = mkt?.cpl, !cpl.isEmpty { parts.append("CPL \(cpl)") }
         if parts.isEmpty {
-            return client
-                ? "Plan. Launch. Measure."
-                : "Plan. Promote. Grow."
+            return "Plan. Launch. Measure."
         }
         return parts.joined(separator: " · ")
     }
@@ -394,10 +400,11 @@ private struct MarketingPulseScreen: View {
             ($0.severity ?? "").uppercased() == "CRITICAL"
         }.count
 
-        return OperatingV12Card(theme: theme, fill: OperatingV12.pulseSurface) {
+        return OperatingV12Card(theme: theme, fill: theme.pulseCardFill) {
             OperatingV12WidgetHeader(
                 title: "Needs Attention",
                 subtitle: "Severity then due · spend and money are separate axes",
+                viewAllColor: theme.softLink,
                 onViewAll: { onViewAll("ATTENTION") }
             )
             HStack(spacing: 8) {
@@ -519,10 +526,11 @@ private struct MarketingPulseScreen: View {
         let amountNumber = OperatingV12Money.number(budget?.amount) ?? 0
         let usedPct = amountNumber > 0 ? Int(((spentNumber / amountNumber) * 100).rounded()) : nil
 
-        return OperatingV12Card(theme: theme, fill: OperatingV12.pulseSurface) {
+        return OperatingV12Card(theme: theme, fill: theme.pulseCardFill) {
             OperatingV12WidgetHeader(
                 title: "Target & Budget",
                 subtitle: "Period · \(periodLabel) · as-of effective plan",
+                viewAllColor: theme.softLink,
                 onViewAll: { onViewAll("TARGET_BUDGET") }
             )
             HStack(spacing: 16) {
@@ -695,12 +703,13 @@ private struct MarketingPulseScreen: View {
         let receivableTotal = receivable.compactMap { OperatingV12Money.number($0.amount) }.reduce(0, +)
         let payableTotal = payable.compactMap { OperatingV12Money.number($0.amount) }.reduce(0, +)
 
-        return OperatingV12Card(theme: theme, fill: OperatingV12.pulseSurface) {
+        return OperatingV12Card(theme: theme, fill: theme.pulseCardFill) {
             OperatingV12WidgetHeader(
                 title: "Payment Readiness",
                 subtitle: client
                     ? "Vendor AP · Client AR · dues with due dates"
                     : "Vendor / creator dues · Own Business has no client AR",
+                viewAllColor: theme.softLink,
                 onViewAll: { onViewAll("PAYMENT_READINESS") }
             )
             if client {
@@ -770,12 +779,13 @@ private struct MarketingPulseScreen: View {
         }
         let mkt = projection?.marketing
 
-        return OperatingV12Card(theme: theme, fill: OperatingV12.pulseSurface) {
+        return OperatingV12Card(theme: theme, fill: theme.pulseCardFill) {
             OperatingV12WidgetHeader(
                 title: "Finance",
                 subtitle: client
                     ? "Invoices · collections · eligible cost"
                     : "Attributed sales · spend · ROAS",
+                viewAllColor: theme.softLink,
                 onViewAll: { onViewAll("FINANCE") }
             )
             if client {
@@ -856,10 +866,11 @@ private struct MarketingPulseScreen: View {
                 || ($0.approvalStatus ?? "").uppercased() == "APPROVED"
         }.count
 
-        return OperatingV12Card(theme: theme, fill: OperatingV12.pulseSurface) {
+        return OperatingV12Card(theme: theme, fill: theme.pulseCardFill) {
             OperatingV12WidgetHeader(
                 title: "Activity",
                 subtitle: "Today · posted events only",
+                viewAllColor: theme.softLink,
                 onViewAll: { onViewAll("ACTIVITY") }
             )
             HStack(spacing: 8) {
@@ -918,7 +929,7 @@ private struct MarketingPulseScreen: View {
     }
 
     private var restrictedPulse: some View {
-        OperatingV12Card(theme: theme, fill: OperatingV12.pulseSurface) {
+        OperatingV12Card(theme: theme, fill: theme.pulseCardFill) {
             Text(model.title)
                 .font(.plusJakarta(size: 18, weight: .semibold))
                 .foregroundStyle(OperatingV12.title)
@@ -1000,7 +1011,7 @@ private struct MarketingMomentsScreen: View {
                     marketingSectionCard(section)
                 }
                 if (model.projection?.boards?.moments ?? []).isEmpty {
-                    OperatingV12Card(theme: theme) {
+                    OperatingV12Card(theme: theme, fill: theme.isMarketingOwnCapture ? theme.surface : OperatingV12.surface) {
                         Text("Nothing on the campaign board yet")
                             .font(.plusJakarta(size: 14, weight: .bold))
                             .foregroundStyle(OperatingV12.title)
@@ -1020,7 +1031,7 @@ private struct MarketingMomentsScreen: View {
         let targetNumber = OperatingV12Money.number(target?.value) ?? 0
         let progressNumber = OperatingV12Money.number(target?.progress) ?? 0
         let fraction = targetNumber > 0 ? min(1, progressNumber / targetNumber) : 0
-        return OperatingV12Card(theme: theme) {
+        return OperatingV12Card(theme: theme, fill: theme.isMarketingOwnCapture ? theme.surface : OperatingV12.surface) {
             Text("Results toward target")
                 .font(.plusJakarta(size: 12, weight: .semibold))
                 .foregroundStyle(OperatingV12.subtitle)
@@ -1047,12 +1058,13 @@ private struct MarketingMomentsScreen: View {
 
     private func marketingSectionCard(_ section: OperatingBoardSectionPayload) -> some View {
         let rows = Array((section.rows ?? []).prefix(3))
-        return OperatingV12Card(theme: theme) {
+        return OperatingV12Card(theme: theme, fill: theme.isMarketingOwnCapture ? theme.surface : OperatingV12.surface) {
             OperatingV12WidgetHeader(
                 title: section.title,
                 subtitle: section.detail.isEmpty
                     ? (section.coverage ?? "Campaign board")
                     : section.detail,
+                viewAllColor: theme.softLink,
                 onViewAll: { onViewAll(section.code) }
             )
             if let metrics = section.metrics, !metrics.isEmpty {
@@ -1134,7 +1146,7 @@ private struct MarketingLifeScreen: View {
             VStack(alignment: .leading, spacing: 16) {
                 let sections = model.projection?.boards?.life ?? []
                 if sections.isEmpty {
-                    OperatingV12Card(theme: theme) {
+                    OperatingV12Card(theme: theme, fill: theme.isMarketingOwnCapture ? theme.surface : OperatingV12.surface) {
                         Text("Nothing recorded yet")
                             .font(.plusJakarta(size: 14, weight: .bold))
                             .foregroundStyle(OperatingV12.title)
@@ -1173,10 +1185,11 @@ private struct MarketingLifeScreen: View {
 
     private func lifeSectionCard(_ section: OperatingBoardSectionPayload) -> some View {
         let rows = Array((section.rows ?? []).prefix(3))
-        return OperatingV12Card(theme: theme) {
+        return OperatingV12Card(theme: theme, fill: theme.isMarketingOwnCapture ? theme.surface : OperatingV12.surface) {
             OperatingV12WidgetHeader(
                 title: section.title,
                 subtitle: section.coverage ?? section.detail,
+                viewAllColor: theme.softLink,
                 onViewAll: { onViewAll(section.code) }
             )
             if let metrics = section.metrics, !metrics.isEmpty {
@@ -1291,7 +1304,7 @@ private struct MarketingMemoryScreen: View {
                     memorySectionCard(section)
                 }
                 if (model.projection?.boards?.memory ?? []).isEmpty {
-                    OperatingV12Card(theme: theme) {
+                    OperatingV12Card(theme: theme, fill: theme.isMarketingOwnCapture ? theme.surface : OperatingV12.surface) {
                         Text("No memory recorded yet")
                             .font(.plusJakarta(size: 14, weight: .bold))
                             .foregroundStyle(OperatingV12.title)
@@ -1355,10 +1368,11 @@ private struct MarketingMemoryScreen: View {
 
     private func memorySectionCard(_ section: OperatingBoardSectionPayload) -> some View {
         let rows = Array((section.rows ?? []).prefix(3))
-        return OperatingV12Card(theme: theme) {
+        return OperatingV12Card(theme: theme, fill: theme.isMarketingOwnCapture ? theme.surface : OperatingV12.surface) {
             OperatingV12WidgetHeader(
                 title: section.title,
                 subtitle: section.detail,
+                viewAllColor: theme.softLink,
                 onViewAll: { onViewAll(section.code) }
             )
             if let metrics = section.metrics, !metrics.isEmpty {
@@ -1415,9 +1429,10 @@ private struct MarketingHubScreen: View {
     }
 
     private var core: [MarketingCaptureMode] {
+        // v5.1 AT-01: 10 client / 8 own — QA-09 is a single Team Update / Issue tile.
         [
             .activity, .progress, .spend, .result, .payment,
-            .invoice, .collection, .revision, .approval, .update, .issue,
+            .invoice, .collection, .revision, .approval, .update,
         ].filter { mode in
             if mode.clientOnly && !client { return false }
             guard allowed.isEmpty || allowed.contains(mode.rawValue) else { return false }
@@ -1471,12 +1486,23 @@ private struct MarketingHubScreen: View {
                 .foregroundStyle(OperatingV12.subtitle)
                 .padding(.horizontal, 16)
 
-            HStack(spacing: 10) {
-                supportTile("Network", "person.2") { onOpenMasters(.principals) }
-                supportTile("Invite & QR", "qrcode") { onOpenMasters(.invite) }
-                supportTile("Story", "book") { onOpenStory() }
+            if model.vertical == .ownBusinessCampaign {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    supportTile("Vendors & creators", "person.2") { onOpenMasters(.principals) }
+                    supportTile("Services & rate card", "tag") { onOpenMasters(.priceLists) }
+                    supportTile("Channels & teams", "antenna.radiowaves.left.and.right") { onOpenMasters(.locations) }
+                    supportTile("Invite & QR", "qrcode") { onOpenMasters(.invite) }
+                    supportTile("Story", "book") { onOpenStory() }
+                }
+                .padding(.horizontal, 16)
+            } else {
+                HStack(spacing: 10) {
+                    supportTile("Network", "person.2") { onOpenMasters(.principals) }
+                    supportTile("Invite & QR", "qrcode") { onOpenMasters(.invite) }
+                    supportTile("Story", "book") { onOpenStory() }
+                }
+                .padding(.horizontal, 16)
             }
-            .padding(.horizontal, 16)
 
             Text("Utilities · \(utilities.count)")
                 .font(.plusJakarta(size: 12))

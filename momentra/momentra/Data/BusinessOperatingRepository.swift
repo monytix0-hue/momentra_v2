@@ -63,6 +63,8 @@ struct OperatingEventInput {
         var unit: String? = nil
         var unitPrice: String? = nil
         var masterId: String? = nil
+        var taxMode: String? = nil
+        var gstRate: String? = nil
     }
 }
 
@@ -117,7 +119,15 @@ final class BusinessOperatingRepository: BusinessOperatingGateway {
             dueAt: input.dueAt,
             contract: input.contract,
             lineItems: input.lineItems?.map {
-                (itemName: $0.itemName, quantity: $0.quantity, unit: $0.unit, unitPrice: $0.unitPrice, masterId: $0.masterId)
+                (
+                    itemName: $0.itemName,
+                    quantity: $0.quantity,
+                    unit: $0.unit,
+                    unitPrice: $0.unitPrice,
+                    masterId: $0.masterId,
+                    taxMode: $0.taxMode,
+                    gstRate: $0.gstRate
+                )
             },
             reportingMode: input.reportingMode,
             metricCode: input.metricCode,

@@ -40,11 +40,31 @@ class OperatingMasterMappingTest {
         assertTrue(OperatingMasterTab.Invite.kinds().isEmpty())
     }
 
+    // Module under test: OperatingMasterDraft / defaultKindFor in shared masters mapping.
+    // Existing file OperatingMasterMappingTest.kt. Instruction: Pass 2/3 + BS-04 leftovers.
     @Test
     fun defaultKindMatchesTheTab() {
-        assertEquals("DEALER", defaultKindFor(OperatingMasterTab.Principals))
+        assertEquals("CUSTOMER", defaultKindFor(OperatingMasterTab.Principals))
         assertEquals("SKU", defaultKindFor(OperatingMasterTab.Catalogue))
         assertEquals("WAREHOUSE", defaultKindFor(OperatingMasterTab.Locations))
+    }
+
+    @Test
+    fun packagingConversionTravelsOnCreateAndUpdate() {
+        val body = OperatingMasterDraft(
+            kind = "SKU",
+            name = "Carton",
+            unit = "CTN",
+            conversionToBase = "12",
+        ).toCreateBody()
+        assertEquals("12", body.conversionToBase)
+
+        val update = OperatingMasterDraft(
+            kind = "SKU",
+            name = "Carton",
+            conversionToBase = "24",
+        ).toUpdateBody(expectedVersion = 2)
+        assertEquals("24", update.conversionToBase)
     }
 
     @Test
@@ -166,6 +186,10 @@ class OperatingMasterMappingTest {
         assertEquals("REDUCE", OperatingStockReasons.stockAction("Out"))
         assertEquals("SET", OperatingStockReasons.stockAction("Set"))
         assertEquals("TRANSFER", OperatingStockReasons.stockAction("Transfer"))
+        assertEquals("SET", OperatingStockReasons.stockAction("Set current"))
+        assertEquals("ADD", OperatingStockReasons.stockAction("Add"))
+        assertEquals("REDUCE", OperatingStockReasons.stockAction("Reduce"))
+        assertEquals("SET", OperatingStockReasons.stockAction("COUNT"))
         assertEquals("OWNED", OperatingStockReasons.ownership("Owned"))
         assertEquals("CONSIGNMENT", OperatingStockReasons.ownership("Consignment"))
         assertEquals("RELEASED", OperatingStockReasons.holdStatus("No hold"))

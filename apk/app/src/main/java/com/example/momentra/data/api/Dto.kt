@@ -1216,6 +1216,14 @@ data class OperatingFinanceDto(
     val cashPaid: String = "0.0000",
 )
 
+data class OperatingActivityLineDto(
+    val itemName: String = "",
+    val quantity: String? = null,
+    val unit: String? = null,
+    val unitPrice: String? = null,
+    val masterId: String? = null,
+)
+
 data class OperatingActivityDto(
     val id: String = "",
     val title: String = "",
@@ -1244,6 +1252,8 @@ data class OperatingActivityDto(
     /** Figma status chip: Open / Part / Overdue / Settled / Done / Transit / On hold. */
     val badge: String? = null,
     val subtitle: String? = null,
+    /** ORDER / SALE lines for Bill-from-KOT and Fire/Reprint. */
+    val lines: List<OperatingActivityLineDto>? = null,
 )
 
 data class OperatingLifeDto(
@@ -1402,6 +1412,22 @@ data class OperatingLineBody(
     val unitPrice: String? = null,
     val masterId: String? = null,
     val baseQuantity: String? = null,
+    val discount: String? = null,
+    val taxMode: String? = null,
+    val gstRate: String? = null,
+)
+
+data class HsnLookupResultDto(
+    val code: String = "",
+    val description: String = "",
+    val gstRate: String? = null,
+    val classification: String? = null,
+)
+
+data class HsnLookupResponseDto(
+    val query: String = "",
+    val results: List<HsnLookupResultDto> = emptyList(),
+    val note: String? = null,
 )
 
 data class OperatingMasterBody(
@@ -1586,6 +1612,11 @@ data class OperatingAllocationBody(
     val amount: String,
 )
 
+data class OperatingPaymentBody(
+    val method: String,
+    val amount: String,
+)
+
 data class OperatingContractBody(
     val entryMode: String? = null,
     val paymentState: String? = null,
@@ -1602,6 +1633,8 @@ data class OperatingContractBody(
     val staffName: String? = null,
     val estimatedAmount: String? = null,
     val allocations: List<OperatingAllocationBody>? = null,
+    /** Split tender instruments; amounts must sum to receivedAmount. */
+    val payments: List<OperatingPaymentBody>? = null,
     val ownership: String? = null,
     val shipmentStatus: String? = null,
     val promisedAt: String? = null,
@@ -1610,6 +1643,10 @@ data class OperatingContractBody(
     val taxAmount: String? = null,
     val gstRate: String? = null,
     val discount: String? = null,
+    /** Explicit operator-entered cess ₹ — never from HSN tables. */
+    val cessAmount: String? = null,
+    /** Explicit operator-entered cess % of taxable. */
+    val cessRate: String? = null,
     val taxJurisdiction: String? = null,
     val placeOfSupply: String? = null,
     val originalCurrency: String? = null,
@@ -1681,7 +1718,10 @@ data class MarketingInsightDto(
     val clientContribution: String? = null,
     val campaignStatus: String? = null,
     val clientFee: String? = null,
+    val clientApprovedMediaBudget: String? = null,
+    val agencyOperatingBudget: String? = null,
     val offering: String? = null,
+    val campaignPurpose: String? = null,
     val creativeApprovalRequired: String? = null,
     val reportingCadence: String? = null,
     val orderAchievement: String? = null,

@@ -50,6 +50,8 @@ import com.example.momentra.ui.theme.PlusJakartaSans
 enum class OperatingBrowserKind {
     Parts,
     Materials,
+    /** Consumer Service catalogue picker (`SVC-SHEET · Services browser`). */
+    Services,
 }
 
 data class OperatingBrowserItem(
@@ -94,6 +96,7 @@ fun OperatingBrowserItem.toSelection(
 
 fun captureHintForBrowser(kind: OperatingBrowserKind, subtype: String?): String = when (kind) {
     OperatingBrowserKind.Materials -> "PURCHASE"
+    OperatingBrowserKind.Services -> "SERVICE"
     OperatingBrowserKind.Parts -> when (subtype) {
         "TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP" -> "SALE"
         else -> "ORDER"
@@ -117,12 +120,18 @@ fun OperatingPartsBrowserSheet(
     val ink = theme.ink
     val body = theme.body
 
-    val categories = when (kind) {
-        OperatingBrowserKind.Parts -> listOf("Raw", "WIP", "Jobs", "Consumables", "Spares")
-        OperatingBrowserKind.Materials -> listOf("Raw", "Consumables", "Finished", "Packing", "Spares")
+    val distSku = kind == OperatingBrowserKind.Parts &&
+        (model.subtype.equals("DISTRIBUTION_DEALERSHIP", ignoreCase = true) ||
+            OperatingChromeState.distributionChrome)
+    val categories = when {
+        distSku -> DistributionMasterCopy.skuCategories
+        kind == OperatingBrowserKind.Parts -> listOf("Raw", "WIP", "Jobs", "Consumables", "Spares")
+        kind == OperatingBrowserKind.Materials -> listOf("Raw", "Consumables", "Finished", "Packing", "Spares")
+        // Service catalogue uses [ServiceServicesBrowserSheet]; keep exhaustive.
+        else -> listOf("Hair", "Skin", "Spa", "Wellness", "Nails")
     }
     var query by remember { mutableStateOf("") }
-    var selectedCat by remember { mutableStateOf(categories.first()) }
+    var selectedCat by remember(categories) { mutableStateOf(categories.first()) }
 
     val items = remember(model, kind) { browserItemsFromProjection(model, kind) }
     val filtered = items.filter { item ->
@@ -137,25 +146,35 @@ fun OperatingPartsBrowserSheet(
         matchesQuery && matchesCat
     }
 
-    val title = when (kind) {
-        OperatingBrowserKind.Parts -> "Parts & products"
-        OperatingBrowserKind.Materials -> "Materials"
+    val title = when {
+        distSku -> DistributionMasterCopy.SKU_BROWSER_TITLE
+        kind == OperatingBrowserKind.Parts -> "Parts & products"
+        kind == OperatingBrowserKind.Materials -> "Materials"
+        else -> "Services"
     }
-    val hint = when (kind) {
-        OperatingBrowserKind.Parts -> "Tap Add · qty\nper quote / job line"
-        OperatingBrowserKind.Materials -> contextLabel ?: "Job materials + on-hand"
+    val hint = when {
+        distSku -> DistributionMasterCopy.SKU_BROWSER_HINT
+        kind == OperatingBrowserKind.Parts -> "Tap Add · qty\nper quote / job line"
+        kind == OperatingBrowserKind.Materials -> contextLabel ?: "Job materials + on-hand"
+        else -> "Tap Add · service or package"
     }
-    val searchPlaceholder = when (kind) {
-        OperatingBrowserKind.Parts -> "Search part, drawing or HSN"
-        OperatingBrowserKind.Materials -> "Search material or HSN"
+    val searchPlaceholder = when {
+        distSku -> DistributionMasterCopy.SKU_BROWSER_SEARCH
+        kind == OperatingBrowserKind.Parts -> "Search part, drawing or HSN"
+        kind == OperatingBrowserKind.Materials -> "Search material or HSN"
+        else -> "Search service, package or SAC"
     }
-    val createLabel = when (kind) {
-        OperatingBrowserKind.Parts -> "+ New part / SKU"
-        OperatingBrowserKind.Materials -> "+ New BOM"
+    val createLabel = when {
+        distSku -> DistributionMasterCopy.SKU_BROWSER_CREATE
+        kind == OperatingBrowserKind.Parts -> "+ New part / SKU"
+        kind == OperatingBrowserKind.Materials -> "+ New BOM"
+        else -> "+ New service"
     }
-    val createHint = when (kind) {
-        OperatingBrowserKind.Parts -> "Name · HSN · GST · UOM"
-        OperatingBrowserKind.Materials -> "Components · qty · scrap %"
+    val createHint = when {
+        distSku -> DistributionMasterCopy.SKU_BROWSER_CREATE_HINT
+        kind == OperatingBrowserKind.Parts -> "Name · HSN · GST · UOM"
+        kind == OperatingBrowserKind.Materials -> "Components · qty · scrap %"
+        else -> "Name · SAC · GST · duration"
     }
 
     val sheetShape = RoundedCornerShape(16.dp)
@@ -367,6 +386,7 @@ internal fun browserItemsFromProjection(
     val kinds = when (kind) {
         OperatingBrowserKind.Parts -> setOf("SKU", "PRODUCT", "BATCH", "PART", "BOM")
         OperatingBrowserKind.Materials -> setOf("SKU", "PRODUCT", "BATCH", "MATERIAL", "RAW")
+        OperatingBrowserKind.Services -> setOf("PRODUCT", "ITEM", "SERVICE", "PACKAGE", "CONSUMABLE")
     }
     return masters
         .filter { it.kind?.uppercase() in kinds || it.kind.isNullOrBlank() }

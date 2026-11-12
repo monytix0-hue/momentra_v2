@@ -6,6 +6,10 @@
 
 import {
   budgetAttention,
+  // Callers: operating-catalog + board-metrics import fulfilmentCoverage / ordersCommitmentsSummary.
+  // Existing trading contract module; filters TradingEvent ORDER rows via isConfirmedOrder (CF-05).
+  // Instruction: Pass 2/3 — quotations must not count as confirmed orders.
+  isConfirmedOrder,
   moneyMovingDetail,
   obligationRemaining,
   parseOperatingContract,
@@ -19,9 +23,17 @@ import {
   type StockPosition,
 } from './operating-retail-contract';
 import { lineBaseQuantity, toBaseQuantity, type MasterMeta } from './operating-trading-lov';
-import { computeGstLine, rollGstLines, scaleGstSnapshot, type GstSnapshot } from './operating-gst';
+import {
+  applyPlainDiscountAndCess,
+  computeGstLine,
+  resolveLineDiscounts,
+  rollGstLines,
+  scaleGstSnapshot,
+  withExplicitCess,
+  type GstLineInput,
+  type GstSnapshot,
+} from './operating-gst';
 import { gstStateCodeOf, gstStateName, resolveJurisdiction } from './operating-gst-states';
-
 export const TRADING_SUBTYPES = ['TRADING_WHOLESALE', 'DISTRIBUTION_DEALERSHIP'] as const;
 
 export type TradingEvent = RetailEvent;
@@ -150,17 +162,22 @@ function applyPostedGst(
 ): { ok: true; amount: number } | { ok: false; message: string } {
   if (!input.gst?.enabled) {
     if (input.gst) contract.taxStatus = 'NOT_CONFIGURED';
-    return { ok: true, amount: entered };
+    return applyPlainDiscountAndCess({
+      entered,
+      discount: contract.discount,
+      cessAmount: contract.cessAmount,
+    });
   }
   const preference = side === 'SALE' ? input.gst.saleIncludesGst : input.gst.purchaseIncludesGst;
   // Prefer the stored code; fall back to resolving the name so a context built without the code
   // still compares correctly.
   const businessState = input.gst.businessState.trim();
   const businessStateCode = input.gst.businessStateCode || gstStateCodeOf(businessState);
+  // Trading does not invent a place of supply for unnamed parties — client taxJurisdiction is
+  // trusted when set; otherwise codes must resolve or the write fails.
   const supplyState = (contract.placeOfSupply || partyState(input.counterpartyName, existing, input.masterRefs)).trim();
   let jurisdiction = contract.taxJurisdiction ?? null;
-  // Compare GST state codes, not typed names: `"MH"` and `"Maharashtra"` are one state, and an
-  // exact-string compare used to read them as two and charge IGST on an intra-state sale.
+  // Compare GST state codes, not typed names: `"MH"` and `"Maharashtra"` are one state.
   if (!jurisdiction) {
     jurisdiction = resolveJurisdiction(businessStateCode || businessState, supplyState);
   }
@@ -171,12 +188,23 @@ function applyPostedGst(
   contract.placeOfSupply = gstStateName(canonicalSupply) || canonicalSupply;
 
   const pricedLines = lines.filter((line) => num(line.unitPrice) > 0 && num(line.quantity) > 0);
-  const sources = pricedLines.length > 0
-    ? pricedLines.map((line) => ({ line, master: masterRecord(line, existing, input.masterRefs) }))
-    : [{ line: { itemName: input.title, quantity: '1', unitPrice: String(entered), unit: null }, master: null }];
+  const sources =
+    pricedLines.length > 0
+      ? pricedLines.map((line) => ({ line, master: masterRecord(line, existing, input.masterRefs) }))
+      : [{ line: { itemName: input.title, quantity: '1', unitPrice: String(entered), unit: null }, master: null }];
 
-  const gstLines = [];
-  for (const source of sources) {
+  const lineGrosses = sources.map((source) => (num(source.line.quantity) || 1) * num(source.line.unitPrice));
+  const lineDiscounts = sources.map((source) => num(source.line.discount));
+  const resolvedDiscounts = resolveLineDiscounts({
+    lineGrosses,
+    lineDiscounts: pricedLines.length > 0 ? lineDiscounts : lineDiscounts.map(() => 0),
+    headerDiscount: num(contract.discount),
+  });
+  if (!resolvedDiscounts.ok) return resolvedDiscounts;
+
+  const gstLines: GstLineInput[] = [];
+  for (let i = 0; i < sources.length; i++) {
+    const source = sources[i]!;
     const master = source.master;
     const applicable = String(master?.gstApplicable ?? '').toUpperCase();
     const classification = String(master?.gstClassification ?? '').toUpperCase();
@@ -186,41 +214,47 @@ function applyPostedGst(
     const sideOverride = side === 'SALE' ? master?.salePriceIncludesGst : master?.purchasePriceIncludesGst;
     const override = String(sideOverride || master?.priceIncludesGst || '').toUpperCase();
     const lineMode = source.line.taxMode;
-    const inclusive = lineMode === 'INCLUSIVE'
-      ? true
-      : lineMode === 'EXCLUSIVE'
-        ? false
-        : contract.taxMode === 'INCLUSIVE'
-          ? true
-          : contract.taxMode === 'EXCLUSIVE'
-            ? false
-            : override === 'YES'
-              ? true
-              : override === 'NO'
-                ? false
-                : preference;
+    const inclusive =
+      lineMode === 'INCLUSIVE'
+        ? true
+        : lineMode === 'EXCLUSIVE'
+          ? false
+          : contract.taxMode === 'INCLUSIVE'
+            ? true
+            : contract.taxMode === 'EXCLUSIVE'
+              ? false
+              : override === 'YES'
+                ? true
+                : override === 'NO'
+                  ? false
+                  : preference;
     if (inclusive == null) return fail('Choose whether the price includes GST.');
-    const lineDiscount = num(source.line.discount);
     gstLines.push({
       quantity: num(source.line.quantity) || 1,
       unitPrice: num(source.line.unitPrice),
-      discount: lineDiscount > 0 ? lineDiscount : pricedLines.length > 0 ? 0 : num(contract.discount),
+      discount: resolvedDiscounts.discounts[i] ?? 0,
       ratePercent: rate,
       inclusive,
     });
   }
   const place = contract.placeOfSupply ?? '';
   const registration = String(input.gst.registration ?? '');
-  const snapshot: GstSnapshot = gstLines.length === 1
-    ? computeGstLine(gstLines[0]!, jurisdiction, place, registration)
-    : rollGstLines(gstLines, jurisdiction, place, registration);
-  if (pricedLines.length <= 1 && num(contract.discount) > 0 && gstLines.length === 1) {
-    // discount already applied on the single quick line
-  }
+  const baseSnapshot: GstSnapshot =
+    gstLines.length === 1
+      ? computeGstLine(gstLines[0]!, jurisdiction, place, registration)
+      : rollGstLines(gstLines, jurisdiction, place, registration);
+  const withCess = withExplicitCess(baseSnapshot, contract.cessAmount, contract.cessRate);
+  if (!withCess.ok) return withCess;
+  const snapshot = withCess.snapshot;
   contract.gst = snapshot;
   contract.taxStatus = 'CALCULATED';
   contract.taxMode = snapshot.priceIncludesGst ? 'INCLUSIVE' : 'EXCLUSIVE';
   contract.taxAmount = snapshot.gstTotal;
+  contract.discount = snapshot.discount;
+  if (num(snapshot.cessAmount) > 0) {
+    contract.cessAmount = snapshot.cessAmount ?? '0.0000';
+    if (snapshot.cessRate) contract.cessRate = snapshot.cessRate;
+  }
   return { ok: true, amount: num(snapshot.invoiceTotal) };
 }
 
@@ -968,7 +1002,7 @@ export function currentBusinessDetail(events: TradingEvent[], visible: boolean, 
 
 export function fulfilmentCoverage(events: TradingEvent[]): string | null {
   const orders = events.filter(
-    (row) => row.eventType === 'ORDER' && effective(row) && row.contract?.orderStatus !== 'CANCELLED'
+    (row) => isConfirmedOrder(row) && effective(row) && row.contract?.orderStatus !== 'CANCELLED'
   );
   if (orders.length === 0) return null;
   let fulfilled = 0;
@@ -995,7 +1029,7 @@ export function ordersCommitmentsSummary(events: TradingEvent[], visible: boolea
   const sales = rows.filter((row) => row.eventType === 'SALE' && effective(row));
   const openOrders = rows.filter(
     (row) =>
-      row.eventType === 'ORDER' &&
+      isConfirmedOrder(row) &&
       effective(row) &&
       row.contract?.orderStatus !== 'CANCELLED' &&
       row.contract?.orderStatus !== 'COMPLETED'
@@ -1123,7 +1157,7 @@ export function tradingAttention(
   }
 
   for (const order of events) {
-    if (order.eventType !== 'ORDER' || !effective(order)) continue;
+    if (!isConfirmedOrder(order) || !effective(order)) continue;
     if (order.contract?.orderStatus === 'CANCELLED' || order.contract?.orderStatus === 'COMPLETED') continue;
     const left = unfulfilledShipmentQty(order, events);
     if (!(left > 0)) continue;
@@ -1144,7 +1178,7 @@ export function tradingAttention(
   }
 
   for (const order of events) {
-    if (order.eventType !== 'ORDER' || !effective(order)) continue;
+    if (!isConfirmedOrder(order) || !effective(order)) continue;
     if (order.contract?.orderStatus === 'CANCELLED' || order.contract?.orderStatus === 'COMPLETED') continue;
     if (cards.some((card) => card.sourceEventId === order.operatingEventId && card.kind === 'OVERDUE_SHIPMENT')) continue;
     const party = order.counterpartyName || order.title;

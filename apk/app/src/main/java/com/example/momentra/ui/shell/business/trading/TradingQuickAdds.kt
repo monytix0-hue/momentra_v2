@@ -90,26 +90,27 @@ private enum class TradingSheet(
     val needsParty: Boolean,
     val paymentStatus: String?,
 ) {
+    // Titles match Figma TRD-QA-01…12 sheet headers.
     SALE("Record Sale", "SALE", true, true, false, null),
     PURCHASE("Record Purchase", "PURCHASE", true, false, true, null),
     SPEND("Record Expense", "SPEND", true, false, false, null),
     PAYMENT("Record Payment", "PAYMENT", true, false, true, "PENDING"),
-    COLLECTION("Money collection", "COLLECTION", true, true, false, "PENDING"),
-    BUDGET("Revise Budget", "BUDGET", true, false, false, null),
-    UPDATE("Post Update", "UPDATE", false, false, false, null),
-    ISSUE("Report Issue", "ISSUE", false, false, false, null),
-    STOCK("Stock / Availability Update", "STOCK", false, false, false, null),
-    ORDER("Order / Dispatch Update", "ORDER", false, false, false, null),
-    SHIPMENT("Shipment / Delivery Update", "SHIPMENT", false, false, false, null),
+    COLLECTION("Record Collection", "COLLECTION", true, true, false, "PENDING"),
+    BUDGET("Budget / Target Revision", "BUDGET", true, false, false, null),
+    UPDATE("Post Update / Issue", "UPDATE", false, false, false, null),
+    ISSUE("Post Update / Issue", "ISSUE", false, false, false, null),
+    STOCK("Stock Update", "STOCK", false, false, false, null),
+    ORDER("Order", "ORDER", false, false, false, null),
+    SHIPMENT("Delivery", "SHIPMENT", false, false, false, null),
     RETURN("Return / Credit Note", "RETURN", true, false, false, null),
-    REIMBURSE("Record Reimbursement", "PAYMENT", true, false, true, "PENDING"),
+    REIMBURSE("Approval / Reimbursement", "PAYMENT", true, false, true, "PENDING"),
     PERSON("Add or invite person", "UPDATE", false, false, true, null),
     ROLE("Add or invite person", "UPDATE", false, false, true, null),
     INVITE("Add or invite person", "UPDATE", false, false, true, null),
     SUPPLIER("Add Supplier", "UPDATE", false, false, true, null),
-    HOLD("Hold / release order", "ORDER", false, false, false, null),
+    HOLD("Hold a record", "ORDER", false, false, false, null),
     TRANSFER("Transfer stock", "STOCK", false, false, false, null),
-    REPRINT("Reprint invoice / challan", "SALE", false, false, false, null),
+    REPRINT("Reprint a document", "SALE", false, false, false, null),
 }
 
 @Composable
@@ -125,20 +126,33 @@ fun TradingQuickAddHub(
     val theme = remember { com.example.momentra.ui.shell.business.shared.OperatingV12Theme.trading() }
     LaunchedEffect(OperatingChromeState.quickAddHint) {
         val hint = OperatingChromeState.quickAddHint?.uppercase() ?: return@LaunchedEffect
-        sheet = TradingSheet.entries.firstOrNull { it.captureMode == hint || it.name == hint }
-            ?: when (hint.lowercase()) {
-                "shipment", "delivery" -> TradingSheet.SHIPMENT
-                "stock" -> TradingSheet.STOCK
-                "budget" -> TradingSheet.BUDGET
-                "sale" -> TradingSheet.SALE
-                "purchase" -> TradingSheet.PURCHASE
-                "collection" -> TradingSheet.COLLECTION
-                "payment" -> TradingSheet.PAYMENT
-                "spend", "expense" -> TradingSheet.SPEND
-                "order" -> TradingSheet.ORDER
-                "update", "issue" -> TradingSheet.UPDATE
-                else -> null
+        when (hint.lowercase()) {
+            "approval" -> {
+                approvalOpen = true
+                OperatingChromeState.quickAddHint = null
+                return@LaunchedEffect
             }
+            else -> {
+                sheet = TradingSheet.entries.firstOrNull { it.captureMode == hint || it.name == hint }
+                    ?: when (hint.lowercase()) {
+                        "shipment", "delivery" -> TradingSheet.SHIPMENT
+                        "stock" -> TradingSheet.STOCK
+                        "budget" -> TradingSheet.BUDGET
+                        "sale" -> TradingSheet.SALE
+                        "purchase" -> TradingSheet.PURCHASE
+                        "collection" -> TradingSheet.COLLECTION
+                        "payment" -> TradingSheet.PAYMENT
+                        "spend", "expense" -> TradingSheet.SPEND
+                        "order" -> TradingSheet.ORDER
+                        "update", "issue" -> TradingSheet.UPDATE
+                        "return" -> TradingSheet.RETURN
+                        "reprint" -> TradingSheet.REPRINT
+                        "hold" -> TradingSheet.HOLD
+                        "transfer" -> TradingSheet.TRANSFER
+                        else -> null
+                    }
+            }
+        }
         OperatingChromeState.quickAddHint = null
     }
     Box(Modifier.fillMaxSize()) {
@@ -153,8 +167,12 @@ fun TradingQuickAddHub(
                 model = model,
                 theme = theme,
                 onCapture = { code ->
-                    sheet = TradingSheet.entries.firstOrNull { it.captureMode == code || it.eventType == code }
-                        ?: TradingSheet.UPDATE
+                    if (code.equals("APPROVAL", ignoreCase = true)) {
+                        approvalOpen = true
+                    } else {
+                        sheet = TradingSheet.entries.firstOrNull { it.captureMode == code || it.eventType == code }
+                            ?: TradingSheet.UPDATE
+                    }
                 },
                 onOpenMasters = { tabName -> OperatingChromeState.mastersOpen = tabName },
             )
@@ -188,7 +206,12 @@ fun TradingQuickAddHub(
         }
         val open = sheet
         if (open != null) {
-            OperatingSheetScrim(onDismiss = { sheet = null }, accent = TradeBrand) {
+            OperatingSheetScrim(
+                onDismiss = { sheet = null },
+                accent = TradeBrand,
+                surface = TradeSheetSurface,
+                border = Color.White.copy(alpha = 0.08f),
+            ) {
                 OperatingCaptureSheet(
                     title = open.title,
                     icon = open.hubIcon,
@@ -196,8 +219,8 @@ fun TradingQuickAddHub(
                     mode = open.captureMode,
                     model = model,
                     channelLabel = when (open.captureMode) {
-                        "SALE" -> "Sales channel"
-                        "COLLECTION" -> "Received from"
+                        "SALE" -> "Channel (C · if enabled)"
+                        "COLLECTION" -> "Customer"
                         else -> "Channel"
                     },
                     variant = "trading",
@@ -212,9 +235,14 @@ fun TradingQuickAddHub(
             }
         }
         if (approvalOpen) {
-            OperatingSheetScrim(onDismiss = { approvalOpen = false }, accent = TradeBrand) {
+            OperatingSheetScrim(
+                onDismiss = { approvalOpen = false },
+                accent = TradeBrand,
+                surface = TradeSheetSurface,
+                border = Color.White.copy(alpha = 0.08f),
+            ) {
                 OperatingCaptureSheet(
-                    title = "Review Approval",
+                    title = "Approval / Reimbursement",
                     icon = R.drawable.qa_shield,
                     eventType = "APPROVAL",
                     mode = "APPROVAL",

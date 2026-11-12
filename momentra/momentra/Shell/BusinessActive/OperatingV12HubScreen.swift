@@ -111,7 +111,7 @@ struct OperatingHubScreen: View {
             locationsTitle = "Godowns & branches"
             locationsSubtitle = "Depots · beats"
         } else {
-            principalsTitle = "Principals & dealers"
+            principalsTitle = "Business contacts"
             principalsSubtitle = "Principals · dealers"
             catalogueTitle = "Catalogue & SKU"
             catalogueSubtitle = "SKU · batch · price"

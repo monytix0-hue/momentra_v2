@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Restaurant / Food kit — Figma `RST-HUB-v5` `2400:29892`.
-/// Port of Android `RestaurantActive` / `RestaurantQuickAdds`. Sale → POS, Status → KOT.
+/// Port of Android `RestaurantActive` / `RestaurantQuickAdds`.
+/// Sale → POS; Status → Status / Assignment board; KOT stays on Pulse quick action.
 /// Moments/Life/Memory card IA lives in `RetailFamilyActiveScreens` (ember theme via vertical).
 
 struct RestaurantActiveView: View {
@@ -25,7 +26,6 @@ struct RestaurantActiveView: View {
             remapCapture: { code in
                 switch code.uppercased() {
                 case "SALE": return "POS"
-                case "STATUS", "ORDER": return code.uppercased() == "STATUS" ? "KOT" : code
                 default: return code
                 }
             }
@@ -70,7 +70,8 @@ struct RestaurantHubScreen: View {
         )
     }
 
-    /// Android `RestaurantCoreTiles` — Sale opens POS, Status opens KOT.
+    /// Core tiles — Sale → POS; Status → Status / Assignment board (`STATUS`).
+    /// Full KOT Send/Fire/Reprint stays reachable via Pulse quick action `KOT`.
     static let core: [RetailFamilyHubTile] = [
         .capture(code: "POS", title: "Sale", subtitle: "Bill / direct sale", glyph: "fork.knife", requires: "SALE"),
         .capture(code: "PURCHASE", title: "Purchase", subtitle: "Ingredients", glyph: "cart", requires: "PURCHASE"),
@@ -79,7 +80,7 @@ struct RestaurantHubScreen: View {
         .capture(code: "SPEND", title: "Expense", subtitle: "Kitchen · platform", glyph: "wallet.pass", requires: "SPEND"),
         .capture(code: "STOCK", title: "Stock", subtitle: "Count · waste", glyph: "shippingbox", requires: "STOCK"),
         .capture(code: "ORDER", title: "Order", subtitle: "Food / catering", glyph: "list.bullet.rectangle", requires: "ORDER"),
-        .capture(code: "KOT", title: "Status", subtitle: "Prep · fulfil", glyph: "flame", requires: "ORDER"),
+        .capture(code: "STATUS", title: "Status", subtitle: "Prep · fulfil", glyph: "flag", requires: "ORDER"),
         .capture(code: "BUDGET", title: "Budget", subtitle: "Versioned revise", glyph: "target", requires: "BUDGET"),
     ]
 

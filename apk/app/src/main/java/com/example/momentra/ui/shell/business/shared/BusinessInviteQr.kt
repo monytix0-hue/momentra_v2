@@ -14,6 +14,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -110,6 +112,10 @@ internal data class InvitePalette(
     val textFaint: Color,
     val warning: Color,
     val negative: Color,
+    /** Selected role chip fill; defaults to [accent]. SVC Figma uses lime. */
+    val chipSelected: Color = accent,
+    val chipSelectedInk: Color = textPrimary,
+    val chipSelectedStroke: Color = accent,
 )
 
 internal val RoseInvitePalette = InvitePalette(
@@ -118,7 +124,7 @@ internal val RoseInvitePalette = InvitePalette(
     card = RetailRose.cardSlate,
     field = RetailRose.field,
     chip = RetailRose.chip,
-    chipStroke = RetailRose.chipStroke,
+    chipStroke = Color(0xFF475569),
     divider = RetailRose.divider,
     qrPlate = RetailRose.cardSlate,
     textPrimary = RetailRose.textPrimary,
@@ -127,6 +133,10 @@ internal val RoseInvitePalette = InvitePalette(
     textFaint = RetailRose.textFaint,
     warning = RetailRose.warning,
     negative = RetailRose.negative,
+    /** Figma Invite Cashier chip: rose fill, dark ink, amber stroke. */
+    chipSelected = RetailRose.rose,
+    chipSelectedInk = RetailRose.field,
+    chipSelectedStroke = RetailRose.amber,
 )
 
 internal val EmberInvitePalette = InvitePalette(
@@ -146,6 +156,104 @@ internal val EmberInvitePalette = InvitePalette(
     negative = RestaurantEmber.negative,
 )
 
+/**
+ * Consumer Service invite chips — Figma labels mapped onto the four backend
+ * `operatingRole` codes. Therapist shares CONTRIBUTOR with Front desk at the API;
+ * UI selection is by label so only one chip is active at a time.
+ */
+val ServiceInviteRoles = listOf(
+    "FINANCE" to "Owner",
+    "APPROVER" to "Manager",
+    "OPERATIONS_LEAD" to "Stylist",
+    "CONTRIBUTOR" to "Front desk",
+    "CONTRIBUTOR" to "Therapist",
+)
+
+fun serviceInviteRoleAccess(roleCode: String): String = when (roleCode) {
+    "FINANCE" ->
+        "Owner → full access · reports, payouts and invites. The role you pick sets their access when they join"
+    "APPROVER" ->
+        "Manager → calendar, bookings, charges and approvals · no payouts. The role you pick sets their access when they join"
+    "OPERATIONS_LEAD" ->
+        "Stylist → own calendar, bookings & charge view · no reports or payouts. The role you pick sets their access when they join"
+    else ->
+        "Front desk / Therapist → bookings & walk-ins · no reports or payouts. The role you pick sets their access when they join"
+}
+
+/**
+ * Retail invite chips — Figma `2506:29333` Owner / Manager / Cashier / Stock / Floor
+ * mapped onto the four mintable `operatingRole` codes. Stock and Floor share
+ * CONTRIBUTOR at the API; UI selection is by label.
+ */
+val RetailInviteRoles = listOf(
+    "FINANCE" to "Owner",
+    "APPROVER" to "Manager",
+    "OPERATIONS_LEAD" to "Cashier",
+    "CONTRIBUTOR" to "Stock",
+    "CONTRIBUTOR" to "Floor",
+)
+
+fun retailInviteRoleAccess(roleCode: String): String = when (roleCode) {
+    "FINANCE" ->
+        "Access: Owner → full store · reports, payouts and invites. The role you pick sets their access when they join."
+    "APPROVER" ->
+        "Access: Manager → stock, orders, approvals · no payouts. The role you pick sets their access when they join."
+    "OPERATIONS_LEAD" ->
+        "Access: Cashier → POS, bills & returns · no reports or payouts. The role you pick sets their access when they join."
+    else ->
+        "Access: Stock / Floor → receive, count & floor ops · no reports or payouts. The role you pick sets their access when they join."
+}
+
+/**
+ * Restaurant invite chips — Figma `2465:29655` Owner / Manager / Cashier / Kitchen / Waiter.
+ * Kitchen and Waiter share CONTRIBUTOR at the API; UI selection is by label.
+ */
+val RestaurantInviteRoles = listOf(
+    "FINANCE" to "Owner",
+    "APPROVER" to "Manager",
+    "OPERATIONS_LEAD" to "Cashier",
+    "CONTRIBUTOR" to "Kitchen",
+    "CONTRIBUTOR" to "Waiter",
+)
+
+fun restaurantInviteRoleAccess(roleCode: String, roleLabel: String = ""): String = when {
+    roleCode == "FINANCE" ->
+        "Access: Owner → full kitchen · reports, payouts and invites. The role you pick sets their access when they join."
+    roleCode == "APPROVER" ->
+        "Access: Manager → floor, menu, approvals · no payouts. The role you pick sets their access when they join."
+    roleCode == "OPERATIONS_LEAD" || roleLabel.equals("Cashier", true) ->
+        "Access: Cashier → POS, bills & KOT view · no reports or payouts. The role you pick sets their access when they join."
+    roleLabel.equals("Kitchen", true) ->
+        "Access: Kitchen → KOT pass & prep · no reports or payouts. The role you pick sets their access when they join."
+    else ->
+        "Access: Waiter → floor tickets & serve · no reports or payouts. The role you pick sets their access when they join."
+}
+
+/**
+ * Marketing-Client invite chips — Figma `MKT-MASTER · Invite & QR` `2569:29329`
+ * Owner / Manager / Account lead / Media buyer / Creative. Codes stay the four
+ * mintable `operatingRole` values; Media buyer and Creative share CONTRIBUTOR.
+ */
+val MarketingClientInviteRoles = listOf(
+    "FINANCE" to "Owner",
+    "APPROVER" to "Manager",
+    "OPERATIONS_LEAD" to "Account lead",
+    "CONTRIBUTOR" to "Media buyer",
+    "CONTRIBUTOR" to "Creative",
+)
+
+fun marketingClientInviteRoleAccess(roleCode: String): String = when (roleCode) {
+    "FINANCE" ->
+        "Owner → full campaign · reports, payouts and invites. The role you pick sets their access when they join"
+    "APPROVER" ->
+        "Manager → spend, approvals and delivery · no payouts. The role you pick sets their access when they join"
+    "OPERATIONS_LEAD" ->
+        "Account lead → campaigns, delivery & QC · no payouts or pricing. The role you pick sets their access when they join"
+    else ->
+        "Media buyer / Creative → media & creative work · no payouts or pricing. The role you pick sets their access when they join"
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun BusinessInviteQr(
     momentId: String?,
@@ -155,11 +263,18 @@ internal fun BusinessInviteQr(
     iconRes: Int? = null,
     noun: String = "store",
     onError: (String) -> Unit,
+    roles: List<Pair<String, String>> = BusinessInviteRoles,
+    roleAccess: (String) -> String = { inviteRoleAccess(it) },
+    showIntroHeader: Boolean = true,
+    defaultRoleCode: String = "OPERATIONS_LEAD",
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
     var companyId by remember(momentId) { mutableStateOf<String?>(null) }
-    var roleCode by remember { mutableStateOf("OPERATIONS_LEAD") }
+    var roleCode by remember { mutableStateOf(defaultRoleCode) }
+    var roleLabel by remember {
+        mutableStateOf(roles.firstOrNull { it.first == defaultRoleCode }?.second ?: roles.firstOrNull()?.second.orEmpty())
+    }
     var invite by remember { mutableStateOf<CompanyInviteDto?>(null) }
     var minting by remember { mutableStateOf(false) }
     var mintError by remember { mutableStateOf<String?>(null) }
@@ -243,64 +358,66 @@ internal fun BusinessInviteQr(
         }
         .let { if (query.isBlank()) it.take(6) else it.take(20) }
 
-    // Header card
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(palette.card)
-            .border(1.dp, palette.accent.copy(alpha = 0.22f), RoundedCornerShape(16.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (iconRes != null) {
-                Box(
-                    Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(palette.accent.copy(alpha = 0.16f))
-                        .border(1.dp, palette.accent.copy(alpha = 0.45f), RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    androidx.compose.material3.Icon(
-                        androidx.compose.ui.res.painterResource(iconRes),
-                        contentDescription = null,
-                        tint = palette.accent,
-                        modifier = Modifier.size(18.dp),
+    // Header card (optional — masters sheets supply their own Figma title)
+    if (showIntroHeader) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(palette.card)
+                .border(1.dp, palette.accent.copy(alpha = 0.22f), RoundedCornerShape(16.dp))
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (iconRes != null) {
+                    Box(
+                        Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(palette.accent.copy(alpha = 0.16f))
+                            .border(1.dp, palette.accent.copy(alpha = 0.45f), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.material3.Icon(
+                            androidx.compose.ui.res.painterResource(iconRes),
+                            contentDescription = null,
+                            tint = palette.accent,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "Invite the team",
+                        color = palette.textPrimary,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                    )
+                    Text(
+                        "$displayName · ${businessInviteRoleLabel(role)} · invite grants a role",
+                        color = palette.accentMuted,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 11.sp,
+                        maxLines = 2,
                     )
                 }
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    "Invite the team",
-                    color = palette.textPrimary,
-                    fontFamily = PlusJakartaSans,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    maxLines = 1,
-                )
-                Text(
-                    "$displayName · ${businessInviteRoleLabel(role)} · invite grants a role",
-                    color = palette.accentMuted,
-                    fontFamily = PlusJakartaSans,
-                    fontSize = 11.sp,
-                    maxLines = 2,
-                )
-            }
-            if (!canInvite) {
-                Text(
-                    "Owner only",
-                    color = palette.warning,
-                    fontFamily = PlusJakartaSans,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp,
-                    maxLines = 1,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(palette.warning.copy(alpha = 0.16f))
-                        .padding(horizontal = 9.dp, vertical = 4.dp),
-                )
+                if (!canInvite) {
+                    Text(
+                        "Owner only",
+                        color = palette.warning,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(palette.warning.copy(alpha = 0.16f))
+                            .padding(horizontal = 9.dp, vertical = 4.dp),
+                    )
+                }
             }
         }
     }
@@ -315,27 +432,34 @@ internal fun BusinessInviteQr(
             fontSize = 10.sp,
             letterSpacing = 0.6.sp,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-            BusinessInviteRoles.forEach { (code, label) ->
-                val on = code == roleCode
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            roles.forEach { (code, label) ->
+                val on = label == roleLabel
                 Text(
                     label,
-                    color = if (on) palette.textPrimary else palette.textFaint,
+                    color = if (on) palette.chipSelectedInk else palette.textFaint,
                     fontFamily = PlusJakartaSans,
                     fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
                     fontSize = 12.sp,
                     maxLines = 1,
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(if (on) palette.accent else palette.chip)
-                        .border(1.dp, if (on) palette.accent else palette.chipStroke, CircleShape)
-                        .clickable(enabled = canInvite) { roleCode = code }
+                        .background(if (on) palette.chipSelected else palette.chip)
+                        .border(1.dp, if (on) palette.chipSelectedStroke else palette.chipStroke, CircleShape)
+                        .clickable(enabled = canInvite) {
+                            roleCode = code
+                            roleLabel = label
+                        }
                         .padding(horizontal = 10.dp, vertical = 7.dp),
                 )
             }
         }
         Text(
-            "Access: ${inviteRoleAccess(roleCode)}.",
+            "Access: ${roleAccess(roleCode)}.",
             color = palette.textFaint,
             fontFamily = PlusJakartaSans,
             fontSize = 11.sp,
@@ -585,7 +709,7 @@ internal fun BusinessInviteQr(
                 }
             }
             Text(
-                "$displayName · joins as ${businessInviteRoleLabel(invite?.operatingRole ?: roleCode)} by default",
+                "$displayName · joins as ${roleLabel.ifBlank { businessInviteRoleLabel(invite?.operatingRole ?: roleCode) }} by default",
                 color = palette.textMuted,
                 fontFamily = PlusJakartaSans,
                 fontSize = 10.sp,

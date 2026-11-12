@@ -14,19 +14,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.momentra.R
 import com.example.momentra.data.api.OperatingProjectionDto
-import com.example.momentra.ui.shell.business.shared.OperatingCaptureDraft
-import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
+import com.example.momentra.ui.theme.ManufacturingAmber
 import com.example.momentra.ui.theme.PlusJakartaSans
+import kotlinx.coroutines.launch
 
 data class ManufacturingEventDraft(
     val eventType: String,
@@ -65,39 +64,45 @@ data class ManufacturingEventDraft(
     val rejectedQuantity: String? = null,
 )
 
-private enum class ManufacturingCapture(
+/** Hub capture modes — internal so JVM smoke tests can assert wiring without Compose. */
+internal enum class ManufacturingCapture(
     val title: String,
     val eventType: String,
-    val needsAmount: Boolean,
-    val needsChannel: Boolean,
-    val needsParty: Boolean,
-    val paymentStatus: String?,
 ) {
-    PRODUCTION("Record Production", "PRODUCTION", true, false, false, null),
-    SALE("Record Sale", "SALE", true, true, false, null),
-    PURCHASE("Material Purchase", "PURCHASE", true, false, true, null),
-    SPEND("Record Expense", "SPEND", true, false, false, null),
-    PAYMENT("Record Payment", "PAYMENT", true, false, true, "PENDING"),
-    COLLECTION("Money collection", "COLLECTION", true, true, false, "PENDING"),
-    CUSTOMER_ORDER("Customer / Job Order", "CUSTOMER_ORDER", false, false, true, null),
-    DELIVERY("Delivery / Dispatch", "DELIVERY", false, false, true, null),
-    BUDGET("Revise Budget", "BUDGET", true, false, false, null),
-    TARGET("Revise Target", "TARGET", true, false, false, null),
-    UPDATE("Post Update", "UPDATE", false, false, false, null),
-    ISSUE("Report Issue", "ISSUE", false, false, false, null),
-    STOCK("Stock / Material Update", "STOCK", false, false, false, null),
-    ORDER("Work Order Update", "ORDER", false, false, false, null),
-    SHIPMENT("Delivery Update", "SHIPMENT", false, false, false, null),
-    RETURN("Return / Credit Note", "RETURN", true, false, false, null),
-    REIMBURSE("Record Reimbursement", "PAYMENT", true, false, true, "PENDING"),
-    PERSON("Add or invite person", "UPDATE", false, false, true, null),
-    ROLE("Add or invite person", "UPDATE", false, false, true, null),
-    INVITE("Invite & QR", "UPDATE", false, false, true, null),
-    SUPPLIER("Add Vendor / Supplier", "UPDATE", false, false, true, null),
-    HOLD("Hold / release work order", "ORDER", false, false, false, null),
-    TRANSFER("Transfer stock / WIP", "STOCK", false, false, false, null),
-    REPRINT("Reprint invoice / job card", "SALE", false, false, false, null),
-    REWORK("Rework / Scrap / Job Work", "STOCK", false, false, false, null),
+    PRODUCTION("Record Production", "PRODUCTION"),
+    SALE("Record Sale", "SALE"),
+    PURCHASE("Material Purchase", "PURCHASE"),
+    SPEND("Record Expense", "SPEND"),
+    PAYMENT("Record Payment", "PAYMENT"),
+    COLLECTION("Money collection", "COLLECTION"),
+    CUSTOMER_ORDER("Customer / Job Order", "CUSTOMER_ORDER"),
+    DELIVERY("Delivery / Dispatch", "DELIVERY"),
+    BUDGET("Revise Budget", "BUDGET"),
+    TARGET("Revise Target", "TARGET"),
+    UPDATE("Post Update", "UPDATE"),
+    ISSUE("Report Issue", "ISSUE"),
+    STOCK("Stock / Material Update", "STOCK"),
+    ORDER("Work Order Update", "ORDER"),
+    SHIPMENT("Delivery Update", "SHIPMENT"),
+    RETURN("Return / Credit Note", "RETURN"),
+    REIMBURSE("Record Reimbursement", "PAYMENT"),
+    PERSON("Add or invite person", "UPDATE"),
+    ROLE("Add or invite person", "UPDATE"),
+    INVITE("Invite & QR", "UPDATE"),
+    SUPPLIER("Add Vendor / Supplier", "UPDATE"),
+    HOLD("Hold / release work order", "ORDER"),
+    TRANSFER("Transfer stock / WIP", "STOCK"),
+    REPRINT("Reprint invoice / job card", "SALE"),
+    REWORK("Rework / Scrap / Job Work", "STOCK"),
+    APPROVAL("Review Approval", "APPROVAL"),
+}
+
+private sealed class MfgSheet {
+    data class Capture(val mode: String) : MfgSheet()
+    data class Utility(val nav: MfgUtilityNav) : MfgSheet()
+    data class Masters(val tab: MfgMasterTab) : MfgSheet()
+    data class Form(val form: MfgMasterForm) : MfgSheet()
+    data class Browser(val parts: Boolean) : MfgSheet()
 }
 
 @Composable
@@ -106,41 +111,35 @@ fun ManufacturingQuickAddHub(
     onRecord: suspend (ManufacturingEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
 ) {
-    val allowed = model.quickAdds.map { it.code }.toSet()
-    var sheet by remember { mutableStateOf<ManufacturingCapture?>(null) }
+    var sheet by remember { mutableStateOf<MfgSheet?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var approvalOpen by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val theme = remember(model.subtype) {
         com.example.momentra.ui.shell.business.shared.OperatingV12Theme.forSubtype(model.subtype)
     }
     val role = model.role.orEmpty()
     val approver = role == "APPROVER" || role == "OWNER_ADMIN"
+
+    fun openCapture(code: String) {
+        val upper = code.uppercase()
+        sheet = when (upper) {
+            "HOLD" -> MfgSheet.Utility(MfgUtilityNav.HOLD)
+            "TRANSFER" -> MfgSheet.Utility(MfgUtilityNav.TRANSFER)
+            "REPRINT" -> MfgSheet.Utility(MfgUtilityNav.REPRINT)
+            "INVITE", "PERSON", "ROLE" -> MfgSheet.Masters(MfgMasterTab.INVITE)
+            "SUPPLIER" -> MfgSheet.Masters(MfgMasterTab.VENDORS)
+            // PO / materials entry — Figma Materials browser (`2547:29687`), not bare Purchase first.
+            "PURCHASE" -> MfgSheet.Browser(parts = false)
+            else -> MfgSheet.Capture(upper)
+        }
+    }
+
     LaunchedEffect(OperatingChromeState.quickAddHint) {
         val hint = OperatingChromeState.quickAddHint?.uppercase() ?: return@LaunchedEffect
-        sheet = ManufacturingCapture.entries.firstOrNull { it.captureMode == hint || it.name == hint }
-            ?: when (hint.lowercase()) {
-                "shipment", "delivery" -> ManufacturingCapture.DELIVERY
-                "production" -> ManufacturingCapture.PRODUCTION
-                "customer_order", "job" -> ManufacturingCapture.CUSTOMER_ORDER
-                "stock" -> ManufacturingCapture.STOCK
-                "budget" -> ManufacturingCapture.BUDGET
-                "target" -> ManufacturingCapture.TARGET
-                "sale" -> ManufacturingCapture.SALE
-                "purchase" -> ManufacturingCapture.PURCHASE
-                "collection" -> ManufacturingCapture.COLLECTION
-                "payment" -> ManufacturingCapture.PAYMENT
-                "spend", "expense" -> ManufacturingCapture.SPEND
-                "order" -> ManufacturingCapture.ORDER
-                "update", "issue" -> ManufacturingCapture.UPDATE
-                "rework", "scrap" -> ManufacturingCapture.REWORK
-                "hold" -> ManufacturingCapture.HOLD
-                "transfer" -> ManufacturingCapture.TRANSFER
-                "reprint" -> ManufacturingCapture.REPRINT
-                "return" -> ManufacturingCapture.RETURN
-                else -> null
-            }
+        openCapture(hint)
         OperatingChromeState.quickAddHint = null
     }
+
     Box(Modifier.fillMaxSize()) {
         Column(
             Modifier
@@ -149,179 +148,184 @@ fun ManufacturingQuickAddHub(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            Text(
+                "Plan. Make. Fulfil.",
+                color = ManufacturingAmber.accentSoft,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+            )
             com.example.momentra.ui.shell.business.shared.OperatingV12HubScreen(
                 model = model,
                 theme = theme,
-                onCapture = { code ->
-                    sheet = ManufacturingCapture.entries.firstOrNull { it.captureMode == code || it.eventType == code }
-                        ?: ManufacturingCapture.UPDATE
-                },
+                onCapture = { code -> openCapture(code) },
                 onOpenMasters = { tabName ->
-                    if (tabName.equals("Catalogue", ignoreCase = true)) {
-                        OperatingChromeState.partsBrowserOpen = "parts"
-                    } else {
-                        OperatingChromeState.mastersOpen = tabName
+                    when {
+                        // Hub “Parts & BOM” → Products & BOM masters (Figma 2545:29477).
+                        // Parts browser stays reachable from New part CTAs / SO·WO add paths.
+                        tabName.equals("Catalogue", ignoreCase = true) ||
+                            tabName.equals("Products", ignoreCase = true) ||
+                            tabName.equals("Parts", ignoreCase = true) -> {
+                            sheet = MfgSheet.Masters(MfgMasterTab.PRODUCTS_BOM)
+                        }
+                        tabName.equals("Materials", ignoreCase = true) ||
+                            tabName.equals("Material", ignoreCase = true) -> {
+                            sheet = MfgSheet.Browser(parts = false)
+                        }
+                        tabName.equals("Vendors", ignoreCase = true) ||
+                            tabName.equals("Suppliers", ignoreCase = true) ||
+                            tabName.equals("Principals", ignoreCase = true) -> {
+                            sheet = MfgSheet.Masters(MfgMasterTab.VENDORS)
+                        }
+                        tabName.equals("Locations", ignoreCase = true) ||
+                            tabName.equals("Lines", ignoreCase = true) -> {
+                            sheet = MfgSheet.Masters(MfgMasterTab.LINES_STORES)
+                        }
+                        tabName.equals("Invite", ignoreCase = true) ||
+                            tabName.equals("People", ignoreCase = true) -> {
+                            sheet = MfgSheet.Masters(MfgMasterTab.INVITE)
+                        }
+                        else -> {
+                            OperatingChromeState.mastersOpen = tabName
+                        }
                     }
                 },
             )
             if (error != null) {
-                Text(error ?: "", color = Color(0xFFF87171), fontFamily = PlusJakartaSans, fontSize = 13.sp)
+                Text(
+                    error ?: "",
+                    color = ManufacturingAmber.negative,
+                    fontFamily = PlusJakartaSans,
+                    fontSize = 13.sp,
+                )
             }
             Text(
                 "Review approvals",
-                color = if (approver) MfgAccent else MfgSecondary,
+                color = if (approver) ManufacturingAmber.accent else ManufacturingAmber.textBody,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
-                    .clickable(enabled = approver) { approvalOpen = true }
+                    .clickable(enabled = approver) { sheet = MfgSheet.Capture("APPROVAL") }
                     .padding(vertical = 4.dp),
             )
-        }
-        val createMaster: suspend (String, String, String?, String?) -> Unit = { kind, name, unit, conversion ->
-            onRecord(
-                ManufacturingEventDraft(
-                    eventType = "UPDATE",
-                    title = name,
-                    amount = null,
-                    note = null,
-                    channelName = null,
-                    counterpartyName = null,
-                    paymentStatus = null,
-                    unit = unit,
-                    itemName = name,
-                    masterKind = kind,
-                    conversionToBase = conversion,
-                ),
+            Text(
+                "Role-locked tiles stay visible with Role locked — capability gates unchanged.",
+                color = ManufacturingAmber.textFaint,
+                fontFamily = PlusJakartaSans,
+                fontSize = 11.sp,
             )
         }
-        val open = sheet
-        if (open != null) {
-            OperatingSheetScrim(onDismiss = { sheet = null }, accent = MfgBrand) {
-                OperatingCaptureSheet(
-                    title = open.title,
-                    icon = open.hubIcon,
-                    eventType = open.eventType,
-                    mode = open.captureMode,
-                    model = model,
-                    channelLabel = when (open.captureMode) {
-                        "SALE" -> "Sales channel"
-                        "COLLECTION" -> "Buyer / customer"
-                        else -> "Channel"
-                    },
-                    // OperatingCaptureSheet gates plant/job UX on `standard` / `job`.
-                    variant = if (theme.isMadeToOrder) "job" else "standard",
-                    onDismiss = { sheet = null },
-                    onSubmit = { draft ->
-                        onRecord(draft.toManufacturing())
-                        sheet = null
-                    },
-                    onDecide = onDecide,
-                    onCreateMaster = if ("UPDATE" in allowed) createMaster else null,
-                )
+
+        val post: (ManufacturingEventDraft) -> Unit = { draft ->
+            scope.launch {
+                runCatching { onRecord(draft) }
+                    .onFailure { error = it.message }
+                sheet = null
             }
         }
-        if (approvalOpen) {
-            OperatingSheetScrim(onDismiss = { approvalOpen = false }, accent = MfgBrand) {
-                OperatingCaptureSheet(
-                    title = "Review Approval",
-                    icon = R.drawable.qa_shield,
-                    eventType = "APPROVAL",
-                    mode = "APPROVAL",
-                    model = model,
-                    variant = if (theme.isMadeToOrder) "job" else "standard",
-                    onDismiss = { approvalOpen = false },
-                    onSubmit = {},
-                    onDecide = onDecide,
-                )
+
+        sheet?.let { open ->
+            OperatingSheetScrim(
+                onDismiss = { sheet = null },
+                accent = ManufacturingAmber.accent,
+                surface = ManufacturingAmber.cardSlate,
+                border = ManufacturingAmber.accent.copy(alpha = 0.4f),
+                topCorner = 28.dp,
+            ) {
+                when (open) {
+                    is MfgSheet.Utility -> when (open.nav) {
+                        MfgUtilityNav.HOLD -> MfgHoldWoSheet(
+                            model = model,
+                            onDismiss = { sheet = null },
+                            onNavigate = { sheet = MfgSheet.Utility(it) },
+                            onSubmit = post,
+                        )
+                        MfgUtilityNav.TRANSFER -> MfgTransferSheet(
+                            model = model,
+                            onDismiss = { sheet = null },
+                            onNavigate = { sheet = MfgSheet.Utility(it) },
+                            onSubmit = post,
+                        )
+                        MfgUtilityNav.REPRINT -> MfgReprintSheet(
+                            model = model,
+                            onDismiss = { sheet = null },
+                            onNavigate = { sheet = MfgSheet.Utility(it) },
+                        )
+                    }
+                    is MfgSheet.Capture -> MfgCaptureSheet(
+                        mode = open.mode,
+                        model = model,
+                        onDismiss = { sheet = null },
+                        onSubmit = post,
+                        onNavigateUtility = { sheet = MfgSheet.Utility(it) },
+                    )
+                    is MfgSheet.Masters -> MfgMastersSheet(
+                        tab = open.tab,
+                        model = model,
+                        onClose = { sheet = null },
+                        onCreate = post,
+                        onOpenForm = { sheet = MfgSheet.Form(it) },
+                        onBrowseParts = { sheet = MfgSheet.Browser(parts = true) },
+                    )
+                    is MfgSheet.Form -> MfgMasterFormSheet(
+                        form = open.form,
+                        model = model,
+                        onDismiss = { sheet = null },
+                        onSubmit = post,
+                    )
+                    is MfgSheet.Browser -> if (open.parts) {
+                        MfgPartsBrowserSheet(
+                            model = model,
+                            onDismiss = { sheet = null },
+                            onAdd = { part ->
+                                OperatingChromeState.partsBrowserOpen = null
+                                OperatingChromeState.browserSelection =
+                                    com.example.momentra.ui.shell.business.shared.OperatingBrowserSelection(
+                                        id = part.id,
+                                        name = part.name,
+                                        unit = part.unit,
+                                        unitPrice = part.sellPrice,
+                                        masterKind = part.kind,
+                                        code = part.code,
+                                        browserKind = com.example.momentra.ui.shell.business.shared.OperatingBrowserKind.Parts,
+                                        captureHint = "ORDER",
+                                    )
+                                sheet = MfgSheet.Capture("ORDER")
+                            },
+                            onNewPart = { sheet = MfgSheet.Form(MfgMasterForm.PART) },
+                        )
+                    } else {
+                        MfgMaterialsBrowserSheet(
+                            model = model,
+                            onDismiss = { sheet = null },
+                            onAdd = { mat ->
+                                OperatingChromeState.browserSelection =
+                                    com.example.momentra.ui.shell.business.shared.OperatingBrowserSelection(
+                                        id = mat.id,
+                                        name = mat.name,
+                                        unit = mat.unit,
+                                        unitPrice = mat.purchasePrice ?: mat.sellPrice,
+                                        masterKind = mat.kind,
+                                        code = mat.code,
+                                        browserKind = com.example.momentra.ui.shell.business.shared.OperatingBrowserKind.Materials,
+                                        captureHint = "PURCHASE",
+                                    )
+                                sheet = MfgSheet.Capture("PURCHASE")
+                            },
+                            onNewBom = { sheet = MfgSheet.Form(MfgMasterForm.BOM) },
+                        )
+                    }
+                }
             }
         }
+
+        // onDecide remains available for approval hosts; capture sheets post via onRecord.
+        @Suppress("UNUSED_EXPRESSION")
+        onDecide
     }
 }
 
-private val ManufacturingCapture.hubIcon: Int
-    get() = when (this) {
-        ManufacturingCapture.PRODUCTION, ManufacturingCapture.TARGET -> R.drawable.qa_clipboard
-        ManufacturingCapture.SALE, ManufacturingCapture.SPEND, ManufacturingCapture.REPRINT -> R.drawable.qa_receipt
-        ManufacturingCapture.PURCHASE -> R.drawable.qa_wallet
-        ManufacturingCapture.PAYMENT, ManufacturingCapture.REIMBURSE -> R.drawable.qa_credit_card
-        ManufacturingCapture.COLLECTION -> R.drawable.qa_arrow_left_right
-        ManufacturingCapture.CUSTOMER_ORDER, ManufacturingCapture.ORDER -> R.drawable.qa_clipboard
-        ManufacturingCapture.DELIVERY, ManufacturingCapture.SHIPMENT, ManufacturingCapture.TRANSFER -> R.drawable.qa_shipment
-        ManufacturingCapture.BUDGET -> R.drawable.qa_budget
-        ManufacturingCapture.UPDATE -> R.drawable.qa_message
-        ManufacturingCapture.ISSUE -> R.drawable.qa_alert
-        ManufacturingCapture.STOCK -> R.drawable.qa_package
-        ManufacturingCapture.RETURN -> R.drawable.qa_arrow_left_right
-        ManufacturingCapture.PERSON -> R.drawable.qa_user_plus
-        ManufacturingCapture.ROLE -> R.drawable.qa_users
-        ManufacturingCapture.INVITE -> R.drawable.qa_qr
-        ManufacturingCapture.SUPPLIER -> R.drawable.qa_network
-        ManufacturingCapture.HOLD -> R.drawable.qa_shield
-        ManufacturingCapture.REWORK -> R.drawable.qa_alert
-    }
-
-private val ManufacturingCapture.captureMode: String
-    get() = when (this) {
-        ManufacturingCapture.PRODUCTION -> "PRODUCTION"
-        ManufacturingCapture.SALE -> "SALE"
-        ManufacturingCapture.PURCHASE -> "PURCHASE"
-        ManufacturingCapture.SPEND -> "SPEND"
-        ManufacturingCapture.PAYMENT -> "PAYMENT"
-        ManufacturingCapture.COLLECTION -> "COLLECTION"
-        ManufacturingCapture.CUSTOMER_ORDER -> "ORDER"
-        ManufacturingCapture.DELIVERY -> "DELIVERY"
-        ManufacturingCapture.BUDGET -> "BUDGET"
-        ManufacturingCapture.TARGET -> "TARGET"
-        ManufacturingCapture.UPDATE -> "UPDATE"
-        ManufacturingCapture.ISSUE -> "ISSUE"
-        ManufacturingCapture.STOCK -> "STOCK"
-        ManufacturingCapture.ORDER -> "ORDER"
-        ManufacturingCapture.SHIPMENT -> "SHIPMENT"
-        ManufacturingCapture.RETURN -> "RETURN"
-        ManufacturingCapture.REIMBURSE -> "REIMBURSE"
-        ManufacturingCapture.PERSON -> "PERSON"
-        ManufacturingCapture.ROLE -> "ROLE"
-        ManufacturingCapture.INVITE -> "INVITE"
-        ManufacturingCapture.SUPPLIER -> "SUPPLIER"
-        ManufacturingCapture.HOLD -> "HOLD"
-        ManufacturingCapture.TRANSFER -> "TRANSFER"
-        ManufacturingCapture.REPRINT -> "REPRINT"
-        ManufacturingCapture.REWORK -> "REWORK"
-    }
-
-private fun OperatingCaptureDraft.toManufacturing() = ManufacturingEventDraft(
-    eventType = eventType,
-    title = title,
-    amount = amount,
-    note = note,
-    channelName = channelName,
-    counterpartyName = counterpartyName,
-    paymentStatus = paymentStatus,
-    occurredAt = occurredAt,
-    quantity = quantity,
-    unit = unit,
-    unitPrice = unitPrice,
-    itemName = itemName,
-    parentEventId = parentEventId,
-    revisesEventId = revisesEventId,
-    masterKind = masterKind,
-    conversionToBase = conversionToBase,
-    dueAt = dueAt,
-    contract = contract,
-    masterId = masterId,
-    masterGstApplicable = masterGstApplicable,
-    masterGstClassification = masterGstClassification,
-    masterGstRate = masterGstRate,
-    masterPriceIncludesGst = masterPriceIncludesGst,
-    masterSalePriceIncludesGst = masterSalePriceIncludesGst,
-    masterPurchasePriceIncludesGst = masterPurchasePriceIncludesGst,
-    masterGstEffectiveFrom = masterGstEffectiveFrom,
-    masterHsn = masterHsn,
-    masterGstRegistration = masterGstRegistration,
-    masterBusinessState = masterBusinessState,
-    masterBillingState = masterBillingState,
-    masterDeliveryState = masterDeliveryState,
-    masterGstin = masterGstin,
-    lines = lines,
-    rejectedQuantity = rejectedQuantity,
-)
+// ManufacturingCapture retained as route vocabulary for hub hint mapping.
+@Suppress("unused")
+private fun manufacturingCaptureHint(hint: String): ManufacturingCapture? =
+    ManufacturingCapture.entries.firstOrNull { it.name == hint || it.eventType == hint }

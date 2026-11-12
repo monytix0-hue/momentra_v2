@@ -59,6 +59,7 @@ import androidx.core.content.ContextCompat
 import com.example.momentra.data.api.CompanyInviteDto
 import com.example.momentra.ui.shell.business.shared.CompanyJoinLink
 import com.example.momentra.ui.shell.business.shared.inviteRoleAccess
+import com.example.momentra.ui.shell.business.shared.marketingClientInviteRoleAccess
 import com.example.momentra.ui.shell.components.MomentraFullscreenDialog
 import com.example.momentra.ui.shell.empty.group.DeviceContact
 import com.example.momentra.ui.shell.empty.group.generateInviteQrBitmap
@@ -260,9 +261,17 @@ internal fun BusinessSetupInviteSheet(
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = PlusJakartaSans,
                             )
+                            // Label-scoped selection so Marketing Media buyer + Creative
+                            // (both CONTRIBUTOR) stay distinct chips.
+                            var selectedRoleLabel by remember(roleCode, subtypeCode) {
+                                mutableStateOf(
+                                    SetupDocumentSpec.inviteRoles(subtypeCode)
+                                        .firstOrNull { it.code == roleCode }?.label.orEmpty(),
+                                )
+                            }
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 SetupDocumentSpec.inviteRoles(subtypeCode).forEach { role ->
-                                    val selected = role.code == roleCode
+                                    val selected = role.label == selectedRoleLabel
                                     Text(
                                         role.label,
                                         color = if (selected) theme.ink else theme.muted,
@@ -278,13 +287,24 @@ internal fun BusinessSetupInviteSheet(
                                                 if (selected) theme.accent else theme.border,
                                                 RoundedCornerShape(999.dp),
                                             )
-                                            .clickable { onRoleChange(role.code) }
+                                            .clickable {
+                                                selectedRoleLabel = role.label
+                                                onRoleChange(role.code)
+                                            }
                                             .padding(horizontal = 11.dp, vertical = 7.dp),
                                     )
                                 }
                             }
                             Text(
-                                "Access: ${inviteRoleAccess(roleCode, SetupDocumentSpec.isDistribution(subtypeCode))}.",
+                                "Access: ${
+                                    when {
+                                        subtypeCode.equals("CLIENT_CAMPAIGN", true) ||
+                                            subtypeCode.equals("OWN_BUSINESS_CAMPAIGN", true) ->
+                                            marketingClientInviteRoleAccess(roleCode)
+                                        else ->
+                                            inviteRoleAccess(roleCode, SetupDocumentSpec.isDistribution(subtypeCode))
+                                    }
+                                }.",
                                 color = theme.muted,
                                 fontSize = 11.sp,
                                 fontFamily = PlusJakartaSans,

@@ -27,7 +27,11 @@ struct OperatingMastersView: View {
 
     private var rows: [OperatingMasterPayload] {
         if tab == .priceLists { return [] }
-        let kinds = tab.kinds
+        var kinds = tab.kinds
+        // Retail stock items post as MATERIAL/CONSUMABLE — include them on Catalogue.
+        if model.vertical == .retailStore, tab == .catalogue {
+            kinds.formUnion(["MATERIAL", "CONSUMABLE", "ITEM"])
+        }
         let filtered = model.masters.filter { kinds.contains($0.kind.uppercased()) }
         return filtered.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
@@ -35,7 +39,7 @@ struct OperatingMastersView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Masters")
+                Text(theme.isDistributionCapture ? DistributionMasterCopy.tabTitle(tab) : "Masters")
                     .font(.plusJakarta(size: 24, weight: .semibold))
                     .foregroundStyle(theme.ink)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -44,13 +48,19 @@ struct OperatingMastersView: View {
                             Button {
                                 tab = item
                             } label: {
-                                OperatingPill(theme: theme, label: item.title, accent: tab == item)
+                                OperatingPill(
+                                    theme: theme,
+                                    label: theme.isDistributionCapture
+                                        ? DistributionMasterCopy.tabTitle(item)
+                                        : item.title(ownMarketing: theme.isMarketingOwnCapture),
+                                    accent: tab == item
+                                )
                             }
                             .buttonStyle(.plain)
                         }
                     }
                 }
-                Text(tab.note)
+                Text(theme.isDistributionCapture ? DistributionMasterCopy.tabSubtitle(tab) : tab.note)
                     .font(.plusJakarta(size: 12))
                     .foregroundStyle(theme.body)
 
@@ -64,7 +74,7 @@ struct OperatingMastersView: View {
             }
             .padding(18)
         }
-        .background(theme.canvas.ignoresSafeArea())
+        .background((theme.isDistributionCapture ? theme.captureSheet : theme.canvas).ignoresSafeArea())
         .task {
             await model.loadMasters()
             if tab == .priceLists { await model.loadPriceLists() }
@@ -77,26 +87,63 @@ struct OperatingMastersView: View {
         .sheet(item: $sheet) { route in
             Group {
                 switch route {
-                case .create:
-                    OperatingMasterFormView(
-                        theme: theme,
-                        tab: tab,
-                        existing: nil,
-                        parents: parentCandidates,
-                        onSave: { draft in
-                            let created = await model.createMaster(draft)
-                            let ok = model.writeError == nil
-                            if ok, model.vertical.isMadeToOrder {
-                                MtoToastHost.shared.show(
-                                    MtoToastCatalog.forMasterCreated(
-                                        kind: draft.kind,
-                                        entity: draft.name.isEmpty ? "this record" : draft.name
+                case .create, .createStockItem:
+                    if model.vertical == .retailStore {
+                        let retailKind: RetailMasterFormKind? = {
+                            if case .createStockItem = route { return .stockItem }
+                            return RetailMasterFormKind.from(tab: tab)
+                        }()
+                        if let retailKind {
+                            RetailMasterFormSheet(
+                                theme: theme,
+                                kind: retailKind,
+                                model: model,
+                                onSave: { draft in
+                                    let created = await model.createMaster(draft)
+                                    return created != nil && model.writeError == nil
+                                },
+                                onUpdate: { id, draft, version in
+                                    let updated = await model.updateMaster(
+                                        id: id,
+                                        draft: draft,
+                                        expectedVersion: version
                                     )
-                                )
-                            }
-                            return created != nil && ok
+                                    return updated != nil && model.writeError == nil
+                                }
+                            )
+                        } else {
+                            OperatingMasterFormView(
+                                theme: theme,
+                                tab: tab,
+                                existing: nil,
+                                parents: parentCandidates,
+                                onSave: { draft in
+                                    let created = await model.createMaster(draft)
+                                    return created != nil && model.writeError == nil
+                                }
+                            )
                         }
-                    )
+                    } else {
+                        OperatingMasterFormView(
+                            theme: theme,
+                            tab: tab,
+                            existing: nil,
+                            parents: parentCandidates,
+                            onSave: { draft in
+                                let created = await model.createMaster(draft)
+                                let ok = model.writeError == nil
+                                if ok, model.vertical.isMadeToOrder {
+                                    MtoToastHost.shared.show(
+                                        MtoToastCatalog.forMasterCreated(
+                                            kind: draft.kind,
+                                            entity: draft.name.isEmpty ? "this record" : draft.name
+                                        )
+                                    )
+                                }
+                                return created != nil && ok
+                            }
+                        )
+                    }
                 case let .edit(master):
                     OperatingMasterFormView(
                         theme: theme,
@@ -201,7 +248,13 @@ struct OperatingMastersView: View {
             Button {
                 sheet = .create
             } label: {
-                Text("＋ New \(tab.singular)")
+                Text(
+                    theme.isDistributionCapture
+                        ? DistributionMasterCopy.newCta(tab)
+                        : (model.vertical == .retailStore && tab == .catalogue
+                           ? "＋ New product / SKU"
+                           : "＋ New \(tab.singular)")
+                )
                     .font(.plusJakarta(size: 14, weight: .semibold))
                     .foregroundStyle(theme.onAccent)
                     .frame(maxWidth: .infinity)
@@ -210,6 +263,20 @@ struct OperatingMastersView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 13))
             }
             .buttonStyle(.plain)
+            if model.vertical == .retailStore, tab == .catalogue {
+                Button {
+                    sheet = .createStockItem
+                } label: {
+                    Text("＋ New stock item")
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(theme.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(theme.inset)
+                        .clipShape(RoundedRectangle(cornerRadius: 13))
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -254,16 +321,210 @@ struct OperatingMastersView: View {
     }
 
     private var inviteBlock: some View {
-        OperatingCard(theme: theme) {
-            Text("Invite a person into this company")
-                .font(.plusJakarta(size: 15, weight: .semibold))
+        if theme.isMarketingQaCapture {
+            // Client indigo Invite + Own soft-magenta Invite (`2584:29990`).
+            MarketingClientInviteBlock(theme: theme, model: model)
+        } else {
+            OperatingCard(theme: theme) {
+                Text(
+                    theme.isDistributionCapture
+                        ? "Invite team"
+                        : "Invite a person into this company"
+                )
+                    .font(.plusJakarta(size: 15, weight: .semibold))
+                    .foregroundStyle(theme.ink)
+                Text(
+                    theme.isDistributionCapture
+                        ? DistributionMasterCopy.tabNote(.invite)
+                        : "An invite grants a role and its access. Joining is not approval, and approval is not payment."
+                )
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(theme.body)
+                Text("Use the company Invite sheet to issue a code or QR.")
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(theme.muted)
+            }
+        }
+    }
+}
+
+/// Marketing-Client Invite & QR — Figma `2569:29329` role chips + mint + QR (APK `BusinessInviteQr` parity).
+private struct MarketingClientInviteBlock: View {
+    let theme: OperatingTheme
+    @ObservedObject var model: BusinessOperatingModel
+
+    @State private var roleCode = "OPERATIONS_LEAD"
+    @State private var roleLabel = "Account lead"
+    @State private var invite: CompanyInvite?
+    @State private var minting = false
+    @State private var mintError: String?
+    @State private var copied = false
+
+    private var roles: [BusinessSetupRoleSpec] { BusinessSetupDocSpec.marketingRoles }
+    private var canInvite: Bool { (model.projection?.role ?? "") == "OWNER_ADMIN" }
+    private var displayName: String {
+        let t = model.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.isEmpty ? "campaign" : t
+    }
+    private var inviteCode: String? {
+        guard let invite, invite.operatingRole == roleCode else { return nil }
+        let code = invite.inviteCode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return code.isEmpty ? nil : code
+    }
+    private var invitePath: String? {
+        guard let invite, let code = inviteCode else { return nil }
+        if !invite.invitePath.isEmpty { return invite.invitePath }
+        if !invite.inviteUrl.isEmpty { return invite.inviteUrl }
+        return CompanyJoinLink.displayPath(code: code)
+    }
+    private var qrPayload: String? { inviteCode.map { CompanyJoinLink.qrPayload(code: $0) } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Invite team · \(displayName)")
+                .font(.plusJakarta(size: 18, weight: .bold))
                 .foregroundStyle(theme.ink)
-            Text("An invite grants a role and its access. Joining is not approval, and approval is not payment.")
+            Text("\(displayName) · invite grants a role")
                 .font(.plusJakarta(size: 12))
                 .foregroundStyle(theme.body)
-            Text("Use the company Invite sheet to issue a code or QR.")
-                .font(.plusJakarta(size: 12))
+
+            Text("ROLE FOR THE INVITE")
+                .font(.plusJakarta(size: 10, weight: .bold))
+                .tracking(0.6)
                 .foregroundStyle(theme.muted)
+            FlowLayout(spacing: 6) {
+                ForEach(roles) { role in
+                    let on = role.label == roleLabel
+                    Button {
+                        roleCode = role.code
+                        roleLabel = role.label
+                    } label: {
+                        Text(role.label)
+                            .font(.plusJakarta(size: 12, weight: on ? .bold : .medium))
+                            .foregroundStyle(on ? theme.onAccent : theme.muted)
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 7)
+                            .background(on ? theme.accent : theme.inset, in: Capsule())
+                            .overlay(
+                                Capsule().stroke(
+                                    on
+                                        ? (theme.isMarketingOwnCapture ? theme.softLink : theme.accent)
+                                        : theme.border,
+                                    lineWidth: 1
+                                )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canInvite)
+                }
+            }
+            Text(
+                BusinessSetupDocSpec.inviteAccessNote(
+                    roleCode,
+                    vertical: theme.isMarketingOwnCapture ? .ownBusinessCampaign : .clientCampaign
+                )
+            )
+                .font(.plusJakarta(size: 11))
+                .foregroundStyle(theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !canInvite {
+                Text("Only the Owner can mint an invite for this campaign.")
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(theme.muted)
+            } else if minting {
+                Text("Minting invite…")
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(theme.muted)
+            } else if let mintError {
+                Text(mintError)
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(theme.negative)
+            }
+
+            if let path = invitePath {
+                Text(path)
+                    .font(.plusJakarta(size: 12, weight: .medium))
+                    .foregroundStyle(theme.ink)
+                    .textSelection(.enabled)
+                Button {
+                    UIPasteboard.general.string = path
+                    copied = true
+                } label: {
+                    Text(copied ? "Copied" : "Copy link")
+                        .font(.plusJakarta(size: 13, weight: .semibold))
+                        .foregroundStyle(theme.onAccent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(theme.accent, in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+            }
+
+            if let qrPayload, let qr = GroupQRCode.image(from: qrPayload, size: 168) {
+                HStack {
+                    Spacer()
+                    Image(uiImage: qr)
+                        .interpolation(.none)
+                        .resizable()
+                        .frame(width: 168, height: 168)
+                        .padding(12)
+                        .background(theme.inset, in: RoundedRectangle(cornerRadius: 16))
+                    Spacer()
+                }
+            }
+
+            if theme.isMarketingOwnCapture {
+                // Masters Invite WHY — magenta fill/border, soft-link label, body `#FAE8FF`.
+                HStack(alignment: .top, spacing: 8) {
+                    Text("Why")
+                        .font(.plusJakarta(size: 11, weight: .bold))
+                        .foregroundStyle(theme.softLink)
+                    Text(MarketingOwnQuickAddCopy.inviteWhy)
+                        .font(.plusJakarta(size: 11))
+                        .foregroundStyle(Color(hex: "#FAE8FF"))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(theme.accent.opacity(0.12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(theme.accent.opacity(0.40), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
+        .padding(14)
+        .background(theme.captureSheet, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(theme.accent.opacity(0.35), lineWidth: 1)
+        )
+        .task(id: "\(model.companyId ?? "")|\(roleCode)") {
+            await mintIfNeeded()
+        }
+    }
+
+    @MainActor
+    private func mintIfNeeded() async {
+        guard canInvite, let companyId = model.companyId, !companyId.isEmpty else { return }
+        minting = true
+        mintError = nil
+        defer { minting = false }
+        do {
+            let minted = try await APIClient.shared.mintCompanyInvite(
+                companyId: companyId,
+                membershipType: BusinessSetupDocSpec.membershipType(for: roleCode),
+                operatingRole: roleCode,
+                idempotencyKey: UUID().uuidString
+            )
+            invite = minted
+            copied = false
+        } catch {
+            if invite == nil {
+                mintError = error.localizedDescription
+            }
         }
     }
 }
@@ -272,12 +533,15 @@ struct OperatingMastersView: View {
 /// another `.sheet` modifier on the same view.
 private enum OperatingMastersSheet: Identifiable {
     case create
+    /// Retail catalogue: dedicated stock-item form (not Product toggle-only).
+    case createStockItem
     case edit(OperatingMasterPayload)
     case priceList
 
     var id: String {
         switch self {
         case .create: return "create"
+        case .createStockItem: return "createStockItem"
         case let .edit(master): return "edit:\(master.id)"
         case .priceList: return "priceList"
         }
@@ -302,6 +566,7 @@ struct OperatingMasterFormView: View {
     @State private var draft: OperatingMasterDraft
     @State private var saving = false
     @State private var statePickerOpen = false
+    @State private var unitCategory: String
 
     init(
         theme: OperatingTheme,
@@ -317,11 +582,13 @@ struct OperatingMasterFormView: View {
         self.parents = parents
         self.onSave = onSave
         self.onArchive = onArchive
+        let initialUnit = existing?.unit ?? ""
         _draft = State(initialValue: OperatingMasterDraft(
             kind: existing?.kind.uppercased() ?? tab.defaultKind,
             name: existing?.name ?? "",
             code: existing?.code ?? "",
-            unit: existing?.unit ?? "",
+            unit: initialUnit,
+            conversionToBase: existing?.conversionToBase ?? "",
             sellPrice: existing?.sellPrice ?? "",
             purchasePrice: existing?.purchasePrice ?? "",
             mrp: existing?.mrp ?? "",
@@ -331,6 +598,11 @@ struct OperatingMasterFormView: View {
             billingState: existing?.billingState ?? "",
             parentMasterId: existing?.parentMasterId ?? ""
         ))
+        let matched = BusinessSetupDocSpec.unitMaster.first {
+            $0.label.caseInsensitiveCompare(initialUnit) == .orderedSame
+                || $0.code.caseInsensitiveCompare(initialUnit) == .orderedSame
+        }?.category
+        _unitCategory = State(initialValue: matched ?? BusinessSetupDocSpec.unitCategories[0])
     }
 
     private var isSku: Bool { draft.kind == "SKU" || draft.kind == "PRODUCT" }
@@ -338,13 +610,96 @@ struct OperatingMasterFormView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text(existing == nil ? "New \(tab.singular)" : "Edit \(existing?.name ?? "")")
+                Text(
+                    theme.isDistributionCapture
+                        ? DistributionMasterCopy.formTitle(tab, editingName: existing?.name)
+                        : (tab == .principals
+                            ? (existing == nil ? "Add Business Contact" : "Edit \(existing?.name ?? "")")
+                            : (existing == nil ? "New \(tab.singular)" : "Edit \(existing?.name ?? "")"))
+                )
                     .font(.plusJakarta(size: 22, weight: .semibold))
                     .foregroundStyle(theme.ink)
-                field("Name", text: $draft.name)
+                if tab == .principals {
+                    // QA-01 / CF-02 — Supplier / Customer / Both on one identity.
+                    Text("Contact role")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(theme.body)
+                    HStack(spacing: 6) {
+                        ForEach([("Supplier", "SUPPLIER"), ("Customer", "CUSTOMER"), ("Both", "PRINCIPAL")], id: \.0) { label, kind in
+                            let on = draft.kind == kind
+                            Button {
+                                draft.kind = kind
+                            } label: {
+                                Text(label)
+                                    .font(.plusJakarta(size: 13, weight: .semibold))
+                                    .foregroundStyle(on ? theme.canvas : theme.ink)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(on ? theme.accent : theme.inset)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(on ? theme.accent : theme.border, lineWidth: 1)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                field(tab == .principals ? "Business / Contact Name" : "Name", text: $draft.name)
                 field("Code (optional)", text: $draft.code)
                 if isSku {
-                    field("Unit", text: $draft.unit)
+                    Text("Unit category")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(theme.body)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(BusinessSetupDocSpec.unitCategories, id: \.self) { category in
+                                let on = unitCategory == category
+                                Button {
+                                    unitCategory = category
+                                } label: {
+                                    Text(category)
+                                        .font(.plusJakarta(size: 12, weight: .semibold))
+                                        .foregroundStyle(on ? theme.canvas : theme.ink)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 7)
+                                        .background(on ? theme.accent : theme.inset)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    Text("Unit")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(theme.body)
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(BusinessSetupDocSpec.units(forCategory: unitCategory)) { entry in
+                            let on = draft.unit == entry.label || draft.unit.caseInsensitiveCompare(entry.code) == .orderedSame
+                            Button {
+                                draft.unit = entry.label
+                            } label: {
+                                Text(entry.label)
+                                    .font(.plusJakarta(size: 13))
+                                    .foregroundStyle(on ? theme.canvas : theme.ink)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 8)
+                                    .background(on ? theme.accent : theme.inset)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(on ? theme.accent : theme.border, lineWidth: 1)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    field("Packaging conversion to base", text: $draft.conversionToBase, decimal: true)
+                    Text("How many base units this packaging holds (e.g. 12 for a dozen). Leave blank when already base.")
+                        .font(.plusJakarta(size: 11))
+                        .foregroundStyle(theme.body)
                     field("Sell price", text: $draft.sellPrice, decimal: true)
                     field("Purchase price", text: $draft.purchasePrice, decimal: true)
                     field("MRP (optional)", text: $draft.mrp, decimal: true)
@@ -396,7 +751,13 @@ struct OperatingMasterFormView: View {
                         if ok { dismiss() }
                     }
                 } label: {
-                    Text(saving ? "Saving…" : (existing == nil ? "Create" : "Save changes"))
+                    Text(
+                        saving
+                            ? "Saving…"
+                            : (theme.isDistributionCapture
+                               ? DistributionMasterCopy.saveCta(tab)
+                               : (existing == nil ? "Create" : "Save changes"))
+                    )
                         .font(.plusJakarta(size: 14, weight: .semibold))
                         .foregroundStyle(theme.onAccent)
                         .frame(maxWidth: .infinity)
@@ -406,6 +767,12 @@ struct OperatingMasterFormView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(saving || !draft.canSave)
+                if theme.isDistributionCapture {
+                    Text(DistributionMasterCopy.saveFootnote(tab))
+                        .font(.plusJakarta(size: 10))
+                        .foregroundStyle(theme.body)
+                        .frame(maxWidth: .infinity)
+                }
                 if let onArchive, let existing, existing.source != "EVENT" {
                     // Archive, never delete: a posted bill keeps its reference, so the row is
                     // retired rather than removed.

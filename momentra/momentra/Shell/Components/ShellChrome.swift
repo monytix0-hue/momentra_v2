@@ -563,8 +563,10 @@ struct NativeShellTabView<Content: View>: View {
             }
         }
         .tint(accent)
-        .toolbarBackground(barBackground, for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
+        // iOS 26 Liquid Glass floats the tab pill over content. Forcing an opaque
+        // toolbarBackground paints a full-width black slab behind/around the pill and
+        // clips scroll content ("bottom cut off"). Pre-26 keeps the branded opaque bar.
+        .modifier(ShellTabBarChromeModifier(barBackground: barBackground))
         .onAppear { Self.configureTabBarAppearance(context: context, momentTypeCode: businessMomentTypeCode) }
         .onChange(of: context) { _, newContext in
             Self.configureTabBarAppearance(context: newContext, momentTypeCode: businessMomentTypeCode)
@@ -598,17 +600,26 @@ struct NativeShellTabView<Content: View>: View {
 
     static func configureTabBarAppearance(context: AppContextKind, momentTypeCode: String? = nil) {
         let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
         let isBusiness = context == .business
-        appearance.backgroundColor = UIColor(
-            isBusiness
-                ? GlobalTheme.businessBottomBarBackground(momentTypeCode: momentTypeCode)
-                : GlobalTheme.bottomBarBackground
-        )
         // TRD/DST idle slate `#64748B`; Personal/Group keep lavender idle.
         let unselected = UIColor(
             isBusiness ? GlobalTheme.businessBottomUnselected : GlobalTheme.bottomUnselected
         )
+
+        if #available(iOS 26, *) {
+            // Liquid Glass owns the floating pill. Opaque/custom fills leave the black void.
+            appearance.configureWithTransparentBackground()
+            UITabBar.appearance().isTranslucent = true
+        } else {
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundColor = UIColor(
+                isBusiness
+                    ? GlobalTheme.businessBottomBarBackground(momentTypeCode: momentTypeCode)
+                    : GlobalTheme.bottomBarBackground
+            )
+            UITabBar.appearance().isTranslucent = false
+        }
+
         let normal = appearance.stackedLayoutAppearance.normal
         normal.iconColor = unselected
         normal.titleTextAttributes = [.foregroundColor: unselected]
@@ -618,7 +629,22 @@ struct NativeShellTabView<Content: View>: View {
         selected.titleTextAttributes = [:]
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
-        UITabBar.appearance().isTranslucent = false
+    }
+}
+
+/// Pre-iOS 26: keep the branded opaque shell tab bar. iOS 26+: defer to Liquid Glass.
+private struct ShellTabBarChromeModifier: ViewModifier {
+    let barBackground: Color
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+        } else {
+            content
+                .toolbarBackground(barBackground, for: .tabBar)
+                .toolbarBackground(.visible, for: .tabBar)
+        }
     }
 }
 

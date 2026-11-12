@@ -12,9 +12,12 @@ struct OperatingViewAllSheet: View {
     /// Host handles footer actions: `QUICK_ADD`, `PAYMENT`, `ATTENTION`, `MEMORY`, or a capture code.
     var onFooterAction: ((String) -> Void)? = nil
 
+    @Environment(\.dismiss) private var dismiss
     @State private var period = OperatingSheetChrome.periodFilters[0]
     @State private var statusFilter: String = ""
     @State private var pickingCustomBound: CustomPeriodBound?
+
+    private enum ChipStyle { case `default`, period, status }
 
     private enum CustomPeriodBound: String, Identifiable {
         case from
@@ -40,18 +43,19 @@ struct OperatingViewAllSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        let own = theme.isMarketingOwnCapture
+        return VStack(spacing: 0) {
             stickyHeader
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     sheetBody
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, own ? 21 : 18)
                 .padding(.vertical, 12)
             }
             stickyFooter
         }
-        .background(theme.canvas.ignoresSafeArea())
+        .background((own ? theme.captureSheet : theme.canvas).ignoresSafeArea())
         .onAppear {
             if statusFilter.isEmpty { statusFilter = filters.first ?? "All" }
             period = Self.periodLabel(for: model.periodFilter)
@@ -79,40 +83,65 @@ struct OperatingViewAllSheet: View {
     }
 
     private var stickyHeader: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let own = theme.isMarketingOwnCapture
+        return VStack(alignment: .leading, spacing: own ? 14 : 10) {
             Capsule()
-                .fill(Color.white.opacity(0.2))
-                .frame(width: 40, height: 4)
+                .fill(own ? theme.accent.opacity(0.55) : Color.white.opacity(0.2))
+                .frame(width: own ? 44 : 40, height: own ? 4 : 4)
                 .frame(maxWidth: .infinity)
 
-            HStack(spacing: 10) {
-                Text(spec.title)
-                    .font(.plusJakarta(size: 24, weight: .semibold))
-                    .foregroundStyle(theme.ink)
-                Spacer(minLength: 4)
-            }
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Text(spec.title)
+                        .font(.plusJakarta(size: own ? 20 : 24, weight: own ? .bold : .semibold))
+                        .foregroundStyle(theme.ink)
+                    Spacer(minLength: 4)
+                    if own {
+                        Button { dismiss() } label: {
+                            Text("✕")
+                                .font(.plusJakarta(size: 14, weight: .bold))
+                                .foregroundStyle(theme.body)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.white.opacity(0.06))
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(theme.accent.opacity(0.28), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
 
-            Text(contextLine)
-                .font(.plusJakarta(size: 12))
-                .foregroundStyle(theme.body)
-                .lineLimit(2)
+                Text(contextLine)
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(theme.body)
+                    .lineLimit(2)
 
-            chipRow(OperatingSheetChrome.periodFilters, selection: period) { next in
-                period = next
-                Task { await model.applySheetPeriod(next) }
+                chipRow(
+                    OperatingSheetChrome.periodFilters,
+                    selection: period,
+                    style: own ? .period : .default
+                ) { next in
+                    period = next
+                    Task { await model.applySheetPeriod(next) }
+                }
+                if period == "Custom range ›" {
+                    customRangeRow
+                }
+                chipRow(filters, selection: selectedStatus, style: own ? .status : .default) { next in
+                    // Status chips filter the already-loaded sheet body locally.
+                    statusFilter = next
+                }
             }
-            if period == "Custom range ›" {
-                customRangeRow
-            }
-            chipRow(filters, selection: selectedStatus) { next in
-                // Status chips filter the already-loaded sheet body locally.
-                statusFilter = next
+            if own {
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(height: 1)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 10)
+        .padding(.horizontal, own ? 21 : 18)
+        .padding(.top, own ? 14 : 10)
         .padding(.bottom, 12)
-        .background(theme.canvas)
+        .background(own ? theme.captureSheet : theme.canvas)
     }
 
     private var customRangeRow: some View {
@@ -148,19 +177,62 @@ struct OperatingViewAllSheet: View {
         }
     }
 
-    private func chipRow(_ options: [String], selection: String, onSelect: @escaping (String) -> Void) -> some View {
+    private func chipRow(
+        _ options: [String],
+        selection: String,
+        style: ChipStyle = .default,
+        onSelect: @escaping (String) -> Void
+    ) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(options, id: \.self) { option in
                     let on = option == selection
+                    // Own view-all (`2584:29250`): period = solid magenta + soft-link stroke;
+                    // status = soft magenta fill + magenta stroke (not amber).
+                    let fg: Color = {
+                        switch (style, on) {
+                        case (.period, true): return .white
+                        case (.status, true): return theme.accent
+                        case (.status, false): return Color.white.opacity(0.7)
+                        case (_, true): return theme.onAccent
+                        default: return theme.body
+                        }
+                    }()
+                    let bg: Color = {
+                        switch (style, on) {
+                        case (.period, true), (.default, true): return theme.accent
+                        case (.period, false): return Color(hex: "#334155")
+                        case (.status, true): return theme.accent.opacity(0.18)
+                        case (.status, false): return Color.white.opacity(0.04)
+                        default: return theme.inset
+                        }
+                    }()
+                    let stroke: Color = {
+                        switch (style, on) {
+                        case (.period, true): return theme.softLink
+                        case (.period, false): return Color(hex: "#334155")
+                        case (.status, true): return theme.accent.opacity(0.6)
+                        case (.status, false): return Color.white.opacity(0.1)
+                        case (.default, true): return .clear
+                        default: return theme.border
+                        }
+                    }()
+                    let weight: Font.Weight = {
+                        switch (style, on) {
+                        case (.period, true): return .bold
+                        case (.status, true): return .semibold
+                        case (.default, _): return .semibold
+                        default: return .medium
+                        }
+                    }()
                     Text(option)
-                        .font(.plusJakarta(size: 12, weight: .semibold))
-                        .foregroundStyle(on ? theme.onAccent : theme.body)
-                        .padding(.horizontal, 13)
-                        .padding(.vertical, 7)
-                        .background(on ? theme.accent : theme.inset)
+                        .font(.plusJakarta(size: 12, weight: weight))
+                        .foregroundStyle(fg)
+                        .padding(.horizontal, style == .default ? 13 : 12)
+                        .padding(.vertical, style == .default ? 7 : 6)
+                        .background(bg)
                         .clipShape(Capsule())
-                        .overlay(Capsule().stroke(theme.border, lineWidth: on ? 0 : 1))
+                        .overlay(Capsule().stroke(stroke, lineWidth: 1))
                         .onTapGesture { onSelect(option) }
                 }
             }
@@ -223,28 +295,35 @@ struct OperatingViewAllSheet: View {
     }
 
     private var stickyFooter: some View {
-        VStack(spacing: 8) {
+        let own = theme.isMarketingOwnCapture
+        return VStack(spacing: own ? 10 : 8) {
+            if own {
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(height: 1)
+            }
             Text("Showing \(visibleCount) of \(totalCount) · tap a row for detail")
-                .font(.plusJakarta(size: 12))
+                .font(.plusJakarta(size: 12, weight: own ? .medium : .regular))
                 .foregroundStyle(theme.body)
                 .frame(maxWidth: .infinity)
             Button {
                 onFooterAction?(OperatingSheetChrome.footerAction(for: spec.code))
             } label: {
                 Text(spec.footerCta)
-                    .font(.plusJakarta(size: 15, weight: .semibold))
+                    .font(.plusJakarta(size: 15, weight: own ? .bold : .semibold))
                     .foregroundStyle(theme.onAccent)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(theme.accent)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .shadow(color: own ? theme.accent.opacity(0.33) : .clear, radius: own ? 9 : 0, y: own ? 6 : 0)
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 10)
+        .padding(.horizontal, own ? 21 : 18)
+        .padding(.top, own ? 12 : 10)
         .padding(.bottom, 18)
-        .background(theme.canvas)
+        .background(own ? theme.captureSheet : theme.canvas)
     }
 
     private var rawRowCount: Int {

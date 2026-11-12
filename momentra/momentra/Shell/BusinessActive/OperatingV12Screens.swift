@@ -8,7 +8,9 @@ extension BusinessOperatingVertical {
         switch self {
         case .trading: return BusinessTokens.Colors.tradingHeroStart
         case .distribution: return BusinessTokens.Colors.distributionHeroStart
-        case .standardProduction, .madeToOrder: return BusinessTokens.Colors.manufacturingHeroStart
+        // MFG solid amber lead; MTO soft-amber lead (`#FBBF24` → `#F59E0B`).
+        case .standardProduction: return BusinessTokens.Colors.manufacturingHeroStart
+        case .madeToOrder: return BusinessTokens.Colors.manufacturingAccentSoft
         case .clientCampaign: return BusinessTokens.Colors.marketingHeroStart
         case .ownBusinessCampaign: return BusinessTokens.Colors.marketingOwnHeroStart
         case .retailStore: return BusinessTokens.Colors.retailHeroStart
@@ -21,7 +23,8 @@ extension BusinessOperatingVertical {
         switch self {
         case .trading: return BusinessTokens.Colors.tradingHeroEnd
         case .distribution: return BusinessTokens.Colors.distributionHeroEnd
-        case .standardProduction, .madeToOrder: return BusinessTokens.Colors.manufacturingHeroEnd
+        case .standardProduction: return BusinessTokens.Colors.manufacturingHeroEnd
+        case .madeToOrder: return BusinessTokens.Colors.manufacturingAccent
         case .clientCampaign: return BusinessTokens.Colors.marketingHeroEnd
         case .ownBusinessCampaign: return BusinessTokens.Colors.marketingOwnHeroEnd
         case .retailStore: return BusinessTokens.Colors.retailHeroEnd
@@ -329,8 +332,8 @@ struct OperatingPulseScreen: View {
     /// frame prints money.
     private var paymentCard: some View {
         let due = projection?.paymentReadiness ?? []
-        let receivable = due.filter { ($0.relevance ?? "").uppercased() == "RECEIVABLE" }
-        let payable = due.filter { ($0.relevance ?? "").uppercased() == "PAYABLE" }
+        let receivable = due.filter { $0.relevance.uppercased() == "RECEIVABLE" }
+        let payable = due.filter { $0.relevance.uppercased() == "PAYABLE" }
         let receivableTotal = receivable.compactMap { OperatingV12Money.number($0.amount) }.reduce(0, +)
         let payableTotal = payable.compactMap { OperatingV12Money.number($0.amount) }.reduce(0, +)
         let overdueAr = receivable

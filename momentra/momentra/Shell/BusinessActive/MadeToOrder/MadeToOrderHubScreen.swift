@@ -73,12 +73,14 @@ struct MadeToOrderHubScreen: View {
             Tile(id: "REWORK", title: "Rework", subtitle: "Rework · scrap · job work", glyph: "wrench.and.screwdriver", requires: ["STOCK"]),
             Tile(id: "STOCK", title: "Stock", subtitle: "Adjust · count · custody", glyph: "shippingbox", requires: ["STOCK"]),
             Tile(id: "TRANSFER", title: "WIP", subtitle: "Transfer between stations", glyph: "arrow.left.arrow.right", requires: ["STOCK"]),
+            Tile(id: "HOLD", title: "Hold", subtitle: "Park job · no stock/cost", glyph: "pause.circle", requires: ["ORDER", "CUSTOMER_ORDER"]),
+            Tile(id: "DELIVERY", title: "Delivery", subtitle: "Dispatch · accepted only", glyph: "box.truck", requires: ["DELIVERY", "SHIPMENT", "UPDATE"]),
             Tile(id: "REPRINT", title: "Reprint", subtitle: "Invoice · job card", glyph: "printer", requires: ["SALE"]),
             Tile(id: "APPROVAL", title: "Approval", subtitle: "Pending decisions", glyph: "checkmark.shield"),
             Tile(id: "UPDATE", title: "Update", subtitle: "Progress · note", glyph: "text.bubble", requires: ["UPDATE"]),
             Tile(id: "BUDGET", title: "Budget", subtitle: "Versioned revise", glyph: "target", requires: ["BUDGET"]),
             Tile(id: "QUOTE_REVISE", title: "Quote revise", subtitle: "Revise · expire", glyph: "doc.badge.gearshape", requires: ["ORDER", "CUSTOMER_ORDER"]),
-            Tile(id: "JOB_STATUS", title: "Job status", subtitle: "Hold · resume · close", glyph: "list.bullet.rectangle", requires: ["UPDATE"]),
+            Tile(id: "JOB_STATUS", title: "Job status", subtitle: "Active · blocked · hold", glyph: "list.bullet.rectangle", requires: ["UPDATE"]),
         ]
     }
 
@@ -90,12 +92,12 @@ struct MadeToOrderHubScreen: View {
                     .foregroundStyle(Color(hex: "#F8F9FD"))
                 Text("\(model.title) · Make to order")
                     .font(.plusJakarta(size: 12, weight: .medium))
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(theme.accentSoft)
                 chips
                 hero
                 section(title: "Core · 9", trailing: "Make-to-order journey", tiles: filtered(core))
                 section(title: "Support · 5", trailing: "Network · masters", tiles: filtered(support))
-                section(title: "Utilities · 10", trailing: "Job ops · revise · scrap", tiles: filtered(utilities))
+                section(title: "Utilities · 12", trailing: "Job ops · hold · dispatch · revise", tiles: filtered(utilities))
                 why
             }
             .padding(.horizontal, 16)
@@ -116,12 +118,12 @@ struct MadeToOrderHubScreen: View {
     private func chip(_ label: String, accent: Bool) -> some View {
         Text(label)
             .font(.plusJakarta(size: 12, weight: accent ? .bold : .medium))
-            .foregroundStyle(accent ? theme.accent : Color(hex: "#A8A29E"))
+            .foregroundStyle(accent ? theme.accentSoft : Color(hex: "#A8A29E"))
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(accent ? theme.accent.opacity(0.14) : Color(hex: "#2A2740"))
+            .background(accent ? theme.accentSoft.opacity(0.14) : Color(hex: "#2A2740"))
             .overlay(
-                Capsule().strokeBorder(accent ? theme.accent.opacity(0.4) : Color.white.opacity(0.08), lineWidth: 1)
+                Capsule().strokeBorder(accent ? theme.accentSoft.opacity(0.45) : Color.white.opacity(0.08), lineWidth: 1)
             )
             .clipShape(Capsule())
     }
@@ -130,7 +132,7 @@ struct MadeToOrderHubScreen: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("MAKE TO ORDER")
                 .font(.plusJakarta(size: 11, weight: .bold))
-                .foregroundStyle(theme.accent)
+                .foregroundStyle(theme.accentSoft)
             Text("Quote. Confirm. Make. Invoice.")
                 .font(.plusJakarta(size: 22, weight: .bold))
                 .foregroundStyle(.white)
@@ -156,7 +158,7 @@ struct MadeToOrderHubScreen: View {
                     .background(Color.white.opacity(0.06))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .strokeBorder(theme.accent.opacity(0.4), lineWidth: 1)
+                            .strokeBorder(theme.accentSoft.opacity(0.45), lineWidth: 1)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
@@ -164,10 +166,16 @@ struct MadeToOrderHubScreen: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.accent.opacity(0.14))
+        .background(
+            LinearGradient(
+                colors: [theme.accentSoft.opacity(0.22), theme.accent.opacity(0.14)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(theme.accent.opacity(0.4), lineWidth: 1)
+                .strokeBorder(theme.accentSoft.opacity(0.45), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
@@ -216,12 +224,12 @@ struct MadeToOrderHubScreen: View {
             VStack(alignment: .leading, spacing: 6) {
                 Image(systemName: tile.glyph)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(theme.accentSoft)
                     .frame(width: 32, height: 32)
-                    .background(theme.accent.opacity(0.16))
+                    .background(theme.accentSoft.opacity(0.16))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(theme.accent.opacity(locked == nil ? 0.45 : 0.2), lineWidth: 1)
+                            .strokeBorder(theme.accentSoft.opacity(locked == nil ? 0.45 : 0.2), lineWidth: 1)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 Text(tile.title)
@@ -240,7 +248,7 @@ struct MadeToOrderHubScreen: View {
             .background(Color(hex: "#1C1F28"))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(theme.accent.opacity(locked == nil ? 0.35 : 0.12), lineWidth: 1)
+                    .strokeBorder(theme.accentSoft.opacity(locked == nil ? 0.35 : 0.12), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
@@ -252,17 +260,17 @@ struct MadeToOrderHubScreen: View {
         HStack(alignment: .top, spacing: 8) {
             Text("Why")
                 .font(.plusJakarta(size: 11, weight: .bold))
-                .foregroundStyle(theme.accent)
+                .foregroundStyle(theme.accentSoft)
             Text("Financial boundaries: Quote/order/advance ≠ revenue. Only posted invoice owns revenue/AR. Accepted production posts finished stock once — rejected/rework never inflate sellable qty. Empty analytics = Unavailable, never zero.")
                 .font(.plusJakarta(size: 11))
-                .foregroundStyle(theme.accent)
+                .foregroundStyle(theme.accentSoft)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(10)
-        .background(theme.accent.opacity(0.12))
+        .background(theme.accentSoft.opacity(0.12))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(theme.accent.opacity(0.4), lineWidth: 1)
+                .strokeBorder(theme.accentSoft.opacity(0.4), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }

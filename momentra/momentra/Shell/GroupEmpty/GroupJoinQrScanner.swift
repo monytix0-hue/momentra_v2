@@ -137,11 +137,12 @@ struct GroupJoinQrScanner: View {
     }
 }
 
-private struct ScannerCameraView: UIViewControllerRepresentable {
+struct ScannerCameraView: UIViewControllerRepresentable {
     var onRaw: (String) -> Void
+    var symbologies: [VNBarcodeSymbology] = [.qr]
 
     func makeUIViewController(context: Context) -> ScannerCameraController {
-        let controller = ScannerCameraController()
+        let controller = ScannerCameraController(symbologies: symbologies)
         controller.onRaw = onRaw
         return controller
     }
@@ -158,11 +159,22 @@ final class ScannerCameraController: UIViewController, AVCaptureVideoDataOutputS
     private var preview: AVCaptureVideoPreviewLayer?
     private var handling = false
     private let request = VNDetectBarcodesRequest()
+    private let symbologies: [VNBarcodeSymbology]
+
+    init(symbologies: [VNBarcodeSymbology] = [.qr]) {
+        self.symbologies = symbologies
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
-        request.symbologies = [.qr]
+        request.symbologies = symbologies
         guard let device = AVCaptureDevice.default(for: .video),
               let input = try? AVCaptureDeviceInput(device: device),
               session.canAddInput(input) else { return }

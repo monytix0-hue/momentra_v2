@@ -103,7 +103,7 @@ enum OperatingV12Money {
         case ..<1_000:
             return symbol + sign + String(format: "%.0f", magnitude)
         case ..<100_000:
-            return symbol + sign + trim(String(format: "%.1fk", magnitude / 1_000))
+            return symbol + sign + trim(String(format: "%.1fK", magnitude / 1_000))
         case ..<10_000_000:
             return symbol + sign + trim(String(format: "%.1fL", magnitude / 100_000))
         default:
@@ -239,6 +239,7 @@ struct OperatingV12StatusChip: View {
 struct OperatingV12WidgetHeader: View {
     let title: String
     var subtitle: String? = nil
+    var viewAllColor: Color = OperatingV12.viewAll
     var onViewAll: (() -> Void)? = nil
 
     var body: some View {
@@ -261,7 +262,7 @@ struct OperatingV12WidgetHeader: View {
                 if onViewAll != nil {
                     Text("View all ›")
                         .font(.plusJakarta(size: 12, weight: .bold))
-                        .foregroundStyle(OperatingV12.viewAll)
+                        .foregroundStyle(viewAllColor)
                         .padding(.horizontal, 4)
                         .padding(.vertical, 2)
                 }

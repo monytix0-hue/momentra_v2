@@ -22,16 +22,23 @@ data class OperatingSubtype(
     val channels: List<String> = emptyList(),
     /** Setup §02 `Roles on invite`, in frame order. */
     val inviteRoles: List<OperatingInviteRole> = emptyList(),
-    /** Setup §04 fourth row: `Principals & dealers` for trading, `Suppliers & buyers` for distribution. */
-    val networkLabel: String = "Principals & dealers",
+    /** Setup §04 network row — QA-01 Business contacts (Supplier / Customer). */
+    val networkLabel: String = "Business contacts",
 )
 
 object OperatingMomentCatalog {
-    /** The frame's five trading channels (`TRD-SETUP-v6` §03). */
-    val tradingChannels = listOf("Retail buyers", "Wholesale", "Modern trade", "HoReCa", "Online")
+    /** Corrections BS-01 / BS-02 — business-specific channel seeds. */
+    val tradingChannels = listOf("Wholesale", "Retail", "B2B Direct", "Online", "Distributor", "Other")
 
-    /** The frame's five distribution channels (`DST-SETUP-v6` §03). */
-    val distributionChannels = listOf("Retail dealers", "Wholesale", "Modern trade", "HoReCa", "Van sales")
+    val distributionChannels = listOf(
+        "General Trade",
+        "Modern Trade",
+        "Wholesale",
+        "Institutional",
+        "Direct Distribution",
+        "Van Sales",
+        "Other",
+    )
 
     /** Marketing campaign channels (`MKT-SETUP-v6` / contract §3.1 subset shown in setup chips). */
     val marketingChannels = listOf(
@@ -45,11 +52,39 @@ object OperatingMomentCatalog {
         "SMS / Messaging",
     )
 
+    /** Corrections BS-03 — 18 marketing KPIs (+ client billing for client campaigns). */
+    val marketingKpiMetrics = listOf(
+        "LEADS",
+        "QUALIFIED_LEADS",
+        "ENQUIRIES",
+        "REACH",
+        "IMPRESSIONS",
+        "ENGAGEMENTS",
+        "ENGAGEMENT_RATE",
+        "CLICKS",
+        "CTR",
+        "WEBSITE_VISITS",
+        "CONVERSIONS",
+        "CONVERSION_RATE",
+        "ORDERS",
+        "ATTRIBUTED_SALES",
+        "ROAS",
+        "REGISTRATIONS",
+        "ATTENDANCE",
+        "CUSTOM",
+    )
+
+    /**
+     * Client / Own setup + invite labels — Figma MKT-MASTER Invite (`2569:29329`).
+     * API has no `MEDIA_BUYER` role; Media buyer and Creative both mint as `CONTRIBUTOR`
+     * (selection is by label, same as APK `MarketingClientInviteRoles`).
+     */
     val marketingInviteRoles = listOf(
-        OperatingInviteRole("FINANCE", "Finance"),
-        OperatingInviteRole("APPROVER", "Approver"),
-        OperatingInviteRole("OPERATIONS_LEAD", "Campaign Lead"),
-        OperatingInviteRole("CONTRIBUTOR", "Contributor"),
+        OperatingInviteRole("FINANCE", "Owner"),
+        OperatingInviteRole("APPROVER", "Manager"),
+        OperatingInviteRole("OPERATIONS_LEAD", "Account lead"),
+        OperatingInviteRole("CONTRIBUTOR", "Media buyer"),
+        OperatingInviteRole("CONTRIBUTOR", "Creative"),
     )
 
     /**
@@ -85,8 +120,10 @@ object OperatingMomentCatalog {
         "OBSERVER" to "Observer",
     )
 
+    // v5.1 AT-01: 8 shared Quick Adds; Client adds INVOICE+COLLECTION (=10).
+    // QA-09 is a single UPDATE tile ("Team Update / Issue"); ISSUE writes stay allowed via UPDATE grant.
     private val marketingAdds = listOf(
-        "ACTIVITY", "PROGRESS", "SPEND", "PAYMENT", "REVISION", "APPROVAL", "UPDATE", "ISSUE", "RESULT",
+        "ACTIVITY", "PROGRESS", "SPEND", "PAYMENT", "REVISION", "APPROVAL", "UPDATE", "RESULT",
     )
 
     val families: Map<BusinessSetupKind, List<OperatingSubtype>> = mapOf(
@@ -95,23 +132,23 @@ object OperatingMomentCatalog {
                 code = "CLIENT_CAMPAIGN",
                 label = "Client Campaign",
                 partyLabel = "Client",
-                targetMetrics = listOf("LEADS", "CONVERSIONS", "REVENUE", "ORDERS", "REACH", "ENGAGEMENT", "CUSTOM_COUNT", "CLIENT_BILLING"),
+                targetMetrics = marketingKpiMetrics + listOf("CLIENT_BILLING"),
                 requiresChannel = false,
                 quickAdds = marketingAdds + listOf("INVOICE", "COLLECTION"),
                 channels = marketingChannels,
                 inviteRoles = marketingInviteRoles,
-                networkLabel = "Clients & vendors",
+                networkLabel = "Clients & providers",
             ),
             OperatingSubtype(
                 code = "OWN_BUSINESS_CAMPAIGN",
                 label = "Own Business Campaign",
                 partyLabel = "Brand",
-                targetMetrics = listOf("LEADS", "CONVERSIONS", "REVENUE", "ORDERS", "REACH", "ENGAGEMENT", "CUSTOM_COUNT"),
+                targetMetrics = marketingKpiMetrics,
                 requiresChannel = false,
                 quickAdds = marketingAdds,
                 channels = marketingChannels,
                 inviteRoles = marketingInviteRoles,
-                networkLabel = "Vendors & creators",
+                networkLabel = "Providers & creators",
             ),
         ),
         BusinessSetupKind.TRADING_DISTRIBUTION to listOf(
@@ -124,7 +161,7 @@ object OperatingMomentCatalog {
                 quickAdds = listOf("SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER", "SHIPMENT"),
                 channels = tradingChannels,
                 inviteRoles = tradingInviteRoles,
-                networkLabel = "Principals & dealers",
+                networkLabel = "Business contacts",
             ),
             OperatingSubtype(
                 code = "DISTRIBUTION_DEALERSHIP",
@@ -135,7 +172,7 @@ object OperatingMomentCatalog {
                 quickAdds = listOf("SALE", "PURCHASE", "SPEND", "PAYMENT", "COLLECTION", "BUDGET", "UPDATE", "ISSUE", "APPROVAL", "STOCK", "ORDER", "SHIPMENT"),
                 channels = distributionChannels,
                 inviteRoles = distributionInviteRoles,
-                networkLabel = "Suppliers & buyers",
+                networkLabel = "Suppliers & customers",
             ),
         ),
         BusinessSetupKind.RETAIL_CONSUMER to listOf(
@@ -156,7 +193,7 @@ object OperatingMomentCatalog {
         "COLLECTION" to "Add Collection",
         "BUDGET" to "Revise Budget",
         "TARGET" to "Revise Target",
-        "UPDATE" to "Add Update",
+        "UPDATE" to "Team Update / Issue",
         "ISSUE" to "Add Issue",
         "APPROVAL" to "Request Approval",
         "DELIVERABLE" to "Add Deliverable",
@@ -195,7 +232,35 @@ object OperatingMomentCatalog {
         "subtype", "identityName", "partyName", "description", "currency", "startDate", "endDate", "location", "activationPolicy",
         "gstTracking", "gstRegistration", "gstState", "gstStateCode", "gstin", "salePriceIncludesGst", "purchasePriceIncludesGst", "gstEffectiveFrom",
         "participants", "counterparties", "channels", "tradeReach", "monthlyBudget", "monthlyTarget", "targetMetric",
-        "clientFee", "offering", "creativeApprovalRequired", "reportingCadence",
+        "clientFee", "clientApprovedMediaBudget", "agencyOperatingBudget", "offering", "campaignPurpose", "creativeApprovalRequired", "reportingCadence",
         "conversionNumerator", "conversionDenominator", "conversionDefinitionVersion", "campaignStatus",
     )
+
+    /** Corrections BS-04 — searchable unit master grouped by measurement category. */
+    data class UnitMasterEntry(val code: String, val label: String, val category: String)
+
+    val unitMaster: List<UnitMasterEntry> = listOf(
+        UnitMasterEntry("PC", "Piece (pc)", "Count"),
+        UnitMasterEntry("PAIR", "Pair", "Count"),
+        UnitMasterEntry("SET", "Set", "Count"),
+        UnitMasterEntry("PACK", "Pack", "Count"),
+        UnitMasterEntry("BOX", "Box", "Count"),
+        UnitMasterEntry("CARTON", "Carton", "Count"),
+        UnitMasterEntry("DOZEN", "Dozen (12 pc)", "Count"),
+        UnitMasterEntry("KG", "Kilogram (kg)", "Mass"),
+        UnitMasterEntry("G", "Gram (g)", "Mass"),
+        UnitMasterEntry("TONNE", "Tonne", "Mass"),
+        UnitMasterEntry("L", "Litre (L)", "Volume"),
+        UnitMasterEntry("ML", "Millilitre (mL)", "Volume"),
+        UnitMasterEntry("M", "Metre (m)", "Length"),
+        UnitMasterEntry("CM", "Centimetre (cm)", "Length"),
+        UnitMasterEntry("FT", "Foot", "Length"),
+        UnitMasterEntry("SQFT", "Square Foot (sq ft)", "Area"),
+        UnitMasterEntry("SQM", "Square Metre (sq m)", "Area"),
+    )
+
+    val unitCategories: List<String> = listOf("Count", "Mass", "Volume", "Length", "Area")
+
+    fun unitsForCategory(category: String): List<UnitMasterEntry> =
+        unitMaster.filter { it.category.equals(category, ignoreCase = true) }
 }

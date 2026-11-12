@@ -126,6 +126,36 @@ class TradingSheetStateTest {
             "Open Memory",
             DISTRIBUTION_SHEET_STATES.first { it.spec.code == "ME4" }.spec.footerCta,
         )
+        assertEquals(
+            "2561:29430",
+            com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.figmaId("FINANCE"),
+        )
+        assertEquals(
+            "2549:30941",
+            com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.figmaId("production"),
+        )
+        assertEquals(
+            "2513:30751",
+            com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.figmaId("ME3"),
+        )
+        assertEquals(
+            "2574:29810",
+            com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.figmaId("M1"),
+        )
+        assertEquals(
+            "2566:33689",
+            com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.figmaId(
+                "FINANCE",
+                "TRADING_WHOLESALE",
+            ),
+        )
+        assertEquals(
+            "2513:29426",
+            com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.figmaId(
+                "ATTENTION",
+                "RETAIL_STORE",
+            ),
+        )
     }
 
     @Test

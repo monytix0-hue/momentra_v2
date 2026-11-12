@@ -332,6 +332,45 @@ struct BusinessSetupWizardView: View {
                         text: $doc.location,
                         placeholder: doc.vertical == .ownBusinessCampaign ? "Your brand" : "Client name"
                     )
+                    if doc.vertical == .ownBusinessCampaign {
+                        field("What you promote", text: $doc.offering, placeholder: "Product, offer, or message")
+                    } else {
+                        field("Client fee", text: $doc.clientFee, hint: "Optional retainer / fee — not an invoice", placeholder: "₹1,50,000")
+                        field("Client-approved media budget", text: $doc.clientApprovedMediaBudget, hint: "Separate from agency operating cost", placeholder: "₹5,00,000")
+                        field("Agency operating budget", text: $doc.agencyOperatingBudget, hint: "Agency cost bucket", placeholder: "₹1,00,000")
+                    }
+                    field("Campaign purpose", text: $doc.campaignPurpose, placeholder: doc.vertical == .ownBusinessCampaign ? "Brand awareness / Leads / Sales" : "Awareness / Leads / Launch")
+                    Toggle(isOn: $doc.creativeApprovalRequired) {
+                        Text("Creative approval required")
+                            .font(.plusJakarta(size: 13, weight: .semibold))
+                            .foregroundStyle(docTheme.ink)
+                    }
+                    .tint(docTheme.accent)
+                    if doc.vertical == .clientCampaign {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Reporting cadence")
+                                .font(.plusJakarta(size: 12, weight: .semibold))
+                                .foregroundStyle(docTheme.muted)
+                            HStack(spacing: 8) {
+                                ForEach(["WEEKLY", "MONTHLY", "CUSTOM"], id: \.self) { code in
+                                    let on = doc.reportingCadence == code
+                                    Button {
+                                        doc.reportingCadence = on ? "" : code
+                                    } label: {
+                                        Text(code.capitalized)
+                                            .font(.plusJakarta(size: 12, weight: .semibold))
+                                            .foregroundStyle(on ? docTheme.ink : docTheme.muted)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 7)
+                                            .background(on ? docTheme.accent.opacity(0.18) : docTheme.inset)
+                                            .clipShape(Capsule())
+                                            .overlay(Capsule().stroke(on ? docTheme.accent : docTheme.border, lineWidth: 1))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
                 } else {
                     field("Business name", text: $doc.businessName, placeholder: "Northstar Trading")
                     field("Company name", text: $doc.companyName, hint: "Registered company name", placeholder: displayName)
@@ -550,10 +589,16 @@ struct BusinessSetupWizardView: View {
                 keyboard: .decimalPad
             )
             chipRow(
-                BusinessSetupDocSpec.metricLabels,
+                BusinessSetupDocSpec.metricLabels(for: doc.vertical),
                 selected: [doc.metric],
                 label: "How the target is measured"
             ) { doc.metric = $0 }
+            if doc.vertical.isMarketing {
+                footnote(
+                    "Unit · \(BusinessSetupDocSpec.marketingMetricUnit(BusinessSetupDocSpec.metricCode(doc.metric, vertical: doc.vertical)))",
+                    size: 11
+                )
+            }
             why(BusinessSetupDocSpec.targetWhyTitle, BusinessSetupDocSpec.targetWhyBody)
             statusPill(
                 budgetOk && targetOk ? "Budget and sales target look good" : "Add a budget and a sales target",
@@ -566,37 +611,59 @@ struct BusinessSetupWizardView: View {
 
     private var mastersSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            masterRow(
-                glyph: "◇",
-                title: "Catalogue & SKU",
-                subtitle: BusinessSetupDocSpec.catalogueSubtitle(counts),
-                tag: "setup.master.catalogue"
-            ) {
-                openMasters(.catalogue, openCreateForm: false)
-            }
-            masterRow(
-                glyph: "⊞",
-                title: "+ Create SKU",
-                subtitle: BusinessSetupDocSpec.catalogueInvite,
-                tag: "setup.master.createSku"
-            ) {
-                openMasters(.catalogue, openCreateForm: true)
-            }
-            masterRow(
-                glyph: "▤",
-                title: "Warehouses & routes",
-                subtitle: BusinessSetupDocSpec.warehouseSubtitle(names: warehouseNames, counts: counts),
-                tag: "setup.master.warehouses"
-            ) {
-                openMasters(.locations, openCreateForm: false)
-            }
-            masterRow(
-                glyph: "◍",
-                title: BusinessSetupDocSpec.networkLabel(doc.vertical),
-                subtitle: BusinessSetupDocSpec.networkSubtitle(doc.vertical, counts: counts),
-                tag: "setup.master.network"
-            ) {
-                openMasters(.principals, openCreateForm: false)
+            if doc.vertical.isMarketing {
+                // BS-06 — Campaign Resources & Providers (no warehouses / separate price lists).
+                masterRow(
+                    glyph: "◇",
+                    title: "Campaign Resources & Providers",
+                    subtitle: counts.skus + counts.principals + counts.dealers == 0
+                        ? "Register resources, providers, prices and tax in one place"
+                        : "\(counts.skus) resources · \(counts.principals + counts.dealers) providers",
+                    tag: "setup.master.campaignResources"
+                ) {
+                    openMasters(.catalogue, openCreateForm: true)
+                }
+                masterRow(
+                    glyph: "◍",
+                    title: BusinessSetupDocSpec.networkLabel(doc.vertical),
+                    subtitle: BusinessSetupDocSpec.networkSubtitle(doc.vertical, counts: counts),
+                    tag: "setup.master.network"
+                ) {
+                    openMasters(.principals, openCreateForm: false)
+                }
+            } else {
+                masterRow(
+                    glyph: "◇",
+                    title: "Catalogue & SKU",
+                    subtitle: BusinessSetupDocSpec.catalogueSubtitle(counts),
+                    tag: "setup.master.catalogue"
+                ) {
+                    openMasters(.catalogue, openCreateForm: false)
+                }
+                masterRow(
+                    glyph: "⊞",
+                    title: "+ Create SKU",
+                    subtitle: BusinessSetupDocSpec.catalogueInvite,
+                    tag: "setup.master.createSku"
+                ) {
+                    openMasters(.catalogue, openCreateForm: true)
+                }
+                masterRow(
+                    glyph: "▤",
+                    title: "Warehouses & routes",
+                    subtitle: BusinessSetupDocSpec.warehouseSubtitle(names: warehouseNames, counts: counts),
+                    tag: "setup.master.warehouses"
+                ) {
+                    openMasters(.locations, openCreateForm: false)
+                }
+                masterRow(
+                    glyph: "◍",
+                    title: BusinessSetupDocSpec.networkLabel(doc.vertical),
+                    subtitle: BusinessSetupDocSpec.networkSubtitle(doc.vertical, counts: counts),
+                    tag: "setup.master.network"
+                ) {
+                    openMasters(.principals, openCreateForm: false)
+                }
             }
             masterRow(
                 glyph: "❐",

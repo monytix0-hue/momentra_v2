@@ -425,12 +425,45 @@ private fun MarketingSection01(
                 label = "Client fee (monthly)",
                 value = state.clientFee,
                 theme = theme,
-                hint = "Optional retainer / fee",
+                hint = "Optional retainer / fee — not an invoice",
                 placeholder = "₹1,50,000",
                 keyboardType = KeyboardType.Decimal,
                 onValueChange = { state.clientFee = formatIndianAmount(it) },
             )
+            SetupField(
+                label = "Client-approved media budget",
+                value = state.clientApprovedMediaBudget,
+                theme = theme,
+                hint = "Separate from agency operating cost",
+                placeholder = "₹5,00,000",
+                keyboardType = KeyboardType.Decimal,
+                onValueChange = { state.clientApprovedMediaBudget = formatIndianAmount(it) },
+            )
+            SetupField(
+                label = "Agency operating budget",
+                value = state.agencyOperatingBudget,
+                theme = theme,
+                hint = "Agency cost bucket",
+                placeholder = "₹1,00,000",
+                keyboardType = KeyboardType.Decimal,
+                onValueChange = { state.agencyOperatingBudget = formatIndianAmount(it) },
+            )
+            SetupChipRow(
+                label = "Reporting cadence",
+                options = listOf("WEEKLY", "MONTHLY", "CUSTOM"),
+                selected = setOfNotNull(state.reportingCadence.takeIf { it.isNotBlank() }),
+                theme = theme,
+                onSelect = { state.reportingCadence = if (state.reportingCadence == it) "" else it },
+            )
         }
+        // Creative approval toggle (both modes)
+        SetupChipRow(
+            label = "Creative approval",
+            options = listOf("Required", "Not required"),
+            selected = setOf(if (state.creativeApprovalRequired) "Required" else "Not required"),
+            theme = theme,
+            onSelect = { state.creativeApprovalRequired = it == "Required" },
+        )
         SetupChipRow(
             label = "Purpose",
             options = MarketingSetupDocumentSpec.campaignPurposes(state.subtype),
@@ -609,28 +642,27 @@ private fun MarketingSection03(
     onOpenMasters: (OperatingMasterTab, OperatingMasterTab?) -> Unit,
     onOpenInvite: () -> Unit,
 ) {
+    // BS-06 — single Campaign Resources & Providers area (no warehouses / separate price lists).
     SetupMasterRow(
         glyph = "◇",
-        title = if (own) "Vendors & creators" else "Clients & vendors",
+        title = "Campaign Resources & Providers",
+        subtitle = if (counts.skus + counts.principals + counts.dealers == 0) {
+            "Register resources, providers, prices and tax in one place"
+        } else {
+            "${counts.skus} resources · ${counts.principals + counts.dealers} providers"
+        },
+        theme = theme,
+    ) { onOpenMasters(OperatingMasterTab.Catalogue, null) }
+    SetupMasterRow(
+        glyph = "◍",
+        title = if (own) "Providers & creators" else "Clients & providers",
         subtitle = if (counts.principals + counts.dealers == 0) {
-            "Add the network this campaign reads from"
+            "Add providers this campaign buys from"
         } else {
             "${counts.principals + counts.dealers} contacts"
         },
         theme = theme,
     ) { onOpenMasters(OperatingMasterTab.Principals, null) }
-    SetupMasterRow(
-        glyph = "▤",
-        title = "Services & packages",
-        subtitle = if (counts.skus == 0) "Optional catalogue for deliverables" else "${counts.skus} items",
-        theme = theme,
-    ) { onOpenMasters(OperatingMasterTab.Catalogue, null) }
-    SetupMasterRow(
-        glyph = "◍",
-        title = "Channels & platforms",
-        subtitle = if (state.channels.isEmpty()) "Pick channels in §04" else state.orderedChannels.joinToString(" · "),
-        theme = theme,
-    ) { onOpenMasters(OperatingMasterTab.Locations, null) }
     SetupMasterRow(
         glyph = "❐",
         title = "Team invite & QR",
@@ -639,9 +671,9 @@ private fun MarketingSection03(
     ) { onOpenInvite() }
     SetupFootnote(
         if (own) {
-            "Own Business has no client row — vendors, creators, and platforms only."
+            "Own Business has no client invoices — resources and providers only. No warehouse or price-list setup."
         } else {
-            "Client network stays on this campaign; activate locks the mode."
+            "Marketing skips warehouses and separate price lists; resources carry provider, price and GST."
         },
         theme,
     )
@@ -697,6 +729,10 @@ private fun MarketingSection04(
         selected = setOf(state.metric),
         theme = theme,
         onSelect = { state.metric = it },
+    )
+    SetupFootnote(
+        "Unit · ${MarketingSetupDocumentSpec.metricUnit(MarketingSetupDocumentSpec.metricCode(state.metric))}",
+        theme,
     )
     val budgetOk = plainAmount(state.budget).toDoubleOrNull().let { it != null && it > 0 }
     SetupStatusPill(
@@ -814,6 +850,10 @@ private fun MarketingSection06(
             theme,
         )
         if (!own) SetupKeyValue("Client fee", state.clientFee.ifBlank { "—" }, theme)
+        if (!own) SetupKeyValue("Client media budget", state.clientApprovedMediaBudget.ifBlank { "—" }, theme)
+        if (!own) SetupKeyValue("Agency budget", state.agencyOperatingBudget.ifBlank { "—" }, theme)
+        if (!own) SetupKeyValue("Reporting", state.reportingCadence.ifBlank { "—" }, theme)
+        SetupKeyValue("Creative approval", if (state.creativeApprovalRequired) "Required" else "Not required", theme)
         if (own) SetupKeyValue("Offering", state.offering.ifBlank { "—" }, theme)
         SetupKeyValue("People", "$owner · Owner", theme)
         SetupKeyValue("Budget", state.budget.ifBlank { "Not set" }, theme)

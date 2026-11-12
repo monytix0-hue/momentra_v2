@@ -131,7 +131,7 @@ describe('business setup draft preferences', () => {
         salePriceIncludesGst: 'YES',
         purchasePriceIncludesGst: 'NO',
         gstEffectiveFrom: '2026-11-01',
-        channels: ['Retail buyers', 'Wholesale'],
+        channels: ['Wholesale', 'Retail'],
         monthlyBudget: '250000',
         monthlyTarget: '500000',
         targetMetric: 'REVENUE',
@@ -145,7 +145,7 @@ describe('business setup draft preferences', () => {
     for (const key of DOCUMENT_KEYS) {
       assert.ok(key in stored, `document emits ${key} but the contract does not store it`);
     }
-    assert.deepEqual(stored.channels, ['Retail buyers', 'Wholesale']);
+    assert.deepEqual(stored.channels, ['Wholesale', 'Retail']);
     // The state is stored canonically with its code, so `MH` can never be compared as a name.
     assert.equal(stored.gstState, 'Maharashtra');
     assert.equal(stored.gstStateCode, '27');

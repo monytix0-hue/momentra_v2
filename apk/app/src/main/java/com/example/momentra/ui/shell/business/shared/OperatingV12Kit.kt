@@ -111,6 +111,14 @@ data class OperatingV12Theme(
     val isTrading: Boolean,
     /** `trading` | `distribution` | `manufacturing` | `madeToOrder` */
     val verticalKey: String = if (isTrading) "trading" else "distribution",
+    /** Pulse section card fill — Own plum `#2A1030`; others keep kit default. */
+    val surface: Color = OperatingV12.pulseSurface,
+    /** Canvas gradient start wash — Own `#1E1B4B` → [canvas]. */
+    val canvasTop: Color = canvas,
+    /** Metric / list inset — Own `#18081C`. */
+    val inset: Color = OperatingV12.inset,
+    /** Soft link / View all — Own `#E879F9`; others keep emerald kit default. */
+    val softLink: Color = OperatingV12.viewAll,
 ) {
     val isManufacturing: Boolean
         get() = verticalKey == "manufacturing" || verticalKey == "madeToOrder"
@@ -169,10 +177,10 @@ data class OperatingV12Theme(
             verticalKey = "madeToOrder",
         )
 
-        /** Client campaign — indigo `#6366F1` (MKT-PULSE-v12). */
+        /** Client campaign — indigo `#6366F1` (MKT-PULSE-v12); canvas `#0F172A` from business.tokens. */
         fun marketingClient() = OperatingV12Theme(
             accent = Color(0xFF6366F1),
-            canvas = Color(0xFF09121F),
+            canvas = Color(0xFF0F172A),
             heroStart = Color(0xFF6366F1),
             heroEnd = Color(0xFF8B5CF6),
             label = "Client Campaign",
@@ -180,12 +188,16 @@ data class OperatingV12Theme(
             motionLine = "Plan. Launch. Measure.",
             isTrading = false,
             verticalKey = "marketingClient",
+            canvasTop = Color(0xFF1E1B4B),
         )
 
-        /** Own business campaign — magenta `#D946EF` (MKT-OWN-PULSE-v12). */
+        /**
+         * Own business campaign — magenta `#D946EF` → amber `#F59E0B` (MKT-OWN-PULSE-v12 `2582:29187`).
+         * Canvas wash `#1E1B4B` → `#0F172A` is shared dark indigo, not Client accent.
+         */
         fun marketingOwn() = OperatingV12Theme(
             accent = Color(0xFFD946EF),
-            canvas = Color(0xFF12081A),
+            canvas = Color(0xFF0F172A),
             heroStart = Color(0xFFD946EF),
             heroEnd = Color(0xFFF59E0B),
             label = "Own Business Campaign",
@@ -193,6 +205,10 @@ data class OperatingV12Theme(
             motionLine = "Plan. Launch. Measure.",
             isTrading = false,
             verticalKey = "marketingOwn",
+            surface = Color(0xFF2A1030),
+            canvasTop = Color(0xFF1E1B4B),
+            inset = Color(0xFF18081C),
+            softLink = Color(0xFFE879F9),
         )
 
         fun forSubtype(subtype: String?): OperatingV12Theme = when (subtype?.uppercase()) {
@@ -212,7 +228,7 @@ data class OperatingV12Theme(
         get() = verticalKey == "marketingOwn"
 }
 
-/** Compact money: `₹9.4L`, `₹86k`, `₹1.8Cr`. Counts keep their raw text. */
+/** Compact money: `₹9.4L`, `₹86K`, `₹1.8Cr` (Figma uses uppercase `K`). Counts keep their raw text. */
 object OperatingV12Money {
     fun compact(raw: String?, currency: String?): String {
         val value = raw?.trim().orEmpty()
@@ -239,7 +255,7 @@ object OperatingV12Money {
         return when {
             magnitude == 0.0 -> "${symbol}0"
             magnitude < 1_000 -> symbol + sign + String.format(Locale.US, "%.0f", magnitude)
-            magnitude < 100_000 -> symbol + sign + trim(String.format(Locale.US, "%.1fk", magnitude / 1_000))
+            magnitude < 100_000 -> symbol + sign + trim(String.format(Locale.US, "%.1fK", magnitude / 1_000))
             magnitude < 10_000_000 -> symbol + sign + trim(String.format(Locale.US, "%.1fL", magnitude / 100_000))
             else -> symbol + sign + trim(String.format(Locale.US, "%.1fCr", magnitude / 10_000_000))
         }

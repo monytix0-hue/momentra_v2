@@ -14,8 +14,15 @@ struct OperatingQuickAddHubView: View {
     private var adds: [OperatingQuickAddPayload] { model.projection?.quickAdds ?? [] }
 
     /// The quick-add codes the backend sends, plus the three QA modes that have their own frames.
+    /// Trading always unions the twelve TRD layouts so Approval/Return/etc. never disappear when API omits them.
     private var modes: [String] {
         var list = adds.map { $0.code.uppercased() }
+        if theme.isTradingCapture {
+            for layout in OperatingCaptureLayout.allCases {
+                let code = layout.rawValue
+                if !list.contains(code) { list.append(code) }
+            }
+        }
         for extra in [OperatingCaptureLayout.holdMode, OperatingCaptureLayout.transferMode, OperatingCaptureLayout.reprintMode] {
             if !list.contains(extra) { list.append(extra) }
         }
@@ -73,7 +80,15 @@ struct OperatingQuickAddHubView: View {
             Group {
                 switch route {
                 case let .capture(mode):
-                    OperatingCaptureSheet(theme: theme, mode: mode, model: model)
+                    OperatingCaptureSheet(
+                        theme: theme,
+                        mode: mode,
+                        model: model,
+                        onRouteToMode: { target in
+                            // Swap hub capture without posting — new draft for the destination mode.
+                            sheet = .capture(target.uppercased())
+                        }
+                    )
                 case .masters:
                     OperatingMastersView(theme: theme, model: model)
                 }
@@ -89,10 +104,15 @@ struct OperatingQuickAddHubView: View {
         switch mode {
         case OperatingCaptureLayout.holdMode: return "Hold a record"
         case OperatingCaptureLayout.transferMode: return "Transfer stock"
-        case OperatingCaptureLayout.reprintMode: return "Reprint document"
+        case OperatingCaptureLayout.reprintMode: return "Reprint a document"
         default:
+            if theme.isTradingCapture, let layout = OperatingCaptureLayout.forMode(mode) {
+                return layout.hubLabel
+            }
             if let add = adds.first(where: { $0.code.uppercased() == mode }) { return add.label }
-            return OperatingCaptureLayout.forMode(mode)?.label ?? mode.capitalized
+            return OperatingCaptureLayout.forMode(mode)?.hubLabel
+                ?? OperatingCaptureLayout.forMode(mode)?.label
+                ?? mode.capitalized
         }
     }
 
@@ -101,7 +121,11 @@ struct OperatingQuickAddHubView: View {
         case OperatingCaptureLayout.holdMode: return "QA-HOLD"
         case OperatingCaptureLayout.transferMode: return "QA-TRANSFER"
         case OperatingCaptureLayout.reprintMode: return "QA-REPRINT"
-        default: return OperatingCaptureLayout.forMode(mode)?.qaCode ?? "QA"
+        default:
+            if theme.isTradingCapture, let layout = OperatingCaptureLayout.forMode(mode) {
+                return "TRD-\(layout.qaCode)"
+            }
+            return OperatingCaptureLayout.forMode(mode)?.qaCode ?? "QA"
         }
     }
 }

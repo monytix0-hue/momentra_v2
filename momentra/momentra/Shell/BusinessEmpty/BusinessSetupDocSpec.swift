@@ -15,7 +15,8 @@ struct BusinessSetupRoleSpec: Identifiable, Equatable, Hashable {
     let code: String
     let label: String
 
-    var id: String { code }
+    /// Label-scoped so Marketing can offer Media buyer + Creative that both mint `CONTRIBUTOR`.
+    var id: String { "\(code)|\(label)" }
 }
 
 /// Live §04 counts, read from the company's masters tables. A zero count is never printed.
@@ -64,6 +65,15 @@ struct BusinessSetupDocState: Equatable {
     var description: String = ""
     var location: String = ""
 
+    // MARK: Marketing economics (v5.1 §04 + BS-06 coexistence)
+    var clientFee: String = ""
+    var clientApprovedMediaBudget: String = ""
+    var agencyOperatingBudget: String = ""
+    var offering: String = ""
+    var campaignPurpose: String = ""
+    var creativeApprovalRequired: Bool = false
+    var reportingCadence: String = ""
+
     // MARK: §02 People & Roles
 
     /// The code of the chip selected in `Roles on invite`; the code is what mints the invite.
@@ -79,6 +89,8 @@ struct BusinessSetupDocState: Equatable {
     var budget: String = ""
     var target: String = ""
     var metric: String = BusinessSetupDocSpec.metricLabel("REVENUE")
+
+    /// Resets the measurement chip when switching into/out of marketing KPI vocabulary.
 
     // MARK: §05 GST & Tax Details
 
@@ -107,13 +119,28 @@ struct BusinessSetupDocState: Equatable {
     /// the old vertical — a `Retail dealer` channel is not a channel of a Trading moment.
     mutating func switchVertical(_ next: BusinessOperatingVertical) {
         guard next != vertical else { return }
+        let wasMarketing = vertical.isMarketing
         vertical = next
         let allowed = Set(channelChoices)
         channels = channels.intersection(allowed)
+        if next == .ownBusinessCampaign {
+            clientFee = ""
+            clientApprovedMediaBudget = ""
+            agencyOperatingBudget = ""
+            reportingCadence = ""
+        }
         // The chip set is identical in both verticals; re-validate anyway so an old saved code can
         // never outlive the chip that showed it.
         if !roles.contains(where: { $0.code == inviteRole }) {
             inviteRole = BusinessSetupDocSpec.defaultInviteRole
+        }
+        if wasMarketing != next.isMarketing {
+            metric = next.isMarketing
+                ? BusinessSetupDocSpec.metricLabel("LEADS", vertical: next)
+                : BusinessSetupDocSpec.metricLabel("REVENUE")
+        } else if !BusinessSetupDocSpec.metricLabels(for: next).contains(metric) {
+            metric = BusinessSetupDocSpec.metricLabels(for: next).first
+                ?? BusinessSetupDocSpec.metricLabel("REVENUE")
         }
     }
 
@@ -155,14 +182,21 @@ struct BusinessSetupDocState: Equatable {
             channels: channelChoices.filter { channels.contains($0) },
             monthlyBudget: BusinessSetupDocSpec.plainAmount(budget),
             monthlyTarget: BusinessSetupDocSpec.plainAmount(target),
-            targetMetric: BusinessSetupDocSpec.metricCode(metric),
+            targetMetric: BusinessSetupDocSpec.metricCode(metric, vertical: vertical),
             participants: BusinessSetupDocSpec.participants(ownerName: ownerName, invitees: invitees),
             gstin: gstin,
             gstState: gstState,
             gstRegistration: BusinessSetupDocSpec.gstRegistrationCode(gstRegistration),
             gstTracking: BusinessSetupDocSpec.gstTrackingCode(gstTracking),
             salePriceIncludesGst: BusinessSetupDocSpec.gstPricingCode(gstPricing),
-            gstEffectiveFrom: gstEffectiveFrom
+            gstEffectiveFrom: gstEffectiveFrom,
+            clientFee: BusinessSetupDocSpec.plainAmount(clientFee),
+            clientApprovedMediaBudget: BusinessSetupDocSpec.plainAmount(clientApprovedMediaBudget),
+            agencyOperatingBudget: BusinessSetupDocSpec.plainAmount(agencyOperatingBudget),
+            offering: offering,
+            campaignPurpose: campaignPurpose,
+            creativeApprovalRequired: creativeApprovalRequired ? "YES" : "",
+            reportingCadence: reportingCadence
         )
     }
 
@@ -194,7 +228,9 @@ struct BusinessSetupDocState: Equatable {
         }
         if let value = string("monthlyBudget") { budget = BusinessSetupDocSpec.formatIndianAmount(value) }
         if let value = string("monthlyTarget") { target = BusinessSetupDocSpec.formatIndianAmount(value) }
-        if let value = string("targetMetric") { metric = BusinessSetupDocSpec.metricLabel(value) }
+        if let value = string("targetMetric") {
+            metric = BusinessSetupDocSpec.metricLabel(value, vertical: vertical)
+        }
         if let value = string("gstTracking") {
             gstTracking = value.uppercased() == "NOT_NOW" ? "Not now" : "Yes"
         }
@@ -208,6 +244,13 @@ struct BusinessSetupDocState: Equatable {
                 BusinessSetupDocSpec.gstPricingCode($0) == value.uppercased()
             } ?? gstPricing
         }
+        if let value = string("clientFee") { clientFee = BusinessSetupDocSpec.formatIndianAmount(value) }
+        if let value = string("clientApprovedMediaBudget") { clientApprovedMediaBudget = BusinessSetupDocSpec.formatIndianAmount(value) }
+        if let value = string("agencyOperatingBudget") { agencyOperatingBudget = BusinessSetupDocSpec.formatIndianAmount(value) }
+        if let value = string("offering") { offering = value }
+        if let value = string("campaignPurpose") { campaignPurpose = value }
+        if let value = string("creativeApprovalRequired") { creativeApprovalRequired = value.uppercased() == "YES" }
+        if let value = string("reportingCadence") { reportingCadence = value.uppercased() }
         inviteRole = roles.contains(where: { $0.code == inviteRole })
             ? inviteRole
             : BusinessSetupDocSpec.defaultInviteRole
@@ -262,18 +305,28 @@ enum BusinessSetupDocSpec {
         }
     }
 
-    static let tradingChannels = ["Retail buyers", "Wholesale", "Modern trade", "HoReCa", "Online"]
-    static let distributionChannels = ["Retail dealers", "Wholesale", "Modern trade", "HoReCa", "Van sales"]
-    static let manufacturingChannels = ["OEM", "Contract", "Job work", "Private label", "Direct"]
-    static let madeToOrderChannels = ["Custom jobs", "Contract", "Repair", "Private label", "Direct"]
+    /// Corrections BS-01 / BS-02 — business-specific channel seeds (custom channels still allowed).
+    static let tradingChannels = ["Wholesale", "Retail", "B2B Direct", "Online", "Distributor", "Other"]
+    static let distributionChannels = [
+        "General Trade", "Modern Trade", "Wholesale", "Institutional",
+        "Direct Distribution", "Van Sales", "Other",
+    ]
+    static let manufacturingChannels = [
+        "Direct B2B", "Distributor", "Dealer Network", "Export", "Online", "Other",
+    ]
+    static let madeToOrderChannels = manufacturingChannels
     static let marketingChannels = [
         "Paid Social", "Search Ads", "Display / Video Ads", "Organic Social",
         "Email", "Influencer", "SEO / Content", "SMS / Messaging",
     ]
 
-    static let retailChannels = ["Walk-in", "Online", "Wholesale", "Marketplace", "Delivery"]
-    static let restaurantChannels = ["Dine-in", "Takeaway", "Delivery", "Catering", "Events"]
-    static let serviceChannels = ["Appointment", "Home visit", "On-site", "Remote", "Walk-in"]
+    static let retailChannels = ["In-store", "Online", "Marketplace", "Social Commerce", "Other"]
+    static let restaurantChannels = [
+        "Dine-in", "Takeaway", "Own Delivery", "Aggregator", "Catering", "Other",
+    ]
+    static let serviceChannels = [
+        "Walk-in", "Appointment", "Online", "On-site", "Referral", "Other",
+    ]
 
     static func channels(vertical: BusinessOperatingVertical) -> [String] {
         switch vertical {
@@ -310,11 +363,14 @@ enum BusinessSetupDocSpec {
         BusinessSetupRoleSpec(code: "CONTRIBUTOR", label: "Contributor"),
     ]
 
+    /// MKT-MASTER Invite (`2569:29329`) — Owner / Manager / Account lead / Media buyer / Creative.
+    /// API has no `MEDIA_BUYER`; Media buyer + Creative both mint as `CONTRIBUTOR` (label selects the chip).
     static let marketingRoles = [
-        BusinessSetupRoleSpec(code: "FINANCE", label: "Finance"),
-        BusinessSetupRoleSpec(code: "APPROVER", label: "Approver"),
-        BusinessSetupRoleSpec(code: "OPERATIONS_LEAD", label: "Campaign Lead"),
-        BusinessSetupRoleSpec(code: "CONTRIBUTOR", label: "Contributor"),
+        BusinessSetupRoleSpec(code: "FINANCE", label: "Owner"),
+        BusinessSetupRoleSpec(code: "APPROVER", label: "Manager"),
+        BusinessSetupRoleSpec(code: "OPERATIONS_LEAD", label: "Account lead"),
+        BusinessSetupRoleSpec(code: "CONTRIBUTOR", label: "Media buyer"),
+        BusinessSetupRoleSpec(code: "CONTRIBUTOR", label: "Creative"),
     ]
 
     static func roles(_ vertical: BusinessOperatingVertical) -> [BusinessSetupRoleSpec] {
@@ -349,6 +405,14 @@ enum BusinessSetupDocSpec {
 
     /// What the selected role can reach, printed under the chips.
     static func roleAccess(_ code: String, vertical: BusinessOperatingVertical = .trading) -> String {
+        if vertical.isMarketing {
+            switch code {
+            case "FINANCE": return "Owner → full campaign · reports, payouts and invites"
+            case "APPROVER": return "Manager → spend, approvals and delivery · no payouts"
+            case "OPERATIONS_LEAD": return "Account lead → campaigns, delivery & QC · no payouts or pricing"
+            default: return "Media buyer / Creative → media & creative work · no payouts or pricing"
+            }
+        }
         if vertical == .distribution {
             switch code {
             case "FINANCE": return "money, settlements and finance boards"
@@ -383,11 +447,12 @@ enum BusinessSetupDocSpec {
     /// §04 row four: `Principals & dealers` for trading, `Suppliers & buyers` for distribution.
     static func networkLabel(_ vertical: BusinessOperatingVertical) -> String {
         switch vertical {
-        case .trading: return "Principals & dealers"
-        case .distribution: return "Suppliers & buyers"
+        // QA-01 — role-aware Business Contacts (Supplier / Customer), not "dealers".
+        case .trading: return "Business contacts"
+        case .distribution: return "Suppliers & customers"
         case .standardProduction, .madeToOrder: return "Vendors & customers"
-        case .clientCampaign: return "Clients & vendors"
-        case .ownBusinessCampaign: return "Vendors & creators"
+        case .clientCampaign: return "Clients & providers"
+        case .ownBusinessCampaign: return "Providers & creators"
         case .retailStore: return "Suppliers & customers"
         case .restaurantFood: return "Vendors & guests"
         case .consumerService: return "Clients & staff"
@@ -424,19 +489,20 @@ enum BusinessSetupDocSpec {
                     title: "People & Roles",
                     subtitle: "Invite teammates and pick a role on Invite & QR. No separate Add person."
                 ),
+                // BS-06 — marketing no longer uses inventory catalogue / warehouses / price lists.
                 BusinessSetupSectionSpec(
                     number: "03",
-                    title: "Catalogue, Stock & Network",
+                    title: "Campaign Resources & Providers",
                     subtitle: vertical == .ownBusinessCampaign
-                        ? "Vendors · creators · agency/media · platforms. No client in Own Business."
-                        : "Clients, vendors, channels & teams your campaign reads from."
+                        ? "Resources, providers, prices and tax in one place. No warehouse or SKU setup."
+                        : "Campaign resources, providers, prices and tax. No warehouse or SKU setup."
                 ),
                 BusinessSetupSectionSpec(
                     number: "04",
                     title: "Channels & Monthly Plan",
                     subtitle: vertical == .ownBusinessCampaign
-                        ? "Channels, own marketing budget and targets."
-                        : "Channels, client commercials, budget and targets."
+                        ? "Channels, own marketing budget and KPI targets."
+                        : "Channels, client commercials, budget and KPI targets."
                 ),
                 BusinessSetupSectionSpec(number: "05", title: "GST & Tax Details", subtitle: "Set up GST once to make buying and selling easier."),
                 BusinessSetupSectionSpec(number: "06", title: "Review your setup", subtitle: ""),
@@ -559,22 +625,121 @@ enum BusinessSetupDocSpec {
 
     static let metricLabels = ["Revenue", "Orders", "Count"]
 
-    static func metricLabel(_ metric: String) -> String {
-        switch metric.uppercased() {
+    /// Corrections BS-03 — marketing KPI picker (18 metrics). Client campaigns also offer billing.
+    static let marketingKpiCodes = [
+        "LEADS", "QUALIFIED_LEADS", "ENQUIRIES",
+        "REACH", "IMPRESSIONS",
+        "ENGAGEMENTS", "ENGAGEMENT_RATE",
+        "CLICKS", "CTR", "WEBSITE_VISITS",
+        "CONVERSIONS", "CONVERSION_RATE",
+        "ORDERS", "ATTRIBUTED_SALES", "ROAS",
+        "REGISTRATIONS", "ATTENDANCE",
+        "CUSTOM",
+    ]
+
+    static func metricLabels(for vertical: BusinessOperatingVertical) -> [String] {
+        if vertical.isMarketing {
+            var codes = marketingKpiCodes
+            if vertical == .clientCampaign { codes.append("CLIENT_BILLING") }
+            return codes.map { metricLabel($0, vertical: vertical) }
+        }
+        return metricLabels
+    }
+
+    static func metricLabel(_ metric: String, vertical: BusinessOperatingVertical = .trading) -> String {
+        let code = metric.uppercased()
+        if vertical.isMarketing || marketingKpiCodes.contains(code) || code == "CLIENT_BILLING" {
+            switch code {
+            case "LEADS": return "Leads"
+            case "QUALIFIED_LEADS": return "Qualified Leads"
+            case "ENQUIRIES": return "Enquiries"
+            case "REACH": return "Reach"
+            case "IMPRESSIONS": return "Impressions"
+            case "ENGAGEMENTS", "ENGAGEMENT": return "Engagements"
+            case "ENGAGEMENT_RATE": return "Engagement Rate"
+            case "CLICKS": return "Clicks"
+            case "CTR": return "CTR"
+            case "WEBSITE_VISITS": return "Website Visits"
+            case "CONVERSIONS": return "Conversions"
+            case "CONVERSION_RATE": return "Conversion Rate"
+            case "ORDERS": return "Orders"
+            case "ATTRIBUTED_SALES", "REVENUE": return "Attributed Sales"
+            case "ROAS": return "ROAS"
+            case "REGISTRATIONS": return "Registrations"
+            case "ATTENDANCE": return "Attendance"
+            case "CUSTOM", "CUSTOM_COUNT": return "Custom"
+            case "CLIENT_BILLING": return "Client Billing"
+            default: return metric.isEmpty ? "Leads" : metric.replacingOccurrences(of: "_", with: " ").capitalized
+            }
+        }
+        switch code {
         case "REVENUE": return "Revenue"
         case "ORDERS": return "Orders"
         case "CUSTOM_COUNT": return "Count"
-        // The frame never shows a raw enum, so anything unrecognised reads as a count.
         default: return metric.isEmpty ? "Revenue" : "Count"
         }
     }
 
-    static func metricCode(_ label: String) -> String {
+    static func metricCode(_ label: String, vertical: BusinessOperatingVertical = .trading) -> String {
+        if vertical.isMarketing {
+            let match = metricLabels(for: vertical).first { $0 == label }
+            if let match {
+                let idx = metricLabels(for: vertical).firstIndex(of: match)!
+                var codes = marketingKpiCodes
+                if vertical == .clientCampaign { codes.append("CLIENT_BILLING") }
+                return codes[idx]
+            }
+            let compact = label.uppercased().replacingOccurrences(of: " ", with: "_")
+            return compact.isEmpty ? "LEADS" : compact
+        }
         switch label {
         case "Orders": return "ORDERS"
         case "Count": return "CUSTOM_COUNT"
         default: return "REVENUE"
         }
+    }
+
+    /// Auto unit for a selected marketing KPI (BS-03).
+    static func marketingMetricUnit(_ metric: String) -> String {
+        switch metric.uppercased() {
+        case "ATTRIBUTED_SALES", "REVENUE", "CLIENT_BILLING": return "₹"
+        case "ENGAGEMENT_RATE", "CTR", "CONVERSION_RATE": return "%"
+        case "ROAS": return "Ratio"
+        default: return "Count"
+        }
+    }
+
+    /// Corrections BS-04 — unit master grouped by measurement category.
+    struct UnitMasterEntry: Identifiable, Equatable, Hashable {
+        let code: String
+        let label: String
+        let category: String
+        var id: String { code }
+    }
+
+    static let unitCategories = ["Count", "Mass", "Volume", "Length", "Area"]
+    static let unitMaster: [UnitMasterEntry] = [
+        .init(code: "PC", label: "Piece (pc)", category: "Count"),
+        .init(code: "PAIR", label: "Pair", category: "Count"),
+        .init(code: "SET", label: "Set", category: "Count"),
+        .init(code: "PACK", label: "Pack", category: "Count"),
+        .init(code: "BOX", label: "Box", category: "Count"),
+        .init(code: "CARTON", label: "Carton", category: "Count"),
+        .init(code: "DOZEN", label: "Dozen (12 pc)", category: "Count"),
+        .init(code: "KG", label: "Kilogram (kg)", category: "Mass"),
+        .init(code: "G", label: "Gram (g)", category: "Mass"),
+        .init(code: "TONNE", label: "Tonne", category: "Mass"),
+        .init(code: "L", label: "Litre (L)", category: "Volume"),
+        .init(code: "ML", label: "Millilitre (mL)", category: "Volume"),
+        .init(code: "M", label: "Metre (m)", category: "Length"),
+        .init(code: "CM", label: "Centimetre (cm)", category: "Length"),
+        .init(code: "FT", label: "Foot", category: "Length"),
+        .init(code: "SQFT", label: "Square Foot (sq ft)", category: "Area"),
+        .init(code: "SQM", label: "Square Metre (sq m)", category: "Area"),
+    ]
+
+    static func units(forCategory category: String) -> [UnitMasterEntry] {
+        unitMaster.filter { $0.category == category }
     }
 
     // MARK: - §04 subtitles
@@ -843,6 +1008,8 @@ enum BusinessSetupDocSpec {
         "monthlyTarget", "targetMetric", "participants", "counterparties", "gstin",
         "gstState", "gstStateCode", "gstRegistration", "gstTracking", "salePriceIncludesGst",
         "purchasePriceIncludesGst", "gstEffectiveFrom",
+        "clientFee", "clientApprovedMediaBudget", "agencyOperatingBudget",
+        "offering", "campaignPurpose", "creativeApprovalRequired", "reportingCadence",
     ]
 
     static func defaultPreferences(vertical: BusinessOperatingVertical) -> [String: Any] {
@@ -875,9 +1042,17 @@ enum BusinessSetupDocSpec {
         gstTracking: String = "",
         salePriceIncludesGst: String = "",
         purchasePriceIncludesGst: String? = nil,
-        gstEffectiveFrom: String = ""
+        gstEffectiveFrom: String = "",
+        clientFee: String = "",
+        clientApprovedMediaBudget: String = "",
+        agencyOperatingBudget: String = "",
+        offering: String = "",
+        campaignPurpose: String = "",
+        creativeApprovalRequired: String = "",
+        reportingCadence: String = ""
     ) -> [String: Any] {
-        [
+        let own = vertical == .ownBusinessCampaign
+        return [
             "subtype": subtype(vertical),
             "identityName": identityName.trimmingCharacters(in: .whitespacesAndNewlines),
             "partyName": partyName.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -903,6 +1078,13 @@ enum BusinessSetupDocSpec {
             "salePriceIncludesGst": salePriceIncludesGst.uppercased(),
             "purchasePriceIncludesGst": (purchasePriceIncludesGst ?? salePriceIncludesGst).uppercased(),
             "gstEffectiveFrom": gstEffectiveFrom,
+            "clientFee": own ? "" : clientFee,
+            "clientApprovedMediaBudget": own ? "" : clientApprovedMediaBudget,
+            "agencyOperatingBudget": own ? "" : agencyOperatingBudget,
+            "offering": offering.trimmingCharacters(in: .whitespacesAndNewlines),
+            "campaignPurpose": campaignPurpose.trimmingCharacters(in: .whitespacesAndNewlines),
+            "creativeApprovalRequired": creativeApprovalRequired.uppercased() == "YES" ? "YES" : "",
+            "reportingCadence": own ? "" : reportingCadence.uppercased(),
         ]
     }
 

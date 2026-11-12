@@ -1,37 +1,13 @@
 package com.example.momentra.ui.shell.business.service
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.momentra.data.api.OperatingActivityDto
-import com.example.momentra.data.api.OperatingAttentionDto
 import com.example.momentra.data.api.OperatingPaymentDto
 import com.example.momentra.data.api.OperatingProjectionDto
-import com.example.momentra.ui.shell.business.shared.BusinessActivityList
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
-import com.example.momentra.ui.shell.business.shared.formatOperatingAmount
-import com.example.momentra.ui.shell.business.shared.openOperatingAttention
-import com.example.momentra.ui.shell.business.shared.operatingAttentionCtaLabel
 import com.example.momentra.ui.theme.ServicesTeal
 
 // View-all sheets
@@ -59,6 +35,61 @@ sealed interface ServiceSheetState {
     data object Patterns : ServiceSheetState
 }
 
+private fun ServiceSheetState.chromeCode(): String = when (this) {
+    ServiceSheetState.Attention -> "ATTENTION"
+    ServiceSheetState.Target -> "TARGET_BUDGET"
+    ServiceSheetState.Payment -> "PAYMENT_READINESS"
+    ServiceSheetState.Finance -> "FINANCE"
+    ServiceSheetState.Activity -> "ACTIVITY"
+    ServiceSheetState.Gst -> "GST"
+    ServiceSheetState.Commitments -> "M4"
+    ServiceSheetState.MomentDetail -> "M1"
+    ServiceSheetState.People -> "ME3"
+    ServiceSheetState.Network -> "network"
+    ServiceSheetState.LifeCurrent -> "L1"
+    ServiceSheetState.LifeSales -> "services"
+    ServiceSheetState.LifeMoney -> "L3"
+    ServiceSheetState.LifeOps -> "L4"
+    ServiceSheetState.Monthly -> "ME1"
+    ServiceSheetState.MoneyMemory -> "ME2"
+    ServiceSheetState.PeopleMemory -> "ME3"
+    ServiceSheetState.Patterns -> "ME4"
+}
+
+private fun ServiceSheetState.sheetTitle(): String = when (this) {
+    ServiceSheetState.Attention -> "Needs Attention"
+    ServiceSheetState.Target -> "Target & Budget"
+    ServiceSheetState.Payment -> "Payment Readiness"
+    ServiceSheetState.Finance -> "Finance"
+    ServiceSheetState.Activity -> "Activity"
+    ServiceSheetState.Gst -> "GST Position"
+    ServiceSheetState.Commitments -> "Open Commitments"
+    ServiceSheetState.MomentDetail -> "My Service Business"
+    ServiceSheetState.People -> "People"
+    ServiceSheetState.Network -> "Clients & Services"
+    ServiceSheetState.LifeCurrent -> "Current Business"
+    ServiceSheetState.LifeSales -> "Bookings & Services"
+    ServiceSheetState.LifeMoney -> "Money Moving"
+    ServiceSheetState.LifeOps -> "Rooms & Staff"
+    ServiceSheetState.Monthly -> "Monthly Memory"
+    ServiceSheetState.MoneyMemory -> "Money Memory"
+    ServiceSheetState.PeopleMemory -> "People & Activity"
+    ServiceSheetState.Patterns -> "Patterns & Decisions"
+}
+
+private val ServiceSheetTheme = com.example.momentra.ui.shell.business.shared.OperatingSheetTheme(
+    accent = ServicesTeal.teal,
+    accentSoft = ServicesTeal.tealSoft,
+    canvas = ServicesTeal.screenBottom,
+    surface = ServicesTeal.card,
+    inset = ServicesTeal.surfaceRow,
+    border = ServicesTeal.cardStroke,
+    ink = ServicesTeal.textPrimary,
+    body = ServicesTeal.textBody,
+    warning = ServicesTeal.warning,
+    negative = ServicesTeal.negative,
+)
+
 @Composable
 fun ServiceBoardSheet(
     state: ServiceSheetState,
@@ -66,96 +97,120 @@ fun ServiceBoardSheet(
     onDismiss: () -> Unit,
     onOpenQuickAdd: () -> Unit,
 ) {
-    val title = when (state) {
-        ServiceSheetState.Attention -> "Needs Attention"
-        ServiceSheetState.Target -> "Target & Budget"
-        ServiceSheetState.Payment -> "Payment Readiness"
-        ServiceSheetState.Finance -> "Finance"
-        ServiceSheetState.Activity -> "Activity"
-        ServiceSheetState.Gst -> "GST Position"
-        ServiceSheetState.Commitments -> "Open Commitments"
-        ServiceSheetState.MomentDetail -> "My Service Business"
-        ServiceSheetState.People -> "People"
-        ServiceSheetState.Network -> "Clients & Services"
-        ServiceSheetState.LifeCurrent -> "Current Business"
-        ServiceSheetState.LifeSales -> "Bookings & Services"
-        ServiceSheetState.LifeMoney -> "Money Moving"
-        ServiceSheetState.LifeOps -> "Rooms & Staff"
-        ServiceSheetState.Monthly -> "Monthly Memory"
-        ServiceSheetState.MoneyMemory -> "Money Memory"
-        ServiceSheetState.PeopleMemory -> "People & Activity"
-        ServiceSheetState.Patterns -> "Patterns & Decisions"
+    val code = state.chromeCode()
+    val total = when (state) {
+        ServiceSheetState.Attention -> model.attention.size
+        ServiceSheetState.Payment, ServiceSheetState.Finance -> model.paymentReadiness.size
+        ServiceSheetState.Activity, ServiceSheetState.LifeSales -> model.activity.size
+        ServiceSheetState.People, ServiceSheetState.PeopleMemory -> model.participants.size
+        else -> model.boards?.let { boards ->
+            listOfNotNull(boards.moments, boards.life, boards.memory)
+                .flatten()
+                .firstOrNull {
+                    it.code == code ||
+                        (state == ServiceSheetState.Network && it.code == "M3") ||
+                        (state == ServiceSheetState.MomentDetail && it.code == "M1")
+                }
+                ?.rows?.size
+        } ?: 0
     }
-    com.example.momentra.ui.shell.business.shared.OperatingSheetScrim(
+    com.example.momentra.ui.shell.business.shared.OperatingSheetFrame(
+        title = state.sheetTitle(),
+        eyebrow = "",
+        model = model,
+        theme = ServiceSheetTheme,
         onDismiss = onDismiss,
-        accent = ServicesTeal.teal,
-    ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = ServicesTeal.gutter, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(Modifier.fillMaxWidth().height(22.dp), horizontalArrangement = Arrangement.Center) {
-                Box(
-                    Modifier
-                        .width(40.dp).height(5.dp)
-                        .clip(RoundedCornerShape(100.dp))
-                        .background(Color.White.copy(alpha = 0.2f)),
-                )
-            }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(title, style = ServicesTeal.screenTitle(), modifier = Modifier.weight(1f))
-                Text(
-                    "Close",
-                    style = ServicesTeal.viewAll().copy(color = ServicesTeal.textBody),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .clickable(onClick = onDismiss)
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                )
-            }
-            Text(ServiceFormat.periodLine(model.startDate, model.currency), style = ServicesTeal.roleLine(), maxLines = 1)
+        sheetCode = code,
+        totalCount = total,
+        visibleCount = { status ->
             when (state) {
-                ServiceSheetState.Attention -> SheetAttention(model, onOpenQuickAdd)
-                ServiceSheetState.Payment -> SheetPayment(model, receivables = false)
-                ServiceSheetState.Finance -> SheetPayment(model, receivables = true)
-                ServiceSheetState.Activity, ServiceSheetState.LifeSales -> SheetActivity(model)
-                ServiceSheetState.Commitments -> SheetSection(model, "M4")
-                ServiceSheetState.MomentDetail -> SheetSection(model, "M1")
-                ServiceSheetState.People -> SheetPeople(model)
-                ServiceSheetState.Network -> SheetSection(model, "M3")
-                ServiceSheetState.LifeCurrent -> SheetSection(model, "L1")
-                ServiceSheetState.LifeMoney -> SheetSection(model, "L3")
-                ServiceSheetState.LifeOps -> SheetSection(model, "L4")
-                ServiceSheetState.Monthly -> SheetSection(model, "ME1")
-                ServiceSheetState.MoneyMemory -> SheetSection(model, "ME2")
-                ServiceSheetState.PeopleMemory -> SheetSection(model, "ME3")
-                ServiceSheetState.Patterns -> SheetSection(model, "ME4")
-                ServiceSheetState.Target -> SheetTarget(model)
-                ServiceSheetState.Gst -> SheetGst(model)
+                ServiceSheetState.Attention -> model.attention.count {
+                    val chip = when (it.severity?.uppercase()) {
+                        "CRITICAL" -> "Overdue"
+                        "HIGH" -> "Alert"
+                        else -> "Open"
+                    }
+                    com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, chip)
+                }
+                ServiceSheetState.Payment, ServiceSheetState.Finance -> model.paymentReadiness.count {
+                    com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.dueBucket)
+                }
+                ServiceSheetState.Activity, ServiceSheetState.LifeSales -> model.activity.count {
+                    com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.badge)
+                }
+                ServiceSheetState.People, ServiceSheetState.PeopleMemory -> model.participants.count {
+                    com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, null)
+                }
+                else -> model.boards?.let { boards ->
+                    listOfNotNull(boards.moments, boards.life, boards.memory)
+                        .flatten()
+                        .firstOrNull {
+                            it.code == code ||
+                                (state == ServiceSheetState.Network && it.code == "M3") ||
+                                (state == ServiceSheetState.MomentDetail && it.code == "M1")
+                        }
+                        ?.rows
+                        ?.count {
+                            com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.badge)
+                        }
+                } ?: total
             }
-            Spacer(Modifier.height(20.dp))
+        },
+        onFooterAction = { action ->
+            when (action) {
+                "PAYMENT" -> OperatingChromeState.quickAddHint = "payment"
+                "MEMORY" -> OperatingChromeState.storyConfigOpen = true
+                "ATTENTION" -> OperatingChromeState.quickAddHint = "issue"
+                else -> onOpenQuickAdd()
+            }
+        },
+    ) { status ->
+        when (state) {
+            ServiceSheetState.Attention -> SheetAttention(model, status, onOpenQuickAdd)
+            ServiceSheetState.Payment -> SheetPayment(model, status, receivables = false)
+            ServiceSheetState.Finance -> SheetPayment(model, status, receivables = true)
+            ServiceSheetState.Activity, ServiceSheetState.LifeSales -> SheetActivity(model, status)
+            ServiceSheetState.Commitments -> SheetSection(model, "M4", status)
+            ServiceSheetState.MomentDetail -> SheetSection(model, "M1", status)
+            ServiceSheetState.People -> SheetPeople(model, status)
+            ServiceSheetState.Network -> SheetSection(model, "M3", status)
+            ServiceSheetState.LifeCurrent -> SheetSection(model, "L1", status)
+            ServiceSheetState.LifeMoney -> SheetSection(model, "L3", status)
+            ServiceSheetState.LifeOps -> SheetSection(model, "L4", status)
+            ServiceSheetState.Monthly -> SheetSection(model, "ME1", status)
+            ServiceSheetState.MoneyMemory -> SheetSection(model, "ME2", status)
+            ServiceSheetState.PeopleMemory -> SheetSection(model, "ME3", status)
+            ServiceSheetState.Patterns -> SheetSection(model, "ME4", status)
+            ServiceSheetState.Target -> SheetTarget(model)
+            ServiceSheetState.Gst -> SheetGst(model)
         }
     }
 }
 
 @Composable
-private fun SheetAttention(model: OperatingProjectionDto, onOpenQuickAdd: () -> Unit) {
-    if (model.attention.isEmpty()) {
+private fun SheetAttention(model: OperatingProjectionDto, status: String, onOpenQuickAdd: () -> Unit) {
+    val rows = model.attention.filter {
+        val chip = when (it.severity?.uppercase()) {
+            "CRITICAL" -> "Overdue"
+            "HIGH" -> "Alert"
+            else -> "Open"
+        }
+        com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, chip)
+    }
+    if (rows.isEmpty()) {
         TealEmpty("Nothing is waiting", "Approvals, overdue items and blockers will show here.")
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        model.attention.forEach { item -> AttentionRow(item, model, onOpenQuickAdd) }
+        rows.forEach { item -> AttentionRow(item, model, onOpenQuickAdd) }
     }
 }
 
 @Composable
-private fun SheetPayment(model: OperatingProjectionDto, receivables: Boolean) {
+private fun SheetPayment(model: OperatingProjectionDto, status: String, receivables: Boolean) {
     val rows: List<OperatingPaymentDto> = model.paymentReadiness.filter {
-        if (receivables) it.relevance == "RECEIVABLE" else it.relevance != "RECEIVABLE"
+        val side = if (receivables) it.relevance == "RECEIVABLE" else it.relevance != "RECEIVABLE"
+        side && com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.dueBucket)
     }
     if (rows.isEmpty()) {
         TealEmpty(
@@ -187,24 +242,30 @@ private fun SheetPayment(model: OperatingProjectionDto, receivables: Boolean) {
 }
 
 @Composable
-private fun SheetActivity(model: OperatingProjectionDto) {
-    if (model.activity.isEmpty()) {
+private fun SheetActivity(model: OperatingProjectionDto, status: String) {
+    val rows = model.activity.filter {
+        com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.badge)
+    }
+    if (rows.isEmpty()) {
         TealEmpty("Nothing recorded yet", "Sales, spend and settlement will show here.")
         return
     }
     Column {
-        model.activity.forEach { row -> ActivityDividedRow(row, model) }
+        rows.forEach { row -> ActivityDividedRow(row, model) }
     }
 }
 
 @Composable
-private fun SheetPeople(model: OperatingProjectionDto) {
-    if (model.participants.isEmpty()) {
+private fun SheetPeople(model: OperatingProjectionDto, status: String) {
+    val names = model.participants.filter {
+        com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, null)
+    }
+    if (names.isEmpty()) {
         TealEmpty("No people yet", "Invite the shop floor, billing and approvers.")
         return
     }
     Column {
-        model.participants.forEach { name ->
+        names.forEach { name ->
             DividedRow(
                 title = name,
                 caption = if (name == model.partyName) roleLabel(model.role) else "Member",
@@ -216,12 +277,15 @@ private fun SheetPeople(model: OperatingProjectionDto) {
 }
 
 @Composable
-private fun SheetSection(model: OperatingProjectionDto, code: String) {
+private fun SheetSection(model: OperatingProjectionDto, code: String, status: String) {
     val section = (model.boards?.moments.orEmpty() + model.boards?.life.orEmpty() + model.boards?.memory.orEmpty())
         .firstOrNull { it.code == code }
     if (section == null) {
         TealEmpty("Not available", "This board has not been recorded yet.")
         return
+    }
+    val rows = section.rows.filter {
+        com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.matchesStatus(status, it.badge)
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (section.detail.isNotBlank()) {
@@ -233,11 +297,11 @@ private fun SheetSection(model: OperatingProjectionDto, code: String) {
                 if (!section.coverage.isNullOrBlank()) SeverityChip(section.coverage!!, ServicesTeal.warning)
             }
         }
-        if (section.rows.isEmpty()) {
+        if (rows.isEmpty()) {
             TealEmpty("Nothing recorded yet", "Rows will appear as activity is recorded.")
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                section.rows.forEach { row -> BoardRowFor(row = row, model = model) }
+                rows.forEach { row -> BoardRowFor(row = row, model = model) }
             }
         }
     }

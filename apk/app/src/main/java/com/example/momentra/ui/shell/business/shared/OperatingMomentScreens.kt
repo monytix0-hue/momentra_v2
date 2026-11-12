@@ -178,54 +178,87 @@ fun OperatingMomentPage(
     androidx.compose.runtime.SideEffect {
         when (projection?.subtype) {
             "DISTRIBUTION_DEALERSHIP" -> {
+                OperatingChromeState.distributionChrome = true
                 OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.distribution.DistBrand
-                OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.distribution.DistBg
-                OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.distribution.DistBorder
+                OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.distribution.DistQaSheet
+                OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.distribution.DistQaBorder
+                OperatingChromeState.storyInset = com.example.momentra.ui.shell.business.distribution.DistQaField
                 OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.distribution.DistInk
                 OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.distribution.DistSecondary
             }
             "STANDARD_PRODUCTION", "MADE_TO_ORDER" -> {
+                OperatingChromeState.distributionChrome = false
                 OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.manufacturing.MfgBrand
                 OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.manufacturing.MfgBg
                 OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.manufacturing.MfgBorder
+                OperatingChromeState.storyInset = Color.Black.copy(alpha = 0.25f)
                 OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.manufacturing.MfgInk
                 OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.manufacturing.MfgSecondary
             }
-            "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN" -> {
-                OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.marketing.CampBrand
-                OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.marketing.CampBg
-                OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.marketing.CampBorder
-                OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.marketing.CampInk
-                OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.marketing.CampSecondary
+            "CLIENT_CAMPAIGN" -> {
+                // Phase 3 pickers / Switch Moment — Client indigo capture chrome (not Own magenta).
+                val chrome = OperatingCaptureChromeTokens.MarketingClient
+                OperatingChromeState.distributionChrome = false
+                OperatingChromeState.storyAccent = chrome.accent
+                OperatingChromeState.storyAccentSoft = chrome.accentSoft
+                OperatingChromeState.storySurface = chrome.sheet
+                OperatingChromeState.storyBorder = chrome.border
+                OperatingChromeState.storyInset = chrome.field
+                OperatingChromeState.storyInk = chrome.ink
+                OperatingChromeState.storyBody = chrome.label
+            }
+            "OWN_BUSINESS_CAMPAIGN" -> {
+                // Phase 3 pickers / Switch Moment — Own magenta → amber (never Client indigo CampBrand).
+                val chrome = OperatingCaptureChromeTokens.MarketingOwn
+                OperatingChromeState.distributionChrome = false
+                OperatingChromeState.storyAccent = chrome.accent
+                OperatingChromeState.storyAccentSoft = chrome.accentSoft
+                OperatingChromeState.storySurface = chrome.sheet
+                OperatingChromeState.storyBorder = chrome.border
+                OperatingChromeState.storyInset = chrome.field
+                OperatingChromeState.storyInk = chrome.ink
+                OperatingChromeState.storyBody = chrome.label
             }
             "RETAIL_STORE" -> {
+                OperatingChromeState.distributionChrome = false
                 OperatingChromeState.storyAccent = com.example.momentra.ui.theme.RetailRose.rose
                 OperatingChromeState.storySurface = com.example.momentra.ui.theme.RetailRose.screenBottom
                 OperatingChromeState.storyBorder = com.example.momentra.ui.theme.RetailRose.roseBorder
+                OperatingChromeState.storyInset = Color.Black.copy(alpha = 0.25f)
                 OperatingChromeState.storyInk = com.example.momentra.ui.theme.RetailRose.textPrimary
                 OperatingChromeState.storyBody = com.example.momentra.ui.theme.RetailRose.textBody
             }
             "RESTAURANT_FOOD" -> {
+                OperatingChromeState.distributionChrome = false
                 OperatingChromeState.storyAccent = com.example.momentra.ui.theme.RestaurantEmber.ember
                 OperatingChromeState.storySurface = com.example.momentra.ui.theme.RestaurantEmber.screenBottom
                 OperatingChromeState.storyBorder = com.example.momentra.ui.theme.RestaurantEmber.ember
+                OperatingChromeState.storyInset = Color.Black.copy(alpha = 0.25f)
                 OperatingChromeState.storyInk = com.example.momentra.ui.theme.RestaurantEmber.textPrimary
                 OperatingChromeState.storyBody = com.example.momentra.ui.theme.RestaurantEmber.textBody
             }
             "CONSUMER_SERVICE" -> {
+                OperatingChromeState.distributionChrome = false
                 OperatingChromeState.storyAccent = com.example.momentra.ui.theme.ServicesTeal.teal
                 OperatingChromeState.storySurface = com.example.momentra.ui.theme.ServicesTeal.screenBottom
                 OperatingChromeState.storyBorder = com.example.momentra.ui.theme.ServicesTeal.teal
+                OperatingChromeState.storyInset = Color.Black.copy(alpha = 0.25f)
                 OperatingChromeState.storyInk = com.example.momentra.ui.theme.ServicesTeal.textPrimary
                 OperatingChromeState.storyBody = com.example.momentra.ui.theme.ServicesTeal.textBody
             }
             else -> {
+                OperatingChromeState.distributionChrome = false
                 OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.trading.TradeBrand
                 OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.trading.TradeBg
                 OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.trading.TradeBorder
+                OperatingChromeState.storyInset = Color.Black.copy(alpha = 0.25f)
                 OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.trading.TradeInk
                 OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.trading.TradeSecondary
             }
+        }
+        // Non-marketing verticals mirror accent for soft; Client/Own set accentSoft above.
+        if (projection?.subtype !in setOf("CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN")) {
+            OperatingChromeState.storyAccentSoft = OperatingChromeState.storyAccent
         }
     }
     val model = projection
@@ -239,6 +272,7 @@ fun OperatingMomentPage(
             tab = tab,
             onOpenQuickAdd = onOpenQuickAdd,
             momentId = momentId,
+            companyId = companyId,
             onRecord = { draft ->
                 repo.recordOperatingEvent(
                     momentId,
@@ -261,12 +295,13 @@ fun OperatingMomentPage(
                             draft.unitPrice,
                         ),
                     ),
-                    draft.masterKind?.let {
+                    draft.master ?: draft.masterKind?.let {
                         com.example.momentra.data.api.OperatingMasterBody(it, draft.title, draft.unit)
                     },
                     draft.revisesEventId,
                     draft.dueAt,
                     draft.contract,
+                    activityStatus = draft.activityStatus,
                 ).fold(
                     onSuccess = { tick += 1 },
                     onFailure = { error = it.message },
@@ -310,7 +345,7 @@ fun OperatingMomentPage(
                             draft.unitPrice,
                         ),
                     ),
-                    draft.masterKind?.let {
+                    draft.master ?: draft.masterKind?.let {
                         com.example.momentra.data.api.OperatingMasterBody(it, draft.title, draft.unit)
                     },
                     draft.revisesEventId,
@@ -360,7 +395,17 @@ fun OperatingMomentPage(
                         ),
                     ),
                     draft.masterKind?.let {
-                        com.example.momentra.data.api.OperatingMasterBody(it, draft.title, draft.unit)
+                        com.example.momentra.data.api.OperatingMasterBody(
+                            kind = it,
+                            name = draft.title,
+                            unit = draft.unit,
+                            sellPrice = draft.masterSellPrice ?: draft.unitPrice,
+                            purchasePrice = draft.masterPurchasePrice,
+                            gstApplicable = draft.masterGstApplicable,
+                            gstClassification = draft.masterGstClassification,
+                            gstRate = draft.masterGstRate,
+                            hsn = draft.masterHsn,
+                        )
                     },
                     draft.revisesEventId,
                     draft.dueAt,
@@ -687,11 +732,11 @@ fun OperatingMomentPage(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(familyKicker(model?.familyCode), color = familyAccent(model?.familyCode), fontSize = 12.sp, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
+        Text(familyKicker(model?.familyCode), color = familyAccent(model?.subtype ?: model?.familyCode), fontSize = 12.sp, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
         Text(model?.subtypeLabel ?: momentTitle ?: "Business moment", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, fontFamily = PlusJakartaSans)
         Text(model?.partyName.orEmpty(), color = Muted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
         if (model != null) {
-            Text(model.role?.replace('_', ' ') ?: "", color = familyAccent(model.familyCode), fontSize = 12.sp, fontFamily = PlusJakartaSans)
+            Text(model.role?.replace('_', ' ') ?: "", color = familyAccent(model.subtype ?: model.familyCode), fontSize = 12.sp, fontFamily = PlusJakartaSans)
         }
         if (error != null && model == null) {
             AppStateGlassCard(accent = BusinessAppStateTokens.ErrorRing, strokeAlpha = 0.40f) {
@@ -831,7 +876,7 @@ private fun OperatingQuickAddForm(
     onSubmit: suspend (String, String, String?) -> Unit,
     onDecide: suspend (String, String) -> Unit,
 ) {
-    val accent = familyAccent(model?.familyCode)
+    val accent = familyAccent(model?.subtype ?: model?.familyCode)
     val adds = model?.quickAdds.orEmpty()
     var selected by remember(adds) { mutableStateOf(adds.firstOrNull()?.code.orEmpty()) }
     var title by remember { mutableStateOf("") }
@@ -998,6 +1043,31 @@ internal fun OperatingChromeSheets(model: OperatingProjectionDto, companyId: Str
                         theme = OperatingChromeState.storyTheme(),
                         onDismiss = { OperatingChromeState.storyConfigOpen = false },
                     )
+                "RETAIL_STORE" ->
+                    com.example.momentra.ui.shell.business.retail.RetailStoryConfigSheet(
+                        model = model,
+                        momentId = storyId,
+                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
+                    )
+                "RESTAURANT_FOOD" ->
+                    com.example.momentra.ui.shell.business.restaurant.RestaurantStoryConfigSheet(
+                        model = model,
+                        momentId = storyId,
+                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
+                    )
+                "CONSUMER_SERVICE" ->
+                    com.example.momentra.ui.shell.business.service.ServiceStoryConfigSheet(
+                        model = model,
+                        momentId = storyId,
+                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
+                    )
+                "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN" ->
+                    com.example.momentra.ui.shell.business.marketing.MarketingStoryConfigSheet(
+                        model = model,
+                        momentId = storyId,
+                        theme = OperatingChromeState.storyTheme(),
+                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
+                    )
                 else ->
                     com.example.momentra.ui.shell.business.trading.TradingStoryConfigSheet(
                         model = model,
@@ -1072,6 +1142,31 @@ internal fun OperatingChromeSheets(model: OperatingProjectionDto, companyId: Str
         }
     }
 
+    // SVC-SHEET · Services browser (`2533:29628`) — Booking / Finalize Charge picker.
+    val servicesHint = OperatingChromeState.servicesBrowserOpen
+    if (servicesHint != null) {
+        OperatingSheetScrim(
+            onDismiss = { OperatingChromeState.servicesBrowserOpen = null },
+            accent = com.example.momentra.ui.theme.ServicesTeal.lime,
+            surface = com.example.momentra.ui.theme.ServicesTeal.card,
+            border = com.example.momentra.ui.theme.ServicesTeal.sheetBorder,
+        ) {
+            com.example.momentra.ui.shell.business.service.ServiceServicesBrowserSheet(
+                model = model,
+                momentId = OperatingChromeState.momentId,
+                captureHint = servicesHint,
+                onAdd = { selection ->
+                    OperatingChromeState.browserSelection = selection
+                    OperatingChromeState.servicesBrowserOpen = null
+                    if (!OperatingChromeState.captureOpen) {
+                        OperatingChromeState.quickAddHint = selection.captureHint.lowercase()
+                    }
+                },
+                onDismiss = { OperatingChromeState.servicesBrowserOpen = null },
+            )
+        }
+    }
+
     // `Switch Moment` — `TRD-SWITCH 2566:33577`. Selecting a moment is delegated to the
     // shell so this sheet never navigates on its own.
     if (OperatingChromeState.switchMomentOpen) {
@@ -1106,4 +1201,7 @@ internal val MANUFACTURING_STORY_PAGES = listOf(
 )
 internal val MTO_STORY_PAGES = listOf(
     "Jobs", "One job", "Confirmed", "Money", "Production", "Customers", "Attention", "So far",
+)
+internal val MARKETING_STORY_PAGES = listOf(
+    "Moment", "Motion", "Spend", "Results", "Creative", "Network", "Attention", "So far",
 )
