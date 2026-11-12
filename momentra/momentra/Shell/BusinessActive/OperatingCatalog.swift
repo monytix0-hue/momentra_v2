@@ -1304,6 +1304,7 @@ struct OperatingMasterDraft {
     var unit: String = ""
     /// BS-04 — packaging conversion into the SKU base unit.
     var conversionToBase: String = ""
+    var barcode: String = ""
     var sellPrice: String = ""
     var purchasePrice: String = ""
     var mrp: String = ""
@@ -1313,6 +1314,9 @@ struct OperatingMasterDraft {
     var billingState: String = ""
     var parentMasterId: String = ""
     var momentId: String? = nil
+    /// Retail catalogue taxonomy — stored in operating_master.payload.
+    var category: String = ""
+    var subcategory: String = ""
 
     /// Blank means "not supplied", never an empty value on the wire.
     private func nz(_ raw: String) -> String? {
@@ -1325,6 +1329,13 @@ struct OperatingMasterDraft {
 
     var canSave: Bool { !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
+    private var taxonomyPayload: [String: String]? {
+        var map: [String: String] = [:]
+        if let cat = nz(category) { map["category"] = cat }
+        if let sub = nz(subcategory) { map["subcategory"] = sub }
+        return map.isEmpty ? nil : map
+    }
+
     func toCreateBody() -> OperatingMasterCreateBody {
         OperatingMasterCreateBody(
             kind: kind,
@@ -1333,6 +1344,7 @@ struct OperatingMasterDraft {
             momentId: momentId,
             unit: nz(unit),
             conversionToBase: nz(conversionToBase),
+            barcode: nz(barcode),
             sellPrice: nz(sellPrice),
             mrp: nz(mrp),
             purchasePrice: nz(purchasePrice),
@@ -1341,7 +1353,8 @@ struct OperatingMasterDraft {
             hsn: nz(hsn),
             gstin: nz(gstin),
             billingState: nz(billingState),
-            parentMasterId: nz(parentMasterId)
+            parentMasterId: nz(parentMasterId),
+            payload: taxonomyPayload
         )
     }
 
@@ -1360,6 +1373,7 @@ struct OperatingMasterDraft {
             gstin: nz(gstin),
             billingState: nz(billingState),
             parentMasterId: nz(parentMasterId),
+            payload: taxonomyPayload,
             expectedVersion: expectedVersion
         )
     }

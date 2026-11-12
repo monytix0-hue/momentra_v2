@@ -120,9 +120,11 @@ struct RetailMasterFormSheet: View {
     @State private var email = ""
     @State private var gstRegistration = "Regular"
     @State private var category = ""
+    @State private var subcategory = ""
     @State private var paymentTerms = ""
     @State private var address = ""
     @State private var status = "Active"
+    @State private var saveError: String?
     @State private var locationType = "Store"
     @State private var receiptPrinter = "Screen only"
     @State private var displayOrder = ""
@@ -235,6 +237,13 @@ struct RetailMasterFormSheet: View {
 
                     RoseWhyBox(theme: theme, text: kind.why)
 
+                    if let saveError, !saveError.isEmpty {
+                        Text(saveError)
+                            .font(.plusJakarta(size: 12, weight: .medium))
+                            .foregroundStyle(theme.warning)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
                     RoseStickyFooter(
                         theme: theme,
                         title: saving ? "Saving…" : kind.cta,
@@ -332,9 +341,29 @@ struct RetailMasterFormSheet: View {
         RoseFieldLabel(text: "Category")
         RoseChipRow(
             theme: theme,
-            options: ["Staples", "Snacks", "Personal care", "Beverages", "Home care"],
-            selection: $category
+            options: RetailCaptureCopy.catalogueCategories,
+            selection: Binding(
+                get: { category.isEmpty ? RetailCaptureCopy.catalogueCategories[0] : category },
+                set: { next in
+                    category = next
+                    subcategory = RetailCaptureCopy.defaultSubcategory(next)
+                }
+            )
         )
+        let subOptions = RetailCaptureCopy.catalogueSubcategories(
+            category.isEmpty ? RetailCaptureCopy.catalogueCategories[0] : category
+        )
+        if !subOptions.isEmpty {
+            RoseFieldLabel(text: "Subcategory")
+            RoseChipRow(
+                theme: theme,
+                options: subOptions,
+                selection: Binding(
+                    get: { subcategory.isEmpty ? subOptions[0] : subcategory },
+                    set: { subcategory = $0 }
+                )
+            )
+        }
         RoseFieldLabel(text: "Variants")
         RoseChipRow(theme: theme, options: ["Size / pack", "Single", "Colour set"], selection: $variant)
         RoseAmountHero(
@@ -372,8 +401,18 @@ struct RetailMasterFormSheet: View {
             get: { draft.unit.isEmpty ? "pcs" : draft.unit },
             set: { draft.unit = $0 }
         ))
-        RoseFieldLabel(text: "Barcode / EAN")
-        RoseTextField(theme: theme, placeholder: "8901234567890 · scan to fill", text: $draft.code)
+        RoseFieldLabel(text: "SKU code")
+        RoseTextField(
+            theme: theme,
+            placeholder: "Your store code — used for scan without EAN",
+            text: $draft.code
+        )
+        RoseFieldLabel(text: "Barcode (optional)")
+        RoseTextField(
+            theme: theme,
+            placeholder: "Optional EAN — SKU code works without barcode",
+            text: $draft.barcode
+        )
         RosePickerRow(theme: theme, label: "Track batch / expiry", value: trackBatch) {
             trackBatch = trackBatch.hasPrefix("Off") ? "On · batch required" : "Off · optional"
         }
@@ -472,6 +511,7 @@ struct RetailMasterFormSheet: View {
         draft.kind = master.kind
         draft.name = master.name
         draft.code = master.code ?? ""
+        draft.barcode = master.barcode ?? ""
         draft.unit = master.unit ?? ""
         draft.sellPrice = master.sellPrice ?? ""
         draft.mrp = master.mrp ?? ""
@@ -498,6 +538,19 @@ struct RetailMasterFormSheet: View {
         if kind == .location, master.status?.uppercased() == "INACTIVE" {
             status = "Paused"
         }
+        if kind == .product {
+            category = master.category?.nilIfBlank
+                ?? RetailCaptureCopy.catalogueCategories[0]
+            subcategory = master.subcategory?.nilIfBlank
+                ?? RetailCaptureCopy.defaultSubcategory(category)
+            draft.category = category
+            draft.subcategory = subcategory
+        } else if kind == .stockItem {
+            category = master.category?.nilIfBlank ?? "Packaging"
+            draft.category = category
+            draft.subcategory = ""
+        }
+        saveError = nil
     }
 
     private func gstRegistrationLabel(_ raw: String?) -> String {
@@ -512,7 +565,11 @@ struct RetailMasterFormSheet: View {
         editingId = nil
         editingVersion = 1
         draft = OperatingMasterDraft(kind: kind.defaultMasterKind, name: "")
-        legalName = ""; phone = ""; email = ""; category = ""; paymentTerms = ""; address = ""
+        legalName = ""; phone = ""; email = ""; paymentTerms = ""; address = ""
+        category = kind == .product
+            ? RetailCaptureCopy.catalogueCategories[0]
+            : (kind == .stockItem ? "Packaging" : "")
+        subcategory = kind == .product ? RetailCaptureCopy.defaultSubcategory(category) : ""
         status = "Active"; gstRegistration = "Regular"; locationType = "Store"
         receiptPrinter = "Screen only"; displayOrder = ""; stocksCategory = "Staples"
         locationLead = ""; variant = "Single"; defaultLocation = "Main store"
@@ -521,6 +578,9 @@ struct RetailMasterFormSheet: View {
         gstChip = kind == .stockItem ? "0%" : "5%"
         draft.gstRate = kind == .stockItem ? "0" : "5"
         draft.unit = "pcs"
+        draft.category = category
+        draft.subcategory = subcategory
+        saveError = nil
     }
 
     private func applyMetaToKind() {
@@ -533,12 +593,16 @@ struct RetailMasterFormSheet: View {
                     .joined(separator: " · ")
                 draft.code = String(tag.prefix(60))
             }
+            draft.category = ""
+            draft.subcategory = ""
         case .stockItem:
             draft.kind = kind.defaultMasterKind
             if let match = (model.masters.isEmpty ? (model.projection?.masters ?? []) : model.masters)
                 .first(where: { $0.name == preferredSupplier }) {
                 draft.parentMasterId = match.id
             }
+            draft.category = category.isEmpty ? "Packaging" : category
+            draft.subcategory = ""
         case .supplier:
             draft.kind = "SUPPLIER"
             if draft.code.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -546,19 +610,25 @@ struct RetailMasterFormSheet: View {
             }
             // gstRegistration is UI-local on iOS CreateBody (no field); Android posts gstRegistration.
             _ = gstRegistration
+            draft.category = ""
+            draft.subcategory = ""
         case .product:
             draft.kind = "PRODUCT"
+            draft.category = category.isEmpty ? RetailCaptureCopy.catalogueCategories[0] : category
+            draft.subcategory = subcategory.isEmpty
+                ? RetailCaptureCopy.defaultSubcategory(draft.category)
+                : subcategory
         }
         // Digits-only HSN for contract validation.
         draft.hsn = String(draft.hsn.filter(\.isNumber).prefix(8))
-        // Phone / email / address / payment / category / preferred / printer stay UI-local
-        // (OperatingMasterDraft has no note/payload). Android create path stores them on event note.
-        _ = [phone, email, paymentTerms, address, category, displayOrder, locationLead,
+        // Phone / email / address / payment / preferred / printer stay UI-local.
+        _ = [phone, email, paymentTerms, address, displayOrder, locationLead,
              variant, defaultLocation, trackBatch, tracked, parQty, contextChip, status]
     }
 
     private func save() async {
         saving = true
+        saveError = nil
         defer { saving = false }
         applyMetaToKind()
         if kind == .product {
@@ -585,10 +655,22 @@ struct RetailMasterFormSheet: View {
             let created = await model.createMaster(draft)
             ok = created != nil && model.writeError == nil
         }
-        guard ok else { return }
+        guard ok else {
+            saveError = model.writeError ?? "Could not save — check name and try again."
+            return
+        }
         withAnimation { showToast = true }
         try? await Task.sleep(nanoseconds: 900_000_000)
         onSaved()
         dismiss()
+    }
+}
+
+private extension Optional where Wrapped == String {
+    var nilIfBlank: String? {
+        guard let value = self?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+        return value
     }
 }

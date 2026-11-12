@@ -82,7 +82,7 @@ internal data class KotLine(
 
 /**
  * @param initialTab opens Send by default; Fire/Reprint when deep-linked.
- * @param onBillFromKot handoff into POS Bill with the selected ticket as parent KOT.
+ * @param onBillFromKot handoff into POS Bill with the selected in-memory ticket (avoids empty wait for refetch).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -91,7 +91,7 @@ internal fun RestaurantKotSheet(
     onDismiss: () -> Unit,
     onSubmit: (RestaurantEventDraft) -> Unit,
     initialTab: KotTab = KotTab.Send,
-    onBillFromKot: ((ticketId: String) -> Unit)? = null,
+    onBillFromKot: ((OperatingActivityDto) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val stations = remember(model.masters) {
@@ -338,7 +338,7 @@ internal fun RestaurantKotSheet(
             EmberModeChip(
                 text = "Bill from KOT · POS",
                 selected = false,
-                onClick = { onBillFromKot(selectedTicket.id) },
+                onClick = { onBillFromKot(selectedTicket) },
             )
         }
 

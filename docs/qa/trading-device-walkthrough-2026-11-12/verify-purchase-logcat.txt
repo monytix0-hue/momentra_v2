@@ -1,0 +1,5 @@
+11-12 14:31:42.134  2100  2100 E IPCThreadState: Binder transaction failure. id: 318970199, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:31:42.134  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+11-12 14:31:42.142  2100  2100 E IPCThreadState: Binder transaction failure. id: 318970209, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:31:42.143  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+11-12 14:31:12.551  2637  2637 E [binder][0x27574f817c3e][09:01:42.186446] qca6750: [2637:E:HDD] __wlan_hdd_cfg80211_stats_ext_request: Failed to get hw stats: 6

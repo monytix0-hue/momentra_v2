@@ -9,7 +9,7 @@ enum MtoMasterListTab: String, Identifiable {
 
 /// Forge roles mapped onto backend operatingRole codes — Figma `2545:29335`.
 enum MtoInviteRole: String, CaseIterable, Identifiable {
-    case owner, manager, jobLead, estimator, operator
+    case owner, manager, jobLead, estimator, `operator`
     var id: String { rawValue }
     var label: String {
         switch self {
@@ -17,7 +17,7 @@ enum MtoInviteRole: String, CaseIterable, Identifiable {
         case .manager: return "Manager"
         case .jobLead: return "Job lead"
         case .estimator: return "Estimator"
-        case .operator: return "Operator"
+        case .`operator`: return "Operator"
         }
     }
     var apiCode: String {
@@ -25,7 +25,7 @@ enum MtoInviteRole: String, CaseIterable, Identifiable {
         case .owner: return "FINANCE"
         case .manager: return "APPROVER"
         case .jobLead: return "OPERATIONS_LEAD"
-        case .estimator, .operator: return "CONTRIBUTOR"
+        case .estimator, .`operator`: return "CONTRIBUTOR"
         }
     }
     var accessCopy: String {
@@ -36,7 +36,7 @@ enum MtoInviteRole: String, CaseIterable, Identifiable {
             return "Access: Manager → confirm orders and job approvals · no payouts. Join ≠ quote approval ≠ payment."
         case .jobLead:
             return "Access: Job lead → open jobs, production & dispatch · no payouts or pricing. Join ≠ quote approval ≠ payment."
-        case .estimator, .operator:
+        case .estimator, .`operator`:
             return "Access: Estimator / Operator → quotes, production and job activity · no reports or payouts. Join ≠ quote approval ≠ payment."
         }
     }
@@ -547,7 +547,8 @@ struct MtoMastersSheet: View {
             let minted = try await APIClient.shared.mintCompanyInvite(
                 companyId: companyId,
                 membershipType: inviteRole == .owner || inviteRole == .manager ? "ADMIN" : "MEMBER",
-                operatingRole: inviteRole.apiCode
+                operatingRole: inviteRole.apiCode,
+                idempotencyKey: UUID().uuidString
             )
             invite = minted
             copied = false

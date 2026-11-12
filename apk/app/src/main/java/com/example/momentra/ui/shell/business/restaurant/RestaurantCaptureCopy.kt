@@ -41,6 +41,7 @@ object RestaurantCaptureCopy {
     const val PO_BROWSER_TRAILING = "Raw · scan"
     const val SO_NEW_DISH = "+ New dish"
     const val PO_NEW_RAW = "+ New raw material"
+    const val PURCHASE_NEW_VENDOR = "+ New vendor"
 
     fun sheetTitle(mode: String): String = when (mode.uppercase()) {
         "PURCHASE", "VENDOR" -> "Record Purchase"

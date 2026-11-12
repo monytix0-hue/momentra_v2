@@ -130,11 +130,13 @@ private func retailStationLabel(_ raw: String) -> String {
     return raw.prefix(16).capitalized
 }
 
+@MainActor
 private func retailRegisters(from model: BusinessOperatingModel) -> [String] {
     let fromLife = model.projection?.life?.channels.filter { !$0.isEmpty } ?? []
     return fromLife.isEmpty ? ["Register 1", "Register 2", "Online"] : Array(fromLife.prefix(3))
 }
 
+@MainActor
 private func retailGstChip(model: BusinessOperatingModel) -> String {
     model.projection?.gstTracking?.uppercased() == "ON"
         || model.projection?.gstRegistration != nil
@@ -978,7 +980,10 @@ struct RetailReprintSheet: View {
                             document: document,
                             duplicate: true,
                             reason: reason,
-                            tenderOverride: tenderHint
+                            tenderOverride: tenderHint,
+                            enteredBy: RetailReceiptBuilder.enteredBy(
+                                fallback: model.projection?.participants?.first ?? "Cashier"
+                            )
                         )
                         RetailReceiptPreview(
                             model: receiptModel,
@@ -1013,8 +1018,8 @@ struct RetailReprintSheet: View {
                                     "Payment",
                                     [
                                         "Settled",
-                                        selected?.amount.map {
-                                            "\(selected?.paymentStatus?.nilIfBlank ?? "UPI") \(OperatingV12Money.amount($0, currency: model.currency))"
+                                        selected.amount.map {
+                                            "\(selected.paymentStatus?.nilIfBlank ?? "UPI") \(OperatingV12Money.amount($0, currency: model.currency))"
                                         },
                                     ].compactMap { $0 }.joined(separator: " · ")
                                 ),
@@ -1152,7 +1157,10 @@ struct RetailReprintSheet: View {
             document: document,
             duplicate: true,
             reason: reason,
-            tenderOverride: tenderHint
+            tenderOverride: tenderHint,
+            enteredBy: RetailReceiptBuilder.enteredBy(
+                fallback: model.projection?.participants?.first ?? "Cashier"
+            )
         )
         shareItems = RetailReceiptShare.items(
             for: receipt,
@@ -1162,21 +1170,5 @@ struct RetailReprintSheet: View {
         )
         showShareSheet = true
         showReprintToast = true
-    }
-}
-
-private extension Optional where Wrapped == String {
-    var nilIfBlank: String? {
-        guard let value = self?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        return value
-    }
-}
-
-private extension String {
-    var nilIfBlank: String? {
-        let t = trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.isEmpty ? nil : t
     }
 }

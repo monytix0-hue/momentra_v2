@@ -1,0 +1,17 @@
+appId: resolvingpoint.momentra
+---
+- tapOn:
+    text: "Trading"
+    index: 1
+- scrollUntilVisible:
+    element: "Business name"
+    direction: DOWN
+    timeout: 8000
+- tapOn: "Trading & Distribution"
+- eraseText: 40
+- inputText: "Northstar Trading QA"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Next|Continue|Save|Channels|People"
+    direction: DOWN
+    timeout: 8000

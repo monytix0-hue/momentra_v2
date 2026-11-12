@@ -73,7 +73,8 @@ struct RestaurantMasterFormSheet: View {
     let kind: RestaurantMasterFormKind
     @ObservedObject var model: BusinessOperatingModel
     var existing: OperatingMasterPayload? = nil
-    var onSaved: () -> Void = {}
+    /// Saved master name (empty when dismissed without save).
+    var onSaved: (String) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
     @State private var isCreate = true
@@ -316,20 +317,8 @@ struct RestaurantMasterFormSheet: View {
         draft.hsn = String(hsn.filter(\.isNumber).prefix(8))
         if await model.createMaster(draft) != nil {
             showToast = true
-            onSaved()
+            onSaved(draft.name)
             dismiss()
-        }
-    }
-}
-
-/// Minimal wrapping flow for chip rows when FlowLayout exists in project.
-private struct FlowLayout<Content: View>: View {
-    var spacing: CGFloat = 6
-    @ViewBuilder var content: () -> Content
-    var body: some View {
-        // Prefer project FlowLayout if present; else wrap horizontally.
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: spacing, content: content)
         }
     }
 }

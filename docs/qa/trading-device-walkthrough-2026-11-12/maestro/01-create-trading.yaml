@@ -1,0 +1,6 @@
+appId: resolvingpoint.momentra
+---
+- tapOn: "Create a moment"
+- extendedWaitUntil:
+    visible: ".*Trading.*"
+    timeout: 20000

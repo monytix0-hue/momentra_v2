@@ -169,6 +169,8 @@ internal fun OperatingMastersSheet(
     val whyNote = if (dist) DistributionMasterCopy.tabNote(tab) else tab.note
     val newLabel = if (dist) DistributionMasterCopy.newCta(tab) else "New ${tab.singular}"
 
+    // Box so create/edit form scrim overlays the browser (sibling Column would zero-height it).
+    Box(Modifier.fillMaxSize()) {
     Column(
         Modifier
             .fillMaxSize()
@@ -338,6 +340,7 @@ internal fun OperatingMastersSheet(
                 onError = { error = it },
             )
         }
+    }
     }
 }
 

@@ -107,6 +107,8 @@ internal fun RestaurantMastersSheet(
             .sortedBy { it.name.lowercase() }
     }
 
+    // Box so create/edit form scrim overlays the browser (sibling Column would zero-height it).
+    Box(Modifier.fillMaxSize()) {
     Column(
         Modifier
             .fillMaxSize()
@@ -225,6 +227,7 @@ internal fun RestaurantMastersSheet(
                 },
             )
         }
+    }
     }
 }
 

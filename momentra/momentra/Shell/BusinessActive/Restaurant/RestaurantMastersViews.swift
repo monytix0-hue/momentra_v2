@@ -134,7 +134,7 @@ struct RestaurantMastersView: View {
         .background(EmberSheetChrome.sheet)
         .task { if model.masters.isEmpty { await model.loadMasters() } }
         .sheet(item: $formKind) { kind in
-            RestaurantMasterFormSheet(theme: theme, kind: kind, model: model) {
+            RestaurantMasterFormSheet(theme: theme, kind: kind, model: model) { _ in
                 formKind = nil
                 showToast = true
                 Task { await model.loadMasters() }

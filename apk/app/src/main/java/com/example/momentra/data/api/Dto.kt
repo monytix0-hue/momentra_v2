@@ -1331,6 +1331,8 @@ data class OperatingProjectionDto(
     val gstTracking: String? = null,
     val gstRegistration: String? = null,
     val gstState: String? = null,
+    /** Setup GSTIN when registered — retail receipt header. */
+    val gstin: String? = null,
     val salePriceIncludesGst: String? = null,
     val purchasePriceIncludesGst: String? = null,
     val gstPosition: GstPositionDto? = null,
@@ -1378,6 +1380,9 @@ data class OperatingMasterDto(
     val gstin: String? = null,
     /** Optimistic-concurrency stamp; required when PATCHing or archiving. */
     val version: Int = 1,
+    /** Retail catalogue taxonomy from operating_master.payload (not UOM dimension). */
+    val category: String? = null,
+    val subcategory: String? = null,
 )
 
 data class GstPositionSourceDto(
@@ -1457,6 +1462,8 @@ data class OperatingMasterBody(
     val deliveryState: String? = null,
     val gstin: String? = null,
     val parentMasterId: String? = null,
+    /** Arbitrary JSON — retail uses category / subcategory. */
+    val payload: Map<String, @JvmSuppressWildcards Any?>? = null,
 )
 
 /** PATCH body for a master: every field optional plus the optimistic version. */
@@ -1486,6 +1493,7 @@ data class OperatingMasterUpdateBody(
     val deliveryState: String? = null,
     val parentMasterId: String? = null,
     val status: String? = null,
+    val payload: Map<String, @JvmSuppressWildcards Any?>? = null,
     val expectedVersion: Int,
 )
 

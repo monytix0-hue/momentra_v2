@@ -1,0 +1,6 @@
+appId: resolvingpoint.momentra
+---
+- tapOn: "Start this business"
+- extendedWaitUntil:
+    visible: ".*Pulse.*|.*Quick.*|.*Sale.*|.*Northstar.*"
+    timeout: 30000

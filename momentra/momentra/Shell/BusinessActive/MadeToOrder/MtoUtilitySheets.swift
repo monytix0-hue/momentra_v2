@@ -289,7 +289,8 @@ struct MtoUtilitySheet: View {
             metaRow(
                 "Original print",
                 sales.first.flatMap { row -> String? in
-                    guard let raw = row.occurredAt, raw.count >= 10 else { return nil }
+                    let raw = row.occurredAt
+                    guard raw.count >= 10 else { return nil }
                     return String(raw.prefix(10))
                 } ?? "—"
             )

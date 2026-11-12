@@ -1,0 +1,6 @@
+appId: resolvingpoint.momentra
+---
+- tapOn: "Save purchase"
+- extendedWaitUntil:
+    visible: "Quick Adds"
+    timeout: 15000

@@ -1,0 +1,11 @@
+1A	PASS	Purchase 45000 chips=[] supplier=Deccan Supplies QA
+1B	PASS	Purchase 30000 chips=['Receive later', 'Pay later'] supplier=Deccan Supplies QA
+2A	PASS	Sale 90000 chips=['Part paid'] buyer=City Retail QA received=40000
+2B	PASS	Sale 60000 chips=['Received', 'Paid'] buyer=City Retail QA received=None
+3A	PASS	Collection 40000 chips=[]
+3B	PASS	Collection 25000 chips=[]
+4A	PASS	Payment 20000 chips=[]
+4B	PASS	Payment 15000 chips=[]
+5A	PASS	Expense 8000 chips=['Paid']
+5B	PASS	Expense 5000 chips=['Pay later']
+LOC	SKIP	hub masters tile not found during seed; SKUs already seeded earlier

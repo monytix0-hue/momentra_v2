@@ -1011,13 +1011,15 @@ private fun SaleServiceCapture(
             ReadField("Due date (C)", form.dueDateText, trailing = "Credit policy", dangerLabel = true) { form.dueDateOpen = true }
         }
         if (trading) {
-            val knownChannel = channels.isNotEmpty() || model.masters.orEmpty().any { it.kind.equals("CHANNEL", true) }
+            // Match server channelTracking: prefs/life.channels only.
+            val knownChannel = channels.isNotEmpty()
             if (knownChannel) {
-                LovField("Channel (C · if enabled)", form.channel, "channel") { form.lovKind = "CHANNEL" }
+                // Server rejects empty channel when the moment has channels configured.
+                LovField("Channel (M)", form.channel, "channel") { form.lovKind = "CHANNEL" }
             }
         }
-        if (lovTrade && itemizedSale && !trading) {
-            // QA-04 — delivery status on itemised sale only.
+        if (lovTrade && itemizedSale) {
+            // Delivery status on itemised sale (trading + distribution). Does not invent stock.
             ChoiceBlock(
                 "Delivery status",
                 listOf("Fully Delivered", "Partially Delivered", "Deliver Later"),
@@ -1030,6 +1032,10 @@ private fun SaleServiceCapture(
                 ReadField("Remaining delivery date", form.goodsDueText) { form.goodsDueOpen = true }
             }
             Text("Delivery status does not post stock. Inventory follows fulfilment / Delivery Quick Add.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        }
+        // Trading GST was buried under MoreDetails while the API still requires a rate.
+        if (trading && model.gstTracking == "YES") {
+            GstPriceFields(form, model, purchase = false)
         }
         if (!trading) {
             Text(
@@ -1139,6 +1145,9 @@ private fun PurchaseVendorCapture(
             },
         ) {
             form.receiptState = if (it == "Receive later") "Receive later" else "Fully received"
+        }
+        if (model.gstTracking == "YES") {
+            GstPriceFields(form, model, purchase = true)
         }
         MoreDetails(form.moreOpen, "Tax, FX, ownership, and note. Optional.") { form.moreOpen = !form.moreOpen }
         if (form.moreOpen) {
@@ -3180,6 +3189,15 @@ private fun CaptureSheetFooter(
             mode == "REPRINT" -> form.reprintSourceId.isNotBlank()
             mode == "RETURN" -> form.parentId.isNotBlank() && form.returnReason.isNotBlank()
             lovTrade && mode == "SPEND" -> form.expenseCategory.isNotBlank() && form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true && (form.choice == "Paid" || form.party.isNotBlank())
+            lovTrade && mode == "PURCHASE" -> {
+                val itemized = form.entryMode.contains("Item", ignoreCase = true)
+                val amountOk = if (itemized) {
+                    form.itemName.isNotBlank() || form.savedLines.isNotEmpty()
+                } else {
+                    form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
+                }
+                form.party.isNotBlank() && amountOk
+            }
             lovTrade && mode == "SALE" -> {
                 val itemized = form.entryMode.contains("Itemised", ignoreCase = true) || form.entryMode.equals("Itemized", ignoreCase = true)
                 val amountOk = if (itemized) {
@@ -3187,7 +3205,8 @@ private fun CaptureSheetFooter(
                 } else {
                     form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
                 }
-                val knownChannel = model.life?.channels.orEmpty().any { it.isNotBlank() } || model.masters.orEmpty().any { it.kind.equals("CHANNEL", true) && it.name.isNotBlank() }
+                // Match server channelTracking: prefs/life.channels only (not CHANNEL masters alone).
+                val knownChannel = model.life?.channels.orEmpty().any { it.isNotBlank() }
                 amountOk && (form.channel.isNotBlank() || !knownChannel) && (saleSettled(form.choice) || form.party.isNotBlank())
             }
             lovTrade && mode == "STOCK" -> form.purpose.isNotBlank() && form.quantity.isNotBlank()
@@ -3236,18 +3255,10 @@ private fun CaptureSheetFooter(
             service -> Brush.horizontalGradient(listOf(ServicesTeal.teal, ServicesTeal.lime))
             else -> Brush.horizontalGradient(listOf(theme.accent, theme.accentLight))
         }
-        Text(
-            action,
-            color = when {
-                !enabled && (trading || client) -> chrome.hint
-                !enabled -> SheetMuted
-                service -> ServicesTeal.inkOnTeal
-                else -> Color.White
-            },
-            fontFamily = PlusJakartaSans,
-            fontWeight = FontWeight.Bold,
-            fontSize = if (trading || service || client) 15.sp else 15.sp,
-            textAlign = TextAlign.Center,
+        // Put clickable on a Box (not the Text). UiAutomator/Maestro taps on Text semantics
+        // were not always invoking Modifier.clickable on the label alone during device QA.
+        Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(if (trading || service || client || own) 54.dp else 52.dp)
@@ -3296,6 +3307,46 @@ private fun CaptureSheetFooter(
                             return@clickable
                         }
                     }
+                    // Fold cart before buildDraft so Itemized amount survives "+ Add item to sale".
+                    val pendingLine = form.itemName.trim().takeIf { it.isNotBlank() }?.let {
+                        com.example.momentra.data.api.OperatingLineBody(
+                            itemName = it,
+                            quantity = form.quantity.ifBlank { null },
+                            unit = form.unit.ifBlank { null },
+                            unitPrice = form.unitPrice.ifBlank { null },
+                            masterId = form.productMasterId,
+                        )
+                    }
+                    val draftLines = form.savedLines + listOfNotNull(pendingLine)
+                    val itemizedMode = form.entryMode.contains("Item", ignoreCase = true)
+                    val amountForDraft = when {
+                        form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true -> form.amount
+                        lovTrade && mode in setOf("SALE", "PURCHASE") && itemizedMode ->
+                            businessLinesTotal(draftLines)?.toPlainString().orEmpty()
+                        else -> form.amount
+                    }
+                    // GST preflight — avoid silent 400 once the cart amount path is fixed.
+                    if (trading && mode in setOf("SALE", "PURCHASE") && model.gstTracking == "YES") {
+                        if (form.taxMode.equals("Not configured", true) || form.taxMode.isBlank()) {
+                            val includes = if (mode == "PURCHASE") model.purchasePriceIncludesGst else model.salePriceIncludesGst
+                            when (includes) {
+                                "YES" -> form.taxMode = "Inclusive"
+                                "NO" -> form.taxMode = "Exclusive"
+                                else -> {
+                                    form.error = "Choose whether the price includes GST."
+                                    return@clickable
+                                }
+                            }
+                        }
+                        if (form.gstRate.filter { it.isDigit() || it == '.' }.isBlank()) {
+                            form.error = "Choose a GST rate before saving. A missing rate is not 0%."
+                            return@clickable
+                        }
+                        if (form.supplyChoice != "INTRA" && form.supplyChoice != "INTER") {
+                            form.error = "Confirm whether this supply is inside your state or outside it."
+                            return@clickable
+                        }
+                    }
                     val supplierContact = if (mode == "SUPPLIER" || mode == "PARTNER") {
                         listOfNotNull(
                             form.supplierPhone.trim().takeIf { it.isNotBlank() }?.let { "Phone $it" },
@@ -3316,7 +3367,7 @@ private fun CaptureSheetFooter(
                         else -> false
                     }
                     val draft = buildDraft(
-                        mode, eventType, title, form.amount, form.channel, form.party, form.purpose, draftNote, form.choice,
+                        mode, eventType, title, amountForDraft, form.channel, form.party, form.purpose, draftNote, form.choice,
                         occurredAtValue(form.eventDate), trading, distribution, client, own, form.detail,
                         standard, job, form.link, form.itemName, form.quantity, form.unit, form.unitPrice, form.parentId,
                         seed?.id, form.masterKind, model.paymentReadiness,
@@ -3393,21 +3444,15 @@ private fun CaptureSheetFooter(
                         },
                     )
                     if (draft == null) {
-                        form.error = requiredMessage(mode)
+                        form.error = when {
+                            lovTrade && mode in setOf("SALE", "PURCHASE") && itemizedMode && draftLines.isNotEmpty() ->
+                                "Each line needs quantity, unit, and price."
+                            else -> requiredMessage(mode)
+                        }
                         return@clickable
                     }
                     form.error = null
-                    // Attach the itemized cart, folding in any half-entered line still in the editor.
-                    val pendingLine = form.itemName.trim().takeIf { it.isNotBlank() }?.let {
-                        com.example.momentra.data.api.OperatingLineBody(
-                            itemName = it,
-                            quantity = form.quantity.ifBlank { null },
-                            unit = form.unit.ifBlank { null },
-                            unitPrice = form.unitPrice.ifBlank { null },
-                            masterId = form.productMasterId,
-                        )
-                    }
-                    val draftLines = form.savedLines + listOfNotNull(pendingLine)
+                    // Attach the itemized cart (lines already folded above for amount resolution).
                     val finalDraft = if (draftLines.isNotEmpty()) {
                         draft.copy(
                             lines = draftLines,
@@ -3427,9 +3472,23 @@ private fun CaptureSheetFooter(
                             form.error = failure.message?.takeIf { it.isNotBlank() } ?: "Could not save."
                         }
                     }
-                }
-                .padding(vertical = 15.dp),
-        )
+                },
+        ) {
+            Text(
+                action,
+                color = when {
+                    !enabled && (trading || client) -> chrome.hint
+                    !enabled -> SheetMuted
+                    service -> ServicesTeal.inkOnTeal
+                    else -> Color.White
+                },
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Bold,
+                fontSize = if (trading || service || client) 15.sp else 15.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(vertical = 15.dp),
+            )
+        }
         if (client || own) {
             Text(
                 marketingQaSticky(own),
@@ -5510,24 +5569,8 @@ internal fun LovItemLine(
     onPrice: (String) -> Unit,
     showPrice: Boolean = true,
 ) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        LovField("Product", itemName, "product", Modifier.weight(1f), onPickProduct)
-        Text(
-            "+",
-            color = Color(0xFF14121B),
-            fontFamily = PlusJakartaSans,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .size(40.dp)
-                .shadow(10.dp, RoundedCornerShape(12.dp), ambientColor = SheetAccent.copy(alpha = 0.4f), spotColor = SheetAccent.copy(alpha = 0.4f))
-                .clip(RoundedCornerShape(12.dp))
-                .background(SheetAccent)
-                .clickable(onClick = onPickProduct)
-                .padding(top = 6.dp),
-        )
-    }
+    // Product LovField already opens the picker — no duplicate "+" next to it.
+    LovField("Product", itemName, "product", Modifier.fillMaxWidth(), onPickProduct)
     FieldRow {
         EditField("Qty", quantity, "1", Modifier.weight(1f)) { onQuantity(it) }
         LovField("UOM", unit, "UOM", Modifier.weight(1f), onPickUom)

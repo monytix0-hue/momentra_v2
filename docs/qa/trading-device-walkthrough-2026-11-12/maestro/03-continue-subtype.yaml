@@ -1,0 +1,6 @@
+appId: resolvingpoint.momentra
+---
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: ".*Wholesale.*|.*Distribution.*|.*Business name.*|.*Basics.*|.*Setup.*|.*Activate.*|.*Northstar.*|.*channel.*"
+    timeout: 20000

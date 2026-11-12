@@ -143,11 +143,15 @@ internal data class RetailReceiptLine(
 
 internal data class RetailReceiptModel(
     val storeName: String,
-    val tagline: String = "Stock. Sell. Settle.",
+    /** Deprecated marketing line — kept blank; header uses location + GSTIN + cashier. */
+    val tagline: String = "",
     val locationLine: String?,
     /** Store GSTIN when known; omit line when null. */
     val gstin: String?,
+    /** Person who posted / entered the invoice. */
+    val enteredBy: String? = null,
     val occurredAt: String?,
+    /** Bill / client key. Blank when not yet assigned — Ref row omitted. */
     val refLabel: String,
     val duplicate: Boolean,
     val lines: List<RetailReceiptLine>,
@@ -267,22 +271,19 @@ internal object RetailReceiptLogoStore {
 }
 
 internal fun retailStoreDisplayName(model: OperatingProjectionDto): String =
-    model.title?.takeIf { it.isNotBlank() } ?: "Harbor Mart"
+    model.title?.takeIf { it.isNotBlank() } ?: "Store"
 
-internal fun retailStoreLocationLine(model: OperatingProjectionDto): String {
-    val location = model.location?.takeIf { it.isNotBlank() }
-    if (location != null) return location
-    val andheri = model.life?.channels.orEmpty().firstOrNull {
-        it.contains("Andheri", ignoreCase = true)
-    }
-    return andheri ?: "Harbor Mart Andheri"
-}
+/** Setup location only — no Harbor demo fallback. */
+internal fun retailStoreLocationLine(model: OperatingProjectionDto): String? =
+    model.location?.takeIf { it.isNotBlank() }
 
 /**
- * Prefer a real 15-char GSTIN when present; Harbor Mart demo fixtures get
- * [HARBOR_MART_DEMO_GSTIN]. Live non-demo stores without a GSTIN omit the line.
+ * Prefer setup [OperatingProjectionDto.gstin], then a master GSTIN.
+ * Harbor demo GSTIN only when the store title is still Harbor Mart.
  */
 internal fun retailReceiptGstin(model: OperatingProjectionDto): String? {
+    val fromSetup = model.gstin?.trim()?.uppercase()?.takeIf { looksLikeGstin(it) }
+    if (fromSetup != null) return fromSetup
     val fromReg = model.gstRegistration?.trim()?.uppercase()?.takeIf { looksLikeGstin(it) }
     if (fromReg != null) return fromReg
     val fromMaster = model.masters.orEmpty().asSequence()
@@ -290,10 +291,22 @@ internal fun retailReceiptGstin(model: OperatingProjectionDto): String? {
         .firstOrNull()
     if (fromMaster != null) return fromMaster
     val display = retailStoreDisplayName(model)
-    val realLocation = model.location?.takeIf { it.isNotBlank() }
-    val isHarborDemo = display.contains("Harbor Mart", ignoreCase = true) ||
-        realLocation?.contains("Harbor Mart", ignoreCase = true) == true
-    return if (isHarborDemo) HARBOR_MART_DEMO_GSTIN else null
+    return if (display.contains("Harbor Mart", ignoreCase = true)) HARBOR_MART_DEMO_GSTIN else null
+}
+
+/** Cashier / invoice entry person from Firebase or cached Momentra identity. */
+internal fun retailReceiptEnteredBy(context: android.content.Context?): String? {
+    val user = runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser }.getOrNull()
+        ?: return null
+    user.displayName?.takeIf { it.isNotBlank() }?.let { return it }
+    val uid = user.uid
+    if (context != null) {
+        val cached = runCatching {
+            com.example.momentra.data.local.AppPreferences(context).getCachedIdentity(uid)?.second
+        }.getOrNull()?.takeIf { it.isNotBlank() }
+        if (cached != null) return cached
+    }
+    return user.email?.substringBefore("@")?.takeIf { it.isNotBlank() }
 }
 
 private fun looksLikeGstin(value: String): Boolean =
@@ -316,6 +329,7 @@ internal fun buildRetailReceiptFromSale(
     duplicate: Boolean = true,
     reason: String? = null,
     tenderOverride: String? = null,
+    enteredBy: String? = null,
 ): RetailReceiptModel {
     val currency = model.currency?.takeIf { it.isNotBlank() } ?: "INR"
     val docLines = document?.lines.orEmpty()
@@ -362,8 +376,10 @@ internal fun buildRetailReceiptFromSale(
         }
     return RetailReceiptModel(
         storeName = retailStoreDisplayName(model),
+        tagline = "",
         locationLine = retailStoreLocationLine(model),
         gstin = retailReceiptGstin(model),
+        enteredBy = enteredBy,
         occurredAt = sale.occurredAt.takeIf { it.isNotBlank() },
         refLabel = retailReceiptRef(sale.clientKey, sale.id),
         duplicate = duplicate,
@@ -392,6 +408,7 @@ internal fun buildRetailReceiptFromPosCart(
     customer: String?,
     quickAmountOnly: Boolean,
     gstEstimatePlain: String? = null,
+    enteredBy: String? = null,
 ): RetailReceiptModel {
     val currency = model.currency?.takeIf { it.isNotBlank() } ?: "INR"
     val receiptLines = if (quickAmountOnly || lines.isEmpty()) {
@@ -412,10 +429,13 @@ internal fun buildRetailReceiptFromPosCart(
     }
     return RetailReceiptModel(
         storeName = retailStoreDisplayName(model),
+        tagline = "",
         locationLine = retailStoreLocationLine(model),
         gstin = retailReceiptGstin(model),
+        enteredBy = enteredBy,
         occurredAt = null,
-        refLabel = "Just posted · awaiting bill key",
+        // No placeholder bill key — Ref row omitted until clientKey exists.
+        refLabel = "",
         duplicate = false,
         lines = receiptLines,
         amountOnly = receiptLines.isEmpty(),
@@ -435,9 +455,9 @@ internal fun buildRetailReceiptFromPosCart(
 internal fun retailReceiptShareText(model: RetailReceiptModel): String = buildString {
     val rule = "-".repeat(32)
     appendLine(model.storeName.uppercase())
-    appendLine(model.tagline)
     model.locationLine?.let { appendLine(it) }
     model.gstin?.let { appendLine("GSTIN : $it") }
+    model.enteredBy?.takeIf { it.isNotBlank() }?.let { appendLine("Entered by : $it") }
     appendLine(rule)
     if (model.duplicate) {
         appendLine("DUPLICATE COPY")
@@ -445,7 +465,7 @@ internal fun retailReceiptShareText(model: RetailReceiptModel): String = buildSt
         appendLine("CUSTOMER COPY")
     }
     appendLine(rule)
-    appendLine("Ref ${model.refLabel}")
+    if (model.refLabel.isNotBlank()) appendLine("Ref ${model.refLabel}")
     model.occurredAt?.let { appendLine("When $it") }
     appendLine(rule)
     if (model.amountOnly) {
@@ -470,7 +490,7 @@ internal fun retailReceiptShareText(model: RetailReceiptModel): String = buildSt
         appendLine("Reprint $it")
     }
     appendLine(rule)
-    appendLine("Thank you for shopping with Harbor Mart")
+    appendLine("Thank you for shopping with ${model.storeName}")
     appendLine(model.footerHonesty)
 }
 
@@ -681,8 +701,6 @@ internal object RetailReceiptExporter {
 
         canvas.drawText(model.storeName.uppercase(), centerX, y + titlePaint.textSize, titlePaint)
         y += titlePaint.textSize * 1.35f
-        canvas.drawText(model.tagline, centerX, y + rosePaint.textSize, rosePaint)
-        y += rosePaint.textSize * 1.35f
         model.locationLine?.let {
             mutedPaint.textAlign = Paint.Align.CENTER
             canvas.drawText(it, centerX, y + mutedPaint.textSize, mutedPaint)
@@ -692,6 +710,12 @@ internal object RetailReceiptExporter {
         model.gstin?.let {
             mutedPaint.textAlign = Paint.Align.CENTER
             canvas.drawText("GSTIN : $it", centerX, y + mutedPaint.textSize, mutedPaint)
+            mutedPaint.textAlign = Paint.Align.LEFT
+            y += mutedPaint.textSize * 1.35f
+        }
+        model.enteredBy?.takeIf { it.isNotBlank() }?.let {
+            mutedPaint.textAlign = Paint.Align.CENTER
+            canvas.drawText("Entered by : $it", centerX, y + mutedPaint.textSize, mutedPaint)
             mutedPaint.textAlign = Paint.Align.LEFT
             y += mutedPaint.textSize * 1.35f
         }
@@ -725,7 +749,7 @@ internal object RetailReceiptExporter {
             y += lineH
         }
 
-        drawKv("Ref", model.refLabel)
+        if (model.refLabel.isNotBlank()) drawKv("Ref", model.refLabel)
         model.occurredAt?.let { drawKv("When", it.take(16)) }
         y = drawDash(canvas, left, right, y, rule)
 
@@ -788,7 +812,7 @@ internal object RetailReceiptExporter {
         y = drawDash(canvas, left, right, y, rule)
         bodyPaint.textAlign = Paint.Align.CENTER
         canvas.drawText(
-            "Thank you for shopping with Harbor Mart",
+            "Thank you for shopping with ${model.storeName}",
             centerX,
             y + bodyPaint.textSize,
             bodyPaint,
@@ -804,11 +828,11 @@ internal object RetailReceiptExporter {
     private fun buildExportLines(model: RetailReceiptModel): List<String> {
         val out = mutableListOf<String>()
         out += model.storeName
-        out += model.tagline
         model.locationLine?.let { out += it }
         model.gstin?.let { out += it }
+        model.enteredBy?.takeIf { it.isNotBlank() }?.let { out += it }
         out += if (model.duplicate) "DUPLICATE" else "CUSTOMER"
-        out += model.refLabel
+        if (model.refLabel.isNotBlank()) out += model.refLabel
         model.occurredAt?.let { out += it }
         if (model.amountOnly) {
             out += model.amountOnlyTitle.orEmpty()
@@ -901,14 +925,6 @@ internal fun RetailReceiptPreview(
                 textAlign = TextAlign.Center,
                 letterSpacing = 1.2.sp,
             )
-            Text(
-                model.tagline,
-                color = RetailRose.rose,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 10.sp,
-                textAlign = TextAlign.Center,
-            )
             model.locationLine?.let {
                 Text(
                     it,
@@ -921,6 +937,15 @@ internal fun RetailReceiptPreview(
             model.gstin?.let {
                 Text(
                     "GSTIN : $it",
+                    color = RetailReceiptPaper.muted,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            model.enteredBy?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    "Entered by : $it",
                     color = RetailReceiptPaper.muted,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 10.sp,
@@ -949,7 +974,7 @@ internal fun RetailReceiptPreview(
                 )
             }
             ReceiptDash()
-            ReceiptKv("Ref", model.refLabel)
+            if (model.refLabel.isNotBlank()) ReceiptKv("Ref", model.refLabel)
             model.occurredAt?.let { ReceiptKv("When", it.take(16)) }
             ReceiptDash()
             if (model.amountOnly) {
@@ -1060,7 +1085,7 @@ internal fun RetailReceiptPreview(
             }
             ReceiptDash()
             Text(
-                "Thank you for shopping with Harbor Mart",
+                "Thank you for shopping with ${model.storeName}",
                 color = RetailReceiptPaper.ink,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 10.sp,

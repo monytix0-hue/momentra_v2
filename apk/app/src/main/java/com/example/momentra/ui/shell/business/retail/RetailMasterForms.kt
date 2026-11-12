@@ -76,7 +76,25 @@ internal fun RetailMasterFormSheet(
             },
         )
     }
-    var category by remember { mutableStateOf("") }
+    var category by remember(existing?.id) {
+        mutableStateOf(
+            existing?.category?.takeIf { it.isNotBlank() }
+                ?: if (kind == RetailMasterFormKind.Product) {
+                    RetailCaptureCopy.catalogueCategories.first()
+                } else {
+                    ""
+                },
+        )
+    }
+    var subcategory by remember(existing?.id) {
+        mutableStateOf(
+            existing?.subcategory?.takeIf { it.isNotBlank() }
+                ?: RetailCaptureCopy.defaultSubcategory(
+                    existing?.category?.takeIf { it.isNotBlank() }
+                        ?: RetailCaptureCopy.catalogueCategories.first(),
+                ),
+        )
+    }
     var paymentTerms by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var status by remember(existing?.id) {
@@ -158,13 +176,28 @@ internal fun RetailMasterFormSheet(
             else -> if (kind == RetailMasterFormKind.Location) "Active" else "Active"
         }
         tracked = if (m.tracked == false) "Non-tracked" else "Track stock"
+        if (kind == RetailMasterFormKind.Product) {
+            category = m.category?.takeIf { it.isNotBlank() }
+                ?: RetailCaptureCopy.catalogueCategories.first()
+            subcategory = m.subcategory?.takeIf { it.isNotBlank() }
+                ?: RetailCaptureCopy.defaultSubcategory(category)
+        } else if (kind == RetailMasterFormKind.StockItem) {
+            category = m.category?.takeIf { it.isNotBlank() } ?: "Packaging"
+        }
     }
 
     fun clearForCreate() {
         editing = null
         name = ""; legalName = ""; code = ""; phone = ""; email = ""; gstin = ""
         gstRegistration = "Regular"
-        category = if (kind == RetailMasterFormKind.StockItem) "Packaging" else ""
+        category = if (kind == RetailMasterFormKind.StockItem) {
+            "Packaging"
+        } else if (kind == RetailMasterFormKind.Product) {
+            RetailCaptureCopy.catalogueCategories.first()
+        } else {
+            ""
+        }
+        subcategory = RetailCaptureCopy.defaultSubcategory(category)
         paymentTerms = ""; address = ""
         status = "Active"; unit = "pcs"
         barcode = ""; sellPrice = ""; mrp = ""; purchasePrice = ""
@@ -173,6 +206,16 @@ internal fun RetailMasterFormSheet(
         trackBatch = "Off · optional"; tracked = "Track stock"
         variant = "Single"; locationType = "Store"; receiptPrinter = "Screen only"
         contextChip = if (kind == RetailMasterFormKind.StockItem) "Stock master" else "Catalogue master"
+    }
+
+    fun taxonomyPayload(): Map<String, Any?>? {
+        if (kind != RetailMasterFormKind.Product && kind != RetailMasterFormKind.StockItem) return null
+        val map = linkedMapOf<String, Any?>()
+        category.takeIf { it.isNotBlank() }?.let { map["category"] = it }
+        if (kind == RetailMasterFormKind.Product) {
+            subcategory.takeIf { it.isNotBlank() }?.let { map["subcategory"] = it }
+        }
+        return map.takeIf { it.isNotEmpty() }
     }
 
     val postable = name.isNotBlank() && !saving && (isCreate || editing != null)
@@ -279,9 +322,20 @@ internal fun RetailMasterFormSheet(
                 RoseTextField(name, "e.g. Basmati rice 5kg", onValueChange = { name = it.take(80) })
                 RoseChipFlow(
                     "Category",
-                    listOf("Staples", "Snacks", "Personal care", "Beverages", "Home care"),
-                    category,
-                ) { category = it }
+                    RetailCaptureCopy.catalogueCategories,
+                    category.ifBlank { RetailCaptureCopy.catalogueCategories.first() },
+                ) { next ->
+                    category = next
+                    subcategory = RetailCaptureCopy.defaultSubcategory(next)
+                }
+                val subOptions = RetailCaptureCopy.catalogueSubcategories(category)
+                if (subOptions.isNotEmpty()) {
+                    RoseChipFlow(
+                        "Subcategory",
+                        subOptions,
+                        subcategory.ifBlank { subOptions.first() },
+                    ) { subcategory = it }
+                }
                 RoseChipFlow("Variants", listOf("Size / pack", "Single", "Colour set"), variant) { variant = it }
                 RoseAmountHero(
                     label = "Sell price",
@@ -326,8 +380,18 @@ internal fun RetailMasterFormSheet(
                     defaultLocation,
                 ) { defaultLocation = it }
                 RoseChipFlow("Unit", listOf("pcs", "kg", "pack"), unit) { unit = it }
-                RoseFieldLabel("Barcode / EAN")
-                RoseTextField(barcode, "8901234567890 · scan to fill", onValueChange = { barcode = it.take(32) })
+                RoseFieldLabel("SKU code")
+                RoseTextField(
+                    code,
+                    "Your store code — used for scan without EAN",
+                    onValueChange = { code = it.take(32) },
+                )
+                RoseFieldLabel("Barcode (optional)")
+                RoseTextField(
+                    barcode,
+                    "Optional EAN — SKU code works without barcode",
+                    onValueChange = { barcode = it.take(32) },
+                )
                 RosePickerRow("Track batch / expiry", trackBatch, onClick = {
                     trackBatch = if (trackBatch.startsWith("Off")) "On · batch required" else "Off · optional"
                 })
@@ -434,6 +498,7 @@ internal fun RetailMasterFormSheet(
                     phone = phone,
                     email = email,
                     category = category,
+                    subcategory = subcategory,
                     paymentTerms = paymentTerms,
                     address = address,
                     status = status,
@@ -473,6 +538,8 @@ internal fun RetailMasterFormSheet(
                         RetailMasterFormKind.Supplier ->
                             code.takeIf { it.isNotBlank() }
                                 ?: legalName.takeIf { it.isNotBlank() }
+                        RetailMasterFormKind.Product ->
+                            code.takeIf { it.isNotBlank() }
                         else -> code.takeIf { it.isNotBlank() } ?: barcode.takeIf { it.isNotBlank() }
                     },
                     unit = unit.takeIf { it.isNotBlank() },
@@ -500,6 +567,7 @@ internal fun RetailMasterFormSheet(
                     },
                     parentMasterId = suppliers.firstOrNull { it.name == preferredSupplier }?.id
                         ?.takeIf { kind == RetailMasterFormKind.StockItem },
+                    payload = taxonomyPayload(),
                 )
                 if (!isCreate && canUpdate) {
                     val target = editing ?: return@RoseStickyFooter
@@ -525,6 +593,7 @@ internal fun RetailMasterFormSheet(
                                 tracked = body.tracked,
                                 parentMasterId = body.parentMasterId,
                                 status = statusCode,
+                                payload = body.payload,
                                 expectedVersion = target.version,
                             ),
                         )
@@ -535,6 +604,21 @@ internal fun RetailMasterFormSheet(
                             },
                             onFailure = {
                                 localError = it.message ?: "Could not update"
+                                saving = false
+                            },
+                        )
+                    }
+                } else if (isCreate && !companyId.isNullOrBlank()) {
+                    saving = true
+                    scope.launch {
+                        val result = repo.createMaster(companyId!!, body)
+                        result.fold(
+                            onSuccess = {
+                                showToast = true
+                                if (onSaved != null) onSaved() else onDismiss()
+                            },
+                            onFailure = {
+                                localError = it.message ?: "Could not create"
                                 saving = false
                             },
                         )
@@ -623,6 +707,7 @@ private fun buildMasterNote(
     phone: String,
     email: String,
     category: String,
+    subcategory: String,
     paymentTerms: String,
     address: String,
     status: String,
@@ -661,6 +746,7 @@ private fun buildMasterNote(
             }
             RetailMasterFormKind.Product -> {
                 category.takeIf { it.isNotBlank() }?.let { add("Category: $it") }
+                subcategory.takeIf { it.isNotBlank() }?.let { add("Subcategory: $it") }
                 add("Variant: $variant")
                 add("Default location: $defaultLocation")
                 add("Track batch: $trackBatch")

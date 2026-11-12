@@ -20,7 +20,7 @@ struct RetailBarcodeScanner: View {
     @State private var decodingUpload = false
 
     private static let retailSymbologies: [VNBarcodeSymbology] = [
-        .qr, .ean13, .ean8, .upce, .code128, .code39, .itf14, .dataMatrix,
+        .qr, .ean13, .ean8, .upca, .upce, .code128, .code39, .itf14, .dataMatrix,
     ]
 
     var body: some View {

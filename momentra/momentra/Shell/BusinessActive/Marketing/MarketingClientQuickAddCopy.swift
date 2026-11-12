@@ -7,6 +7,7 @@ enum MarketingClientQuickAddCopy {
     static let moreDetailsLabel = "More details"
     static let moreDetailsHint = "Notes · Attachment · Tags"
     static let stickyMeta = "Draft preserved if you close or open a picker"
+    static let clientOnlyChip = "Client only"
     static let clientOnlyGate = "Client only · Hidden & server-rejected in Own Business mode"
 
     /// Resolve Figma catalog key from capture eventType + mode.

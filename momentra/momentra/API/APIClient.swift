@@ -154,6 +154,9 @@ struct OperatingMasterPayload: Decodable, Identifiable {
     let gstin: String?
     /// Optimistic-concurrency stamp; required when PATCHing or archiving.
     let version: Int?
+    /// Retail catalogue taxonomy from operating_master.payload (not UOM dimension).
+    let category: String?
+    let subcategory: String?
 }
 
 struct OperatingQuickAddPayload: Decodable, Identifiable {
@@ -228,6 +231,8 @@ struct OperatingProjectionPayload: Decodable {
     let gstTracking: String?
     let gstRegistration: String?
     let gstState: String?
+    /// Setup GSTIN when registered — retail receipt header.
+    let gstin: String?
     let salePriceIncludesGst: String?
     let purchasePriceIncludesGst: String?
     let gstPosition: GstPositionPayload?
@@ -388,6 +393,8 @@ struct OperatingMasterCreateBody: Encodable {
     var billingState: String? = nil
     var deliveryState: String? = nil
     var parentMasterId: String? = nil
+    /// Arbitrary JSON — retail uses category / subcategory.
+    var payload: [String: String]? = nil
 }
 
 /// The body `PATCH /companies/:companyId/operating-masters/:id` accepts. Every field is
@@ -410,6 +417,7 @@ struct OperatingMasterUpdateBody: Encodable {
     var deliveryState: String? = nil
     var parentMasterId: String? = nil
     var status: String? = nil
+    var payload: [String: String]? = nil
     var expectedVersion: Int
 }
 

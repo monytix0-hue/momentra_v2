@@ -824,6 +824,10 @@ export interface OperatingProjection {
     parentMasterId?: string | null;
     status?: string | null;
     momentId?: string | null;
+    /** Retail catalogue taxonomy from operating_master.payload (not UOM dimension). */
+    category?: string | null;
+    subcategory?: string | null;
+    version?: number | null;
   }>;
   location: string;
   budget: { amount: string; spent: string; remaining: string; configured: boolean } | null;
@@ -896,6 +900,8 @@ export interface OperatingProjection {
   gstState: string;
   /** The two-digit GST state code behind `gstState`; `''` when the saved name is unresolved. */
   gstStateCode: string;
+  /** Setup GSTIN (15-char) when registered — used on retail receipts. */
+  gstin: string;
   gstEffectiveFrom: string;
   salePriceIncludesGst: string;
   purchasePriceIncludesGst: string;
@@ -1283,11 +1289,19 @@ function companyMasters(
   const mapped: OperatingProjection['masters'] = [];
   const seen = new Set<string>();
   const keyOf = (kind: string, name: string) => `${kind.toUpperCase()}::${name.trim().toLowerCase()}`;
+  const payloadText = (payload: Record<string, unknown> | undefined, key: string): string | null => {
+    const raw = payload?.[key];
+    if (typeof raw !== 'string') return null;
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
+
   for (const row of masterRows ?? []) {
     if (row.status === 'ARCHIVED') continue;
     const key = keyOf(row.kind, row.name);
     if (seen.has(key)) continue;
     seen.add(key);
+    const payload = row.payload ?? {};
     mapped.push({
       id: row.id,
       source: 'MASTER',
@@ -1318,6 +1332,9 @@ function companyMasters(
       parentMasterId: row.parentMasterId,
       status: row.status,
       momentId: row.momentId,
+      category: payloadText(payload, 'category'),
+      subcategory: payloadText(payload, 'subcategory'),
+      version: row.version,
     });
   }
   for (const row of events) {
@@ -1662,6 +1679,7 @@ export function projectOperatingMoment(args: {
     gstRegistration: args.prefs.gstRegistration,
     gstState: args.prefs.gstState,
     gstStateCode: args.prefs.gstStateCode || gstStateCodeOf(args.prefs.gstState),
+    gstin: args.prefs.gstin,
     gstEffectiveFrom: args.prefs.gstEffectiveFrom,
     salePriceIncludesGst: args.prefs.salePriceIncludesGst,
     purchasePriceIncludesGst: args.prefs.purchasePriceIncludesGst,

@@ -16,8 +16,8 @@ object RetailCaptureCopy {
     const val SAVED_TOAST = "✓ Saved · sheet closes and returns back"
     const val MORE_DETAILS_HINT = "Notes · Proof · Tags"
     const val PURCHASE_MORE_HINT = "Supplier GSTIN 27 · intra-state · Regular"
-    const val SCAN_PLACEHOLDER = "INV-8841  ·  tap to scan"
-    const val STOCK_SCAN_PLACEHOLDER = "HM-044  ·  tap to scan"
+    const val SCAN_PLACEHOLDER = "SKU code · tap to scan"
+    const val STOCK_SCAN_PLACEHOLDER = "SKU code · tap to scan"
 
     const val SO_BROWSER_TRAILING = "Tap Add · set qty on line"
     const val PO_BROWSER_TRAILING = "Master + on-hand"
@@ -51,6 +51,22 @@ object RetailCaptureCopy {
     val soCategories = listOf("Staples", "Snacks", "Personal care", "Beverages", "Home care")
     val poCategories = listOf("Staples", "Beverages", "Dairy", "Packaging", "Home care", "Consumables")
     val issueSeverities = listOf("Alert", "Warn", "Info")
+
+    /** Retail product Category chips — same set as Catalogue filter. */
+    val catalogueCategories = soCategories
+
+    /** Subcategory chips keyed by Category (payload.subcategory). */
+    fun catalogueSubcategories(category: String): List<String> = when (category) {
+        "Staples" -> listOf("Grains", "Oils", "Pulses", "Spices", "Salt and sugar")
+        "Snacks" -> listOf("Biscuits", "Namkeen", "Chips", "Sweets")
+        "Personal care" -> listOf("Soap", "Hair", "Oral", "Skin")
+        "Beverages" -> listOf("Soft drinks", "Juice", "Tea and coffee", "Water")
+        "Home care" -> listOf("Cleaners", "Detergent", "Kitchen")
+        else -> emptyList()
+    }
+
+    fun defaultSubcategory(category: String): String =
+        catalogueSubcategories(category).firstOrNull().orEmpty()
 
     /** Mode chips under the sheet title. Empty = no chips. */
     fun modeChips(mode: String): List<String> = when (mode.uppercase()) {

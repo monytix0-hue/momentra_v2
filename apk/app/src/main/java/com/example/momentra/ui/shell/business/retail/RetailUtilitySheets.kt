@@ -38,6 +38,9 @@ import com.example.momentra.data.api.OperatingLineBody
 import com.example.momentra.data.api.OperatingMasterDto
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.data.repository.BusinessSliceRepository
+import com.example.momentra.ui.shell.business.mto.MtoToastHost
+import com.example.momentra.ui.shell.business.mto.MtoToastKind
+import com.example.momentra.ui.shell.business.mto.MtoToastSpec
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.theme.RetailRose
 import com.google.gson.Gson
@@ -656,6 +659,7 @@ internal fun RetailReprintSheet(
             duplicate = true,
             reason = reason,
             tenderOverride = tenderHint,
+            enteredBy = cashier,
         )
     }
 
@@ -1056,111 +1060,42 @@ internal fun OperatingMasterDto.retailStation(): String {
     }
 }
 
-/** On-hand caption for PO browser — live masters omit qty; Harbor fixtures carry labels. */
-internal fun OperatingMasterDto.retailOnHandCaption(): String? = when (code?.uppercase()) {
-    "HM-044" -> "on hand 40"
-    "HM-112" -> "on hand 72"
-    "HM-031" -> "on hand 64"
-    "HM-207" -> "18 left"
-    "HM-BAG" -> "300 left"
-    "HM-LBL" -> "6 left"
-    else -> null
-}
+/** On-hand caption for PO browser — live masters omit qty until stock projection ships. */
+internal fun OperatingMasterDto.retailOnHandCaption(): String? = null
 
-internal fun retailCatalogMasters(model: OperatingProjectionDto): List<OperatingMasterDto> {
-    val live = model.masters.orEmpty()
+internal fun retailCatalogMasters(model: OperatingProjectionDto): List<OperatingMasterDto> =
+    model.masters.orEmpty()
         .filter { it.kind in setOf("PRODUCT", "ITEM", "SKU", "MATERIAL", "CONSUMABLE") }
         .sortedBy { it.name.lowercase() }
-    return live.ifEmpty { harborMartFixtureCatalog() }
+
+/** Match order: exact code → exact barcode → name contains (min length 2). */
+internal fun retailMatchCatalogSku(
+    skus: List<OperatingMasterDto>,
+    raw: String,
+): OperatingMasterDto? {
+    val q = raw.trim()
+    if (q.isEmpty()) return null
+    skus.firstOrNull { it.code?.equals(q, ignoreCase = true) == true }?.let { return it }
+    skus.firstOrNull {
+        !it.barcode.isNullOrBlank() && it.barcode.equals(q, ignoreCase = true)
+    }?.let { return it }
+    if (q.length >= 2) {
+        skus.firstOrNull { it.name.contains(q, ignoreCase = true) }?.let { return it }
+    }
+    return null
 }
 
-/** Figma Harbor Mart demo SKUs for SO/PO browsers when masters are empty (visual QA). */
-internal fun harborMartFixtureCatalog(): List<OperatingMasterDto> = listOf(
-    OperatingMasterDto(
-        id = "fx-hm-044",
-        kind = "PRODUCT",
-        name = "Basmati 5kg",
-        code = "HM-044",
-        sellPrice = "520",
-        purchasePrice = "480",
-        unit = "bag",
-        dimension = "Staples",
-        hsn = "1006",
-        gstRate = "5",
-    ),
-    OperatingMasterDto(
-        id = "fx-hm-112",
-        kind = "PRODUCT",
-        name = "Sunflower oil 1L",
-        code = "HM-112",
-        sellPrice = "168",
-        purchasePrice = "145",
-        unit = "btl",
-        dimension = "Staples",
-        hsn = "1512",
-        gstRate = "5",
-    ),
-    OperatingMasterDto(
-        id = "fx-hm-031",
-        kind = "PRODUCT",
-        name = "Toor dal 1kg",
-        code = "HM-031",
-        sellPrice = "142",
-        purchasePrice = "128",
-        unit = "pack",
-        dimension = "Staples",
-        hsn = "0713",
-        gstRate = "5",
-    ),
-    OperatingMasterDto(
-        id = "fx-hm-058",
-        kind = "PRODUCT",
-        name = "Tata salt 1kg",
-        code = "HM-058",
-        sellPrice = "28",
-        purchasePrice = "22",
-        unit = "pack",
-        dimension = "Staples",
-        hsn = "2501",
-        gstRate = "Exempt",
-    ),
-    OperatingMasterDto(
-        id = "fx-hm-207",
-        kind = "PRODUCT",
-        name = "Amul milk 1L",
-        code = "HM-207",
-        sellPrice = "68",
-        purchasePrice = "62",
-        unit = "btl",
-        dimension = "Dairy",
-        hsn = "0401",
-        gstRate = "Exempt",
-    ),
-    OperatingMasterDto(
-        id = "fx-hm-bag",
-        kind = "CONSUMABLE",
-        name = "Carry bags (L)",
-        code = "HM-BAG",
-        sellPrice = "2",
-        purchasePrice = "2",
-        unit = "pcs",
-        dimension = "Packaging",
-        hsn = "3923",
-        gstRate = "18",
-    ),
-    OperatingMasterDto(
-        id = "fx-hm-lbl",
-        kind = "CONSUMABLE",
-        name = "Shelf labels",
-        code = "HM-LBL",
-        sellPrice = "180",
-        purchasePrice = "180",
-        unit = "roll",
-        dimension = "Consumables",
-        hsn = "4821",
-        gstRate = "18",
-    ),
-)
+internal fun retailUnmatchedScanToast() {
+    MtoToastHost.show(
+        MtoToastSpec(
+            kind = MtoToastKind.Saved,
+            title = "No product for this code",
+            body = "Pick from catalogue or add under Catalogue.",
+            actionLabel = "OK",
+            accent = RetailRose.amber,
+        ),
+    )
+}
 
 @Composable
 internal fun retailSkuQuickPick(

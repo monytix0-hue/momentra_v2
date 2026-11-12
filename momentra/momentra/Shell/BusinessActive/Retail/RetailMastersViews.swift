@@ -137,10 +137,7 @@ struct RetailMastersView: View {
                         theme: theme,
                         title: footerTitle,
                         caption: footerCaption,
-                        action: {
-                            showSavedToast()
-                            dismiss()
-                        }
+                        action: { dismiss() }
                     )
                 }
                 .padding(16)
@@ -155,7 +152,8 @@ struct RetailMastersView: View {
             }
         }
         .task { if model.masters.isEmpty { await model.loadMasters() } }
-        .sheet(item: $formKind) { kind in
+        // fullScreenCover — nested .sheet on the masters sheet often fails to present.
+        .fullScreenCover(item: $formKind) { kind in
             RetailMasterFormSheet(
                 theme: theme,
                 kind: kind,
@@ -168,8 +166,6 @@ struct RetailMastersView: View {
                     Task { await model.loadMasters() }
                 }
             )
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
             .preferredColorScheme(.dark)
         }
     }
@@ -213,22 +209,17 @@ struct RetailMastersView: View {
         }
     }
 
-    private var footerTitle: String {
-        switch tab {
-        case .invite, .catalogue: return "Done"
-        case .suppliers: return "Save supplier"
-        case .locations: return "Save locations"
-        }
-    }
+    private var footerTitle: String { "Done" }
 
     private var footerCaption: String {
         switch tab {
-        case .invite: return "3 invites pending · roles apply on join"
+        case .invite: return "Invites apply when the teammate joins"
         case .catalogue:
-            let shown = max(filteredCatalogue.count, rows.isEmpty ? 4 : min(rows.count, 4))
-            return "\(shown) of \(max(shown, 38)) products · \(category)"
-        case .suppliers: return "Supplier saved · available in Purchase Order"
-        case .locations: return "Locations saved · stock points update"
+            return "\(filteredCatalogue.count) product\(filteredCatalogue.count == 1 ? "" : "s") · \(category)"
+        case .suppliers:
+            return "\(filteredSuppliers.count) supplier\(filteredSuppliers.count == 1 ? "" : "s") · available in Purchase Order"
+        case .locations:
+            return "\(rows.count) location\(rows.count == 1 ? "" : "s") · stock points"
         }
     }
 
@@ -387,8 +378,12 @@ struct RetailMastersView: View {
         let products = rows.filter { !stockKinds.contains($0.kind.uppercased()) }
         let pool = products.isEmpty ? rows : products
         return pool.filter { row in
-            let hay = "\(row.name) \(row.dimension ?? "") \(row.unit ?? "") \(row.code ?? "")".lowercased()
-            return hay.contains(category.lowercased()) || pool.count <= 6
+            let cat = row.category?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let cat, !cat.isEmpty {
+                return cat.localizedCaseInsensitiveCompare(category) == .orderedSame
+            }
+            // Legacy rows without payload category — keep visible under every chip.
+            return true
         }
     }
 
@@ -419,9 +414,8 @@ struct RetailMastersView: View {
                     .padding(.vertical, 4)
                     .background(RoseSheetChrome.label)
                     .clipShape(Capsule())
-                } else {
-                    editPill
                 }
+                editPill
             }
             Text(supplierMeta(row))
                 .font(.plusJakarta(size: 11, weight: .medium))
@@ -567,11 +561,11 @@ struct RetailMastersView: View {
     }
 
     private func catalogueMeta(_ row: OperatingMasterPayload) -> String {
-        let cat = row.dimension.nilIfBlank
-            ?? row.unit.nilIfBlank
-            ?? category
-        let aisle = row.code.nilIfBlank.map { "Aisle \($0)" } ?? "Aisle —"
-        return "\(cat) · \(aisle)"
+        let cat = row.category.nilIfBlank ?? category
+        if let sub = row.subcategory.nilIfBlank {
+            return "\(cat) · \(sub)"
+        }
+        return cat
     }
 
     private func locationMeta(_ row: OperatingMasterPayload) -> String {
@@ -646,18 +640,5 @@ enum RetailInviteRoles {
         default:
             return "Stock / Floor → stock moves & floor ops · no reports or payouts. The role you pick sets their access when they join"
         }
-    }
-}
-
-private extension String {
-    var nilIfBlank: String? {
-        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-}
-
-private extension Optional where Wrapped == String {
-    var nilIfBlank: String? {
-        self?.nilIfBlank
     }
 }

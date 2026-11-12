@@ -1,0 +1,7 @@
+appId: resolvingpoint.momentra
+---
+- tapOn: "Trading & Distribution"
+- extendedWaitUntil:
+    visible: ".*Wholesale.*|.*Continue.*|.*Trading.*"
+    timeout: 15000
+- takeScreenshot: after-trading-family

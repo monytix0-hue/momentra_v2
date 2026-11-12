@@ -1,0 +1,45 @@
+11-12 14:47:17.422  2100  2100 E healthd : soc_b:75, soc:51, soc_c:51, Vol:3886, Cur:-56,chg_s:1,t_l:4516,b_s:4,OffTlast:0,lcd_off:0,Vu:4832,Vw:0,pid:2100,brightness:2.353479,rmCap:2532
+11-12 14:47:17.422  2100  2100 E healthd : battery l=51 v=3886 t=43.0 h=2 st=4 c=-56764 fc=4984000 cc=3 chg=a
+11-12 14:47:47.079  5111  5111 V DeviceStatisticsService: chargerType=1 batteryLevel=51 totalBatteryCapacity=4966400
+11-12 14:47:17.451  2100  2100 E healthd : battery l=51 v=3886 t=43.0 h=2 st=2 c=-56764 fc=4984000 cc=3 chg=a
+11-12 14:47:17.489  2100  2100 E healthd : battery l=51 v=3886 t=43.0 h=2 st=2 c=-56764 fc=4984000 cc=3 chg=a
+11-12 14:47:47.134  6204  6204 W dataInfoSend: type=1400 audit(0.0:921798725): avc:  denied  { bpf } for  capability=39  scontext=u:r:bpfloader:s0 tcontext=u:r:bpfloader:s0 tclass=capability2 permissive=0
+11-12 14:47:47.134  6204  6204 W dataInfoSend: type=1400 audit(0.0:921798726): avc:  denied  { bpf } for  capability=39  scontext=u:r:bpfloader:s0 tcontext=u:r:bpfloader:s0 tclass=capability2 permissive=0
+11-12 14:47:47.134  6204  6204 W dataInfoSend: type=1400 audit(0.0:921798727): avc:  denied  { bpf } for  capability=39  scontext=u:r:bpfloader:s0 tcontext=u:r:bpfloader:s0 tclass=capability2 permissive=0
+11-12 14:47:47.134  6204  6204 W dataInfoSend: type=1400 audit(0.0:921798728): avc:  denied  { bpf } for  capability=39  scontext=u:r:bpfloader:s0 tcontext=u:r:bpfloader:s0 tclass=capability2 permissive=0
+11-12 14:47:47.134  6204  6204 W dataInfoSend: type=1400 audit(0.0:921798729): avc:  denied  { bpf } for  capability=39  scontext=u:r:bpfloader:s0 tcontext=u:r:bpfloader:s0 tclass=capability2 permissive=0
+11-12 14:47:47.153  5111  5111 V DeviceStatisticsService: chargerType=1 batteryLevel=51 totalBatteryCapacity=4966400
+11-12 14:47:47.164  2100  2100 E IPCThreadState: Binder transaction failure. id: 321396063, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:47:47.164  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+11-12 14:47:17.529  2100  2100 E healthd : battery l=51 v=3886 t=43.0 h=2 st=2 c=-56764 fc=4984000 cc=3 chg=a
+11-12 14:47:47.172  2100  2100 E IPCThreadState: Binder transaction failure. id: 321396073, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:47:47.172  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+11-12 14:47:47.181  2100  2100 E IPCThreadState: Binder transaction failure. id: 321396087, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:47:47.181  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+11-12 14:47:17.546  2100  2100 E healthd : battery l=51 v=3886 t=43.0 h=2 st=2 c=-56764 fc=4984000 cc=3 chg=a
+11-12 14:47:47.190  2100  2100 E IPCThreadState: Binder transaction failure. id: 321396096, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:47:47.190  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+11-12 14:47:47.192  5111  5111 V DeviceStatisticsService: chargerType=1 batteryLevel=51 totalBatteryCapacity=4966400
+11-12 14:47:47.209  2100  2100 E IPCThreadState: Binder transaction failure. id: 321396142, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:47:47.209  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+11-12 14:47:17.574  2100  2100 E healthd : battery l=51 v=3886 t=43.0 h=2 st=4 c=-56764 fc=4984000 cc=3 chg=a
+11-12 14:47:47.233  2100  2100 E IPCThreadState: Binder transaction failure. id: 321396175, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:47:47.233  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+11-12 14:47:17.598  2100  2100 E healthd : battery l=51 v=3885 t=43.0 h=2 st=4 c=-38453 fc=4984000 cc=3 chg=a
+11-12 14:47:47.253  2100  2100 E IPCThreadState: Binder transaction failure. id: 321396250, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:47:47.253  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+11-12 14:47:47.254  5111  5111 V DeviceStatisticsService: chargerType=1 batteryLevel=51 totalBatteryCapacity=4966400
+11-12 14:47:47.263  2100  2100 E IPCThreadState: Binder transaction failure. id: 321396268, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:47:17.628  2100  2100 E healthd : battery l=51 v=3885 t=43.0 h=2 st=2 c=-38453 fc=4984000 cc=3 chg=a
+11-12 14:47:47.263  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+11-12 14:47:47.283  2100  2100 E IPCThreadState: Binder transaction failure. id: 321396328, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:47:47.283  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+11-12 14:47:47.304  2100  2100 E IPCThreadState: Binder transaction failure. id: 321396384, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:47:47.304  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+11-12 14:47:17.669  2100  2100 E healthd : battery l=51 v=3885 t=43.0 h=2 st=2 c=-38453 fc=4984000 cc=3 chg=a
+11-12 14:47:47.327  2100  2100 E IPCThreadState: Binder transaction failure. id: 321396442, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:47:47.327  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+11-12 14:47:47.330  5111  5111 V DeviceStatisticsService: chargerType=1 batteryLevel=51 totalBatteryCapacity=4966400
+11-12 14:47:17.711  2100  2100 E healthd : battery l=51 v=3885 t=43.0 h=2 st=2 c=-38453 fc=4984000 cc=3 chg=a
+11-12 14:47:47.345  2100  2100 E IPCThreadState: Binder transaction failure. id: 321396504, BR_*: 29201, error: -28 (No space left on device)
+11-12 14:47:47.346  2100  2100 E android.hardware.health-service.qti: Cannot call healthInfoChanged on callback: Status(-129, EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '

@@ -594,7 +594,11 @@ fun OperatingMomentPage(
                     draft.contract,
                 ).fold(
                     onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
+                    onFailure = {
+                        // Surface to capture sheet (TradingQuickAdds dismisses only after onRecord returns).
+                        error = it.message
+                        throw it
+                    },
                 )
             },
             onDecide = { eventId, decision ->

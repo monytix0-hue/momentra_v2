@@ -697,9 +697,9 @@ private struct MarketingPulseScreen: View {
     private var paymentCard: some View {
         let due = projection?.paymentReadiness ?? []
         let receivable = client
-            ? due.filter { ($0.relevance ?? "").uppercased() == "RECEIVABLE" }
+            ? due.filter { $0.relevance.uppercased() == "RECEIVABLE" }
             : []
-        let payable = due.filter { ($0.relevance ?? "").uppercased() != "RECEIVABLE" }
+        let payable = due.filter { $0.relevance.uppercased() != "RECEIVABLE" }
         let receivableTotal = receivable.compactMap { OperatingV12Money.number($0.amount) }.reduce(0, +)
         let payableTotal = payable.compactMap { OperatingV12Money.number($0.amount) }.reduce(0, +)
 
@@ -734,7 +734,7 @@ private struct MarketingPulseScreen: View {
                     )
                     OperatingV12Tile(
                         label: "Ready to pay",
-                        value: "\(payable.filter { ($0.status ?? "").uppercased().contains("APPROV") || ($0.status ?? "").uppercased() == "READY" }.count)",
+                        value: "\(payable.filter { $0.status.uppercased().contains("APPROV") || $0.status.uppercased() == "READY" }.count)",
                         tone: OperatingV12.green
                     )
                 }

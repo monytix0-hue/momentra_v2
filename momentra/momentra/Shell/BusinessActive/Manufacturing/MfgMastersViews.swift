@@ -9,7 +9,7 @@ enum MfgMasterListTab: String, Identifiable {
 
 /// Forge roles mapped onto backend operatingRole codes — Figma `2545:29335`.
 enum MfgInviteRole: String, CaseIterable, Identifiable {
-    case owner, manager, supervisor, storekeeper, operator
+    case owner, manager, supervisor, storekeeper, `operator`
     var id: String { rawValue }
     var label: String {
         switch self {
@@ -17,7 +17,7 @@ enum MfgInviteRole: String, CaseIterable, Identifiable {
         case .manager: return "Manager"
         case .supervisor: return "Supervisor"
         case .storekeeper: return "Storekeeper"
-        case .operator: return "Operator"
+        case .`operator`: return "Operator"
         }
     }
     var apiCode: String {
@@ -25,7 +25,7 @@ enum MfgInviteRole: String, CaseIterable, Identifiable {
         case .owner: return "FINANCE"
         case .manager: return "APPROVER"
         case .supervisor: return "OPERATIONS_LEAD"
-        case .storekeeper, .operator: return "CONTRIBUTOR"
+        case .storekeeper, .`operator`: return "CONTRIBUTOR"
         }
     }
     var accessCopy: String {
@@ -36,7 +36,7 @@ enum MfgInviteRole: String, CaseIterable, Identifiable {
             return "Access: Manager → work orders, production approvals and QC · no payouts. The role you pick sets their access when they join."
         case .supervisor:
             return "Access: Supervisor → work orders, production & QC · no payouts or pricing. The role you pick sets their access when they join."
-        case .storekeeper, .operator:
+        case .storekeeper, .`operator`:
             return "Access: Storekeeper / Operator → stock, issue and line activity · no reports or payouts. The role you pick sets their access when they join."
         }
     }
@@ -547,7 +547,8 @@ struct MfgMastersSheet: View {
             let minted = try await APIClient.shared.mintCompanyInvite(
                 companyId: companyId,
                 membershipType: inviteRole == .owner || inviteRole == .manager ? "ADMIN" : "MEMBER",
-                operatingRole: inviteRole.apiCode
+                operatingRole: inviteRole.apiCode,
+                idempotencyKey: UUID().uuidString
             )
             invite = minted
             copied = false

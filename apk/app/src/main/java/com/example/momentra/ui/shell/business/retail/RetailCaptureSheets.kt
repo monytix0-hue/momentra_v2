@@ -148,19 +148,21 @@ private fun RetailPurchaseSheet(
     fun applyPurchaseScan(raw: String) {
         val q = raw.trim()
         if (q.isBlank()) return
-        val match = catalog.firstOrNull {
-            it.barcode.equals(q, true) || it.code.equals(q, true) ||
-                (q.length >= 3 && it.name.contains(q, true))
+        val match = retailMatchCatalogSku(catalog, q)
+        if (match == null) {
+            retailUnmatchedScanToast()
+            scanQuery = q
+            return
         }
         val draft = CaptureLineDraft(
             id = System.nanoTime(),
-            sku = (match?.code ?: q.take(12)).uppercase(),
-            name = match?.name ?: q,
+            sku = (match.code ?: q.take(12)).uppercase(),
+            name = match.name,
             qty = "1",
-            rate = match?.purchasePrice ?: match?.sellPrice.orEmpty(),
-            hsn = match?.hsn.orEmpty(),
-            unit = match?.unit ?: "pcs",
-            gst = match?.gstRate.orEmpty(),
+            rate = match.purchasePrice ?: match.sellPrice.orEmpty(),
+            hsn = match.hsn.orEmpty(),
+            unit = match.unit ?: "pcs",
+            gst = match.gstRate.orEmpty(),
         )
         val blank = lines.indexOfFirst { it.name.isBlank() }
         if (blank >= 0) lines[blank] = draft else lines.add(draft)
@@ -474,7 +476,7 @@ private fun RetailCollectionSheet(
     val amountLabel = amount.toBigDecimalOrNull()?.takeIf { it.signum() == 1 }
         ?.let { RetailFormat.exact(currency, amount) }
     val postable = row != null && receipt.signum() == 1
-    val party = row?.counterpartyName?.takeIf { it.isNotBlank() } ?: "Mehta Traders"
+    val party = row?.counterpartyName?.takeIf { it.isNotBlank() } ?: "Select customer"
 
     retailCaptureScaffold(
         title = RetailCaptureCopy.sheetTitle("COLLECTION"),
@@ -493,7 +495,12 @@ private fun RetailCollectionSheet(
                 else -> "${open.size} open · $party"
             },
         ) {
-            if (open.isEmpty()) RoseEmpty("Nothing to collect", "Credit sales with open AR appear here.")
+            if (open.isEmpty()) {
+                RoseEmpty(
+                    "Nothing to collect",
+                    "Post a Pay later sale first — credit sales with open AR appear here.",
+                )
+            }
             open.take(6).forEach { item ->
                 allocateAgainstRow(
                     item = item,
@@ -568,7 +575,6 @@ private fun RetailCollectionSheet(
             enabled = postable,
             caveat = RetailCaptureCopy.DRAFT_FOOTER,
             onClick = {
-                retailMoneySavedToast()
                 onSubmit(
                     RetailEventDraft(
                         eventType = "COLLECTION",
@@ -604,7 +610,7 @@ private fun RetailPaymentSheet(
 ) {
     val currency = model.currency ?: "INR"
     val storeLine = RetailCaptureCopy.storeLine(model.title, model.location)
-    val open = model.paymentReadiness.filter { it.relevance != "RECEIVABLE" }
+    val open = model.paymentReadiness.filter { it.relevance.equals("PAYABLE", ignoreCase = true) }
     var selectedId by remember { mutableStateOf<String?>(open.firstOrNull()?.id) }
     var amount by remember { mutableStateOf(open.firstOrNull()?.amount.orEmpty()) }
     var tender by remember { mutableStateOf("Bank") }
@@ -617,8 +623,8 @@ private fun RetailPaymentSheet(
     val amountLabel = amount.toBigDecimalOrNull()?.takeIf { it.signum() == 1 }
         ?.let { RetailFormat.exact(currency, amount) }
     val postable = row != null && paid.signum() == 1
-    val payee = row?.counterpartyName?.takeIf { it.isNotBlank() } ?: "Wholesale Foods"
-    val linked = row?.title?.takeIf { it.isNotBlank() } ?: "PI-8841"
+    val payee = row?.counterpartyName?.takeIf { it.isNotBlank() } ?: "Select payee"
+    val linked = row?.title?.takeIf { it.isNotBlank() } ?: "—"
 
     retailCaptureScaffold(
         title = RetailCaptureCopy.sheetTitle("PAYMENT"),
@@ -637,7 +643,12 @@ private fun RetailPaymentSheet(
                 else -> "${open.size} open · $payee"
             },
         ) {
-            if (open.isEmpty()) RoseEmpty("Nothing to pay", "Open purchases and expenses appear here.")
+            if (open.isEmpty()) {
+                RoseEmpty(
+                    "Nothing to pay",
+                    "Post an unpaid purchase first — open AP appears here.",
+                )
+            }
             open.take(6).forEach { item ->
                 allocateAgainstRow(
                     item = item,
@@ -711,7 +722,6 @@ private fun RetailPaymentSheet(
             enabled = postable,
             caveat = RetailCaptureCopy.DRAFT_FOOTER,
             onClick = {
-                retailMoneySavedToast()
                 onSubmit(
                     RetailEventDraft(
                         eventType = "PAYMENT",
@@ -858,24 +868,13 @@ private fun RetailStockUpdateSheet(
     var action by remember { mutableStateOf(RetailCaptureCopy.modeChips("STOCK").first()) }
     var scanQuery by remember { mutableStateOf("") }
     var showScanner by remember { mutableStateOf(false) }
+    var showSkuPicker by remember { mutableStateOf(false) }
     var reason by remember { mutableStateOf("Cycle count") }
     var location by remember { mutableStateOf("Aisle 3") }
     var countedBy by remember { mutableStateOf("Ravi · floor") }
     var note by remember { mutableStateOf("") }
     var moreOpen by remember { mutableStateOf(false) }
-    val seed = retailCatalogMasters(model).firstOrNull()
-    val lines = remember {
-        mutableStateListOf(
-            CaptureLineDraft(
-                id = System.nanoTime(),
-                sku = seed?.code ?: "HM-044",
-                name = seed?.name ?: "Basmati 5kg",
-                qty = "8",
-                unit = seed?.unit ?: "bag",
-                wasQty = "12",
-            ),
-        )
-    }
+    val lines = remember { mutableStateListOf<CaptureLineDraft>() }
     val skus = retailCatalogMasters(model)
     val filled = lines.filter { it.name.isNotBlank() }
     val first = filled.firstOrNull()
@@ -885,24 +884,45 @@ private fun RetailStockUpdateSheet(
     val postable = first != null && stockReasonCode != null && qtyValue != null &&
         (stockActionCode == "SET" && qtyValue.signum() >= 0 || stockActionCode != "SET" && qtyValue.signum() > 0)
 
+    fun applyStockLine(draft: CaptureLineDraft) {
+        val blank = lines.indexOfFirst { it.name.isBlank() }
+        if (blank >= 0) lines[blank] = draft else lines.add(draft)
+    }
+
     fun applyStockScan(raw: String) {
         val q = raw.trim()
         if (q.isBlank()) return
-        val match = skus.firstOrNull {
-            it.name.contains(q, true) || (it.code?.contains(q, true) == true) ||
-                (it.barcode?.contains(q, true) == true)
+        val match = retailMatchCatalogSku(skus, q)
+        if (match == null) {
+            retailUnmatchedScanToast()
+            scanQuery = q
+            return
         }
-        val draft = CaptureLineDraft(
-            id = System.nanoTime(),
-            name = match?.name ?: q,
-            sku = (match?.code ?: q.take(12)).uppercase(),
-            unit = match?.unit ?: "pcs",
-            qty = "1",
-            wasQty = "",
+        applyStockLine(
+            CaptureLineDraft(
+                id = System.nanoTime(),
+                name = match.name,
+                sku = (match.code ?: q.take(12)).uppercase(),
+                unit = match.unit ?: "pcs",
+                qty = "1",
+                wasQty = "",
+            ),
         )
-        val blank = lines.indexOfFirst { it.name.isBlank() }
-        if (blank >= 0) lines[blank] = draft else lines.add(draft)
         scanQuery = ""
+    }
+
+    fun pickStockSku(master: OperatingMasterDto) {
+        applyStockLine(
+            CaptureLineDraft(
+                id = System.nanoTime(),
+                name = master.name,
+                sku = (master.code ?: master.id).uppercase(),
+                unit = master.unit ?: "pcs",
+                qty = "1",
+                wasQty = "",
+            ),
+        )
+        showSkuPicker = false
     }
 
     Box {
@@ -956,11 +976,50 @@ private fun RetailStockUpdateSheet(
                 Text(
                     "+ Add SKU",
                     style = RetailRose.viewAll().copy(fontSize = 13.sp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { lines.add(newCaptureLine()) },
+                    modifier = Modifier.clickable { showSkuPicker = !showSkuPicker },
                 )
-                Text(RetailCaptureCopy.STOCK_ADD_SKU_HINT, style = RetailRose.rowCaption())
+                Spacer(Modifier.weight(1f))
+                Text(
+                    RetailCaptureCopy.STOCK_ADD_SKU_HINT,
+                    style = RetailRose.rowCaption(),
+                    modifier = Modifier.clickable { showSkuPicker = !showSkuPicker },
+                )
+            }
+            if (showSkuPicker) {
+                val usedCodes = lines.mapNotNull { it.sku.trim().takeIf { c -> c.isNotBlank() } }
+                    .map { it.uppercase() }
+                    .toSet()
+                val usedNames = lines.mapNotNull { it.name.trim().takeIf { n -> n.isNotBlank() } }
+                    .map { it.lowercase() }
+                    .toSet()
+                val picks = skus.filter { master ->
+                    val code = master.code?.trim()?.uppercase().orEmpty()
+                    val name = master.name.trim().lowercase()
+                    (code.isEmpty() || code !in usedCodes) && name !in usedNames
+                }.take(6)
+                if (picks.isEmpty()) {
+                    Text(
+                        if (skus.isEmpty()) {
+                            "No catalogue SKUs — add under Catalogue first."
+                        } else {
+                            "No more catalogue SKUs to add."
+                        },
+                        style = RetailRose.rowCaption(),
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        picks.forEach { sku ->
+                            RosePickerRow(
+                                label = sku.code?.takeIf { it.isNotBlank() } ?: "SKU",
+                                value = listOfNotNull(
+                                    sku.name,
+                                    sku.unit?.takeIf { it.isNotBlank() },
+                                ).joinToString(" · "),
+                                onClick = { pickStockSku(sku) },
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -1056,42 +1115,56 @@ private fun stockCountLineRow(
     onChange: (CaptureLineDraft) -> Unit,
     onRemove: () -> Unit,
 ) {
-    Row(
+    // Name/SKU on their own full-width column — never nest RoseTextField beside the stepper
+    // (that crush left only a single glyph like "V" visible).
+    Column(
         Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            line.sku.ifBlank { "SKU" },
+            style = RetailRose.rowCaption(RetailRose.amber).copy(fontSize = 10.sp),
+            maxLines = 1,
+        )
+        if (line.name.isBlank()) {
             Text(
-                line.sku.ifBlank { "SKU" },
-                style = RetailRose.rowCaption(RetailRose.amber).copy(fontSize = 10.sp),
-                maxLines = 1,
+                "Pick from + Add SKU or scan",
+                style = RetailRose.rowCaption(RetailRose.textBody).copy(fontSize = 13.sp),
             )
-            if (line.name.isBlank()) {
-                RoseTextField(line.name, "Item", onValueChange = { onChange(line.copy(name = it)) })
-            } else {
-                Text(line.name, style = RetailRose.rowTitle().copy(fontSize = 13.sp), maxLines = 1)
-            }
+        } else {
+            Text(
+                line.name,
+                style = RetailRose.rowTitle().copy(fontSize = 13.sp),
+                maxLines = 2,
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(
                 listOfNotNull(
                     location.takeIf { it.isNotBlank() },
                     line.wasQty.takeIf { it.isNotBlank() }?.let { "was $it" },
+                    line.unit.takeIf { it.isNotBlank() },
                 ).joinToString(" · ").ifBlank { "Set qty" },
                 style = RetailRose.rowCaption(RetailRose.textBody).copy(fontSize = 11.sp),
+                modifier = Modifier.weight(1f),
             )
+            val qtyInt = line.qty.toIntOrNull() ?: 0
+            RoseStepper(
+                quantity = qtyInt,
+                onDecrement = {
+                    if (qtyInt > 0) onChange(line.copy(qty = (qtyInt - 1).toString()))
+                    else onRemove()
+                },
+                onIncrement = { onChange(line.copy(qty = (qtyInt + 1).toString())) },
+            )
+            Text("→ ${line.qty}", style = RetailRose.rowValue().copy(fontSize = 13.sp))
         }
-        val qtyInt = line.qty.toIntOrNull() ?: 0
-        RoseStepper(
-            quantity = qtyInt,
-            onDecrement = {
-                if (qtyInt > 0) onChange(line.copy(qty = (qtyInt - 1).toString()))
-                else onRemove()
-            },
-            onIncrement = { onChange(line.copy(qty = (qtyInt + 1).toString())) },
-        )
-        Text("→ ${line.qty}", style = RetailRose.rowValue().copy(fontSize = 13.sp))
     }
 }
 
@@ -1607,37 +1680,16 @@ private fun RetailStatusSheet(
         val badgePositive: Boolean,
     )
     val sources = remember(orders) {
-        if (orders.isEmpty()) {
-            listOf(
-                SourceRow(
-                    id = null,
-                    code = "SO-441",
-                    title = "Customer order",
-                    meta = "12 SKUs · fulfil today",
-                    badge = "Ready",
-                    badgePositive = true,
-                ),
-                SourceRow(
-                    id = null,
-                    code = "Line pick",
-                    title = "Basmati 5kg ×4",
-                    meta = "Aisle 3",
-                    badge = "Queued",
-                    badgePositive = false,
-                ),
+        orders.map { order ->
+            SourceRow(
+                id = order.id,
+                code = order.title.substringBefore('·').trim().ifBlank { "SO" },
+                title = order.title,
+                meta = order.status ?: "OPEN",
+                badge = order.status ?: "Ready",
+                badgePositive = order.status?.contains("READY", true) == true ||
+                    order.status?.contains("OPEN", true) == true,
             )
-        } else {
-            orders.map { order ->
-                SourceRow(
-                    id = order.id,
-                    code = order.title.substringBefore('·').trim().ifBlank { "SO" },
-                    title = order.title,
-                    meta = order.status ?: "OPEN",
-                    badge = order.status ?: "Ready",
-                    badgePositive = order.status?.contains("READY", true) == true ||
-                        order.status?.contains("OPEN", true) == true,
-                )
-            }
         }
     }
     var selectedKey by remember {
@@ -1650,7 +1702,6 @@ private fun RetailStatusSheet(
     var notify by remember { mutableStateOf("Customer WhatsApp") }
     var moreOpen by remember { mutableStateOf(false) }
     val selected = sources.firstOrNull { (it.id ?: it.code) == selectedKey } ?: sources.firstOrNull()
-    // Fixture-only rows stay postable as ops signal (amount null) — never invent SALE/STOCK.
     val postable = selected != null
     val statusToken = when (status) {
         "Picking" -> "PICKING"
@@ -1658,8 +1709,9 @@ private fun RetailStatusSheet(
         "Dispatched" -> "DISPATCHED"
         else -> "READY_TO_PICK"
     }
-    val sourceTrailing = selected?.let { "${it.code} · ${it.title.substringAfter('·').trim().ifBlank { "Shah Mart" }}" }
-        ?: "SO-441 · Shah Mart"
+    val sourceTrailing = selected?.let {
+        "${it.code} · ${it.title.substringAfter('·').trim().ifBlank { it.title }}"
+    } ?: "No open orders"
 
     retailCaptureScaffold(
         title = RetailCaptureCopy.sheetTitle("STATUS"),
@@ -1681,6 +1733,9 @@ private fun RetailStatusSheet(
             lineCount = sources.size,
             trailingOverride = sourceTrailing,
         ) {
+            if (sources.isEmpty()) {
+                RoseEmpty("No open orders", "Post a Sales Order first — status updates allocate against it.")
+            }
             sources.forEach { row ->
                 val key = row.id ?: row.code
                 val picked = key == selectedKey

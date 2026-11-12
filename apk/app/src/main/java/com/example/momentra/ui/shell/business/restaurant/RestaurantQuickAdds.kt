@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
+import com.example.momentra.data.api.OperatingActivityDto
 import com.example.momentra.data.api.OperatingMasterBody
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureDraft
@@ -65,8 +66,8 @@ fun RestaurantQuickAddHub(
     val allowed = model.quickAdds.map { it.code }.toSet()
     var sheet by remember { mutableStateOf<RestaurantHubSheet?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    /** When KOT hands off to POS Bill, seed the Bill-from-KOT picker. */
-    var posParentKotId by remember { mutableStateOf<String?>(null) }
+    /** When KOT hands off to POS Bill, seed cart from the in-memory ticket immediately. */
+    var posParentKot by remember { mutableStateOf<OperatingActivityDto?>(null) }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -125,7 +126,7 @@ fun RestaurantQuickAddHub(
         RestaurantHubSheet.Pos -> OperatingSheetScrim(
             onDismiss = {
                 sheet = null
-                posParentKotId = null
+                posParentKot = null
             },
             accent = RestaurantEmber.ember,
             surface = RestaurantEmber.card,
@@ -136,14 +137,15 @@ fun RestaurantQuickAddHub(
                 model = model,
                 onDismiss = {
                     sheet = null
-                    posParentKotId = null
+                    posParentKot = null
                 },
-                initialParentKotId = posParentKotId,
+                initialParentKotId = posParentKot?.id,
+                initialKotTicket = posParentKot,
                 onSubmit = { draft ->
                     scope.launch {
                         runCatching { onRecord(draft) }.onFailure { error = it.message }
                         sheet = null
-                        posParentKotId = null
+                        posParentKot = null
                     }
                 },
             )
@@ -159,8 +161,8 @@ fun RestaurantQuickAddHub(
             RestaurantKotSheet(
                 model = model,
                 onDismiss = { sheet = null },
-                onBillFromKot = { ticketId ->
-                    posParentKotId = ticketId
+                onBillFromKot = { ticket ->
+                    posParentKot = ticket
                     sheet = RestaurantHubSheet.Pos
                 },
                 onSubmit = { draft ->
@@ -661,6 +663,7 @@ internal fun EmberSheetHeader(title: String, subtitle: String?, onClose: () -> U
 /** Field label above an input (`11/Medium`, as in every `RST-QA-*` frame). */
 @Composable
 internal fun EmberFieldLabel(text: String) {
+    if (text.isBlank()) return
     Text(
         text,
         style = RestaurantEmber.rowCaption(RestaurantEmber.textBody).copy(

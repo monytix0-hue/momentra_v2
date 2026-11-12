@@ -26,6 +26,8 @@ private struct RetailCaptureForm: View {
     @State private var didPrefill = false
     @State private var createMasterKind: RetailMasterFormKind?
     @State private var showBarcodeScanner = false
+    @State private var showStockSkuPicker = false
+    @State private var scanBanner: String?
 
     private var upper: String { mode.uppercased() }
     private var layout: OperatingCaptureLayout? { OperatingCaptureLayout.forMode(mode) }
@@ -110,13 +112,27 @@ private struct RetailCaptureForm: View {
                     }
                 }
 
+                if let scanBanner {
+                    Text(scanBanner)
+                        .font(.plusJakarta(size: 12, weight: .medium))
+                        .foregroundStyle(theme.negative)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 RoseWhyBox(theme: theme, text: whyText)
+
+                if let writeError = model.writeError, ["COLLECTION", "PAYMENT"].contains(upper) {
+                    Text(writeError)
+                        .font(.plusJakarta(size: 12, weight: .medium))
+                        .foregroundStyle(theme.negative)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 RoseStickyFooter(
                     theme: theme,
                     title: saving ? "Saving…" : saveLabel,
                     caption: footerCaption,
-                    disabled: !canSave,
+                    disabled: !canSave || saving,
                     loading: saving,
                     action: { Task { await save() } }
                 )
@@ -729,14 +745,56 @@ private struct RetailCaptureForm: View {
                 stockLineEditor(line: $line)
             }
             HStack {
-                Button("+ Add SKU") { draft.lines.append(RetailLineDraft()) }
+                Button("+ Add SKU") { showStockSkuPicker.toggle() }
                     .font(.plusJakarta(size: 13, weight: .bold))
                     .foregroundStyle(RoseSheetChrome.label)
                     .buttonStyle(.plain)
                 Spacer()
-                Text("Recent · Low stock")
+                Button("Recent · Low stock") { showStockSkuPicker.toggle() }
                     .font(.plusJakarta(size: 11))
                     .foregroundStyle(RoseSheetChrome.textBody)
+                    .buttonStyle(.plain)
+            }
+            .padding(.top, 4)
+
+            if showStockSkuPicker {
+                let usedCodes = Set(
+                    draft.lines
+                        .map { $0.sku.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+                        .filter { !$0.isEmpty }
+                )
+                let usedNames = Set(
+                    draft.lines
+                        .map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                        .filter { !$0.isEmpty }
+                )
+                let picks = catalogMasters.filter { master in
+                    let code = (master.code ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                    let name = master.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    let codeFree = code.isEmpty || !usedCodes.contains(code)
+                    return codeFree && !usedNames.contains(name)
+                }.prefix(6)
+                if picks.isEmpty {
+                    Text(
+                        catalogMasters.isEmpty
+                            ? "No catalogue SKUs — add under Catalogue first."
+                            : "No more catalogue SKUs to add."
+                    )
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(OperatingV12.subtitle)
+                } else {
+                    VStack(spacing: 6) {
+                        ForEach(Array(picks)) { sku in
+                            RosePickerRow(
+                                theme: theme,
+                                label: stockSkuCodeLabel(sku),
+                                value: stockSkuValueLabel(sku)
+                            ) {
+                                pickStockSku(sku)
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -761,59 +819,83 @@ private struct RetailCaptureForm: View {
 
     @ViewBuilder
     private func stockLineEditor(line: Binding<RetailLineDraft>) -> some View {
-        HStack(alignment: .center, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(line.wrappedValue.sku.isEmpty ? "SKU" : line.wrappedValue.sku)
-                    .font(.plusJakarta(size: 10, weight: .bold))
-                    .foregroundStyle(RoseSheetChrome.label)
-                RoseTextField(theme: theme, placeholder: "Item", text: line.name)
+        // Name/SKU full-width above qty row — avoid crushing Item beside the stepper.
+        VStack(alignment: .leading, spacing: 6) {
+            Text(line.wrappedValue.sku.isEmpty ? "SKU" : line.wrappedValue.sku)
+                .font(.plusJakarta(size: 10, weight: .bold))
+                .foregroundStyle(RoseSheetChrome.label)
+            if line.wrappedValue.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("Pick from + Add SKU or scan")
+                    .font(.plusJakarta(size: 13))
+                    .foregroundStyle(RoseSheetChrome.textBody)
+            } else {
+                Text(line.wrappedValue.name)
+                    .font(.plusJakarta(size: 13, weight: .semibold))
+                    .foregroundStyle(OperatingV12.title)
+                    .lineLimit(2)
+            }
+            HStack(alignment: .center, spacing: 8) {
                 Text(stockLineMeta(line.wrappedValue))
                     .font(.plusJakarta(size: 11))
                     .foregroundStyle(RoseSheetChrome.textBody)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                let qty = Int(line.wrappedValue.qty) ?? 0
+                RoseStepper(theme: theme, quantity: qty, onDecrement: {
+                    if qty > 0 {
+                        line.wrappedValue.qty = String(qty - 1)
+                    } else if draft.lines.count > 1 {
+                        draft.lines.removeAll { $0.id == line.wrappedValue.id }
+                    }
+                }, onIncrement: {
+                    line.wrappedValue.qty = String(qty + 1)
+                })
+                Text("→ \(line.wrappedValue.qty)")
+                    .font(.plusJakarta(size: 13, weight: .bold))
+                    .foregroundStyle(OperatingV12.title)
             }
-            let qty = Int(line.wrappedValue.qty) ?? 0
-            RoseStepper(theme: theme, quantity: qty, onDecrement: {
-                if qty > 0 {
-                    line.wrappedValue.qty = String(qty - 1)
-                } else if draft.lines.count > 1 {
-                    draft.lines.removeAll { $0.id == line.wrappedValue.id }
-                }
-            }, onIncrement: {
-                line.wrappedValue.qty = String(qty + 1)
-            })
-            Text("→ \(line.wrappedValue.qty)")
-                .font(.plusJakarta(size: 13, weight: .bold))
-                .foregroundStyle(OperatingV12.title)
         }
     }
 
     private func stockLineMeta(_ line: RetailLineDraft) -> String {
         let loc = draft.location.isEmpty ? "Aisle 3" : draft.location
-        if line.wasQty.isEmpty {
-            return line.unit.isEmpty ? loc : "\(loc) · \(line.unit)"
+        var bits: [String] = [loc]
+        if !line.wasQty.isEmpty { bits.append("was \(line.wasQty)") }
+        if !line.unit.isEmpty { bits.append(line.unit) }
+        return bits.joined(separator: " · ")
+    }
+
+    private func pickStockSku(_ master: OperatingMasterPayload) {
+        let code = (master.code ?? master.id).uppercased()
+        let draftLine = RetailLineDraft(
+            sku: code,
+            name: master.name,
+            unit: master.unit ?? "pcs"
+        )
+        if let idx = draft.lines.firstIndex(where: { $0.name.isEmpty }) {
+            draft.lines[idx] = draftLine
+        } else {
+            draft.lines.append(draftLine)
         }
-        return "\(loc) · was \(line.wasQty)"
+        showStockSkuPicker = false
     }
 
     private func appendStockScanLine() {
         let q = draft.scanQuery.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return }
-        let sku = String(q.prefix(8)).uppercased()
-        if let match = model.masters.first(where: {
-            $0.name.localizedCaseInsensitiveContains(q) || ($0.code?.localizedCaseInsensitiveContains(q) ?? false)
-        }) {
-            if let idx = draft.lines.firstIndex(where: { $0.name.isEmpty }) {
-                draft.lines[idx].name = match.name
-                draft.lines[idx].sku = match.code ?? sku
-                draft.lines[idx].unit = match.unit ?? "pcs"
-            } else {
-                draft.lines.append(RetailLineDraft(sku: match.code ?? sku, name: match.name, unit: match.unit ?? "pcs"))
-            }
-        } else if let idx = draft.lines.firstIndex(where: { $0.name.isEmpty }) {
-            draft.lines[idx].name = q
+        guard let match = retailMatchCatalogSku(catalogMasters, query: q) else {
+            scanBanner = "No product for this code — pick from catalogue or add under Catalogue."
+            return
+        }
+        scanBanner = nil
+        let sku = (match.code ?? String(q.prefix(8))).uppercased()
+        let name = match.name
+        let unit = match.unit ?? "pcs"
+        if let idx = draft.lines.firstIndex(where: { $0.name.isEmpty }) {
+            draft.lines[idx].name = name
             draft.lines[idx].sku = sku
+            draft.lines[idx].unit = unit
         } else {
-            draft.lines.append(RetailLineDraft(name: q, sku: sku))
+            draft.lines.append(RetailLineDraft(sku: sku, name: name, unit: unit))
         }
         draft.scanQuery = ""
     }
@@ -1392,7 +1474,7 @@ private struct RetailCaptureForm: View {
     }
 
     private var openPayablesList: [OperatingPaymentPayload] {
-        (model.projection?.paymentReadiness ?? []).filter { $0.relevance.uppercased() != "RECEIVABLE" }
+        (model.projection?.paymentReadiness ?? []).filter { $0.relevance.uppercased() == "PAYABLE" }
     }
 
     @ViewBuilder
@@ -1405,7 +1487,11 @@ private struct RetailCaptureForm: View {
             trailing: RetailCaptureCopy.allocateTrailing(openCount: open.count, party: party)
         ) {
             if open.isEmpty {
-                RoseEmptyCard(theme: theme, title: "No open AR", bodyText: "Record a credit sale before collecting.")
+                RoseEmptyCard(
+                    theme: theme,
+                    title: "Nothing to collect",
+                    bodyText: "Post a Pay later sale first — credit sales with open AR appear here."
+                )
             } else {
                 ForEach(open.prefix(6)) { row in
                     Button {
@@ -1439,7 +1525,11 @@ private struct RetailCaptureForm: View {
             trailing: RetailCaptureCopy.allocateTrailing(openCount: open.count, party: party)
         ) {
             if open.isEmpty {
-                RoseEmptyCard(theme: theme, title: "Nothing to pay", bodyText: "Open purchases and expenses appear here.")
+                RoseEmptyCard(
+                    theme: theme,
+                    title: "Nothing to pay",
+                    bodyText: "Post an unpaid purchase first — open AP appears here."
+                )
             } else {
                 ForEach(open.prefix(6)) { row in
                     Button {
@@ -1753,7 +1843,21 @@ private struct RetailCaptureForm: View {
     }
 
     private var catalogMasters: [OperatingMasterPayload] {
-        model.masters.filter { ["SKU", "PRODUCT", "BATCH", "ITEM"].contains($0.kind.uppercased()) }
+        let kinds: Set<String> = ["SKU", "PRODUCT", "BATCH", "ITEM", "MATERIAL", "CONSUMABLE"]
+        return model.masters
+            .filter { kinds.contains($0.kind.uppercased()) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func stockSkuCodeLabel(_ sku: OperatingMasterPayload) -> String {
+        let code = sku.code?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return code.isEmpty ? "SKU" : code
+    }
+
+    private func stockSkuValueLabel(_ sku: OperatingMasterPayload) -> String {
+        let unit = sku.unit?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if unit.isEmpty { return sku.name }
+        return "\(sku.name) · \(unit)"
     }
 
     private var locationMasters: [OperatingMasterPayload] {
@@ -1874,6 +1978,7 @@ private struct RetailCaptureForm: View {
             if draft.location == "Back store" || draft.location.isEmpty { draft.location = "Aisle 3" }
             if draft.stockReason.isEmpty { draft.stockReason = "Cycle count" }
             if draft.staff.isEmpty { draft.staff = "Ravi · floor" }
+            // Lines stay empty until Scan / SKU pick — never seed Basmati / HM fixtures.
         }
         if upper == "ORDER" {
             if draft.orderSide != "Purchase order", draft.location == "Back store" {
@@ -1941,20 +2046,13 @@ private struct RetailCaptureForm: View {
     private func applyPurchaseScan(_ raw: String) {
         let q = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return }
-        if let match = catalogMasters.first(where: {
-            ($0.barcode ?? "").caseInsensitiveCompare(q) == .orderedSame
-                || ($0.code ?? "").caseInsensitiveCompare(q) == .orderedSame
-                || (q.count >= 3 && $0.name.localizedCaseInsensitiveContains(q))
-        }) {
-            addCatalogLine(match, purchase: true)
-        } else if let idx = draft.lines.firstIndex(where: { $0.name.isEmpty }) {
-            draft.lines[idx].name = q
-            draft.lines[idx].sku = String(q.prefix(12)).uppercased()
-            syncAmountFromLines()
-        } else {
-            draft.lines.append(RetailLineDraft(name: q, sku: String(q.prefix(12)).uppercased()))
-            syncAmountFromLines()
+        guard let match = retailMatchCatalogSku(catalogMasters, query: q) else {
+            scanBanner = "No product for this code — pick from catalogue or add under Catalogue."
+            draft.scanQuery = q
+            return
         }
+        scanBanner = nil
+        addCatalogLine(match, purchase: true)
         draft.scanQuery = ""
     }
 
@@ -2088,7 +2186,8 @@ private struct RetailCaptureEventBuilder {
         case "BUDGET", "TARGET":
             return Decimal(string: draft.amount).map { $0 > 0 } ?? false
         case "COLLECTION", "PAYMENT":
-            return draft.parentEventId != nil && !draft.amount.trimmingCharacters(in: .whitespaces).isEmpty
+            guard draft.parentEventId != nil else { return false }
+            return Decimal(string: draft.amount).map { $0 > 0 } ?? false
         case "PURCHASE":
             return !draft.counterparty.trimmingCharacters(in: .whitespaces).isEmpty
                 && !filledLines.isEmpty

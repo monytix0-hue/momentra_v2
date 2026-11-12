@@ -24,6 +24,8 @@ struct OperatingExperienceHost: View {
     @State private var pendingCapture: String?
     /// Master chosen in Parts/Materials browser — applied when the capture sheet opens.
     @State private var pendingBrowserPrefill: OperatingBrowserItem?
+    /// Restaurant KOT → POS handoff ticket (seed cart before operating refetch).
+    @State private var pendingPosKotTicket: OperatingActivityPayload?
 
     init(
         momentId: String,
@@ -384,9 +386,14 @@ struct OperatingExperienceHost: View {
                 sheet = .capture(target.rawValue)
             }
         } else if kit == .restaurant, upper == "POS" {
-            RestaurantPosSheet(theme: theme, model: model)
+            RestaurantPosSheet(theme: theme, model: model, initialKotTicket: pendingPosKotTicket)
+                .onDisappear { pendingPosKotTicket = nil }
         } else if kit == .restaurant, upper == "KOT" {
-            RestaurantKotSheet(theme: theme, model: model)
+            RestaurantKotSheet(theme: theme, model: model) { ticket in
+                pendingPosKotTicket = ticket
+                pendingCapture = "POS"
+                sheet = nil
+            }
         } else if kit == .restaurant, upper == "STATUS" {
             RestaurantStatusSheet(theme: theme, model: model)
         } else if kit == .restaurant, ["HOLD", "TRANSFER", "REPRINT"].contains(upper) {

@@ -1,3 +1,4 @@
+import FirebaseAuth
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -112,11 +113,15 @@ struct RetailReceiptLine: Equatable {
 
 struct RetailReceiptModel: Equatable {
     var storeName: String
-    var tagline: String = "Stock. Sell. Settle."
+    /// Deprecated marketing line — kept blank; header uses location + GSTIN + cashier.
+    var tagline: String = ""
     var locationLine: String?
     /// Store GSTIN when known; omit line when nil.
     var gstin: String?
+    /// Person who posted / entered the invoice.
+    var enteredBy: String? = nil
     var occurredAt: String?
+    /// Bill / client key. Blank when not yet assigned — Ref row omitted.
     var refLabel: String
     var duplicate: Bool
     var lines: [RetailReceiptLine]
@@ -217,26 +222,29 @@ enum RetailReceiptLogoStore {
 }
 
 enum RetailReceiptBuilder {
+    @MainActor
     static func storeName(from model: BusinessOperatingModel) -> String {
         let title = model.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return title.isEmpty ? "Harbor Mart" : title
+        return title.isEmpty ? "Store" : title
     }
 
-    static func locationLine(from model: BusinessOperatingModel) -> String {
+    /// Setup location only — no Harbor demo fallback.
+    @MainActor
+    static func locationLine(from model: BusinessOperatingModel) -> String? {
         if let location = model.projection?.location?.trimmingCharacters(in: .whitespacesAndNewlines),
            !location.isEmpty {
             return location
         }
-        if let andheri = model.projection?.life?.channels.first(where: {
-            $0.localizedCaseInsensitiveContains("Andheri")
-        }) {
-            return andheri
-        }
-        return "Harbor Mart Andheri"
+        return nil
     }
 
-    /// Prefer a real 15-char GSTIN; Harbor Mart demo fixtures get `HarborMartDemoGstin`.
+    /// Prefer setup `gstin`, then master GSTIN. Harbor demo GSTIN only for Harbor Mart title.
+    @MainActor
     static func gstin(from model: BusinessOperatingModel) -> String? {
+        if let setup = model.projection?.gstin?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+           looksLikeGstin(setup) {
+            return setup
+        }
         if let reg = model.projection?.gstRegistration?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
            looksLikeGstin(reg) {
             return reg
@@ -247,16 +255,26 @@ enum RetailReceiptBuilder {
             return fromMaster
         }
         let display = storeName(from: model)
-        let realLocation = model.projection?.location?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isHarborDemo = display.localizedCaseInsensitiveContains("Harbor Mart")
-            || (realLocation?.localizedCaseInsensitiveContains("Harbor Mart") == true)
-        return isHarborDemo ? HarborMartDemoGstin : nil
+        return display.localizedCaseInsensitiveContains("Harbor Mart") ? HarborMartDemoGstin : nil
     }
 
     private static func looksLikeGstin(_ value: String) -> Bool {
         value.count == 15
             && value.allSatisfy { $0.isLetter || $0.isNumber }
             && value.prefix(2).allSatisfy(\.isNumber)
+    }
+
+    /// Cashier / invoice entry person from Firebase Auth.
+    static func enteredBy(fallback: String? = nil) -> String? {
+        if let name = Auth.auth().currentUser?.displayName?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+            return name
+        }
+        if let email = Auth.auth().currentUser?.email,
+           let local = email.split(separator: "@").first, !local.isEmpty {
+            return String(local)
+        }
+        return fallback?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
     }
 
     static func refLabel(clientKey: String?, eventId: String?) -> String {
@@ -266,16 +284,18 @@ enum RetailReceiptBuilder {
         if let id = eventId?.trimmingCharacters(in: .whitespacesAndNewlines), !id.isEmpty {
             return "Sale · \(id)"
         }
-        return "Posted sale · no bill no."
+        return ""
     }
 
+    @MainActor
     static func fromSale(
         model: BusinessOperatingModel,
         sale: OperatingActivityPayload,
         document: OperatingDocumentPayload? = nil,
         duplicate: Bool = true,
         reason: String? = nil,
-        tenderOverride: String? = nil
+        tenderOverride: String? = nil,
+        enteredBy: String? = nil
     ) -> RetailReceiptModel {
         let currency = model.currency
         let docLines = document?.lines ?? []
@@ -324,8 +344,10 @@ enum RetailReceiptBuilder {
 
         return RetailReceiptModel(
             storeName: storeName(from: model),
+            tagline: "",
             locationLine: locationLine(from: model),
             gstin: gstin(from: model),
+            enteredBy: enteredBy ?? Self.enteredBy(),
             occurredAt: sale.occurredAt.nilIfBlank,
             refLabel: refLabel(clientKey: sale.clientKey, eventId: sale.id),
             duplicate: duplicate,
@@ -341,6 +363,7 @@ enum RetailReceiptBuilder {
         )
     }
 
+    @MainActor
     static func fromPosCart(
         model: BusinessOperatingModel,
         title: String,
@@ -349,7 +372,8 @@ enum RetailReceiptBuilder {
         tender: String,
         customer: String?,
         quickAmountOnly: Bool,
-        gstEstimatePlain: String? = nil
+        gstEstimatePlain: String? = nil,
+        enteredBy: String? = nil
     ) -> RetailReceiptModel {
         let currency = model.currency
         let receiptLines: [RetailReceiptLine] = (quickAmountOnly || lines.isEmpty)
@@ -368,10 +392,13 @@ enum RetailReceiptBuilder {
             }
         return RetailReceiptModel(
             storeName: storeName(from: model),
+            tagline: "",
             locationLine: locationLine(from: model),
             gstin: gstin(from: model),
+            enteredBy: enteredBy ?? Self.enteredBy(),
             occurredAt: nil,
-            refLabel: "Just posted · awaiting bill key",
+            // No placeholder bill key — Ref row omitted until clientKey exists.
+            refLabel: "",
             duplicate: false,
             lines: receiptLines,
             amountOnly: receiptLines.isEmpty,
@@ -392,14 +419,14 @@ enum RetailReceiptBuilder {
         let rule = String(repeating: "-", count: 32)
         var lines: [String] = [
             model.storeName.uppercased(),
-            model.tagline,
         ]
         if let location = model.locationLine { lines.append(location) }
         if let gstin = model.gstin { lines.append("GSTIN : \(gstin)") }
+        if let by = model.enteredBy?.nilIfBlank { lines.append("Entered by : \(by)") }
         lines.append(rule)
         lines.append(model.duplicate ? "DUPLICATE COPY" : "CUSTOMER COPY")
         lines.append(rule)
-        lines.append("Ref \(model.refLabel)")
+        if !model.refLabel.isEmpty { lines.append("Ref \(model.refLabel)") }
         if let when = model.occurredAt { lines.append("When \(when)") }
         lines.append(rule)
         if model.amountOnly {
@@ -424,7 +451,7 @@ enum RetailReceiptBuilder {
             lines.append("Reprint \(reason)")
         }
         lines.append(rule)
-        lines.append("Thank you for shopping with Harbor Mart")
+        lines.append("Thank you for shopping with \(model.storeName)")
         lines.append(model.footerHonesty)
         return lines.joined(separator: "\n")
     }
@@ -460,10 +487,6 @@ struct RetailReceiptPreview: View {
                     .tracking(1.2)
                     .foregroundStyle(RetailReceiptPaper.ink)
                     .multilineTextAlignment(.center)
-                Text(model.tagline)
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(Color(hex: "#F43F5E"))
-                    .multilineTextAlignment(.center)
                 if let location = model.locationLine {
                     Text(location)
                         .font(.system(size: 10, design: .monospaced))
@@ -472,6 +495,12 @@ struct RetailReceiptPreview: View {
                 }
                 if let gstin = model.gstin {
                     Text("GSTIN : \(gstin)")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(RetailReceiptPaper.muted)
+                        .multilineTextAlignment(.center)
+                }
+                if let by = model.enteredBy?.nilIfBlank {
+                    Text("Entered by : \(by)")
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(RetailReceiptPaper.muted)
                         .multilineTextAlignment(.center)
@@ -489,7 +518,9 @@ struct RetailReceiptPreview: View {
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 dash
-                kv("Ref", model.refLabel)
+                if !model.refLabel.isEmpty {
+                    kv("Ref", model.refLabel)
+                }
                 if let when = model.occurredAt {
                     kv("When", String(when.prefix(16)))
                 }
@@ -553,7 +584,7 @@ struct RetailReceiptPreview: View {
                     kv("Reprint", reason)
                 }
                 dash
-                Text("Thank you for shopping with Harbor Mart")
+                Text("Thank you for shopping with \(model.storeName)")
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(RetailReceiptPaper.ink)
                     .multilineTextAlignment(.center)
@@ -936,21 +967,5 @@ enum RetailReceiptShare {
         } catch {
             return nil
         }
-    }
-}
-
-private extension Optional where Wrapped == String {
-    var nilIfBlank: String? {
-        guard let value = self?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        return value
-    }
-}
-
-private extension String {
-    var nilIfBlank: String? {
-        let t = trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.isEmpty ? nil : t
     }
 }
