@@ -29,13 +29,13 @@ import {
 } from '../../../typescript/src/platform/notifications/decision-audit';
 import { notificationPriority } from '../../../typescript/src/platform/notifications/allowlist';
 import { collapseKeyFor } from '../../../typescript/src/platform/notifications/thread-key';
+import { selectPushDevices } from '../../../typescript/src/platform/notifications/device-targets';
 import { startNotificationWorker } from '../../../typescript/src/platform/queue/notification-queue';
 import type { NotificationJobPayload } from '../../../typescript/src/platform/queue/notification-queue';
 
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 const BACKFILL_POLL_MS = parseInt(process.env.NOTIFICATION_POLL_MS ?? '60000', 10);
-const ANDROID_CHANNEL_ID = 'momentra_updates';
 const ALLOWLIST_EVENTS = [...PEER_PUSH_EVENT_NAMES];
 
 function initFirebaseAdmin(): Messaging | null {
@@ -109,36 +109,52 @@ async function sendPushToUser(
   data: Record<string, string>,
   opts?: { threadKey?: string | null; collapseKey?: string | null }
 ): Promise<{ sent: number; revoked: number }> {
-  const devices = await pool.query<{ push_token: string; platform: string }>(
-    `SELECT push_token, platform
+  // Soft-revoke stale devices (>30d unused) so they stop multiplying trays.
+  await pool.query(
+    `UPDATE platform.user_device
+     SET revoked_at = now(), updated_at = now()
+     WHERE user_id = $1
+       AND revoked_at IS NULL
+       AND push_token IS NOT NULL
+       AND push_token <> ''
+       AND coalesce(last_seen_at, created_at) < now() - interval '30 days'`,
+    [userId]
+  );
+
+  const devices = await pool.query<{
+    push_token: string;
+    platform: string;
+    last_seen_at: Date | null;
+  }>(
+    `SELECT push_token, platform, last_seen_at
      FROM platform.user_device
      WHERE user_id = $1
        AND revoked_at IS NULL
        AND push_token IS NOT NULL
-       AND push_token <> ''`,
+       AND push_token <> ''
+     ORDER BY last_seen_at DESC NULLS LAST`,
     [userId]
   );
+  const selected = selectPushDevices(devices.rows);
   let sent = 0;
   let revoked = 0;
-  for (const row of devices.rows) {
+  for (const row of selected) {
     try {
+      // Data-only on Android (app displays once); APNS still gets alert for background.
+      const isIos = row.platform.toUpperCase() === 'IOS';
       const messageId = await messaging.send({
         token: row.push_token,
-        notification: { title, body },
+        ...(isIos ? { notification: { title, body } } : {}),
         data: {
           ...data,
+          title,
+          body,
           platform: row.platform,
           ...(opts?.threadKey ? { threadKey: opts.threadKey } : {}),
         },
         android: {
           priority: 'high',
           collapseKey: opts?.collapseKey || undefined,
-          notification: {
-            channelId: ANDROID_CHANNEL_ID,
-            defaultSound: true,
-            sound: 'default',
-            tag: opts?.threadKey || undefined,
-          },
         },
         apns: {
           headers: opts?.collapseKey
@@ -327,6 +343,10 @@ async function processDomainEvent(
       continue;
     }
 
+    // If FCM already succeeded but markSent fails, BullMQ attempts:3 + releaseClaim
+    // would resend up to 3×. Never release a claim after a successful push attempt.
+    let pushAttempted = false;
+    let n = 0;
     try {
       const digest = decision.route === 'digest';
       const inboxDeepLink = deepLink
@@ -370,7 +390,6 @@ async function processDomainEvent(
         eventOccurredAt,
       });
 
-      let n = 0;
       if (digest) {
         digestCount += 1;
         await markSent(pool, ev.domain_event_id, prefs.user_id, 0, 'digest_batched');
@@ -400,6 +419,7 @@ async function processDomainEvent(
           data,
           { threadKey: decision.threadKey, collapseKey: collapse }
         );
+        pushAttempted = true;
         n = result.sent;
         revokedTokens += result.revoked;
         let failureReason: string | null = null;
@@ -427,7 +447,16 @@ async function processDomainEvent(
       }
       sentCount += n;
     } catch (e) {
-      await releaseClaim(pool, ev.domain_event_id, prefs.user_id);
+      if (pushAttempted) {
+        // Keep claim so BullMQ attempts:3 cannot FCM again; claim row blocks reclaim.
+        try {
+          await markSent(pool, ev.domain_event_id, prefs.user_id, n, 'post_send_error');
+        } catch {
+          /* ignore — claim retained */
+        }
+      } else {
+        await releaseClaim(pool, ev.domain_event_id, prefs.user_id);
+      }
       throw e;
     }
   }

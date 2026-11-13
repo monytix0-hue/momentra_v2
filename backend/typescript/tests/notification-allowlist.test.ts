@@ -45,25 +45,35 @@ describe('notification allowlist', () => {
     }
   });
 
-  it('sends the daily personal nudge as HIGH so digest and quiet hours cannot hide it', () => {
+  it('keeps DailyPersonalReminder allowlisted but NORMAL (server emission disabled)', () => {
     assert.equal(isPeerPushEvent('DailyPersonalReminder'), true);
-    assert.equal(notificationPriority('DailyPersonalReminder'), 'HIGH');
+    assert.equal(notificationPriority('DailyPersonalReminder'), 'NORMAL');
     assert.equal(notificationCategory('DailyPersonalReminder'), 'reminders');
     const copy = notificationCopy('DailyPersonalReminder', {});
     assert.equal(copy.title, 'Your daily Personal check-in');
     assert.match(copy.body, /log one thing/);
-    assert.equal(
-      shouldDigest(
-        {
-          digest_enabled: true,
-          quiet_hours_start: '22:00',
-          quiet_hours_end: '07:00',
-          timezone: 'UTC',
-        },
-        notificationPriority('DailyPersonalReminder')
-      ),
-      false
-    );
+  });
+
+  it('allowlists planning delete and personal expense update/void', () => {
+    assert.equal(isPeerPushEvent('PlanningItemDeleted'), true);
+    assert.equal(notificationCategory('PlanningItemDeleted'), 'tasks');
+    assert.equal(isPeerPushEvent('ExpenseUpdated'), true);
+    assert.equal(isPeerPushEvent('ExpenseVoided'), true);
+    const deleted = notificationCopy('PlanningItemDeleted', {
+      actorDisplayName: 'Sam',
+      title: 'Take out trash',
+    });
+    assert.match(deleted.body, /removed/);
+    assert.match(deleted.body, /Take out trash/);
+  });
+
+  it('uses concrete chore reminder body from payload', () => {
+    const copy = notificationCopy('ChoreReminder', {
+      body: '“Dishes” still needs doing.',
+      title: 'Dishes',
+    });
+    assert.equal(copy.title, 'Chore reminder');
+    assert.match(copy.body, /Dishes/);
   });
 
   it('returns richer copy with actor and title', () => {

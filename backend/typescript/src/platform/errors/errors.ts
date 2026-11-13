@@ -110,6 +110,21 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
         res.setHeader('Retry-After', String(details.retryAfterSec));
       }
     }
+    // Surface validation / domain 4xx reasons in structured logs (access logs omit body).
+    if (err.httpStatus >= 400 && err.httpStatus < 500) {
+      console.log(
+        JSON.stringify({
+          level: 'warn',
+          msg: 'app_error',
+          correlationId,
+          route: req.path,
+          method: req.method,
+          status: err.httpStatus,
+          errorCode: err.code,
+          message: err.message,
+        })
+      );
+    }
     res.status(err.httpStatus).json(errorEnvelope(err.code, err.message, correlationId, err.details));
     return;
   }

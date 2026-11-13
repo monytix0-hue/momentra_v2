@@ -157,8 +157,18 @@ v1Router.patch('/me', async (req, res, next) => {
 v1Router.delete('/me', async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
-    const data = await withDb((client) => accountService.softDeleteMe(client, ctx));
+    const data = await withDb((client) => accountService.eraseMe(client, ctx));
     res.json(commandEnvelope(data, ctx.correlationId));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/me/erasure-preflight', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) => accountService.erasurePreflight(client, ctx));
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
   } catch (e) {
     next(e);
   }
@@ -217,10 +227,20 @@ v1Router.post('/me/consents/withdraw', requireIdempotencyKey, async (req, res, n
       resourceType: 'CONSENT',
       execute: async (client, b) => {
         const r = await accountService.withdrawConsent(client, ctx, b as accountService.WithdrawConsentInput);
-        return { result: r, resourceId: ctx.userId };
+        return { result: r, resourceId: r.consentId };
       },
     });
     res.json(commandEnvelope(result, ctx.correlationId));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/me/export', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) => accountService.exportMe(client, ctx));
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
   } catch (e) {
     next(e);
   }
