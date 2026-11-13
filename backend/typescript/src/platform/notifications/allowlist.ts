@@ -17,6 +17,8 @@ export const PEER_PUSH_EVENT_NAMES = new Set<string>([
   'MomentReopened',
   'ExpenseCreated',
   'ExpenseRecorded',
+  'ExpenseUpdated',
+  'ExpenseVoided',
   'GroupExpenseRecorded',
   'GroupExpenseUpdated',
   'GroupExpenseVoided',
@@ -28,6 +30,7 @@ export const PEER_PUSH_EVENT_NAMES = new Set<string>([
   'TaskDueReminder',
   'PlanningItemCreated',
   'PlanningItemUpdated',
+  'PlanningItemDeleted',
   'BookingCreated',
   'MilestoneCreated',
   'GoalCreated',
@@ -83,6 +86,8 @@ export const PEER_PUSH_EVENT_NAMES = new Set<string>([
 const CATEGORY_BY_EVENT: Record<string, NotificationCategory> = {
   ExpenseCreated: 'finance',
   ExpenseRecorded: 'finance',
+  ExpenseUpdated: 'finance',
+  ExpenseVoided: 'finance',
   GroupExpenseRecorded: 'finance',
   GroupExpenseUpdated: 'finance',
   GroupExpenseVoided: 'finance',
@@ -100,6 +105,7 @@ const CATEGORY_BY_EVENT: Record<string, NotificationCategory> = {
   TaskDueReminder: 'tasks',
   PlanningItemCreated: 'tasks',
   PlanningItemUpdated: 'tasks',
+  PlanningItemDeleted: 'tasks',
   BookingCreated: 'tasks',
   MilestoneCreated: 'tasks',
   GoalCreated: 'tasks',
@@ -156,8 +162,8 @@ const PRIORITY_BY_EVENT: Record<string, NotificationPriority> = {
   TaskDueReminder: 'HIGH',
   BillReminder: 'HIGH',
   BusinessIssueCreated: 'HIGH',
-  // HIGH so the daily nudge is never swallowed by digest batching or quiet hours.
-  DailyPersonalReminder: 'HIGH',
+  // Server daily personal is disabled; if re-enabled keep NORMAL so digest can batch.
+  DailyPersonalReminder: 'NORMAL',
   PollVoted: 'LOW',
   GroupParticipantRoleUpdated: 'LOW',
   DigestReady: 'NORMAL',
@@ -312,15 +318,17 @@ export function notificationCopy(
         title: withMomentTitle(itemTitle ?? 'New expense', payload, recipientCtx),
         body: expenseConsequenceBody(actor, itemTitle, payload, recipientCtx),
       };
+    case 'ExpenseUpdated':
     case 'GroupExpenseUpdated':
       return {
         title: withMomentTitle('Expense updated', payload, recipientCtx),
-        body: `${actor} updated an expense.`,
+        body: itemTitle ? `${actor} updated “${itemTitle}”.` : `${actor} updated an expense.`,
       };
+    case 'ExpenseVoided':
     case 'GroupExpenseVoided':
       return {
         title: withMomentTitle('Expense voided', payload, recipientCtx),
-        body: `${actor} voided an expense.`,
+        body: itemTitle ? `${actor} voided “${itemTitle}”.` : `${actor} voided an expense.`,
       };
     case 'MomentCompleted':
       return {
@@ -386,11 +394,19 @@ export function notificationCopy(
         body: itemTitle ? `“${itemTitle}” is due soon.` : 'A task is due soon.',
       };
     case 'PlanningItemCreated':
-      return { title: 'New plan item', body: `${actor} added a planning item.` };
+      return {
+        title: 'New plan item',
+        body: itemTitle ? `${actor} added “${itemTitle}”.` : `${actor} added a planning item.`,
+      };
     case 'PlanningItemUpdated':
       return {
         title: 'Plan updated',
         body: itemTitle ? `${actor} updated “${itemTitle}”.` : `${actor} updated a planning item.`,
+      };
+    case 'PlanningItemDeleted':
+      return {
+        title: 'Plan item removed',
+        body: itemTitle ? `${actor} removed “${itemTitle}”.` : `${actor} removed a planning item.`,
       };
     case 'BookingCreated':
       return { title: 'New booking', body: `${actor} added a booking.` };
@@ -472,13 +488,39 @@ export function notificationCopy(
             : 'Open Personal and log one thing from today.',
       };
     case 'BillReminder':
-      return { title: 'Bill reminder', body: 'A shared bill may need attention.' };
+      return {
+        title: 'Bill reminder',
+        body:
+          typeof payload?.body === 'string' && payload.body.trim()
+            ? payload.body
+            : 'A shared bill needs attention.',
+      };
     case 'ChoreReminder':
-      return { title: 'Chore reminder', body: 'A shared chore may need attention.' };
+      return {
+        title: 'Chore reminder',
+        body:
+          typeof payload?.body === 'string' && payload.body.trim()
+            ? payload.body
+            : typeof payload?.title === 'string' && payload.title.trim()
+              ? `“${payload.title}” still needs doing.`
+              : 'An open chore still needs doing.',
+      };
     case 'ExpenseReminder':
-      return { title: 'Expense reminder', body: 'Log recent group expenses while they’re fresh.' };
+      return {
+        title: 'Expense reminder',
+        body:
+          typeof payload?.body === 'string' && payload.body.trim()
+            ? payload.body
+            : 'A shared balance still needs settling.',
+      };
     case 'PhotoReminder':
-      return { title: 'Photo reminder', body: 'Add photos from your shared experience.' };
+      return {
+        title: 'Photo reminder',
+        body:
+          typeof payload?.body === 'string' && payload.body.trim()
+            ? payload.body
+            : 'Add a photo or memory while it’s fresh.',
+      };
     case 'DigestReady': {
       const n = typeof payload?.count === 'number' ? payload.count : 0;
       return {

@@ -58,15 +58,53 @@ describe('S7 account + consents + devices', () => {
     const listed = await request(app).get('/v1/me/consents').set(auth()).expect(200);
     const row = listed.body.data.purposes.find((p: { code: string }) => p.code === 'PERSONAL_ANALYTICS');
     assert.equal(row?.granted, true);
-    await request(app)
+    const withdrawn = await request(app)
       .post('/v1/me/consents/withdraw')
       .set({ ...auth(), 'Idempotency-Key': randomUUID() })
       .send({ purposeCode: 'PERSONAL_ANALYTICS' })
       .expect(200);
+    assert.equal(withdrawn.body.data.status, 'WITHDRAWN');
+    assert.ok(withdrawn.body.data.consentId);
   });
 
-  it('DELETE /me soft-deletes profile', async () => {
+  it('GET /me/export returns principal-scoped package', async () => {
+    const res = await request(app).get('/v1/me/export').set(auth()).expect(200);
+    assert.ok(res.body.data.exportedAt);
+    assert.equal(res.body.data.profile.userId.length > 0, true);
+    assert.ok(Array.isArray(res.body.data.devices));
+    assert.ok(Array.isArray(res.body.data.consents));
+    assert.ok(Array.isArray(res.body.data.processors));
+    assert.ok(res.body.data.processors.length >= 1);
+  });
+
+  it('GET /me/erasure-preflight allows clean account', async () => {
+    const res = await request(app).get('/v1/me/erasure-preflight').set(auth()).expect(200);
+    assert.equal(res.body.data.canErase, true);
+    assert.equal(res.body.data.blockers.length, 0);
+  });
+
+  it('DELETE /me performs principal-owned erasure', async () => {
+    const me = await request(app).get('/v1/me').set(auth()).expect(200);
+    const userId = me.body.data.userId as string;
+    assert.ok(userId);
+
+    await request(app)
+      .post('/v1/me/consents/grant')
+      .set({ ...auth(), 'Idempotency-Key': randomUUID() })
+      .send({ purposeCode: 'AI_INSIGHT_GENERATION' })
+      .expect(201);
     const res = await request(app).delete('/v1/me').set(auth()).expect(200);
     assert.equal(res.body.data.status, 'DELETED');
+    assert.equal(res.body.data.userId, userId);
+    assert.ok(res.body.data.erased);
+    assert.ok(res.body.data.erased.consentsWithdrawn >= 1);
+
+    const row = await getPool().query<{ status: string; display_name: string | null; email: string }>(
+      `SELECT status, display_name, email FROM core.user_profile WHERE user_id = $1`,
+      [userId],
+    );
+    assert.equal(row.rows[0].status, 'DELETED');
+    assert.equal(row.rows[0].display_name, null);
+    assert.ok(row.rows[0].email.startsWith('erased-'));
   });
 });

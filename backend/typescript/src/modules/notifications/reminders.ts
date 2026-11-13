@@ -123,64 +123,20 @@ const DAILY_REMINDER_LOCAL_HOUR = 8;
 const DAILY_REMINDER_BATCH = 500;
 
 /**
- * One encouraging Personal check-in per user per local day.
- * Targeted at the user so peer actor-exclusion cannot drop it.
- *
- * The local-day and 08:00 gate are evaluated in Postgres against each profile's
- * timezone, and already-claimed users are excluded, so the batch window advances
- * every tick instead of pinning to the same first N users.
+ * Server DailyPersonalReminder is disabled.
+ * Unconditional morning nudges stacked with the opt-in local evening check-in
+ * and group digests. Prefer the Account "Evening check-in" local reminder.
+ * Kept as a no-op so scheduler ticks / tests stay stable.
  */
-export async function dispatchDailyPersonalReminders(pool: Pool, now = new Date()): Promise<number> {
-  const rows = await pool.query<{
-    user_id: string;
-    moment_id: string;
-    local_day: string;
-  }>(
-    `WITH eligible AS (
-       SELECT pmc.user_id,
-              pmc.moment_id,
-              pmc.updated_at,
-              timezone(coalesce(nullif(up.timezone, ''), 'UTC'), $1::timestamptz) AS local_now
-       FROM personal.personal_moment_context pmc
-       JOIN core.user_profile up ON up.user_id = pmc.user_id
-       WHERE pmc.status = 'ACTIVE'
-         AND up.status = 'ACTIVE'
-         AND up.push_notifications_enabled = true
-     )
-     SELECT DISTINCT ON (e.user_id)
-            e.user_id,
-            e.moment_id,
-            to_char(e.local_now, 'YYYY-MM-DD') AS local_day
-     FROM eligible e
-     WHERE extract(hour FROM e.local_now) >= $2
-       AND NOT EXISTS (
-         SELECT 1 FROM platform.reminder_dispatch rd
-         WHERE rd.reminder_key =
-           'daily-personal:' || e.user_id || ':' || to_char(e.local_now, 'YYYY-MM-DD')
-       )
-     ORDER BY e.user_id, e.updated_at DESC
-     LIMIT $3`,
-    [now.toISOString(), DAILY_REMINDER_LOCAL_HOUR, DAILY_REMINDER_BATCH]
-  );
-
-  let n = 0;
-  for (const row of rows.rows) {
-    const key = `daily-personal:${row.user_id}:${row.local_day}`;
-    const payload = {
-      momentId: row.moment_id,
-      body: 'Open Personal and log one thing from today.',
-      targetUserIds: [row.user_id],
-    };
-    // reminder_dispatch is still the authority — two schedulers can race this.
-    if (
-      !(await claimReminder(pool, key, row.user_id, 'DailyPersonalReminder', row.moment_id, payload))
-    ) {
-      continue;
-    }
-    await emitReminder(pool, row.user_id, 'DailyPersonalReminder', row.moment_id, payload);
-    n += 1;
-  }
-  return n;
+export async function dispatchDailyPersonalReminders(
+  _pool: Pool,
+  _now = new Date()
+): Promise<number> {
+  void _pool;
+  void _now;
+  void DAILY_REMINDER_LOCAL_HOUR;
+  void DAILY_REMINDER_BATCH;
+  return 0;
 }
 
 /** Tasks due in the next 24h (OPEN). */
@@ -231,15 +187,188 @@ export async function dispatchOverdueTaskReminders(pool: Pool): Promise<number> 
 
 type GroupReminderKind = 'BillReminder' | 'ChoreReminder' | 'ExpenseReminder' | 'PhotoReminder';
 
-const GROUP_PREF_TO_EVENT: Array<{ pref: string; event: GroupReminderKind }> = [
-  { pref: 'billReminders', event: 'BillReminder' },
-  { pref: 'choreReminders', event: 'ChoreReminder' },
-  { pref: 'expenseReminders', event: 'ExpenseReminder' },
-  { pref: 'photoReminders', event: 'PhotoReminder' },
-  { pref: 'paymentReminders', event: 'BillReminder' },
+/** Pref flags that map to the same event (payment + bill → one BillReminder/day). */
+const GROUP_PREF_TO_EVENT: Array<{ prefs: string[]; event: GroupReminderKind }> = [
+  { prefs: ['choreReminders'], event: 'ChoreReminder' },
+  { prefs: ['billReminders', 'paymentReminders'], event: 'BillReminder' },
+  { prefs: ['expenseReminders'], event: 'ExpenseReminder' },
+  { prefs: ['photoReminders'], event: 'PhotoReminder' },
 ];
 
-/** Honor group reminder_preferences — one nudge per moment/kind/day. */
+function prefEnabled(prefs: Record<string, unknown>, keys: string[]): boolean {
+  return keys.some((key) => {
+    const enabled = prefs[key];
+    return (
+      enabled === true ||
+      (typeof enabled === 'string' && enabled.toLowerCase() === 'enabled')
+    );
+  });
+}
+
+type ActionableHit = { count: number; sampleTitle: string | null; body: string };
+
+/** Open chores = open planning items categorized as chores, or open work.tasks. */
+async function findOpenChores(pool: Pool, momentId: string): Promise<ActionableHit | null> {
+  const planning = await pool.query<{ title: string; n: string }>(
+    `SELECT title, COUNT(*) OVER()::text AS n
+     FROM collaboration.planning_item
+     WHERE moment_id = $1
+       AND status IN ('OPEN', 'IN_PROGRESS')
+       AND (
+         category_code ILIKE '%chore%'
+         OR lower(coalesce(category_code, '')) IN ('chores', 'chore')
+         OR title ILIKE '%chore%'
+       )
+     ORDER BY due_at NULLS LAST, updated_at DESC
+     LIMIT 1`,
+    [momentId]
+  );
+  if (planning.rows[0]) {
+    const count = parseInt(planning.rows[0].n, 10);
+    return {
+      count,
+      sampleTitle: planning.rows[0].title,
+      body:
+        count === 1
+          ? `“${planning.rows[0].title}” still needs doing.`
+          : `${count} open chores — start with “${planning.rows[0].title}”.`,
+    };
+  }
+  const tasks = await pool.query<{ title: string; n: string }>(
+    `SELECT title, COUNT(*) OVER()::text AS n
+     FROM work.task
+     WHERE moment_id = $1
+       AND status = 'OPEN'
+     ORDER BY due_at NULLS LAST, updated_at DESC
+     LIMIT 1`,
+    [momentId]
+  );
+  if (tasks.rows[0]) {
+    const count = parseInt(tasks.rows[0].n, 10);
+    return {
+      count,
+      sampleTitle: tasks.rows[0].title,
+      body:
+        count === 1
+          ? `“${tasks.rows[0].title}” still needs doing.`
+          : `${count} open tasks — start with “${tasks.rows[0].title}”.`,
+    };
+  }
+  return null;
+}
+
+/** Bills = open planning items in Bills category, or OPEN participant obligations. */
+async function findOpenBills(pool: Pool, momentId: string): Promise<ActionableHit | null> {
+  const planning = await pool.query<{ title: string; n: string }>(
+    `SELECT title, COUNT(*) OVER()::text AS n
+     FROM collaboration.planning_item
+     WHERE moment_id = $1
+       AND status IN ('OPEN', 'IN_PROGRESS')
+       AND (
+         category_code ILIKE '%bill%'
+         OR lower(coalesce(category_code, '')) IN ('bills', 'bill', 'payments')
+       )
+     ORDER BY due_at NULLS LAST, updated_at DESC
+     LIMIT 1`,
+    [momentId]
+  );
+  if (planning.rows[0]) {
+    const count = parseInt(planning.rows[0].n, 10);
+    return {
+      count,
+      sampleTitle: planning.rows[0].title,
+      body:
+        count === 1
+          ? `“${planning.rows[0].title}” still needs attention.`
+          : `${count} open bills — start with “${planning.rows[0].title}”.`,
+    };
+  }
+  const oblig = await pool.query<{ n: string }>(
+    `SELECT COUNT(*)::text AS n
+     FROM finance.participant_obligation
+     WHERE moment_id = $1
+       AND status IN ('OPEN', 'PARTIALLY_SETTLED')
+       AND (original_amount - settled_amount) > 0`,
+    [momentId]
+  );
+  const count = parseInt(oblig.rows[0]?.n ?? '0', 10);
+  if (count <= 0) return null;
+  return {
+    count,
+    sampleTitle: null,
+    body: count === 1 ? 'One balance still needs settling.' : `${count} open balances need settling.`,
+  };
+}
+
+/** Expense nudge only when unsettled OPEN obligations exist. */
+async function findUnsettledExpenses(pool: Pool, momentId: string): Promise<ActionableHit | null> {
+  const r = await pool.query<{ n: string }>(
+    `SELECT COUNT(*)::text AS n
+     FROM finance.participant_obligation
+     WHERE moment_id = $1
+       AND status IN ('OPEN', 'PARTIALLY_SETTLED')
+       AND (original_amount - settled_amount) > 0`,
+    [momentId]
+  );
+  const count = parseInt(r.rows[0]?.n ?? '0', 10);
+  if (count <= 0) return null;
+  return {
+    count,
+    sampleTitle: null,
+    body:
+      count === 1
+        ? 'One shared expense still needs settling.'
+        : `${count} shared balances still need settling.`,
+  };
+}
+
+/** Photo nudge only when an active moment has no recent memories (7 days). */
+async function findPhotoGap(pool: Pool, momentId: string): Promise<ActionableHit | null> {
+  const moment = await pool.query<{ status: string }>(
+    `SELECT status FROM core.moment WHERE moment_id = $1`,
+    [momentId]
+  );
+  if (moment.rows[0]?.status !== 'ACTIVE') return null;
+
+  const recent = await pool.query<{ n: string }>(
+    `SELECT COUNT(*)::text AS n
+     FROM memory.memory
+     WHERE moment_id = $1
+       AND status = 'ACTIVE'
+       AND created_at > now() - interval '7 days'`,
+    [momentId]
+  );
+  if (parseInt(recent.rows[0]?.n ?? '0', 10) > 0) return null;
+  return {
+    count: 0,
+    sampleTitle: null,
+    body: 'No recent photos or memories — add one while it’s fresh.',
+  };
+}
+
+async function actionableForKind(
+  pool: Pool,
+  momentId: string,
+  event: GroupReminderKind
+): Promise<ActionableHit | null> {
+  switch (event) {
+    case 'ChoreReminder':
+      return findOpenChores(pool, momentId);
+    case 'BillReminder':
+      return findOpenBills(pool, momentId);
+    case 'ExpenseReminder':
+      return findUnsettledExpenses(pool, momentId);
+    case 'PhotoReminder':
+      return findPhotoGap(pool, momentId);
+    default:
+      return null;
+  }
+}
+
+/**
+ * Honor group reminder_preferences — one nudge per moment/kind/day,
+ * only when there is actionable open work (no empty “may need attention” spam).
+ */
 export async function dispatchGroupSetupReminders(pool: Pool): Promise<number> {
   const day = new Date().toISOString().slice(0, 10);
   const rows = await pool.query<{
@@ -258,12 +387,10 @@ export async function dispatchGroupSetupReminders(pool: Pool): Promise<number> {
   let n = 0;
   for (const row of rows.rows) {
     for (const mapping of GROUP_PREF_TO_EVENT) {
-      const enabled = row.reminder_preferences[mapping.pref];
-      // Accept boolean true or string "Enabled"
-      const on =
-        enabled === true ||
-        (typeof enabled === 'string' && enabled.toLowerCase() === 'enabled');
-      if (!on) continue;
+      if (!prefEnabled(row.reminder_preferences, mapping.prefs)) continue;
+
+      const hit = await actionableForKind(pool, row.moment_id, mapping.event);
+      if (!hit) continue;
 
       const members = await pool.query<{ user_id: string }>(
         `SELECT mp.user_id
@@ -283,6 +410,9 @@ export async function dispatchGroupSetupReminders(pool: Pool): Promise<number> {
         const payload = {
           momentId: row.moment_id,
           targetUserIds: [m.user_id],
+          title: hit.sampleTitle ?? undefined,
+          body: hit.body,
+          openCount: hit.count,
         };
         if (!(await claimReminder(pool, key, m.user_id, mapping.event, row.moment_id, payload))) {
           continue;

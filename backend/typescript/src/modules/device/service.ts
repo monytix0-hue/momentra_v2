@@ -57,6 +57,21 @@ export async function registerDevice(
   );
 
   const userDeviceId = inserted.rows[0].user_device_id;
+
+  // Same FCM token on another device row → revoke the duplicates (reinstall / deviceId churn).
+  const token = body.pushToken?.trim();
+  if (token) {
+    await client.query(
+      `UPDATE platform.user_device
+       SET revoked_at = now(), updated_at = now()
+       WHERE user_id = $1
+         AND user_device_id <> $2
+         AND revoked_at IS NULL
+         AND push_token = $3`,
+      [ctx.userId, userDeviceId, token]
+    );
+  }
+
   const result = {
     deviceId,
     userDeviceId,
