@@ -2230,7 +2230,3 @@ export async function getMoment(client: PoolClient, ctx: RequestContext, momentI
     version: parseInt(r.version, 10),
   };
 }
-
-export function stubMomentCommand(_momentId: string, command: string): { commandId: string; status: string } {
-  return { commandId: randomUUID(), status: `${command}_ACCEPTED` };
-}
