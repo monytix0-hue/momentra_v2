@@ -68,3 +68,4 @@ backend/typescript/tmpdbg/
 tools/design-pipeline/package.tmp.json
 test.png
 
+.worktrees/
