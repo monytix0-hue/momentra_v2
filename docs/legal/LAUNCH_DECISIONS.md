@@ -55,7 +55,7 @@ Updated: 2026-10-06 (Asia/Calcutta)
 
 ## Sprint S4 scope (ops polish)
 
-- Dependabot: `.github/dependabot.yml` (npm: `backend/typescript`, `admin-dashboard`, `backend/packages/event-contracts`, root; gradle: `apk/`; github-actions). **SPM (iOS):** not covered by Dependabot — update Xcode packages manually.
+- Dependabot: `.github/dependabot.yml` (npm: `backend/typescript`, `admin-dashboard`, `backend/packages/event-contracts`; gradle: `apk/`; github-actions). **SPM (iOS):** not covered by Dependabot — update Xcode packages manually.
 - Backups ops checklist: `docs/security/BACKUPS_CHECKLIST.md` (Supabase encryption at rest, PITR, restore drill). Not automated.
 - Subprocessors register: `docs/legal/SUBPROCESSORS.md` (Firebase, Google, Apple, FCM, Supabase, optional Sentry).
 - Invite polish: `web/invite` favicon.svg, Open Graph tags on `join.html`, robots.txt + sitemap.xml. Privacy/Terms links remain `https://momentra.tech/privacy` and `/terms`.
