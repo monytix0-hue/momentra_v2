@@ -47,6 +47,7 @@ backend/venv/
 .stfolder/
 .tmp/
 *.log
+apk/compile-out*.txt
 .DS_Store
 Thumbs.db
 
