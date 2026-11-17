@@ -129,8 +129,8 @@ import com.example.momentra.ui.shell.business.shared.OperatingTab
 import com.example.momentra.ui.shell.business.shared.BusinessRevenueSheet
 import com.example.momentra.ui.shell.business.shared.BusinessKhataHomeSheet
 import com.example.momentra.ui.shell.business.shared.BusinessRecentActivityFlow
-import com.example.momentra.ui.shell.business.ops.components.OpsColors
-import com.example.momentra.ui.shell.business.runway.components.RunwayColors
+import com.example.momentra.ui.shell.business.ops.OpsColors
+import com.example.momentra.ui.shell.business.runway.RunwayColors
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsColors
 import com.example.momentra.ui.shell.group.shared.GroupBudgetSheet
 import com.example.momentra.ui.shell.group.shared.GroupCollabKind
