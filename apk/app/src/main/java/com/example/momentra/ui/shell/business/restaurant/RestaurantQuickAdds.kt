@@ -334,17 +334,6 @@ fun RestaurantQuickAddHub(
                             },
                         )
                     },
-                    onSubmit = { draft ->
-                        scope.launch {
-                            error = null
-                            runCatching { onRecord(draft) }
-                                .onSuccess {
-                                    showSavedToast()
-                                    sheet = null
-                                }
-                                .onFailure { error = it.message ?: "Could not save" }
-                        }
-                    },
                 )
 
                 else -> OperatingCaptureSheet(
