@@ -1185,15 +1185,29 @@ fun AppShellScreen(
             )
         }
         if (state.selectedMomentId != null && state.selectedContext == AppContext.BUSINESS) {
-            LaunchedEffect(businessGapQa) {
-                val kind = businessGapQa ?: return@LaunchedEffect
-                if (kind == BusinessQuickAddKind.EXPENSE || kind == BusinessQuickAddKind.SPEND_ENTRY) {
-                    businessGapQa = null
-                    val operating = OperatingMomentCatalog.kindForTypeCode(state.selectedMomentTypeCode) != null &&
-                        !OperatingMomentCatalog.isRetired(state.selectedMomentTypeCode)
-                    if (operating) shellViewModel.selectBottomDestination(BottomDestination.CREATE)
-                    else businessExpenseSheetOpen = true
-                }
+            businessGapQa?.let { kind ->
+                BusinessGapQuickAddSheet(
+                    theme = BusinessActiveTheme.forTypeCode(state.selectedMomentTypeCode),
+                    kind = kind,
+                    visible = true,
+                    momentId = state.selectedMomentId,
+                    onDismiss = { businessGapQa = null },
+                    onSaved = {
+                        businessGapQa = null
+                        shellViewModel.refreshVisibleBusinessTab()
+                    },
+                    onExpense = {
+                        val operating = OperatingMomentCatalog.kindForTypeCode(state.selectedMomentTypeCode) != null &&
+                            !OperatingMomentCatalog.isRetired(state.selectedMomentTypeCode)
+                        if (operating) {
+                            shellViewModel.selectBottomDestination(BottomDestination.CREATE)
+                        } else {
+                            businessExpenseSheetOpen = true
+                        }
+                    },
+                    onRevenue = { businessRevenueSheetOpen = true },
+                    onInvoice = { businessInvoiceSheetOpen = true },
+                )
             }
             BusinessExpenseSheet(
                 momentId = state.selectedMomentId!!,
