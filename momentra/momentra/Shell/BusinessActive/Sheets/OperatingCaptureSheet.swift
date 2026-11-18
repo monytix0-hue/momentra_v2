@@ -1584,7 +1584,10 @@ struct OperatingCaptureSheet: View {
                     revisesEventId: draft.reprintSourceId
                 )
             )
-            if ok { dismiss() }
+            if ok {
+                showOpsCaptureSavedToastIfNeeded()
+                dismiss()
+            }
             return
         default:
             saving = true
@@ -1602,10 +1605,25 @@ struct OperatingCaptureSheet: View {
                             entity: entity.isEmpty ? "this job" : entity
                         )
                     )
+                } else {
+                    showOpsCaptureSavedToastIfNeeded()
                 }
                 dismiss()
             }
         }
+    }
+
+    private func showOpsCaptureSavedToastIfNeeded() {
+        guard theme.isTradingCapture || theme.isDistributionCapture else { return }
+        MtoToastHost.shared.show(
+            MtoToastSpec(
+                kind: .saved,
+                title: ServiceCaptureCopy.savedToast,
+                body: ServiceCaptureCopy.tagline,
+                actionLabel: "Done",
+                accent: MtoToastCatalog.emerald
+            )
+        )
     }
 
     private func holdContract() -> OperatingContractInput {

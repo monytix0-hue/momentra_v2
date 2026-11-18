@@ -43,6 +43,10 @@ import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
+import com.example.momentra.ui.shell.business.shared.ServiceCaptureCopy
+import com.example.momentra.ui.shell.business.mto.MtoToastHost
+import com.example.momentra.ui.shell.business.mto.MtoToastKind
+import com.example.momentra.ui.shell.business.mto.MtoToastSpec
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
 
@@ -80,6 +84,9 @@ data class TradingEventDraft(
     val masterDeliveryState: String? = null,
     val masterGstin: String? = null,
     val lines: List<com.example.momentra.data.api.OperatingLineBody>? = null,
+    val revisionKind: String? = null,
+    val effectiveFrom: String? = null,
+    val supersedesEventId: String? = null,
 )
 
 private enum class TradingSheet(
@@ -226,8 +233,20 @@ fun TradingQuickAddHub(
                     variant = "trading",
                     onDismiss = { sheet = null },
                     onSubmit = { draft ->
-                        onRecord(draft.toTrading())
-                        sheet = null
+                        runCatching { onRecord(draft.toTrading()) }
+                            .onSuccess {
+                                MtoToastHost.show(
+                                    MtoToastSpec(
+                                        kind = MtoToastKind.Saved,
+                                        title = ServiceCaptureCopy.SAVED_TOAST,
+                                        body = ServiceCaptureCopy.TAGLINE,
+                                        actionLabel = "Done",
+                                        accent = TradeBrand,
+                                    ),
+                                )
+                                sheet = null
+                            }
+                            .onFailure { error = it.message ?: "Could not save" }
                     },
                     onDecide = onDecide,
                     onCreateMaster = if ("UPDATE" in allowed) createMaster else null,
@@ -374,4 +393,7 @@ private fun OperatingCaptureDraft.toTrading() = TradingEventDraft(
     masterDeliveryState = masterDeliveryState,
     masterGstin = masterGstin,
     lines = lines,
+    revisionKind = revisionKind,
+    effectiveFrom = effectiveFrom,
+    supersedesEventId = supersedesEventId,
 )

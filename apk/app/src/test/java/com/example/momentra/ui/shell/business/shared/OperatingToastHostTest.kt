@@ -8,6 +8,7 @@ import com.example.momentra.ui.shell.business.restaurant.RestaurantCaptureCopy
 import com.example.momentra.ui.shell.business.restaurant.showRestaurantCaptureSavedToast
 import com.example.momentra.ui.shell.business.retail.RetailCaptureCopy
 import com.example.momentra.ui.shell.business.retail.showRetailCaptureSavedToast
+import com.example.momentra.ui.shell.business.shared.ServiceCaptureCopy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -15,6 +16,29 @@ import org.junit.Assert.assertSame
 import org.junit.Test
 
 class OperatingToastHostTest {
+    private fun assertSavedToastShown(expectedTitle: String) {
+        assertNotNull(OperatingToastHost.current)
+        assertEquals(expectedTitle, OperatingToastHost.current?.title)
+        assertSame(MtoToastHost.current, OperatingToastHost.current)
+    }
+
+    /** Trading/Distribution quick-add success paths use ops capture copy. */
+    @Test
+    fun opsCaptureSavedToast_usesSharedHost() {
+        OperatingToastHost.dismiss()
+        MtoToastHost.show(
+            MtoToastSpec(
+                kind = MtoToastKind.Saved,
+                title = ServiceCaptureCopy.SAVED_TOAST,
+                body = ServiceCaptureCopy.TAGLINE,
+                actionLabel = "Done",
+                accent = Color(0xFF10B981),
+            ),
+        )
+        assertSavedToastShown(ServiceCaptureCopy.SAVED_TOAST)
+        OperatingToastHost.dismiss()
+    }
+
     @Test
     fun show_setsCurrentSpec() {
         OperatingToastHost.dismiss()
