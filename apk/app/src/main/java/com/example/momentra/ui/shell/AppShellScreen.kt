@@ -983,9 +983,7 @@ fun AppShellScreen(
                                 moneyQa = null
                                 clearPersonalSheetTarget()
                                 shellViewModel.refreshVisiblePersonalTab()
-                                if (kind == MoneyQuickAddKind.INCOME) {
-                                    habitRewardMessage = "Saved · counts toward your day"
-                                }
+                                habitRewardMessage = "Saved · counts toward your day"
                                 tourController.showWhereToLook(TourWhereToLook.forMoney(kind))
                             },
                         )
@@ -1293,8 +1291,8 @@ fun AppShellScreen(
                             lifeOpsQa = null
                             clearPersonalSheetTarget()
                             shellViewModel.refreshVisiblePersonalTab()
+                            habitRewardMessage = "Logged · your day is updating"
                             if (kind == LifeOpsQuickAddKind.MOOD || kind == LifeOpsQuickAddKind.RECOVERY) {
-                                habitRewardMessage = "Logged · your day is updating"
                                 PersonalEveningNudgeScheduler.onTodaySave(context)
                             }
                             tourController.showWhereToLook(TourWhereToLook.forLifeOps(kind))
