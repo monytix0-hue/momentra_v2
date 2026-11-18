@@ -44,7 +44,6 @@ fun PersonalQuickAddHub(
     momentTypeCode: String? = null,
     capabilityCodes: List<String>? = null,
     simpleMode: Boolean = false,
-    onClose: () -> Unit = {},
     onSpend: () -> Unit = {},
     onIncome: () -> Unit,
     onRecovery: () -> Unit = {},
@@ -53,7 +52,6 @@ fun PersonalQuickAddHub(
     onAdjust: () -> Unit = {},
     onTransfer: () -> Unit = {},
     onSavings: () -> Unit = {},
-    onSetupMissing: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var search by remember { mutableStateOf("") }

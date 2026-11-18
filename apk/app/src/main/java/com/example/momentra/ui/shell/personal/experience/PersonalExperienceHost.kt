@@ -140,7 +140,6 @@ fun PersonalExperienceHost(
     onOpenMoments: () -> Unit = {},
     onLifeOpsQuickAdd: (LifeOpsQuickAddKind) -> Unit = {},
     onMoneyQuickAdd: (MoneyQuickAddKind) -> Unit = {},
-    onSetupMissing: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val repo = remember { PersonalExperienceRepository() }
@@ -217,7 +216,6 @@ fun PersonalExperienceHost(
                                     onAdjust = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.ADJUST) },
                                     onTransfer = { onMoneyQuickAdd(MoneyQuickAddKind.TRANSFER) },
                                     onSavings = { onMoneyQuickAdd(MoneyQuickAddKind.SAVINGS) },
-                                    onSetupMissing = onSetupMissing,
                                 )
                                 BottomDestination.PULSE -> PulseBody(
                                     data,

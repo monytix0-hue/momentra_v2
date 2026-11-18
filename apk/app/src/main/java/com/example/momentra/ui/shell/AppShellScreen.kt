@@ -68,7 +68,6 @@ import com.example.momentra.domain.CompanySummary
 import com.example.momentra.domain.MomentExperienceKind
 import com.example.momentra.domain.MomentSummary
 import com.example.momentra.domain.ShellContentState
-import com.example.momentra.ui.shared.horizontalSwipe
 import com.example.momentra.domain.ShellIdentity
 import com.example.momentra.domain.isActiveStatus
 import com.example.momentra.domain.isCompletedStatus
@@ -668,21 +667,7 @@ fun AppShellScreen(
             modifier = Modifier
                 .weight(1f)
                 .align(Alignment.CenterHorizontally)
-                .momentraMaxWidth(shellWindow.contentMaxWidth)
-                .horizontalSwipe(
-                    onSwipeLeft = {
-                        val dests = listOf(BottomDestination.PULSE, BottomDestination.MOMENTS, BottomDestination.LIFE, BottomDestination.MEMORY)
-                        val idx = dests.indexOf(state.bottomDestination).takeIf { it >= 0 } ?: 0
-                        val next = (idx + 1) % dests.size
-                        shellViewModel.selectBottomDestination(dests[next])
-                    },
-                    onSwipeRight = {
-                        val dests = listOf(BottomDestination.PULSE, BottomDestination.MOMENTS, BottomDestination.LIFE, BottomDestination.MEMORY)
-                        val idx = dests.indexOf(state.bottomDestination).takeIf { it >= 0 } ?: 0
-                        val prev = (idx - 1 + dests.size) % dests.size
-                        shellViewModel.selectBottomDestination(dests[prev])
-                    }
-                ),
+                .momentraMaxWidth(shellWindow.contentMaxWidth),
         ) {
             if (businessCreateVisible) {
                 BusinessCreateFlow(
@@ -2261,7 +2246,6 @@ private fun ShellDestinationContent(
                                 onOpenMoments = onOpenPersonalMoments,
                                 onLifeOpsQuickAdd = onLifeOpsQuickAdd,
                                 onMoneyQuickAdd = onMoneyQuickAdd,
-                                onSetupMissing = onPersonalSetupMissing,
                             )
                         }
                         else -> {
