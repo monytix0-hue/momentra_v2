@@ -714,9 +714,6 @@ fun AppShellScreen(
                     businessTabRefreshToken = state.businessTabRefreshToken,
                     capabilities = state.capabilities,
                     forcePersonalSimple = true,
-                    onPersonalSetupMissing = {
-                        personalSetupChooserOpen = true
-                    },
                     personalPresentFamilies = presentPersonalFamilies(state.moments),
                     viewerReadOnly = groupViewerReadOnly,
                     onRetry = { shellViewModel.selectContext(state.selectedContext) },
@@ -1653,7 +1650,6 @@ private fun ShellDestinationContent(
     businessTabRefreshToken: Long = 0L,
     capabilities: List<String> = emptyList(),
     forcePersonalSimple: Boolean = false,
-    onPersonalSetupMissing: () -> Unit = {},
     personalPresentFamilies: Set<PersonalPulseFamily> = emptySet(),
     viewerReadOnly: Boolean = false,
     onRetry: () -> Unit,
@@ -1705,7 +1701,6 @@ private fun ShellDestinationContent(
     onOpenVendor: () -> Unit = {},
     onLifeOpsQuickAdd: (LifeOpsQuickAddKind) -> Unit = {},
     onMoneyQuickAdd: (MoneyQuickAddKind) -> Unit = {},
-    onOpenRelationshipsActivity: () -> Unit = {},
     onViewAllActivity: () -> Unit = {},
     onPersonalActivityChanged: () -> Unit = {},
     onViewAllGroupActivity: () -> Unit = {},
