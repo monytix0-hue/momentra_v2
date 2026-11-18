@@ -274,13 +274,20 @@ struct MarketingQuickAddHubView: View {
                     spacing: 8
                 ) {
                     ForEach(utilities, id: \.title) { tile in
+                        let mode = utilityCaptureMode(for: tile.title)
+                        let chromeOnlyReachable = own
+                            && (mode == .hold || mode == .transfer)
                         OperatingV12ActionTile(
                             theme: theme,
                             title: tile.title,
                             subtitle: tile.caption,
                             glyph: tile.glyph,
-                            unavailable: true
-                        ) {}
+                            unavailable: !chromeOnlyReachable
+                        ) {
+                            if let mode, chromeOnlyReachable {
+                                onCapture(mode)
+                            }
+                        }
                     }
                 }
 
@@ -291,7 +298,16 @@ struct MarketingQuickAddHubView: View {
         .background(theme.canvas.ignoresSafeArea())
     }
 
-    /// Honest non-actionable tiles — Marketing has no hold / budget-transfer / reprint writes.
+    private func utilityCaptureMode(for title: String) -> MarketingCaptureMode? {
+        switch title {
+        case "Hold": return .hold
+        case "Transfer": return .transfer
+        case "Reprint": return .reprint
+        default: return nil
+        }
+    }
+
+    /// Own Hold/Transfer → chrome-only preview; Reprint stays unavailable.
     private var utilities: [(title: String, caption: String, glyph: String)] {
         var tiles: [(title: String, caption: String, glyph: String)] = [
             ("Hold", "Park campaign work", "pause.circle"),

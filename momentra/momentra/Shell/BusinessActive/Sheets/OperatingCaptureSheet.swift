@@ -1584,7 +1584,10 @@ struct OperatingCaptureSheet: View {
                     revisesEventId: draft.reprintSourceId
                 )
             )
-            if ok { dismiss() }
+            if ok {
+                showOpsCaptureSavedToastIfNeeded()
+                dismiss()
+            }
             return
         default:
             saving = true
@@ -1602,10 +1605,29 @@ struct OperatingCaptureSheet: View {
                             entity: entity.isEmpty ? "this job" : entity
                         )
                     )
+                } else {
+                    showOpsCaptureSavedToastIfNeeded()
                 }
                 dismiss()
             }
         }
+    }
+
+    private func showOpsCaptureSavedToastIfNeeded() {
+        guard theme.isTradingCapture || theme.isDistributionCapture else { return }
+        let trimmedTitle = draft.title.trimmingCharacters(in: .whitespaces)
+        let party = draft.counterparty.trimmingCharacters(in: .whitespaces)
+        let entity = trimmedTitle.isEmpty ? (party.isEmpty ? model.title : party) : trimmedTitle
+        let label = entity.trimmingCharacters(in: .whitespaces).isEmpty ? "this capture" : entity
+        MtoToastHost.shared.show(
+            MtoToastSpec(
+                kind: .saved,
+                title: MtoCaptureCopy.savedToast,
+                body: "Changes recorded · \(label) updated",
+                actionLabel: "Done",
+                accent: MtoToastCatalog.emerald
+            )
+        )
     }
 
     private func holdContract() -> OperatingContractInput {

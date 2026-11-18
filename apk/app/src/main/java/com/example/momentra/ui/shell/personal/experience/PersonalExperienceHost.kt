@@ -95,6 +95,9 @@ import com.example.momentra.ui.theme.generated.PersonalLifeTaxonomy
 import com.example.momentra.ui.theme.generated.PersonalMood
 import com.example.momentra.ui.theme.generated.PersonalTheme
 import com.example.momentra.ui.theme.generated.PersonalTokens
+import com.example.momentra.ui.shell.personal.lifeops.create.LifeOpsQuickAddKind
+import com.example.momentra.ui.shell.personal.lifeops.create.MoneyQuickAddKind
+import com.example.momentra.ui.shell.personal.shared.PersonalQuickAddHub
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 import java.time.OffsetDateTime
@@ -129,9 +132,14 @@ private sealed class ExperienceFlow {
 @Composable
 fun PersonalExperienceHost(
     destination: BottomDestination,
+    hasActiveMoment: Boolean = false,
+    momentTypeCode: String? = null,
+    capabilityCodes: List<String> = emptyList(),
     onOpenLife: () -> Unit = {},
     onOpenPulse: () -> Unit = {},
     onOpenMoments: () -> Unit = {},
+    onLifeOpsQuickAdd: (LifeOpsQuickAddKind) -> Unit = {},
+    onMoneyQuickAdd: (MoneyQuickAddKind) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val repo = remember { PersonalExperienceRepository() }
@@ -196,9 +204,18 @@ fun PersonalExperienceHost(
                                 Spacer(Modifier.height(PersonalTokens.Space.Sm))
                             }
                             when (destination) {
-                                BottomDestination.CREATE -> QuickAddsHub(
-                                    onAddExpense = { openExpense() },
-                                    onArea = { openExpense(it.code) },
+                                BottomDestination.CREATE -> PersonalQuickAddHub(
+                                    hasActiveMoment = hasActiveMoment,
+                                    momentTypeCode = momentTypeCode,
+                                    capabilityCodes = capabilityCodes.takeIf { it.isNotEmpty() },
+                                    onSpend = { onMoneyQuickAdd(MoneyQuickAddKind.MASTER_EXPENSE) },
+                                    onIncome = { onMoneyQuickAdd(MoneyQuickAddKind.INCOME) },
+                                    onRecovery = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.RECOVERY) },
+                                    onMood = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.MOOD) },
+                                    onAttention = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.ATTENTION) },
+                                    onAdjust = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.ADJUST) },
+                                    onTransfer = { onMoneyQuickAdd(MoneyQuickAddKind.TRANSFER) },
+                                    onSavings = { onMoneyQuickAdd(MoneyQuickAddKind.SAVINGS) },
                                 )
                                 BottomDestination.PULSE -> PulseBody(
                                     data,
@@ -440,131 +457,6 @@ private fun Card(modifier: Modifier = Modifier, content: @Composable () -> Unit)
     ) { content() }
 }
 
-@Composable
-private fun QuickAddsHub(onAddExpense: () -> Unit, onArea: (PersonalLifeArea) -> Unit) {
-    Text("PERSONAL · QUICK ADD", color = PersonalTokens.Colors.BrandPrimary, style = PersonalTokens.Type.Metadata)
-    Spacer(Modifier.height(PersonalTokens.Space.Sm))
-    Text("Quick Adds", color = PersonalTokens.Colors.TextPrimary, style = PersonalTokens.Type.Hero)
-    Spacer(Modifier.height(4.dp))
-        Text(
-        "A purchase, a class, a little everyday thing. Start with an expense.",
-        color = PersonalTokens.Colors.TextSecondary,
-        style = PersonalTokens.Type.Body,
-    )
-    Spacer(Modifier.height(PersonalTokens.Space.Section))
-    Column(
-        Modifier
-                .fillMaxWidth()
-            .shadow(
-                elevation = 20.dp,
-                shape = RoundedCornerShape(PersonalTokens.Radius.Card),
-                ambientColor = PersonalTokens.Shadow.Glow.color,
-                spotColor = PersonalTokens.Shadow.Glow.color,
-            )
-            .clip(RoundedCornerShape(PersonalTokens.Radius.Card))
-            .background(PersonalTokens.Colors.SurfaceHighlight)
-            .border(1.dp, PersonalTokens.Colors.BorderHairline, RoundedCornerShape(PersonalTokens.Radius.Card))
-            .padding(PersonalTokens.Space.Inset),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(PersonalTokens.Size.Emblem).clip(RoundedCornerShape(18.dp)).background(PersonalTokens.Colors.FillIconWell),
-                contentAlignment = Alignment.Center,
-            ) {
-                Image(painterResource(R.drawable.ic_pers_receipt), contentDescription = null, modifier = Modifier.size(PersonalTokens.Size.IconLg))
-            }
-            Spacer(Modifier.width(PersonalTokens.Space.Inner))
-            Column(Modifier.weight(1f)) {
-                Text("Expense", color = PersonalTokens.Colors.TextPrimary, style = PersonalTokens.Type.Hero)
-                Text("Give it a little life context.", color = PersonalTokens.Colors.TextSecondary, style = PersonalTokens.Type.Caption)
-            }
-        }
-        Spacer(Modifier.height(PersonalTokens.Space.Md))
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(PersonalTokens.Radius.Tile))
-                .background(PersonalTokens.Colors.BrandAccent)
-                .border(1.dp, PersonalTokens.Colors.BrandPrimary, RoundedCornerShape(PersonalTokens.Radius.Tile))
-                .clickable(onClick = onAddExpense)
-                .padding(PersonalTokens.Space.Md),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("+ Add expense", color = PersonalTokens.Colors.TextOnAccent, fontWeight = FontWeight.Bold, style = PersonalTokens.Type.Body)
-                Text("Amount · date · Life Area", color = PersonalTokens.Colors.TextOnAccent, style = PersonalTokens.Type.Caption)
-            }
-            Image(painterResource(R.drawable.ic_pers_chevron_right), contentDescription = null, modifier = Modifier.size(PersonalTokens.Size.IconSm))
-        }
-    }
-    Spacer(Modifier.height(PersonalTokens.Space.Section))
-    SectionTitle("What part of life is it for?", "Optional shortcuts into the same expense form")
-    Text(
-        "Choose an area to preselect it. You’ll pick one of its subcategories next.",
-        color = PersonalTokens.Colors.TextSecondary,
-        style = PersonalTokens.Type.Caption,
-    )
-    Spacer(Modifier.height(PersonalTokens.Space.Inner))
-    Text("NOW · Everyday living", color = PersonalTokens.Colors.BrandPrimary, style = PersonalTokens.Type.Metadata)
-    Spacer(Modifier.height(PersonalTokens.Space.Sm))
-    AreaGrid(PersonalLifeTaxonomy.areas.filter { it.layer == PersonalLifeLayer.NOW }, onArea)
-    Spacer(Modifier.height(PersonalTokens.Space.Md))
-    Text("BUILD · Longer horizons", color = PersonalTokens.Colors.BrandPrimary, style = PersonalTokens.Type.Metadata)
-    Spacer(Modifier.height(PersonalTokens.Space.Sm))
-    AreaGrid(PersonalLifeTaxonomy.areas.filter { it.layer == PersonalLifeLayer.BUILD }, onArea)
-    Spacer(Modifier.height(PersonalTokens.Space.Section))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(R.drawable.ic_pers_receipt), contentDescription = null, modifier = Modifier.size(PersonalTokens.Size.Icon))
-        Box(Modifier.padding(horizontal = 8.dp).width(34.dp).height(1.dp).background(PersonalTokens.Colors.BrandPrimary))
-        Text("Life", color = PersonalTokens.Colors.BrandPrimary, style = PersonalTokens.Type.Metadata)
-        Box(Modifier.padding(horizontal = 8.dp).width(34.dp).height(1.dp).background(PersonalTokens.Colors.BrandPrimary))
-        Text("Moments", color = PersonalTokens.Colors.BrandPrimary, style = PersonalTokens.Type.Metadata)
-    }
-    Spacer(Modifier.height(PersonalTokens.Space.Compact))
-    Text("One expense. Connected context.", color = PersonalTokens.Colors.TextPrimary, style = PersonalTokens.Type.Section)
-    Spacer(Modifier.height(PersonalTokens.Space.Sm))
-    Text(
-        "Your Life view updates. Related expenses can form Moments automatically—nothing to create or attach.",
-        color = PersonalTokens.Colors.TextSecondary,
-        style = PersonalTokens.Type.Body,
-    )
-    Spacer(Modifier.height(PersonalTokens.Space.Sm))
-    Text(
-        "NOW or BUILD is derived for you. Mood is always optional.",
-        color = PersonalTokens.Colors.TextSecondary,
-        style = PersonalTokens.Type.Caption,
-    )
-}
-
-@Composable
-private fun AreaGrid(areas: List<PersonalLifeArea>, onArea: (PersonalLifeArea) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        areas.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                row.forEach { area ->
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .heightIn(min = 114.dp)
-                            .clip(RoundedCornerShape(PersonalTokens.Radius.TileSelected))
-                            .background(PersonalTokens.Colors.SurfaceContainer)
-                            .border(1.dp, PersonalTokens.Colors.BorderHairline, RoundedCornerShape(PersonalTokens.Radius.TileSelected))
-                            .clickable { onArea(area) }
-                            .padding(16.dp),
-                    ) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Image(painterResource(area.iconRes), contentDescription = null, modifier = Modifier.size(PersonalTokens.Size.IconMd))
-                            Image(painterResource(R.drawable.ic_pers_arrow_up_right), contentDescription = null, modifier = Modifier.size(PersonalTokens.Size.IconSm))
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        Text(area.label, color = PersonalTokens.Colors.TextPrimary, style = PersonalTokens.Type.Body)
-                    }
-                }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
-    }
-}
 
 @Composable
 private fun ExpenseSheet(

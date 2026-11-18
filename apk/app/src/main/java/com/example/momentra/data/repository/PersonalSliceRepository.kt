@@ -30,6 +30,8 @@ import com.example.momentra.data.api.CreateRecurringScheduleBody
 import com.example.momentra.data.api.ExpenseAttachmentDto
 import com.example.momentra.data.api.ExpenseDetailDto
 import com.example.momentra.data.api.CreateFinancialAccountBody
+import com.example.momentra.data.api.CreateGoalBody
+import com.example.momentra.data.api.CreateGoalResultDto
 import com.example.momentra.data.api.FinancialAccountDto
 import com.example.momentra.data.api.MediaUploadCompleteBody
 import com.example.momentra.data.api.MediaUploadIntentBody
@@ -409,6 +411,24 @@ class PersonalSliceRepository(
             momentId = momentId,
             scheduleId = scheduleId,
             idempotencyKey = idempotencyKey,
+        ).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun createGoal(
+        momentId: String,
+        title: String,
+        description: String? = null,
+        targetAt: String? = null,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): Result<CreateGoalResultDto> = runCatching {
+        api.createGoal(
+            momentId = momentId,
+            idempotencyKey = idempotencyKey,
+            body = CreateGoalBody(
+                title = title,
+                description = description,
+                targetAt = targetAt,
+            ),
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 

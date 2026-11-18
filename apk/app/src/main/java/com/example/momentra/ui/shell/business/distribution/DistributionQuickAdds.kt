@@ -26,6 +26,10 @@ import com.example.momentra.ui.shell.business.shared.OperatingCaptureDraft
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
+import com.example.momentra.ui.shell.business.mto.MtoCaptureCopy
+import com.example.momentra.ui.shell.business.mto.MtoToastHost
+import com.example.momentra.ui.shell.business.mto.MtoToastKind
+import com.example.momentra.ui.shell.business.mto.MtoToastSpec
 import com.example.momentra.ui.theme.PlusJakartaSans
 
 data class DistributionEventDraft(
@@ -189,8 +193,23 @@ fun DistributionQuickAddHub(
                     variant = "distribution",
                     onDismiss = { sheet = null },
                     onSubmit = { draft ->
-                        onRecord(draft.toDistribution())
-                        sheet = null
+                        runCatching { onRecord(draft.toDistribution()) }
+                            .onSuccess {
+                                val entity = draft.title.ifBlank {
+                                    draft.counterpartyName.orEmpty()
+                                }.ifBlank { model.title ?: "this capture" }
+                                MtoToastHost.show(
+                                    MtoToastSpec(
+                                        kind = MtoToastKind.Saved,
+                                        title = MtoCaptureCopy.SAVED_TOAST,
+                                        body = "Changes recorded · $entity updated",
+                                        actionLabel = "Done",
+                                        accent = Color(0xFF10B981),
+                                    ),
+                                )
+                                sheet = null
+                            }
+                            .onFailure { error = it.message ?: "Could not save" }
                     },
                     onDecide = onDecide,
                     onCreateMaster = if ("UPDATE" in allowed) createMaster else null,

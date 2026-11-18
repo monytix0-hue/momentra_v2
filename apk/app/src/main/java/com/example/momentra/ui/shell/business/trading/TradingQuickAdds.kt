@@ -43,6 +43,10 @@ import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
+import com.example.momentra.ui.shell.business.mto.MtoCaptureCopy
+import com.example.momentra.ui.shell.business.mto.MtoToastHost
+import com.example.momentra.ui.shell.business.mto.MtoToastKind
+import com.example.momentra.ui.shell.business.mto.MtoToastSpec
 import com.example.momentra.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.launch
 
@@ -226,8 +230,23 @@ fun TradingQuickAddHub(
                     variant = "trading",
                     onDismiss = { sheet = null },
                     onSubmit = { draft ->
-                        onRecord(draft.toTrading())
-                        sheet = null
+                        runCatching { onRecord(draft.toTrading()) }
+                            .onSuccess {
+                                val entity = draft.title.ifBlank {
+                                    draft.counterpartyName.orEmpty()
+                                }.ifBlank { model.title ?: "this capture" }
+                                MtoToastHost.show(
+                                    MtoToastSpec(
+                                        kind = MtoToastKind.Saved,
+                                        title = MtoCaptureCopy.SAVED_TOAST,
+                                        body = "Changes recorded · $entity updated",
+                                        actionLabel = "Done",
+                                        accent = TradeBrand,
+                                    ),
+                                )
+                                sheet = null
+                            }
+                            .onFailure { error = it.message ?: "Could not save" }
                     },
                     onDecide = onDecide,
                     onCreateMaster = if ("UPDATE" in allowed) createMaster else null,

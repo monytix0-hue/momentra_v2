@@ -33,9 +33,7 @@ import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.ui.shell.group.wedding.create.FieldLabel
 import com.example.momentra.ui.shell.group.wedding.create.SheetAccent
 import com.example.momentra.ui.shell.group.wedding.create.SheetField
-import com.example.momentra.ui.shell.group.wedding.create.WeddingMemorySheetBody
 import com.example.momentra.ui.shell.group.wedding.create.WeddingPollSheetBody
-import com.example.momentra.ui.shell.group.wedding.create.WeddingUpdateSheetBody
 import com.example.momentra.ui.theme.PlusJakartaSans
 
 private val SheetBg = Color(0xFF161B26)
@@ -44,7 +42,16 @@ private val Handle = Color(0xFF475569)
 private fun BusinessActiveTheme.toSheetAccent(): SheetAccent =
     SheetAccent(accent = accent, accentEnd = accentSolid, soft = accentSoft)
 
-/** Business Quick Add sheets — theme accent; GAP kinds use disabled Coming soon CTA. */
+/**
+ * Business Quick Add sheets — theme accent; unmapped GAP kinds use disabled Coming soon CTA.
+ *
+ * Collab bodies borrowed from Wedding quick-add:
+ * - [BusinessQuickAddKind.POLL] — `GroupSliceRepository.createPoll` / `createPollCommand` supports
+ *   `BUSINESS` domain (`assertCompanyMomentAccess`); wedding copy is shared-primitive debt — extract later.
+ * - [BusinessQuickAddKind.MEMORY], [BusinessQuickAddKind.TEAM_UPDATE], [BusinessQuickAddKind.GENERAL_UPDATE]
+ *   — Wedding POST paths call `createMemoryCommand` / `postUpdateCommand`, which require
+ *   `assertGroupMember` (`domain_code = GROUP`); unsafe on business moments → [BusinessGapBody].
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BusinessGapQuickAddSheet(
@@ -123,12 +130,13 @@ fun BusinessGapQuickAddSheet(
                             onInvoice()
                         },
                     )
+                // shared collab primitive — extract later (BUSINESS poll POST is supported server-side)
                 BusinessQuickAddKind.POLL ->
                     WeddingPollSheetBody(momentId, repository, onDismiss, onSaved, accent)
-                BusinessQuickAddKind.MEMORY ->
-                    WeddingMemorySheetBody(momentId, repository, onDismiss, onSaved, accent)
-                BusinessQuickAddKind.TEAM_UPDATE, BusinessQuickAddKind.GENERAL_UPDATE ->
-                    WeddingUpdateSheetBody(momentId, repository, onDismiss, onSaved, accent)
+                BusinessQuickAddKind.MEMORY,
+                BusinessQuickAddKind.TEAM_UPDATE,
+                BusinessQuickAddKind.GENERAL_UPDATE ->
+                    BusinessGapBody(theme = theme, kind = kind)
                 else ->
                     BusinessGapBody(theme = theme, kind = kind)
             }

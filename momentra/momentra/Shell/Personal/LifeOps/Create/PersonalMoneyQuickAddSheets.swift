@@ -73,6 +73,7 @@ struct PersonalMoneyQuickAddSheet: View {
     @State private var currencyCode = "INR"
     @State private var preferredCurrencyCodes: [String] = ["INR"]
     @State private var submitting = false
+    @State private var goalLinkPending = false
     @State private var error: String?
     @State private var draftKey = UUID().uuidString
 
@@ -302,7 +303,10 @@ struct PersonalMoneyQuickAddSheet: View {
             saveButton(
                 label: "Transfer Now ✓",
                 accent: accent,
-                enabled: !amount.trimmingCharacters(in: .whitespaces).isEmpty && !submitting,
+                enabled: !amount.trimmingCharacters(in: .whitespaces).isEmpty
+                    && toAccountId != nil
+                    && toAccountId != fromAccountId
+                    && !submitting,
                 submitting: submitting,
                 testTag: "personal.money.transfer.submit",
                 action: saveTransfer
@@ -314,6 +318,11 @@ struct PersonalMoneyQuickAddSheet: View {
         let accent = MoneySheetTokens.teal
         return VStack(alignment: .leading, spacing: 12) {
             tabHeading(title: "Savings", subtitle: "Move money toward your goals.")
+            if goalLinkPending {
+                Text("Goal link pending")
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(MoneySheetTokens.secondary)
+            }
             fieldLabel("SAVINGS GOAL")
             ForEach(savingsGoals) { goal in
                 savingsGoalCard(goal: goal, selected: selectedGoalId == goal.id, accent: accent) {
@@ -387,12 +396,12 @@ struct PersonalMoneyQuickAddSheet: View {
 
     private func saveTransfer() {
         guard !submitting else { return }
+        guard let toAccountId, toAccountId != fromAccountId else { return }
         submitting = true
         error = nil
         let trimmedAmount = amount.trimmingCharacters(in: .whitespaces)
-        let description = note.trimmingCharacters(in: .whitespaces).isEmpty
-            ? "Transfer · \(transferType) · \(whenCode)"
-            : note.trimmingCharacters(in: .whitespaces)
+        let toName = accounts.first(where: { $0.financialAccountId == toAccountId })?.accountName ?? "Account"
+        let description = buildTransferDescription(toAccountName: toName)
         Task { @MainActor in
             do {
                 _ = try await movementRepository.createMovement(
@@ -413,16 +422,44 @@ struct PersonalMoneyQuickAddSheet: View {
         }
     }
 
+    private func buildTransferDescription(toAccountName: String) -> String {
+        var parts: [String] = []
+        let trimmedNote = note.trimmingCharacters(in: .whitespaces)
+        if !trimmedNote.isEmpty { parts.append(trimmedNote) }
+        parts.append("Transfer")
+        parts.append(transferType)
+        parts.append(whenCode)
+        parts.append("to=\(toAccountName)")
+        return parts.joined(separator: " · ")
+    }
+
+    private func buildSavingsDescription(goalName: String) -> String {
+        var parts: [String] = []
+        let trimmedNote = note.trimmingCharacters(in: .whitespaces)
+        if !trimmedNote.isEmpty { parts.append(trimmedNote) }
+        parts.append(goalName)
+        parts.append(frequency)
+        parts.append(whenCode)
+        return parts.joined(separator: " · ")
+    }
+
     private func saveSavings() {
         guard !submitting else { return }
         submitting = true
+        goalLinkPending = false
         error = nil
         let trimmedAmount = amount.trimmingCharacters(in: .whitespaces)
         let goalName = savingsGoals.first { $0.id == selectedGoalId }?.name ?? "Savings"
-        let description = note.trimmingCharacters(in: .whitespaces).isEmpty
-            ? "\(goalName) · \(frequency) · \(whenCode)"
-            : note.trimmingCharacters(in: .whitespaces)
+        let description = buildSavingsDescription(goalName: goalName)
         Task { @MainActor in
+            var linkedGoalId: String?
+            do {
+                let goal = try await APIClient.shared.createGoal(momentId: momentId, title: goalName)
+                linkedGoalId = goal.goalId
+            } catch {
+                linkedGoalId = nil
+            }
+            let pendingGoalLink = linkedGoalId == nil
             do {
                 _ = try await movementRepository.createMovement(
                     draftKey: draftKey,
@@ -431,11 +468,17 @@ struct PersonalMoneyQuickAddSheet: View {
                     amount: trimmedAmount,
                     currencyCode: currencyCode,
                     accountId: fromAccountId,
-                    goalId: nil,
+                    goalId: linkedGoalId,
                     description: description,
                     effectiveAt: nil
                 )
-                finishSave()
+                if pendingGoalLink {
+                    goalLinkPending = true
+                    submitting = false
+                    onSaved()
+                } else {
+                    finishSave()
+                }
             } catch {
                 failSave(error)
             }

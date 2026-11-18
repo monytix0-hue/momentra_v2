@@ -129,8 +129,8 @@ import com.example.momentra.ui.shell.business.shared.OperatingTab
 import com.example.momentra.ui.shell.business.shared.BusinessRevenueSheet
 import com.example.momentra.ui.shell.business.shared.BusinessKhataHomeSheet
 import com.example.momentra.ui.shell.business.shared.BusinessRecentActivityFlow
-import com.example.momentra.ui.shell.business.ops.components.OpsColors
-import com.example.momentra.ui.shell.business.runway.components.RunwayColors
+import com.example.momentra.ui.shell.business.ops.OpsColors
+import com.example.momentra.ui.shell.business.runway.RunwayColors
 import com.example.momentra.ui.shell.business.teamops.components.TeamOpsColors
 import com.example.momentra.ui.shell.group.shared.GroupBudgetSheet
 import com.example.momentra.ui.shell.group.shared.GroupCollabKind
@@ -188,7 +188,6 @@ import com.example.momentra.ui.shell.personal.lifeops.create.LifeOpsQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.MoneyQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalLifeOpsQuickAddSheet
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalMoneyQuickAddSheet
-import com.example.momentra.ui.shell.personal.shared.PersonalExpenseFab
 import com.example.momentra.ui.shell.personal.shared.PersonalEveningNudgeScheduler
 import com.example.momentra.ui.shell.personal.shared.PersonalMasterExpenseSheet
 import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
@@ -496,6 +495,20 @@ fun AppShellScreen(
             tourController.onSignal(TourSignal.OPENED_CREATE_TAB)
         }
     }
+    LaunchedEffect(
+        state.bottomDestination,
+        state.selectedContext,
+        state.selectedMomentId,
+        state.selectedMomentTypeCode,
+    ) {
+        if (state.selectedContext != AppContext.BUSINESS) return@LaunchedEffect
+        val typeCode = state.selectedMomentTypeCode
+            ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.momentTypeCode
+        val operating = OperatingMomentCatalog.kindForTypeCode(typeCode) != null &&
+            !OperatingMomentCatalog.isRetired(typeCode)
+        if (!operating) return@LaunchedEffect
+        OperatingChromeState.clearTransientUi()
+    }
 
     TourHost(
         controller = tourController,
@@ -701,9 +714,6 @@ fun AppShellScreen(
                     businessTabRefreshToken = state.businessTabRefreshToken,
                     capabilities = state.capabilities,
                     forcePersonalSimple = true,
-                    onPersonalSetupMissing = {
-                        personalSetupChooserOpen = true
-                    },
                     personalPresentFamilies = presentPersonalFamilies(state.moments),
                     viewerReadOnly = groupViewerReadOnly,
                     onRetry = { shellViewModel.selectContext(state.selectedContext) },
@@ -810,7 +820,7 @@ fun AppShellScreen(
                             isRunway -> businessGapQa = kind
                             isOps -> businessGapQa = kind
                             kind == BusinessQuickAddKind.REVENUE ||
-                                kind == BusinessQuickAddKind.INVOICE -> Unit
+                                kind == BusinessQuickAddKind.INVOICE -> businessGapQa = kind
                             else -> businessGapQa = kind
                         }
                     },
@@ -835,26 +845,6 @@ fun AppShellScreen(
                         groupDirectoryPreferCompleted = true
                         groupMomentDirectoryOpen = true
                     },
-                )
-            }
-            if (
-                false &&
-                state.selectedContext == AppContext.PERSONAL &&
-                state.selectedMomentId != null &&
-                !newMomentOpen &&
-                state.bottomDestination in setOf(
-                    BottomDestination.PULSE,
-                    BottomDestination.MOMENTS,
-                    BottomDestination.LIFE,
-                    BottomDestination.MEMORY,
-                    BottomDestination.CREATE,
-                )
-            ) {
-                PersonalExpenseFab(
-                    onClick = { openMoneyQa(MoneyQuickAddKind.MASTER_EXPENSE) },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 16.dp, bottom = ShellTokens.BottomBarHeight + 16.dp),
                 )
             }
             // One spec-driven switcher serves both contexts (Figma 2678:37791).
@@ -990,9 +980,7 @@ fun AppShellScreen(
                                 moneyQa = null
                                 clearPersonalSheetTarget()
                                 shellViewModel.refreshVisiblePersonalTab()
-                                if (kind == MoneyQuickAddKind.INCOME) {
-                                    habitRewardMessage = "Saved · counts toward your day"
-                                }
+                                habitRewardMessage = "Saved · counts toward your day"
                                 tourController.showWhereToLook(TourWhereToLook.forMoney(kind))
                             },
                         )
@@ -1206,15 +1194,29 @@ fun AppShellScreen(
             )
         }
         if (state.selectedMomentId != null && state.selectedContext == AppContext.BUSINESS) {
-            LaunchedEffect(businessGapQa) {
-                val kind = businessGapQa ?: return@LaunchedEffect
-                if (kind == BusinessQuickAddKind.EXPENSE || kind == BusinessQuickAddKind.SPEND_ENTRY) {
-                    businessGapQa = null
-                    val operating = OperatingMomentCatalog.kindForTypeCode(state.selectedMomentTypeCode) != null &&
-                        !OperatingMomentCatalog.isRetired(state.selectedMomentTypeCode)
-                    if (operating) shellViewModel.selectBottomDestination(BottomDestination.CREATE)
-                    else businessExpenseSheetOpen = true
-                }
+            businessGapQa?.let { kind ->
+                BusinessGapQuickAddSheet(
+                    theme = BusinessActiveTheme.forTypeCode(state.selectedMomentTypeCode),
+                    kind = kind,
+                    visible = true,
+                    momentId = state.selectedMomentId,
+                    onDismiss = { businessGapQa = null },
+                    onSaved = {
+                        businessGapQa = null
+                        shellViewModel.refreshVisibleBusinessTab()
+                    },
+                    onExpense = {
+                        val operating = OperatingMomentCatalog.kindForTypeCode(state.selectedMomentTypeCode) != null &&
+                            !OperatingMomentCatalog.isRetired(state.selectedMomentTypeCode)
+                        if (operating) {
+                            shellViewModel.selectBottomDestination(BottomDestination.CREATE)
+                        } else {
+                            businessExpenseSheetOpen = true
+                        }
+                    },
+                    onRevenue = { businessRevenueSheetOpen = true },
+                    onInvoice = { businessInvoiceSheetOpen = true },
+                )
             }
             BusinessExpenseSheet(
                 momentId = state.selectedMomentId!!,
@@ -1286,8 +1288,8 @@ fun AppShellScreen(
                             lifeOpsQa = null
                             clearPersonalSheetTarget()
                             shellViewModel.refreshVisiblePersonalTab()
+                            habitRewardMessage = "Logged · your day is updating"
                             if (kind == LifeOpsQuickAddKind.MOOD || kind == LifeOpsQuickAddKind.RECOVERY) {
-                                habitRewardMessage = "Logged · your day is updating"
                                 PersonalEveningNudgeScheduler.onTodaySave(context)
                             }
                             tourController.showWhereToLook(TourWhereToLook.forLifeOps(kind))
@@ -1648,7 +1650,6 @@ private fun ShellDestinationContent(
     businessTabRefreshToken: Long = 0L,
     capabilities: List<String> = emptyList(),
     forcePersonalSimple: Boolean = false,
-    onPersonalSetupMissing: () -> Unit = {},
     personalPresentFamilies: Set<PersonalPulseFamily> = emptySet(),
     viewerReadOnly: Boolean = false,
     onRetry: () -> Unit,
@@ -1700,7 +1701,6 @@ private fun ShellDestinationContent(
     onOpenVendor: () -> Unit = {},
     onLifeOpsQuickAdd: (LifeOpsQuickAddKind) -> Unit = {},
     onMoneyQuickAdd: (MoneyQuickAddKind) -> Unit = {},
-    onOpenRelationshipsActivity: () -> Unit = {},
     onViewAllActivity: () -> Unit = {},
     onPersonalActivityChanged: () -> Unit = {},
     onViewAllGroupActivity: () -> Unit = {},
@@ -2238,9 +2238,14 @@ private fun ShellDestinationContent(
                             ) -> {
                             com.example.momentra.ui.shell.personal.experience.PersonalExperienceHost(
                                 destination = destination,
+                                hasActiveMoment = selectedMomentId != null,
+                                momentTypeCode = personalTypeCode,
+                                capabilityCodes = capabilities,
                                 onOpenLife = onOpenPersonalLife,
                                 onOpenPulse = onOpenPersonalPulse,
                                 onOpenMoments = onOpenPersonalMoments,
+                                onLifeOpsQuickAdd = onLifeOpsQuickAdd,
+                                onMoneyQuickAdd = onMoneyQuickAdd,
                             )
                         }
                         else -> {

@@ -248,7 +248,6 @@ private fun RestaurantPurchaseSheet(
                 "UPI now", "Cash" -> "PAID"
                 else -> "OPEN"
             }
-            captureSavedToast()
             onSubmit(
                 RestaurantEventDraft(
                     eventType = "PURCHASE",
@@ -309,7 +308,6 @@ private fun RestaurantPurchaseSheet(
                     }
                     (onMasterSubmit ?: onSubmit)(draft)
                     createForm = null
-                    captureSavedToast()
                 },
             )
         }
@@ -442,7 +440,6 @@ private fun RestaurantCollectionSheet(
             enabled = postable,
             caveat = RestaurantCaptureCopy.DRAFT_FOOTER,
         ) {
-            captureSavedToast()
             onSubmit(
                 RestaurantEventDraft(
                     eventType = "COLLECTION",
@@ -528,7 +525,6 @@ private fun RestaurantPaymentSheet(
             postable,
             RestaurantCaptureCopy.DRAFT_FOOTER,
         ) {
-            captureSavedToast()
             onSubmit(
                 RestaurantEventDraft(
                     eventType = "PAYMENT",
@@ -951,7 +947,6 @@ private fun RestaurantOrderCaptureSheet(
             if (isPo) RestaurantCaptureCopy.PO_COMMITMENT_FOOTER else RestaurantCaptureCopy.SO_COMMITMENT_FOOTER,
         ) {
             val filledLines = lines.filter { it.name.isNotBlank() }
-            captureSavedToast()
             onSubmit(
                 RestaurantEventDraft(
                     eventType = "ORDER",
@@ -1003,7 +998,6 @@ private fun RestaurantOrderCaptureSheet(
                 onSubmit = { draft ->
                     (onMasterSubmit ?: onSubmit)(draft)
                     createForm = null
-                    captureSavedToast()
                 },
             )
         }
@@ -1308,7 +1302,8 @@ private fun masterMatchesCategory(master: OperatingMasterDto, category: String, 
     }
 }
 
-private fun captureSavedToast() {
+/** Shared capture-success toast — call only after [onRecord] succeeds (hub or sheet owner). */
+internal fun showRestaurantCaptureSavedToast() {
     MtoToastHost.show(
         MtoToastSpec(
             kind = MtoToastKind.Saved,
@@ -1412,7 +1407,6 @@ private fun RestaurantBudgetSheet(
             EmberTextField(effective, RestaurantCaptureCopy.BUDGET_EFFECTIVE) { effective = it.take(24) }
         }
         EmberSheetFooter(RestaurantCaptureCopy.budgetCta(), postable, RestaurantCaptureCopy.DRAFT_UNTIL_POSTED) {
-            captureSavedToast()
             onSubmit(
                 RestaurantEventDraft(
                     eventType = "BUDGET",
@@ -1524,7 +1518,6 @@ private fun RestaurantIssueSheet(
             EmberTextField(note, "Notes · Evidence · Tags") { note = it }
         }
         EmberSheetFooter(RestaurantCaptureCopy.issueCta(kind), postable, RestaurantCaptureCopy.DRAFT_UNTIL_POSTED) {
-            captureSavedToast()
             onSubmit(
                 RestaurantEventDraft(
                     eventType = eventType,

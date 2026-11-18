@@ -140,4 +140,11 @@ class MarketingOwnQuickAddCopyTest {
         assertEquals("Budget / Target Revision", MarketingOwnQuickAddCopy.title("BUDGET"))
         assertEquals("Campaign Result", MarketingOwnQuickAddCopy.title("RESULT"))
     }
+
+    @Test
+    fun ownUtilityHubTilesHoldTransferOpenChromeOnlyPreview() {
+        val tiles = marketingUtilityHubTiles(client = false).toMap()
+        assertEquals(false, tiles["Hold"])
+        assertEquals(false, tiles["Transfer"])
+    }
 }

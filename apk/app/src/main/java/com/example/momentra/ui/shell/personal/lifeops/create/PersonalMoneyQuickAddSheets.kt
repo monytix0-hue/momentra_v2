@@ -188,6 +188,9 @@ private fun MoneySheetBody(
     var currencyCode by remember { mutableStateOf("INR") }
     var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var submitting by remember { mutableStateOf(false) }
+    var goalLinkPending by remember { mutableStateOf(false) }
+    /** Server goal ids keyed by stub card id — one createGoal per stub per sheet open. */
+    var createdGoalIdByStub by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
@@ -341,14 +344,20 @@ private fun MoneySheetBody(
                             FieldLabel("TRANSFER TYPE")
                             LoSimpleChips(listOf("One-time", "Recurring"), transferType, { transferType = it }, tabAccent)
                             WhenChips(whenCode, onWhenSelected, tabAccent)
+                            val toAccountName = accounts.firstOrNull { it.financialAccountId == toId }?.accountName
                             SaveButton(
                                 label = "Transfer Now ✓",
                                 accent = tabAccent,
-                                enabled = amount.isNotBlank() && !submitting,
+                                enabled = amount.isNotBlank() &&
+                                    toId != null &&
+                                    toId != fromId &&
+                                    toAccountName != null &&
+                                    !submitting,
                                 submitting = submitting,
                                 testTag = MaestroIds.PERSONAL_MONEY_TRANSFER_SUBMIT,
                             ) {
                                 submitting = true
+                                val destinationName = toAccountName ?: return@SaveButton
                                 scope.launch {
                                     repository.createMovement(
                                         momentId = momentId,
@@ -356,7 +365,12 @@ private fun MoneySheetBody(
                                         amount = amount.trim(),
                                         currencyCode = currencyCode,
                                         accountId = fromId,
-                                        description = note.ifBlank { "Transfer · $transferType · $whenCode" },
+                                        description = buildTransferDescription(
+                                            note = note,
+                                            transferType = transferType,
+                                            whenCode = whenCode,
+                                            toAccountName = destinationName,
+                                        ),
                                     ).fold(
                                         onSuccess = { submitting = false; onSaved(); onDismiss() },
                                         onFailure = { e -> submitting = false; error = e.message },
@@ -369,6 +383,14 @@ private fun MoneySheetBody(
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text("Savings", color = MoneyText, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
                             Text("Move money toward your goals.", color = MoneySecondary, fontSize = 12.sp, fontFamily = PlusJakartaSans)
+                            if (goalLinkPending) {
+                                Text(
+                                    "Goal link pending",
+                                    color = MoneySecondary,
+                                    fontSize = 11.sp,
+                                    fontFamily = PlusJakartaSans,
+                                )
+                            }
                             FieldLabel("SAVINGS GOAL")
                             savingsGoals.forEach { goal ->
                                 SavingsGoalCard(goal, selectedGoalId == goal.id, tabAccent) { selectedGoalId = goal.id }
@@ -401,17 +423,44 @@ private fun MoneySheetBody(
                                 testTag = MaestroIds.PERSONAL_MONEY_SAVINGS_SUBMIT,
                             ) {
                                 submitting = true
-                                val goalName = savingsGoals.find { it.id == selectedGoalId }?.name ?: "Savings"
+                                goalLinkPending = false
+                                val stubGoalId = selectedGoalId
+                                val goalName = savingsGoals.find { it.id == stubGoalId }?.name ?: "Savings"
                                 scope.launch {
+                                    var linkedGoalId = createdGoalIdByStub[stubGoalId]
+                                    if (linkedGoalId == null) {
+                                        linkedGoalId = repository
+                                            .createGoal(momentId = momentId, title = goalName)
+                                            .getOrNull()
+                                            ?.goalId
+                                        if (linkedGoalId != null) {
+                                            createdGoalIdByStub = createdGoalIdByStub + (stubGoalId to linkedGoalId)
+                                        }
+                                    }
+                                    val pendingGoalLink = linkedGoalId == null
                                     repository.createMovement(
                                         momentId = momentId,
                                         movementType = "SAVINGS_DEPOSIT",
                                         amount = amount.trim(),
                                         currencyCode = currencyCode,
                                         accountId = fromId,
-                                        description = note.ifBlank { "$goalName · $frequency · $whenCode" },
+                                        goalId = linkedGoalId,
+                                        description = buildSavingsDescription(
+                                            note = note,
+                                            goalName = goalName,
+                                            frequency = frequency,
+                                            whenCode = whenCode,
+                                        ),
                                     ).fold(
-                                        onSuccess = { submitting = false; onSaved(); onDismiss() },
+                                        onSuccess = {
+                                            submitting = false
+                                            onSaved()
+                                            if (pendingGoalLink) {
+                                                goalLinkPending = true
+                                            } else {
+                                                onDismiss()
+                                            }
+                                        },
                                         onFailure = { e -> submitting = false; error = e.message },
                                     )
                                 }

@@ -740,11 +740,15 @@ private fun supportTiles(client: Boolean): List<HubTile> = listOf(
     HubTile("Invite & QR", "Join · people · roles", R.drawable.ic_mkt_qr, masters = MarketingMastersTab.Invite),
 )
 
+/** Test hook — utility tile label → unavailable flag. */
+internal fun marketingUtilityHubTiles(client: Boolean): List<Pair<String, Boolean>> =
+    utilityTiles(client).map { it.label to it.unavailable }
+
 private fun utilityTiles(client: Boolean): List<HubTile> = buildList {
-    // Hub tiles stay unavailable for writes. Chip routing opens chrome-only Figma sheets
-    // (titles / WHY / CTA) that dismiss without posting — no inventing write APIs.
-    add(HubTile("Hold", "Park campaign work", R.drawable.qa_shield, MarketingSheet.HOLD, "ACTIVITY", unavailable = true))
-    add(HubTile("Transfer", "Budget move", R.drawable.qa_arrow_left_right, MarketingSheet.TRANSFER, "REVISION", unavailable = true))
+    // Own: Hold/Transfer open chrome-only preview (same as chip path); Reprint stays unavailable.
+    val holdTransferUnavailable = client
+    add(HubTile("Hold", "Park campaign work", R.drawable.qa_shield, MarketingSheet.HOLD, "ACTIVITY", unavailable = holdTransferUnavailable))
+    add(HubTile("Transfer", "Budget move", R.drawable.qa_arrow_left_right, MarketingSheet.TRANSFER, "REVISION", unavailable = holdTransferUnavailable))
     if (client) {
         add(HubTile("Reprint", "Invoice · receipt", R.drawable.qa_receipt, MarketingSheet.REPRINT, "INVOICE", unavailable = true))
     }

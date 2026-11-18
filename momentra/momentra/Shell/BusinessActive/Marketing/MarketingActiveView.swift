@@ -1511,13 +1511,20 @@ private struct MarketingHubScreen: View {
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(utilities, id: \.title) { tile in
+                    let code = utilityCaptureCode(for: tile.title)
+                    let chromeOnlyReachable = !client
+                        && (code == "HOLD" || code == "TRANSFER")
                     OperatingV12ActionTile(
                         theme: theme,
                         title: tile.title,
                         subtitle: tile.caption,
                         glyph: tile.glyph,
-                        unavailable: true
-                    ) {}
+                        unavailable: !chromeOnlyReachable
+                    ) {
+                        if let code, chromeOnlyReachable {
+                            onCapture(code)
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 16)
@@ -1529,7 +1536,16 @@ private struct MarketingHubScreen: View {
         .padding(.bottom, 24)
     }
 
-    /// Honest non-actionable tiles — Marketing has no hold / budget-transfer / reprint writes.
+    private func utilityCaptureCode(for title: String) -> String? {
+        switch title {
+        case "Hold": return "HOLD"
+        case "Transfer": return "TRANSFER"
+        case "Reprint": return "REPRINT"
+        default: return nil
+        }
+    }
+
+    /// Own Hold/Transfer → chrome-only preview; Reprint stays unavailable.
     private var utilities: [(title: String, caption: String, glyph: String)] {
         var tiles: [(title: String, caption: String, glyph: String)] = [
             ("Hold", "Park campaign work", "pause.circle"),

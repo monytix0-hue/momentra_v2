@@ -272,13 +272,10 @@ struct OperatingExperienceHost: View {
             .preferredColorScheme(.dark)
         }
         .overlay(alignment: .top) {
-            if kit == .madeToOrder {
-                MtoToastOverlay()
-            }
+            OperatingToastOverlay()
         }
         .onAppear {
-            guard kit == .madeToOrder else { return }
-            MtoToastHost.shared.onAction = { action in
+            OperatingToastHost.shared.onAction = { action in
                 switch action {
                 case .openPulse, .goBack, .dismiss: break
                 case .confirmOrder: sheet = .capture("CONFIRM")
@@ -288,6 +285,19 @@ struct OperatingExperienceHost: View {
                 }
             }
         }
+        .onChange(of: destination) { _, _ in
+            clearTransientUi()
+        }
+        .onChange(of: momentId) { _, _ in
+            clearTransientUi()
+        }
+    }
+
+    private func clearTransientUi() {
+        sheet = nil
+        pendingCapture = nil
+        pendingBrowserPrefill = nil
+        pendingPosKotTicket = nil
     }
 
     @ViewBuilder

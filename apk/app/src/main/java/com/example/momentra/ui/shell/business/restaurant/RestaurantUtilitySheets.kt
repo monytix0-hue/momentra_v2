@@ -1,5 +1,6 @@
 package com.example.momentra.ui.shell.business.restaurant
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,14 +24,43 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.ui.shell.business.mto.MtoToastKind
+import com.example.momentra.ui.shell.business.mto.MtoToastSpec
+import com.example.momentra.ui.shell.business.shared.OperatingToastHost
 import com.example.momentra.data.api.OperatingContractBody
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.ui.theme.RestaurantEmber
+import org.json.JSONArray
+import org.json.JSONObject
 
-/** Cross-nav for adjacent hub Hold · Transfer · Reprint (not trading layouts). */
+/**
+ * Device-local Food Hold parks — SharedPreferences only.
+ * Never posts ORDER with orderStatus=HOLD (invalid enum / no Hold API).
+ */
+internal object RestaurantHoldStore {
+    private const val PREFS = "restaurant_hold_session"
+    private const val KEY = "parks"
+
+    fun park(context: Context, holdCode: String, orderId: String, title: String, note: String?) {
+        val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val arr = runCatching { JSONArray(prefs.getString(KEY, "[]")) }.getOrElse { JSONArray() }
+        arr.put(
+            JSONObject()
+                .put("holdCode", holdCode)
+                .put("orderId", orderId)
+                .put("title", title)
+                .put("note", note ?: "")
+                .put("parkedAt", System.currentTimeMillis()),
+        )
+        prefs.edit().putString(KEY, arr.toString()).apply()
+    }
+}
+
+/** Deep-link cross-nav Hold · Transfer · Reprint — demoted off hub Utilities on `5:86892`. */
 internal enum class RestaurantUtilityNav { HOLD, TRANSFER, REPRINT }
 
 @Composable
@@ -63,8 +93,10 @@ internal fun RestaurantHoldSheet(
     model: OperatingProjectionDto,
     onDismiss: () -> Unit,
     onNavigate: ((RestaurantUtilityNav) -> Unit)?,
-    onSubmit: (RestaurantEventDraft) -> Unit,
+    @Suppress("UNUSED_PARAMETER") onSubmit: (RestaurantEventDraft) -> Unit,
+    onParked: () -> Unit = onDismiss,
 ) {
+    val context = LocalContext.current
     val open = openOrders(model)
     var selectedId by remember { mutableStateOf(open.firstOrNull()?.id) }
     val selected = open.firstOrNull { it.id == selectedId } ?: open.firstOrNull()
@@ -114,21 +146,20 @@ internal fun RestaurantHoldSheet(
             }
         }
         EmberWhyNote(RestaurantCaptureCopy.HOLD_WHY, tinted = true)
-        EmberSheetFooter("Hold order · $holdCode", selected != null, "No revenue or stock while held") {
+        EmberSheetFooter(
+            "Hold order · $holdCode",
+            selected != null,
+            "Device-local park · no revenue · no KOT write",
+        ) {
             val ticket = selected ?: return@EmberSheetFooter
-            onSubmit(
-                RestaurantEventDraft(
-                    eventType = "ORDER",
-                    title = "Hold · $holdCode · ${ticket.title}",
-                    amount = null,
-                    note = "HOLD · no revenue · no KOT · $holdCode",
-                    channelName = ticket.channelName,
-                    counterpartyName = ticket.counterpartyName,
-                    paymentStatus = null,
-                    revisesEventId = ticket.id,
-                    contract = OperatingContractBody(orderStatus = "HOLD", clientKey = holdCode),
-                ),
+            RestaurantHoldStore.park(
+                context = context,
+                holdCode = holdCode,
+                orderId = ticket.id,
+                title = ticket.title,
+                note = ticket.note,
             )
+            onParked()
         }
         Spacer(Modifier.height(16.dp))
     }
@@ -197,7 +228,11 @@ internal fun RestaurantTransferSheet(
                     itemName = item,
                     contract = OperatingContractBody(
                         stockAction = "TRANSFER",
-                        locationName = from,
+                        stockReason = "TRANSFER",
+                        ownership = "OWNED",
+                        transferFromName = from,
+                        transferToName = to,
+                        locationName = to,
                         clientKey = code,
                     ),
                 ),
@@ -207,13 +242,17 @@ internal fun RestaurantTransferSheet(
     }
 }
 
+/** Reprint never posts an event — dismiss-only, same contract as Trading `TRD-QA-REPRINT`. */
+internal object RestaurantReprintPolicy {
+    const val postsEvent = false
+}
+
 /** Receipt reprint — same bill id; never a new sale. */
 @Composable
 internal fun RestaurantReprintReceiptSheet(
     model: OperatingProjectionDto,
     onDismiss: () -> Unit,
     onNavigate: ((RestaurantUtilityNav) -> Unit)?,
-    onSubmit: (RestaurantEventDraft) -> Unit,
 ) {
     val bills = model.activity.filter { it.eventType.equals("SALE", true) }
     var selectedId by remember { mutableStateOf(bills.firstOrNull()?.id) }
@@ -266,18 +305,18 @@ internal fun RestaurantReprintReceiptSheet(
         EmberWhyNote(RestaurantCaptureCopy.REPRINT_RECEIPT_WHY, tinted = true)
         EmberSheetFooter("Reprint receipt", selected != null, "Same bill id — never duplicates the sale") {
             val bill = selected ?: return@EmberSheetFooter
-            onSubmit(
-                RestaurantEventDraft(
-                    eventType = "UPDATE",
-                    title = "Reprint · ${bill.title}",
-                    amount = null,
-                    note = "REPRINT receipt · same id ${bill.id} · $reason · no new sale",
-                    channelName = bill.channelName,
-                    counterpartyName = bill.counterpartyName,
-                    paymentStatus = null,
-                    parentEventId = bill.id,
+            if (RestaurantReprintPolicy.postsEvent) return@EmberSheetFooter
+            val billLabel = bill.id.takeLast(6).let { if (it.isNotBlank()) "BILL-$it" else bill.id }
+            OperatingToastHost.show(
+                MtoToastSpec(
+                    kind = MtoToastKind.Saved,
+                    title = "Reprint sent",
+                    body = "Same bill id · $billLabel · $reason",
+                    actionLabel = "Done",
+                    accent = RestaurantEmber.positive,
                 ),
             )
+            onDismiss()
         }
         Spacer(Modifier.height(16.dp))
     }
