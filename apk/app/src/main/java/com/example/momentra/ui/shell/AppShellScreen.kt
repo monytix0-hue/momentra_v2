@@ -188,7 +188,6 @@ import com.example.momentra.ui.shell.personal.lifeops.create.LifeOpsQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.MoneyQuickAddKind
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalLifeOpsQuickAddSheet
 import com.example.momentra.ui.shell.personal.lifeops.create.PersonalMoneyQuickAddSheet
-import com.example.momentra.ui.shell.personal.shared.PersonalExpenseFab
 import com.example.momentra.ui.shell.personal.shared.PersonalEveningNudgeScheduler
 import com.example.momentra.ui.shell.personal.shared.PersonalMasterExpenseSheet
 import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
@@ -835,26 +834,6 @@ fun AppShellScreen(
                         groupDirectoryPreferCompleted = true
                         groupMomentDirectoryOpen = true
                     },
-                )
-            }
-            if (
-                false &&
-                state.selectedContext == AppContext.PERSONAL &&
-                state.selectedMomentId != null &&
-                !newMomentOpen &&
-                state.bottomDestination in setOf(
-                    BottomDestination.PULSE,
-                    BottomDestination.MOMENTS,
-                    BottomDestination.LIFE,
-                    BottomDestination.MEMORY,
-                    BottomDestination.CREATE,
-                )
-            ) {
-                PersonalExpenseFab(
-                    onClick = { openMoneyQa(MoneyQuickAddKind.MASTER_EXPENSE) },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 16.dp, bottom = ShellTokens.BottomBarHeight + 16.dp),
                 )
             }
             // One spec-driven switcher serves both contexts (Figma 2678:37791).
