@@ -59,7 +59,7 @@
   "type": "commonjs",
   "dependencies": {
     "@sentry/node": "^10.71.0",
-    "@supabase/supabase-js": "^2.112.4",
+    "@supabase/supabase-js": "^2.119.0",
     "bcrypt": "^6.0.0",
     "bullmq": "^6.2.2",
     "cors": "^2.8.6",
