@@ -41,6 +41,9 @@ import com.example.momentra.R
 import com.example.momentra.data.api.OperatingActivityDto
 import com.example.momentra.data.api.OperatingMasterBody
 import com.example.momentra.data.api.OperatingProjectionDto
+import com.example.momentra.ui.shell.business.mto.MtoToastHost
+import com.example.momentra.ui.shell.business.mto.MtoToastKind
+import com.example.momentra.ui.shell.business.mto.MtoToastSpec
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureDraft
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
@@ -69,6 +72,18 @@ fun RestaurantQuickAddHub(
     /** When KOT hands off to POS Bill, seed cart from the in-memory ticket immediately. */
     var posParentKot by remember { mutableStateOf<OperatingActivityDto?>(null) }
     val scope = rememberCoroutineScope()
+
+    fun showSavedToast() {
+        MtoToastHost.show(
+            MtoToastSpec(
+                kind = MtoToastKind.Saved,
+                title = RestaurantCaptureCopy.SAVED_TOAST,
+                body = RestaurantCaptureCopy.TAGLINE,
+                actionLabel = "Done",
+                accent = RestaurantEmber.positive,
+            ),
+        )
+    }
 
     Column(
         Modifier
@@ -143,9 +158,14 @@ fun RestaurantQuickAddHub(
                 initialKotTicket = posParentKot,
                 onSubmit = { draft ->
                     scope.launch {
-                        runCatching { onRecord(draft) }.onFailure { error = it.message }
-                        sheet = null
-                        posParentKot = null
+                        error = null
+                        runCatching { onRecord(draft) }
+                            .onSuccess {
+                                showSavedToast()
+                                sheet = null
+                                posParentKot = null
+                            }
+                            .onFailure { error = it.message ?: "Could not save" }
                     }
                 },
             )
@@ -167,8 +187,13 @@ fun RestaurantQuickAddHub(
                 },
                 onSubmit = { draft ->
                     scope.launch {
-                        runCatching { onRecord(draft) }.onFailure { error = it.message }
-                        sheet = null
+                        error = null
+                        runCatching { onRecord(draft) }
+                            .onSuccess {
+                                showSavedToast()
+                                sheet = null
+                            }
+                            .onFailure { error = it.message ?: "Could not save" }
                     }
                 },
             )
@@ -187,8 +212,13 @@ fun RestaurantQuickAddHub(
                 onOpenKot = { sheet = RestaurantHubSheet.Kot },
                 onSubmit = { draft ->
                     scope.launch {
-                        runCatching { onRecord(draft) }.onFailure { error = it.message }
-                        sheet = null
+                        error = null
+                        runCatching { onRecord(draft) }
+                            .onSuccess {
+                                showSavedToast()
+                                sheet = null
+                            }
+                            .onFailure { error = it.message ?: "Could not save" }
                     }
                 },
             )
@@ -234,8 +264,13 @@ fun RestaurantQuickAddHub(
                     onDismiss = { sheet = null },
                     onSubmit = { draft ->
                         scope.launch {
-                            runCatching { onRecord(draft) }.onFailure { error = it.message }
-                            sheet = null
+                            error = null
+                            runCatching { onRecord(draft) }
+                                .onSuccess {
+                                    showSavedToast()
+                                    sheet = null
+                                }
+                                .onFailure { error = it.message ?: "Could not save" }
                         }
                     },
                     onMasterSubmit = { draft ->
@@ -259,8 +294,13 @@ fun RestaurantQuickAddHub(
                     },
                     onSubmit = { draft ->
                         scope.launch {
-                            runCatching { onRecord(draft) }.onFailure { error = it.message }
-                            sheet = null
+                            error = null
+                            runCatching { onRecord(draft) }
+                                .onSuccess {
+                                    showSavedToast()
+                                    sheet = null
+                                }
+                                .onFailure { error = it.message ?: "Could not save" }
                         }
                     },
                 )
@@ -279,8 +319,13 @@ fun RestaurantQuickAddHub(
                     },
                     onSubmit = { draft ->
                         scope.launch {
-                            runCatching { onRecord(draft) }.onFailure { error = it.message }
-                            sheet = null
+                            error = null
+                            runCatching { onRecord(draft) }
+                                .onSuccess {
+                                    showSavedToast()
+                                    sheet = null
+                                }
+                                .onFailure { error = it.message ?: "Could not save" }
                         }
                     },
                 )
@@ -299,8 +344,13 @@ fun RestaurantQuickAddHub(
                     },
                     onSubmit = { draft ->
                         scope.launch {
-                            runCatching { onRecord(draft) }.onFailure { error = it.message }
-                            sheet = null
+                            error = null
+                            runCatching { onRecord(draft) }
+                                .onSuccess {
+                                    showSavedToast()
+                                    sheet = null
+                                }
+                                .onFailure { error = it.message ?: "Could not save" }
                         }
                     },
                 )
@@ -320,8 +370,13 @@ fun RestaurantQuickAddHub(
                     onDismiss = { sheet = null },
                     onSubmit = { draft ->
                         scope.launch {
-                            runCatching { onRecord(draft.toRestaurantDraft()) }.onFailure { error = it.message }
-                            sheet = null
+                            error = null
+                            runCatching { onRecord(draft.toRestaurantDraft()) }
+                                .onSuccess {
+                                    showSavedToast()
+                                    sheet = null
+                                }
+                                .onFailure { error = it.message ?: "Could not save" }
                         }
                     },
                     onDecide = onDecide,
