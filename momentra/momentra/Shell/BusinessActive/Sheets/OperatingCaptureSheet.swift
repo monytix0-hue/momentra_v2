@@ -1615,11 +1615,15 @@ struct OperatingCaptureSheet: View {
 
     private func showOpsCaptureSavedToastIfNeeded() {
         guard theme.isTradingCapture || theme.isDistributionCapture else { return }
+        let trimmedTitle = draft.title.trimmingCharacters(in: .whitespaces)
+        let party = draft.counterparty.trimmingCharacters(in: .whitespaces)
+        let entity = trimmedTitle.isEmpty ? (party.isEmpty ? model.title : party) : trimmedTitle
+        let label = entity.trimmingCharacters(in: .whitespaces).isEmpty ? "this capture" : entity
         MtoToastHost.shared.show(
             MtoToastSpec(
                 kind: .saved,
-                title: ServiceCaptureCopy.savedToast,
-                body: ServiceCaptureCopy.tagline,
+                title: MtoCaptureCopy.savedToast,
+                body: "Changes recorded · \(label) updated",
                 actionLabel: "Done",
                 accent: MtoToastCatalog.emerald
             )

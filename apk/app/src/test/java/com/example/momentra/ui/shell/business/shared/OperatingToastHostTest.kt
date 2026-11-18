@@ -8,7 +8,7 @@ import com.example.momentra.ui.shell.business.restaurant.RestaurantCaptureCopy
 import com.example.momentra.ui.shell.business.restaurant.showRestaurantCaptureSavedToast
 import com.example.momentra.ui.shell.business.retail.RetailCaptureCopy
 import com.example.momentra.ui.shell.business.retail.showRetailCaptureSavedToast
-import com.example.momentra.ui.shell.business.shared.ServiceCaptureCopy
+import com.example.momentra.ui.shell.business.mto.MtoCaptureCopy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -29,13 +29,13 @@ class OperatingToastHostTest {
         MtoToastHost.show(
             MtoToastSpec(
                 kind = MtoToastKind.Saved,
-                title = ServiceCaptureCopy.SAVED_TOAST,
-                body = ServiceCaptureCopy.TAGLINE,
+                title = MtoCaptureCopy.SAVED_TOAST,
+                body = "Changes recorded · Test Co updated",
                 actionLabel = "Done",
                 accent = Color(0xFF10B981),
             ),
         )
-        assertSavedToastShown(ServiceCaptureCopy.SAVED_TOAST)
+        assertSavedToastShown(MtoCaptureCopy.SAVED_TOAST)
         OperatingToastHost.dismiss()
     }
 

@@ -43,7 +43,7 @@ import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
-import com.example.momentra.ui.shell.business.shared.ServiceCaptureCopy
+import com.example.momentra.ui.shell.business.mto.MtoCaptureCopy
 import com.example.momentra.ui.shell.business.mto.MtoToastHost
 import com.example.momentra.ui.shell.business.mto.MtoToastKind
 import com.example.momentra.ui.shell.business.mto.MtoToastSpec
@@ -84,9 +84,6 @@ data class TradingEventDraft(
     val masterDeliveryState: String? = null,
     val masterGstin: String? = null,
     val lines: List<com.example.momentra.data.api.OperatingLineBody>? = null,
-    val revisionKind: String? = null,
-    val effectiveFrom: String? = null,
-    val supersedesEventId: String? = null,
 )
 
 private enum class TradingSheet(
@@ -235,11 +232,14 @@ fun TradingQuickAddHub(
                     onSubmit = { draft ->
                         runCatching { onRecord(draft.toTrading()) }
                             .onSuccess {
+                                val entity = draft.title.ifBlank {
+                                    draft.counterpartyName.orEmpty()
+                                }.ifBlank { model.title ?: "this capture" }
                                 MtoToastHost.show(
                                     MtoToastSpec(
                                         kind = MtoToastKind.Saved,
-                                        title = ServiceCaptureCopy.SAVED_TOAST,
-                                        body = ServiceCaptureCopy.TAGLINE,
+                                        title = MtoCaptureCopy.SAVED_TOAST,
+                                        body = "Changes recorded · $entity updated",
                                         actionLabel = "Done",
                                         accent = TradeBrand,
                                     ),
@@ -393,7 +393,4 @@ private fun OperatingCaptureDraft.toTrading() = TradingEventDraft(
     masterDeliveryState = masterDeliveryState,
     masterGstin = masterGstin,
     lines = lines,
-    revisionKind = revisionKind,
-    effectiveFrom = effectiveFrom,
-    supersedesEventId = supersedesEventId,
 )

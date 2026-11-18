@@ -26,7 +26,7 @@ import com.example.momentra.ui.shell.business.shared.OperatingCaptureDraft
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
-import com.example.momentra.ui.shell.business.shared.ServiceCaptureCopy
+import com.example.momentra.ui.shell.business.mto.MtoCaptureCopy
 import com.example.momentra.ui.shell.business.mto.MtoToastHost
 import com.example.momentra.ui.shell.business.mto.MtoToastKind
 import com.example.momentra.ui.shell.business.mto.MtoToastSpec
@@ -86,7 +86,7 @@ private enum class DistributionSheet(
     ISSUE("Report Issue", "ISSUE", false, false, false, null),
     STOCK("Stock / Availability Update", "STOCK", false, false, false, null),
     ORDER("Order / Dispatch Update", "ORDER", false, false, false, null),
-    SHIPMENT("Delivery Update", "DELIVERY", false, false, false, null),
+    SHIPMENT("Delivery Update", "SHIPMENT", false, false, false, null),
     RETURN("Return / Credit Note", "RETURN", true, false, false, null),
     REIMBURSE("Record Reimbursement", "PAYMENT", true, false, true, "PENDING"),
     PERSON("Add or invite person", "UPDATE", false, false, true, null),
@@ -141,12 +141,8 @@ fun DistributionQuickAddHub(
                 model = model,
                 theme = theme,
                 onCapture = { code ->
-                    if (code.equals("APPROVAL", ignoreCase = true)) {
-                        approvalOpen = true
-                    } else {
-                        sheet = DistributionSheet.entries.firstOrNull { it.captureMode == code || it.eventType == code }
-                            ?: DistributionSheet.UPDATE
-                    }
+                    sheet = DistributionSheet.entries.firstOrNull { it.captureMode == code || it.eventType == code }
+                        ?: DistributionSheet.UPDATE
                 },
                 onOpenMasters = { tabName -> OperatingChromeState.mastersOpen = tabName },
             )
@@ -199,11 +195,14 @@ fun DistributionQuickAddHub(
                     onSubmit = { draft ->
                         runCatching { onRecord(draft.toDistribution()) }
                             .onSuccess {
+                                val entity = draft.title.ifBlank {
+                                    draft.counterpartyName.orEmpty()
+                                }.ifBlank { model.title ?: "this capture" }
                                 MtoToastHost.show(
                                     MtoToastSpec(
                                         kind = MtoToastKind.Saved,
-                                        title = ServiceCaptureCopy.SAVED_TOAST,
-                                        body = ServiceCaptureCopy.TAGLINE,
+                                        title = MtoCaptureCopy.SAVED_TOAST,
+                                        body = "Changes recorded · $entity updated",
                                         actionLabel = "Done",
                                         accent = Color(0xFF10B981),
                                     ),
@@ -269,7 +268,7 @@ private val DistributionSheet.captureMode: String
         DistributionSheet.ISSUE -> "ISSUE"
         DistributionSheet.STOCK -> "STOCK"
         DistributionSheet.ORDER -> "ORDER"
-        DistributionSheet.SHIPMENT -> "DELIVERY"
+        DistributionSheet.SHIPMENT -> "SHIPMENT"
         DistributionSheet.RETURN -> "RETURN"
         DistributionSheet.REIMBURSE -> "REIMBURSE"
         DistributionSheet.PERSON -> "PERSON"
