@@ -68,6 +68,7 @@ import com.example.momentra.domain.CompanySummary
 import com.example.momentra.domain.MomentExperienceKind
 import com.example.momentra.domain.MomentSummary
 import com.example.momentra.domain.ShellContentState
+import com.example.momentra.ui.shared.horizontalSwipe
 import com.example.momentra.domain.ShellIdentity
 import com.example.momentra.domain.isActiveStatus
 import com.example.momentra.domain.isCompletedStatus
@@ -667,7 +668,21 @@ fun AppShellScreen(
             modifier = Modifier
                 .weight(1f)
                 .align(Alignment.CenterHorizontally)
-                .momentraMaxWidth(shellWindow.contentMaxWidth),
+                .momentraMaxWidth(shellWindow.contentMaxWidth)
+                .horizontalSwipe(
+                    onSwipeLeft = {
+                        val dests = listOf(BottomDestination.PULSE, BottomDestination.MOMENTS, BottomDestination.LIFE, BottomDestination.MEMORY)
+                        val idx = dests.indexOf(state.bottomDestination).takeIf { it >= 0 } ?: 0
+                        val next = (idx + 1) % dests.size
+                        shellViewModel.selectBottomDestination(dests[next])
+                    },
+                    onSwipeRight = {
+                        val dests = listOf(BottomDestination.PULSE, BottomDestination.MOMENTS, BottomDestination.LIFE, BottomDestination.MEMORY)
+                        val idx = dests.indexOf(state.bottomDestination).takeIf { it >= 0 } ?: 0
+                        val prev = (idx - 1 + dests.size) % dests.size
+                        shellViewModel.selectBottomDestination(dests[prev])
+                    }
+                ),
         ) {
             if (businessCreateVisible) {
                 BusinessCreateFlow(
@@ -2238,9 +2253,15 @@ private fun ShellDestinationContent(
                             ) -> {
                             com.example.momentra.ui.shell.personal.experience.PersonalExperienceHost(
                                 destination = destination,
+                                hasActiveMoment = selectedMomentId != null,
+                                momentTypeCode = personalTypeCode,
+                                capabilityCodes = capabilities,
                                 onOpenLife = onOpenPersonalLife,
                                 onOpenPulse = onOpenPersonalPulse,
                                 onOpenMoments = onOpenPersonalMoments,
+                                onLifeOpsQuickAdd = onLifeOpsQuickAdd,
+                                onMoneyQuickAdd = onMoneyQuickAdd,
+                                onSetupMissing = onPersonalSetupMissing,
                             )
                         }
                         else -> {

@@ -95,6 +95,9 @@ import com.example.momentra.ui.theme.generated.PersonalLifeTaxonomy
 import com.example.momentra.ui.theme.generated.PersonalMood
 import com.example.momentra.ui.theme.generated.PersonalTheme
 import com.example.momentra.ui.theme.generated.PersonalTokens
+import com.example.momentra.ui.shell.personal.lifeops.create.LifeOpsQuickAddKind
+import com.example.momentra.ui.shell.personal.lifeops.create.MoneyQuickAddKind
+import com.example.momentra.ui.shell.personal.shared.PersonalQuickAddHub
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 import java.time.OffsetDateTime
@@ -129,9 +132,15 @@ private sealed class ExperienceFlow {
 @Composable
 fun PersonalExperienceHost(
     destination: BottomDestination,
+    hasActiveMoment: Boolean = false,
+    momentTypeCode: String? = null,
+    capabilityCodes: List<String> = emptyList(),
     onOpenLife: () -> Unit = {},
     onOpenPulse: () -> Unit = {},
     onOpenMoments: () -> Unit = {},
+    onLifeOpsQuickAdd: (LifeOpsQuickAddKind) -> Unit = {},
+    onMoneyQuickAdd: (MoneyQuickAddKind) -> Unit = {},
+    onSetupMissing: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val repo = remember { PersonalExperienceRepository() }
@@ -196,9 +205,19 @@ fun PersonalExperienceHost(
                                 Spacer(Modifier.height(PersonalTokens.Space.Sm))
                             }
                             when (destination) {
-                                BottomDestination.CREATE -> QuickAddsHub(
-                                    onAddExpense = { openExpense() },
-                                    onArea = { openExpense(it.code) },
+                                BottomDestination.CREATE -> PersonalQuickAddHub(
+                                    hasActiveMoment = hasActiveMoment,
+                                    momentTypeCode = momentTypeCode,
+                                    capabilityCodes = capabilityCodes.takeIf { it.isNotEmpty() },
+                                    onSpend = { onMoneyQuickAdd(MoneyQuickAddKind.MASTER_EXPENSE) },
+                                    onIncome = { onMoneyQuickAdd(MoneyQuickAddKind.INCOME) },
+                                    onRecovery = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.RECOVERY) },
+                                    onMood = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.MOOD) },
+                                    onAttention = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.ATTENTION) },
+                                    onAdjust = { onLifeOpsQuickAdd(LifeOpsQuickAddKind.ADJUST) },
+                                    onTransfer = { onMoneyQuickAdd(MoneyQuickAddKind.TRANSFER) },
+                                    onSavings = { onMoneyQuickAdd(MoneyQuickAddKind.SAVINGS) },
+                                    onSetupMissing = onSetupMissing,
                                 )
                                 BottomDestination.PULSE -> PulseBody(
                                     data,
