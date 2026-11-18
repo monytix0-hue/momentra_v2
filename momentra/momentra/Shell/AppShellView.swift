@@ -1246,9 +1246,23 @@ struct AppShellView: View {
                   [.pulse, .moments, .memory, .life, .create].contains(model.bottomDestination) {
             PersonalExperienceHost(
                 destination: model.bottomDestination,
+                hasActiveMoment: model.selectedMomentId != nil,
+                momentTypeCode: model.selectedMomentTypeCode,
+                capabilityCodes: model.capabilities,
                 onOpenLife: { model.selectBottomDestination(.life) },
                 onOpenPulse: { model.selectBottomDestination(.pulse) },
-                onOpenMoments: { model.selectBottomDestination(.moments) }
+                onOpenMoments: { model.selectBottomDestination(.moments) },
+                onCloseCreate: { model.exitCreateDestination() },
+                onSetupMissing: {
+                    switch PersonalPulseFamily.forTypeCode(model.selectedMomentTypeCode) {
+                    case .futureBuilding: personalSetupSystem = .futureBuilding
+                    case .lifestyle: personalSetupSystem = .lifestyle
+                    case .relationships: personalSetupSystem = .relationships
+                    default: personalSetupSystem = .lifeOperations
+                    }
+                },
+                onLifeOpsQuickAdd: openLifeOpsQa,
+                onMoneyQuickAdd: openMoneyQa
             )
         } else if model.selectedContext == .business,
                   let momentId = model.selectedMomentId,

@@ -324,9 +324,16 @@ private enum ExperienceFlow {
 
 struct PersonalExperienceHost: View {
     let destination: BottomDestination
+    var hasActiveMoment: Bool = false
+    var momentTypeCode: String? = nil
+    var capabilityCodes: [String]? = nil
     var onOpenLife: () -> Void = {}
     var onOpenPulse: () -> Void = {}
     var onOpenMoments: () -> Void = {}
+    var onCloseCreate: () -> Void = {}
+    var onSetupMissing: () -> Void = {}
+    var onLifeOpsQuickAdd: (LifeOpsQuickAddKind) -> Void = { _ in }
+    var onMoneyQuickAdd: (MoneyQuickAddKind) -> Void = { _ in }
     @State private var experience: PersonalExperiencePayload?
     @State private var errorText: String?
     @State private var loading = true
@@ -454,108 +461,24 @@ struct PersonalExperienceHost: View {
     }
 
     private var hub: some View {
-        VStack(alignment: .leading, spacing: 32) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("PERSONAL · QUICK ADD").personalText(PersonalTokens.Typography.metadata).foregroundStyle(PersonalTokens.Colors.brandPrimary)
-                Text("Quick Adds").personalText(PersonalTokens.Typography.hero).foregroundStyle(PersonalTokens.Colors.textPrimary)
-                Text("A purchase, a class, a little everyday thing. Start with an expense.")
-                    .personalText(PersonalTokens.Typography.body).foregroundStyle(PersonalTokens.Colors.textSecondary)
-            }
-        VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 14) {
-                    Image("PersonalIcons/receipt")
-                        .renderingMode(.template)
-                        .foregroundStyle(PersonalTokens.Colors.textPrimary)
-                        .frame(width: 28, height: 28)
-                        .frame(width: 56, height: 56)
-                        .background(PersonalTokens.Colors.fillIconWell, in: RoundedRectangle(cornerRadius: 18))
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Expense").personalText(PersonalTokens.Typography.hero).foregroundStyle(PersonalTokens.Colors.textPrimary)
-                        Text("Give it a little life context.")
-                            .personalText(PersonalTokens.Typography.caption).foregroundStyle(PersonalTokens.Colors.textSecondary)
-                    }
-                }
-                Button { flow = .sheet(ExpenseDraft()) } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("+ Add expense").font(.system(size: 14, weight: .bold)).foregroundStyle(PersonalTokens.Colors.textOnAccent)
-                            Text("Amount · date · Life Area")
-                                .personalText(PersonalTokens.Typography.caption).foregroundStyle(PersonalTokens.Colors.textOnAccent)
-                        }
-                        Spacer()
-                        Image("PersonalIcons/chevron-right").renderingMode(.template).frame(width: 16, height: 16)
-                            .foregroundStyle(PersonalTokens.Colors.textOnAccent)
-                    }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(PersonalTokens.Colors.brandAccent, in: RoundedRectangle(cornerRadius: 16))
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(PersonalTokens.Colors.brandPrimary, lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(PersonalTokens.Colors.surfaceHighlight, in: RoundedRectangle(cornerRadius: 24))
-            .overlay(RoundedRectangle(cornerRadius: 24).stroke(PersonalTokens.Colors.borderHairline, lineWidth: 1))
-            .shadow(color: PersonalTokens.Shadow.glow.color, radius: 20)
-            VStack(alignment: .leading, spacing: 8) {
-                Text("What part of life is it for?").personalText(PersonalTokens.Typography.section).foregroundStyle(PersonalTokens.Colors.textPrimary)
-                Text("Optional shortcuts into the same expense form")
-                    .personalText(PersonalTokens.Typography.caption).foregroundStyle(PersonalTokens.Colors.textSubtle)
-            }
-            Text("Choose an area to preselect it. You’ll pick one of its subcategories next.")
-                .personalText(PersonalTokens.Typography.caption).foregroundStyle(PersonalTokens.Colors.textSecondary)
-            Text("NOW · Everyday living").personalText(PersonalTokens.Typography.metadata).foregroundStyle(PersonalTokens.Colors.brandPrimary)
-            areaGrid(PersonalLifeTaxonomy.areas(in: .now))
-            Text("BUILD · Longer horizons").personalText(PersonalTokens.Typography.metadata).foregroundStyle(PersonalTokens.Colors.brandPrimary)
-            areaGrid(PersonalLifeTaxonomy.areas(in: .build))
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Image("PersonalIcons/receipt").renderingMode(.template).frame(width: 20, height: 20)
-                    Rectangle().fill(PersonalTokens.Colors.brandPrimary).frame(width: 34, height: 1)
-                    Text("Life").personalText(PersonalTokens.Typography.metadata)
-                    Rectangle().fill(PersonalTokens.Colors.brandPrimary).frame(width: 34, height: 1)
-                    Text("Moments").personalText(PersonalTokens.Typography.metadata)
-                }
-                .foregroundStyle(PersonalTokens.Colors.brandPrimary)
-                Text("One expense. Connected context.").personalText(PersonalTokens.Typography.section).foregroundStyle(PersonalTokens.Colors.textPrimary)
-                Text("Your Life view updates. Related expenses can form Moments automatically—nothing to create or attach.")
-                    .personalText(PersonalTokens.Typography.body).foregroundStyle(PersonalTokens.Colors.textSecondary)
-                Text("NOW or BUILD is derived for you. Mood is always optional.")
-                    .personalText(PersonalTokens.Typography.caption).foregroundStyle(PersonalTokens.Colors.textSecondary)
-            }
-        }
-    }
-
-    private func areaGrid(_ areas: [PersonalLifeArea]) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            ForEach(areas) { area in
-                Button {
-                    var draft = ExpenseDraft()
-                    draft.areaCode = area.code
-                    flow = .subcategory(draft)
-                } label: {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            area.icon.foregroundStyle(PersonalTokens.Colors.textPrimary).frame(width: 24, height: 24)
-                            Spacer()
-                            Image("PersonalIcons/arrow-up-right").renderingMode(.template)
-                                .foregroundStyle(PersonalTokens.Colors.textPrimary)
-                                .frame(width: 16, height: 16)
-                        }
-                        Text(area.label)
-                            .personalText(PersonalTokens.Typography.body)
-                            .foregroundStyle(PersonalTokens.Colors.textPrimary)
-                            .multilineTextAlignment(.leading)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 114, alignment: .topLeading)
-                    .padding(16)
-                    .background(PersonalTokens.Colors.surfaceContainer, in: RoundedRectangle(cornerRadius: 18))
-                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(PersonalTokens.Colors.borderHairline, lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-            }
-        }
+        PersonalQuickAddHubView(
+            hasActiveMoment: hasActiveMoment,
+            momentTypeCode: momentTypeCode,
+            capabilityCodes: capabilityCodes,
+            onSetupMissing: onSetupMissing,
+            onClose: onCloseCreate,
+            onSpend: { onMoneyQuickAdd(.masterExpense) },
+            onIncome: { onMoneyQuickAdd(.income) },
+            onRecovery: { onLifeOpsQuickAdd(.recovery) },
+            onMood: { onLifeOpsQuickAdd(.mood) },
+            onAttention: { onLifeOpsQuickAdd(.attention) },
+            onAdjust: { onLifeOpsQuickAdd(.adjust) },
+            onTransfer: { onMoneyQuickAdd(.transfer) },
+            onSavings: { onMoneyQuickAdd(.savings) },
+            onFutureQuickAdd: { _ in onSetupMissing() },
+            onLifestyleQuickAdd: { _ in onSetupMissing() },
+            onRelationshipsQuickAdd: { _ in onSetupMissing() }
+        )
     }
 
     private func saved(_ confirmation: PersonalExpenseConfirmationPayload) -> some View {

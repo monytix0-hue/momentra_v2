@@ -27,6 +27,19 @@ struct PersonalActionRegistryTests {
         #expect(tiles.map(\.label).contains("Support"))
     }
 
+    @Test func lifeOpsCatalogIncludesSpendIncomeTransfer() {
+        let labels = PersonalActionRegistry.tiles(
+            for: .lifeOperations,
+            hasActiveMoment: true
+        ).map(\.label)
+        #expect(labels.contains("Spend"))
+        #expect(labels.contains("Income"))
+        #expect(labels.contains("Transfer"))
+        #expect(labels.contains("Mood"))
+        #expect(labels.contains("Recovery"))
+        #expect(labels.contains("Savings"))
+    }
+
     @Test func lifeOpsMoneyTilesEnabledWithActiveMoment() {
         let caps = ["EXPENSE_CREATE", "MOVEMENT_RECORD", "LIFE_OBSERVATION_RECORD"]
         let tiles = PersonalActionRegistry.tiles(
