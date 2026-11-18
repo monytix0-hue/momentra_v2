@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -41,6 +42,7 @@ import com.example.momentra.ui.shell.business.distribution.DistributionActive
 import com.example.momentra.ui.shell.business.marketing.MarketingActive
 import com.example.momentra.ui.shell.business.manufacturing.ManufacturingActive
 import com.example.momentra.ui.shell.business.mto.MadeToOrderActive
+import com.example.momentra.ui.shell.business.mto.MtoToastAction
 import com.example.momentra.ui.shell.business.restaurant.RestaurantActive
 import com.example.momentra.ui.shell.business.trading.TradingActive
 import com.example.momentra.ui.shell.business.service.ConsumerServiceActive
@@ -63,8 +65,33 @@ enum class OperatingTab { PULSE, MOMENTS, LIFE, MEMORY, QUICK_ADD }
 @Composable
 private fun OperatingMomentWithToast(
     modifier: Modifier = Modifier,
+    onOpenQuickAdd: () -> Unit = {},
     content: @Composable (Modifier) -> Unit,
 ) {
+    DisposableEffect(onOpenQuickAdd) {
+        OperatingToastHost.onAction = { action ->
+            when (action) {
+                MtoToastAction.Dismiss,
+                MtoToastAction.OpenPulse,
+                MtoToastAction.GoBack,
+                -> Unit
+                MtoToastAction.ConfirmOrder -> {
+                    onOpenQuickAdd()
+                    OperatingChromeState.quickAddHint = "CONFIRM"
+                }
+                MtoToastAction.OpenCustomers -> {
+                    OperatingChromeState.mastersOpen = OperatingMasterTab.Principals.name
+                }
+                MtoToastAction.OpenLines -> {
+                    OperatingChromeState.partsBrowserOpen = "materials"
+                }
+                MtoToastAction.OpenProducts -> {
+                    OperatingChromeState.partsBrowserOpen = "parts"
+                }
+            }
+        }
+        onDispose { OperatingToastHost.onAction = null }
+    }
     Box(modifier) {
         content(Modifier.fillMaxSize())
         OperatingToastOverlay(Modifier.align(Alignment.TopCenter))
@@ -280,7 +307,7 @@ fun OperatingMomentPage(
         return
     }
     if (model != null && model.subtype == "RETAIL_STORE") {
-        OperatingMomentWithToast(modifier) { inner ->
+        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
         RetailStoreActive(
             model = model,
             tab = tab,
@@ -333,7 +360,7 @@ fun OperatingMomentPage(
         return
     }
     if (model != null && model.subtype == "RESTAURANT_FOOD") {
-        OperatingMomentWithToast(modifier) { inner ->
+        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
         RestaurantActive(
             model = model,
             tab = tab,
@@ -384,7 +411,7 @@ fun OperatingMomentPage(
         return
     }
     if (model != null && (model.subtype == "CLIENT_CAMPAIGN" || model.subtype == "OWN_BUSINESS_CAMPAIGN")) {
-        OperatingMomentWithToast(modifier) { inner ->
+        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
         MarketingActive(
             model = model,
             tab = tab,
@@ -460,7 +487,7 @@ fun OperatingMomentPage(
         return
     }
     if (model != null && model.subtype == "MADE_TO_ORDER") {
-        OperatingMomentWithToast(modifier) { inner ->
+        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
         MadeToOrderActive(
             model = model,
             tab = tab,
@@ -512,7 +539,7 @@ fun OperatingMomentPage(
         return
     }
     if (model != null && model.subtype == "STANDARD_PRODUCTION") {
-        OperatingMomentWithToast(modifier) { inner ->
+        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
         ManufacturingActive(
             model = model,
             tab = tab,
@@ -564,7 +591,7 @@ fun OperatingMomentPage(
         return
     }
     if (model != null && model.subtype == "TRADING_WHOLESALE") {
-        OperatingMomentWithToast(modifier) { inner ->
+        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
         TradingActive(
             model = model,
             tab = tab,
@@ -638,7 +665,7 @@ fun OperatingMomentPage(
         return
     }
     if (model != null && model.subtype == "DISTRIBUTION_DEALERSHIP") {
-        OperatingMomentWithToast(modifier) { inner ->
+        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
         DistributionActive(
             model = model,
             tab = tab,
@@ -707,7 +734,7 @@ fun OperatingMomentPage(
         return
     }
     if (model != null && model.subtype == "CONSUMER_SERVICE") {
-        OperatingMomentWithToast(modifier) { inner ->
+        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
         ConsumerServiceActive(
             model = model,
             tab = tab,
@@ -757,7 +784,7 @@ fun OperatingMomentPage(
         }
         return
     }
-    OperatingMomentWithToast(modifier) { inner ->
+    OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
     Column(
         modifier = inner
             .fillMaxSize()
