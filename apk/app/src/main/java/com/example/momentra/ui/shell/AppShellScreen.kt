@@ -495,6 +495,20 @@ fun AppShellScreen(
             tourController.onSignal(TourSignal.OPENED_CREATE_TAB)
         }
     }
+    LaunchedEffect(
+        state.bottomDestination,
+        state.selectedContext,
+        state.selectedMomentId,
+        state.selectedMomentTypeCode,
+    ) {
+        if (state.selectedContext != AppContext.BUSINESS) return@LaunchedEffect
+        val typeCode = state.selectedMomentTypeCode
+            ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.momentTypeCode
+        val operating = OperatingMomentCatalog.kindForTypeCode(typeCode) != null &&
+            !OperatingMomentCatalog.isRetired(typeCode)
+        if (!operating) return@LaunchedEffect
+        OperatingChromeState.clearTransientUi()
+    }
 
     TourHost(
         controller = tourController,

@@ -285,6 +285,19 @@ struct OperatingExperienceHost: View {
                 }
             }
         }
+        .onChange(of: destination) { _, _ in
+            clearTransientUi()
+        }
+        .onChange(of: momentId) { _, _ in
+            clearTransientUi()
+        }
+    }
+
+    private func clearTransientUi() {
+        sheet = nil
+        pendingCapture = nil
+        pendingBrowserPrefill = nil
+        pendingPosKotTicket = nil
     }
 
     @ViewBuilder

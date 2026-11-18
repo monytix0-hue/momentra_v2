@@ -67,6 +67,23 @@ object OperatingChromeState {
     /** The moment chrome sheets act on; set by `OperatingMomentPage` before rendering. */
     var momentId by mutableStateOf<String?>(null)
 
+    /** Drop sheet/hint chrome that must not leak across tabs or moments. */
+    fun clearTransientUi() {
+        editing = null
+        settling = null
+        charging = null
+        quickAddHint = null
+        previewStoryId = null
+        storyConfigOpen = false
+        mastersOpen = null
+        partsBrowserOpen = null
+        servicesBrowserOpen = null
+        browserSelection = null
+        captureOpen = false
+        switchMomentOpen = false
+        // keep momentId / record / onSwitchMoment / theme colors; period already cleared on momentId
+    }
+
     /** Remap Figma period chip labels onto the operating projection query and reload. */
     fun applySheetPeriod(label: String) {
         when (label) {

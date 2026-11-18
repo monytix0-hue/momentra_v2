@@ -151,6 +151,9 @@ fun OperatingMomentPage(
         OperatingChromeState.periodFrom = null
         OperatingChromeState.periodTo = null
     }
+    LaunchedEffect(momentId, tab) {
+        OperatingChromeState.clearTransientUi()
+    }
     val activeMomentId = momentId
     androidx.compose.runtime.SideEffect {
         OperatingChromeState.momentId = activeMomentId
