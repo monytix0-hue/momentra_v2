@@ -189,6 +189,8 @@ private fun MoneySheetBody(
     var preferredCurrencyCodes by remember { mutableStateOf(listOf("INR")) }
     var submitting by remember { mutableStateOf(false) }
     var goalLinkPending by remember { mutableStateOf(false) }
+    /** Server goal ids keyed by stub card id — one createGoal per stub per sheet open. */
+    var createdGoalIdByStub by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
@@ -422,12 +424,19 @@ private fun MoneySheetBody(
                             ) {
                                 submitting = true
                                 goalLinkPending = false
-                                val goalName = savingsGoals.find { it.id == selectedGoalId }?.name ?: "Savings"
+                                val stubGoalId = selectedGoalId
+                                val goalName = savingsGoals.find { it.id == stubGoalId }?.name ?: "Savings"
                                 scope.launch {
-                                    val linkedGoalId = repository
-                                        .createGoal(momentId = momentId, title = goalName)
-                                        .getOrNull()
-                                        ?.goalId
+                                    var linkedGoalId = createdGoalIdByStub[stubGoalId]
+                                    if (linkedGoalId == null) {
+                                        linkedGoalId = repository
+                                            .createGoal(momentId = momentId, title = goalName)
+                                            .getOrNull()
+                                            ?.goalId
+                                        if (linkedGoalId != null) {
+                                            createdGoalIdByStub = createdGoalIdByStub + (stubGoalId to linkedGoalId)
+                                        }
+                                    }
                                     val pendingGoalLink = linkedGoalId == null
                                     repository.createMovement(
                                         momentId = momentId,

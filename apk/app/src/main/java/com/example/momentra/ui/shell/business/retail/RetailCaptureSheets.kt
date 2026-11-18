@@ -36,9 +36,6 @@ import com.example.momentra.data.api.OperatingLineBody
 import com.example.momentra.data.api.OperatingMasterDto
 import com.example.momentra.data.api.OperatingPaymentDto
 import com.example.momentra.data.api.OperatingProjectionDto
-import com.example.momentra.ui.shell.business.mto.MtoToastHost
-import com.example.momentra.ui.shell.business.mto.MtoToastKind
-import com.example.momentra.ui.shell.business.mto.MtoToastSpec
 import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
 import com.example.momentra.ui.shell.business.shared.OperatingStockReasons
 import com.example.momentra.ui.theme.RetailRose
@@ -316,7 +313,6 @@ private fun RetailPurchaseSheet(
                     "Part" -> "PARTIAL"
                     else -> "OPEN"
                 }
-                retailMoneySavedToast()
                 onSubmit(
                     RetailEventDraft(
                         eventType = "PURCHASE",
@@ -2245,14 +2241,3 @@ private fun shortDate(raw: String?): String? {
     }.getOrNull()
 }
 
-private fun retailMoneySavedToast() {
-    MtoToastHost.show(
-        MtoToastSpec(
-            kind = MtoToastKind.Saved,
-            title = RetailCaptureCopy.SAVED_TOAST,
-            body = RetailCaptureCopy.TAGLINE,
-            actionLabel = "Done",
-            accent = RetailRose.positive,
-        ),
-    )
-}

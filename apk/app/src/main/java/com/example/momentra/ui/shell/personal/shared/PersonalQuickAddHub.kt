@@ -168,7 +168,8 @@ fun PersonalQuickAddHub(
             tiles.forEach { tile ->
                 PersonalQaTile(
                     tile = tile,
-                    enabled = tile.tappable && tile.enabledWhenMomentActive,
+                    enabled = tile.tappable,
+                    dimmed = !hasActiveMoment || !tile.enabledWhenMomentActive,
                     onClick = { dispatchTile(tile.label, onSpend, onIncome, onRecovery, onMood, onAttention, onAdjust, onTransfer, onSavings) },
                 )
             }
@@ -177,7 +178,7 @@ fun PersonalQuickAddHub(
         if (!hasActiveMoment) {
             Spacer(Modifier.height(PersonalTokens.Space.Md))
             Text(
-                "Create a Personal Moment from the top-bar + to unlock Quick Add actions.",
+                "Tap a tile to set up Life Operations, then log spend, mood, and money.",
                 color = PersonalTokens.Colors.TextSecondary,
                 style = PersonalTokens.Type.Caption,
             )
@@ -214,9 +215,10 @@ private fun dispatchTile(
 private fun PersonalQaTile(
     tile: PersonalActionTile,
     enabled: Boolean,
+    dimmed: Boolean,
     onClick: () -> Unit,
 ) {
-    val alpha = if (enabled) 1f else 0.55f
+    val alpha = if (dimmed) 0.55f else 1f
     Column(
         modifier = Modifier
             .width(104.dp)
