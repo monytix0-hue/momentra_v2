@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -57,6 +59,17 @@ private val Muted = Color(0xFF94A3B8)
 private val TextPrimary = Color(0xFFE5E0EE)
 
 enum class OperatingTab { PULSE, MOMENTS, LIFE, MEMORY, QUICK_ADD }
+
+@Composable
+private fun OperatingMomentWithToast(
+    modifier: Modifier = Modifier,
+    content: @Composable (Modifier) -> Unit,
+) {
+    Box(modifier) {
+        content(Modifier.fillMaxSize())
+        OperatingToastOverlay(Modifier.align(Alignment.TopCenter))
+    }
+}
 
 /** Last operating projection for a moment. Paint this before the ledger replay returns. */
 object OperatingProjectionCache {
@@ -267,6 +280,7 @@ fun OperatingMomentPage(
         return
     }
     if (model != null && model.subtype == "RETAIL_STORE") {
+        OperatingMomentWithToast(modifier) { inner ->
         RetailStoreActive(
             model = model,
             tab = tab,
@@ -313,11 +327,13 @@ fun OperatingMomentPage(
                     onFailure = { error = it.message },
                 )
             },
-            modifier = modifier,
+            modifier = inner,
         )
+        }
         return
     }
     if (model != null && model.subtype == "RESTAURANT_FOOD") {
+        OperatingMomentWithToast(modifier) { inner ->
         RestaurantActive(
             model = model,
             tab = tab,
@@ -362,11 +378,13 @@ fun OperatingMomentPage(
                     onFailure = { error = it.message },
                 )
             },
-            modifier = modifier,
+            modifier = inner,
         )
+        }
         return
     }
     if (model != null && (model.subtype == "CLIENT_CAMPAIGN" || model.subtype == "OWN_BUSINESS_CAMPAIGN")) {
+        OperatingMomentWithToast(modifier) { inner ->
         MarketingActive(
             model = model,
             tab = tab,
@@ -436,11 +454,13 @@ fun OperatingMomentPage(
                     onFailure = { error = it.message },
                 )
             },
-            modifier = modifier,
+            modifier = inner,
         )
+        }
         return
     }
     if (model != null && model.subtype == "MADE_TO_ORDER") {
+        OperatingMomentWithToast(modifier) { inner ->
         MadeToOrderActive(
             model = model,
             tab = tab,
@@ -486,11 +506,13 @@ fun OperatingMomentPage(
                 )
             },
             companyId = companyId,
-            modifier = modifier,
+            modifier = inner,
         )
+        }
         return
     }
     if (model != null && model.subtype == "STANDARD_PRODUCTION") {
+        OperatingMomentWithToast(modifier) { inner ->
         ManufacturingActive(
             model = model,
             tab = tab,
@@ -536,11 +558,13 @@ fun OperatingMomentPage(
                 )
             },
             companyId = companyId,
-            modifier = modifier,
+            modifier = inner,
         )
+        }
         return
     }
     if (model != null && model.subtype == "TRADING_WHOLESALE") {
+        OperatingMomentWithToast(modifier) { inner ->
         TradingActive(
             model = model,
             tab = tab,
@@ -608,11 +632,13 @@ fun OperatingMomentPage(
                 )
             },
             companyId = companyId,
-            modifier = modifier,
+            modifier = inner,
         )
+        }
         return
     }
     if (model != null && model.subtype == "DISTRIBUTION_DEALERSHIP") {
+        OperatingMomentWithToast(modifier) { inner ->
         DistributionActive(
             model = model,
             tab = tab,
@@ -675,11 +701,13 @@ fun OperatingMomentPage(
                     onFailure = { error = it.message },
                 )
             },
-            modifier = modifier,
+            modifier = inner,
         )
+        }
         return
     }
     if (model != null && model.subtype == "CONSUMER_SERVICE") {
+        OperatingMomentWithToast(modifier) { inner ->
         ConsumerServiceActive(
             model = model,
             tab = tab,
@@ -724,12 +752,14 @@ fun OperatingMomentPage(
                     onFailure = { error = it.message },
                 )
             },
-            modifier = modifier,
+            modifier = inner,
         )
+        }
         return
     }
+    OperatingMomentWithToast(modifier) { inner ->
     Column(
-        modifier = modifier
+        modifier = inner
             .fillMaxSize()
             .background(Bg)
             .verticalScroll(rememberScrollState())
@@ -776,6 +806,7 @@ fun OperatingMomentPage(
                 },
             )
         }
+    }
     }
 }
 

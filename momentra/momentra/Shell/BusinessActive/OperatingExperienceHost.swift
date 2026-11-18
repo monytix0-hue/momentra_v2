@@ -272,13 +272,10 @@ struct OperatingExperienceHost: View {
             .preferredColorScheme(.dark)
         }
         .overlay(alignment: .top) {
-            if kit == .madeToOrder {
-                MtoToastOverlay()
-            }
+            OperatingToastOverlay()
         }
         .onAppear {
-            guard kit == .madeToOrder else { return }
-            MtoToastHost.shared.onAction = { action in
+            OperatingToastHost.shared.onAction = { action in
                 switch action {
                 case .openPulse, .goBack, .dismiss: break
                 case .confirmOrder: sheet = .capture("CONFIRM")
