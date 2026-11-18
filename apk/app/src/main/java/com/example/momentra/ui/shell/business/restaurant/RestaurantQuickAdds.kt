@@ -41,9 +41,6 @@ import com.example.momentra.R
 import com.example.momentra.data.api.OperatingActivityDto
 import com.example.momentra.data.api.OperatingMasterBody
 import com.example.momentra.data.api.OperatingProjectionDto
-import com.example.momentra.ui.shell.business.mto.MtoToastHost
-import com.example.momentra.ui.shell.business.mto.MtoToastKind
-import com.example.momentra.ui.shell.business.mto.MtoToastSpec
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureDraft
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
@@ -74,15 +71,7 @@ fun RestaurantQuickAddHub(
     val scope = rememberCoroutineScope()
 
     fun showSavedToast() {
-        MtoToastHost.show(
-            MtoToastSpec(
-                kind = MtoToastKind.Saved,
-                title = RestaurantCaptureCopy.SAVED_TOAST,
-                body = RestaurantCaptureCopy.TAGLINE,
-                actionLabel = "Done",
-                accent = RestaurantEmber.positive,
-            ),
-        )
+        showRestaurantCaptureSavedToast()
     }
 
     Column(
@@ -275,7 +264,10 @@ fun RestaurantQuickAddHub(
                     },
                     onMasterSubmit = { draft ->
                         scope.launch {
-                            runCatching { onRecord(draft) }.onFailure { error = it.message }
+                            error = null
+                            runCatching { onRecord(draft) }
+                                .onSuccess { showSavedToast() }
+                                .onFailure { error = it.message ?: "Could not save" }
                         }
                     },
                 )
