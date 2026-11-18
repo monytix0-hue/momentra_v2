@@ -809,7 +809,7 @@ fun AppShellScreen(
                             isRunway -> businessGapQa = kind
                             isOps -> businessGapQa = kind
                             kind == BusinessQuickAddKind.REVENUE ||
-                                kind == BusinessQuickAddKind.INVOICE -> Unit
+                                kind == BusinessQuickAddKind.INVOICE -> businessGapQa = kind
                             else -> businessGapQa = kind
                         }
                     },
