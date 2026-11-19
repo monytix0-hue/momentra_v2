@@ -75,6 +75,12 @@ struct OperatingCaptureSheet: View {
         var lineAmountEdited = false
         /// Itemized cart lines (Android `savedLines` parity).
         var savedLines: [OperatingEventInput.OperatingLineItem] = []
+        /// Purchase Part received — qty received now (Quick cost / rollup).
+        var quantityReceived = ""
+        /// Per-line received-now qty for itemized Part received.
+        var lineReceivedQtys: [String] = []
+        /// Goods / receipt due (Receive later or remainder after Part received).
+        var goodsDueAt: String? = nil
     }
 
     private var layout: OperatingCaptureLayout? {
@@ -610,8 +616,34 @@ struct OperatingCaptureSheet: View {
         segmented("Payment state (M)", options: ["Paid", "Part paid", "Pay later"], selection: $draft.paymentChoice)
         if draft.paymentChoice == "Part paid" {
             field("Paid now (C)", text: $draft.amountPaidNow, decimal: true)
+            setupDateField("Due date (C)", selection: $draft.dueAt, danger: true)
+        } else if draft.paymentChoice == "Pay later" {
+            setupDateField("Due date (C)", selection: $draft.dueAt, danger: true)
         }
-        segmented("Goods (M)", options: ["Received now", "Receive later"], selection: $draft.goodsStatus)
+        segmented(
+            "Goods (M)",
+            options: ["Received now", "Part received", "Receive later"],
+            selection: $draft.goodsStatus
+        )
+        if draft.goodsStatus == "Part received" {
+            Text("Part received posts stock only for the received-now quantity. Pending quantity waits for Delivery → Incoming.")
+                .font(.plusJakarta(size: 11))
+                .foregroundStyle(theme.muted)
+                .italic()
+            if itemized && !draft.savedLines.isEmpty {
+                tradingPartialReceiptLines()
+            } else {
+                field("Received now (qty)", text: $draft.quantityReceived, decimal: true)
+            }
+            setupDateField("Remainder due", selection: $draft.goodsDueAt, danger: true)
+        } else if draft.goodsStatus == "Receive later"
+            || draft.goodsStatus.localizedCaseInsensitiveContains("later") {
+            Text("Nothing is received now. Set a due date for the receipt.")
+                .font(.plusJakarta(size: 11))
+                .foregroundStyle(theme.muted)
+                .italic()
+            setupDateField("Due date", selection: $draft.goodsDueAt, danger: true)
+        }
         if tradingGstOn {
             segmented(
                 "Purchase price",
@@ -1298,6 +1330,75 @@ struct OperatingCaptureSheet: View {
                     .stroke(Color.white.opacity(0.08), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    private func ensurePurchaseLineReceivedSlots() {
+        let n = draft.savedLines.count
+        if draft.lineReceivedQtys.count == n { return }
+        var next = draft.lineReceivedQtys
+        while next.count < n { next.append("") }
+        if next.count > n { next = Array(next.prefix(n)) }
+        draft.lineReceivedQtys = next
+    }
+
+    @ViewBuilder
+    private func tradingPartialReceiptLines() -> some View {
+        ensurePurchaseLineReceivedSlots()
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(draft.savedLines.enumerated()), id: \.offset) { index, line in
+                let ordered = Decimal(string: (line.quantity ?? "").trimmingCharacters(in: .whitespaces))
+                let deliveredText = draft.lineReceivedQtys.indices.contains(index)
+                    ? draft.lineReceivedQtys[index] : "0"
+                let delivered = Decimal(string: deliveredText) ?? 0
+                let remaining: Decimal? = ordered.map { max($0 - delivered, 0) }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(line.itemName)
+                        .font(.plusJakarta(size: 15, weight: .medium))
+                        .foregroundStyle(theme.captureValue)
+                    Text("Ordered \(line.quantity ?? "—")\(line.unit.map { " \($0)" } ?? "")")
+                        .font(.plusJakarta(size: 12, weight: .medium))
+                        .foregroundStyle(theme.captureLabel)
+                    HStack {
+                        Text("Received now")
+                            .font(.plusJakarta(size: 12, weight: .medium))
+                            .foregroundStyle(theme.captureLabel)
+                        Spacer()
+                        TextField("0", text: Binding(
+                            get: {
+                                draft.lineReceivedQtys.indices.contains(index)
+                                    ? draft.lineReceivedQtys[index] : ""
+                            },
+                            set: { value in
+                                ensurePurchaseLineReceivedSlots()
+                                var next = draft.lineReceivedQtys
+                                next[index] = value.filter { $0.isNumber || $0 == "." }
+                                draft.lineReceivedQtys = next
+                                let sum = next.compactMap { Decimal(string: $0) }.reduce(Decimal(0), +)
+                                draft.quantityReceived = formatDecimalMoney(sum, fractionDigits: 0) ?? ""
+                            }
+                        ))
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 72)
+                        .font(.plusJakarta(size: 14, weight: .semibold))
+                        .foregroundStyle(theme.captureValue)
+                    }
+                    if let remaining, let shown = formatDecimalMoney(remaining, fractionDigits: 0) {
+                        Text("Remaining \(shown)\(line.unit.map { " \($0)" } ?? "")")
+                            .font(.plusJakarta(size: 12))
+                            .foregroundStyle(theme.muted)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(theme.captureField)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+            }
         }
     }
 
@@ -2184,9 +2285,29 @@ struct OperatingCaptureSheet: View {
                 contract.paymentState = "PAY_LATER"
             }
             // Goods chips map to receiptState (server), not goodsStatus.
-            contract.receiptState = draft.goodsStatus.localizedCaseInsensitiveContains("later")
-                ? "AWAITING"
-                : "RECEIVED"
+            let goods = draft.goodsStatus
+            if goods.localizedCaseInsensitiveContains("Part") {
+                contract.receiptState = "PART_RECEIVED"
+                let rolled = draft.lineReceivedQtys
+                    .compactMap { Decimal(string: $0.trimmingCharacters(in: .whitespaces)) }
+                    .reduce(Decimal(0), +)
+                if rolled > 0 {
+                    contract.quantityReceived = formatDecimalMoney(rolled, fractionDigits: 0)
+                        ?? {
+                            let q = draft.quantityReceived.trimmingCharacters(in: .whitespaces)
+                            return q.isEmpty ? nil : q
+                        }()
+                } else {
+                    let q = draft.quantityReceived.trimmingCharacters(in: .whitespaces)
+                    contract.quantityReceived = q.isEmpty ? nil : q
+                }
+                contract.promisedAt = draft.goodsDueAt
+            } else if goods.localizedCaseInsensitiveContains("later") {
+                contract.receiptState = "AWAITING"
+                contract.promisedAt = draft.goodsDueAt
+            } else {
+                contract.receiptState = "RECEIVED"
+            }
             if tradingGstOn {
                 switch draft.taxMode {
                 case "Inclusive": contract.taxMode = "INCLUSIVE"

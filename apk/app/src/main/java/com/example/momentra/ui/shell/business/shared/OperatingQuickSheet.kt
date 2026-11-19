@@ -1338,50 +1338,63 @@ private fun PurchaseVendorCapture(
         } else if (form.choice == "Pay later") {
             ReadField("Due date", form.dueDateText, trailing = "Credit policy", dangerLabel = true) { form.dueDateOpen = true }
         }
-        // Figma 108:22881 / 108:22889 / 108:22897 — itemized goods receipt only.
-        if (itemized) {
-            val goodsSelected = when {
-                form.receiptState.contains("Part", true) -> "Part received"
-                form.receiptState.contains("later", true) || form.receiptState.contains("Await", true) -> "Receive later"
-                else -> "Received now"
+        // Figma 108:22881 / 108:22889 / 108:22897 — goods receipt for Quick cost + Itemized.
+        val goodsSelected = when {
+            form.receiptState.contains("Part", true) -> "Part received"
+            form.receiptState.contains("later", true) || form.receiptState.contains("Await", true) -> "Receive later"
+            else -> "Received now"
+        }
+        ChoiceBlock(
+            if (itemized) "Goods received (M · itemized)" else "Goods (M)",
+            listOf("Received now", "Part received", "Receive later"),
+            goodsSelected,
+        ) {
+            form.receiptState = when (it) {
+                "Part received" -> "Part received"
+                "Receive later" -> "Receive later"
+                else -> "Fully received"
             }
-            ChoiceBlock(
-                "Goods received (M · itemized)",
-                listOf("Received now", "Part received", "Receive later"),
-                goodsSelected,
-            ) {
-                form.receiptState = when (it) {
-                    "Part received" -> "Part received"
-                    "Receive later" -> "Receive later"
-                    else -> "Fully received"
-                }
-            }
-            when (goodsSelected) {
-                "Part received" -> {
-                    Text(
-                        "Part received posts stock only for the received-now quantity on each line. Pending quantity waits for Delivery → Incoming.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 11.sp,
-                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    )
+        }
+        when (goodsSelected) {
+            "Part received" -> {
+                Text(
+                    if (itemized) {
+                        "Part received posts stock only for the received-now quantity on each line. Pending quantity waits for Delivery → Incoming."
+                    } else {
+                        "Part received posts stock only for the received-now quantity. Pending quantity waits for Delivery → Incoming."
+                    },
+                    color = SheetMuted,
+                    fontFamily = PlusJakartaSans,
+                    fontSize = 11.sp,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                )
+                if (itemized) {
                     PartialFulfillmentLines(
                         form = form,
                         actionLabel = "Received now",
                         emptyHint = "Add purchase items first, then set how much is received now.",
                         onOpenDue = { form.goodsDueOpen = true },
                     )
+                } else {
+                    EditField(
+                        "Received now (qty)",
+                        form.quantityReceived,
+                        "Less than ordered",
+                    ) { form.quantityReceived = it }
+                    ReadField("Remainder due", form.goodsDueText, trailing = "Balance") {
+                        form.goodsDueOpen = true
+                    }
                 }
-                "Receive later" -> {
-                    Text(
-                        "Nothing is received now. Set a due date for the receipt.",
-                        color = SheetMuted,
-                        fontFamily = PlusJakartaSans,
-                        fontSize = 11.sp,
-                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    )
-                    ReadField("Due date", form.goodsDueText, trailing = "Receipt due") { form.goodsDueOpen = true }
-                }
+            }
+            "Receive later" -> {
+                Text(
+                    "Nothing is received now. Set a due date for the receipt.",
+                    color = SheetMuted,
+                    fontFamily = PlusJakartaSans,
+                    fontSize = 11.sp,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                )
+                ReadField("Due date", form.goodsDueText, trailing = "Receipt due") { form.goodsDueOpen = true }
             }
         }
         MoreDetails(form.moreOpen, "Tax, FX, ownership, and note. Optional.") { form.moreOpen = !form.moreOpen }
