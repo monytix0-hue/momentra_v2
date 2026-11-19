@@ -493,7 +493,7 @@ struct OperatingCaptureSheet: View {
         if !itemized {
             TradingAmountHero(theme: theme, label: "Sale amount (M)", currency: model.currency, text: $draft.amount, hint: ">0")
         } else {
-            skuPicker
+            skuPicker(alwaysShowSection: true)
             HStack(spacing: 10) {
                 field("Quantity", text: $draft.quantity, decimal: true)
                 field("Unit", text: $draft.unit)
@@ -562,7 +562,7 @@ struct OperatingCaptureSheet: View {
         if !itemized {
             TradingAmountHero(theme: theme, label: "Purchase amount (M)", currency: model.currency, text: $draft.amount, hint: ">0")
         } else {
-            skuPicker
+            skuPicker(alwaysShowSection: true)
             HStack(spacing: 10) {
                 field("Quantity", text: $draft.quantity, decimal: true)
                 field("Unit", text: $draft.unit)
@@ -704,7 +704,7 @@ struct OperatingCaptureSheet: View {
             text: $draft.counterparty
         )
         setupDateField("Order date (M)", selection: $draft.occurredAt)
-        skuPicker
+        skuPicker(alwaysShowSection: true)
         HStack(spacing: 10) {
             field("Quantity", text: $draft.quantity, decimal: true)
             field("Unit", text: $draft.unit)
@@ -947,7 +947,7 @@ struct OperatingCaptureSheet: View {
         }
         if [.sale, .purchase, .stock, .saleReturn, .order, .shipment].contains(layout) {
             if layout != .sale || itemizedSale || !theme.isOpsQaCapture {
-                skuPicker
+                skuPicker(alwaysShowSection: itemizedSale)
             }
             if layout != .sale || itemizedSale {
                 HStack(spacing: 10) {
@@ -1104,60 +1104,78 @@ struct OperatingCaptureSheet: View {
 
     /// The display name behind a chosen master id, so the record reads in words while the
     /// contract still carries the id the server validates.
+    private var captureMastersSource: [OperatingMasterPayload] {
+        model.masters.isEmpty ? (model.projection?.masters ?? []) : model.masters
+    }
+
     private func masterName(_ id: String?) -> String? {
         guard let id, !id.isEmpty else { return nil }
-        return model.masters.first { $0.id == id }?.name
+        return captureMastersSource.first { $0.id == id }?.name
     }
 
     private var selectedMaster: OperatingMasterPayload? {
         guard let id = draft.masterId, !id.isEmpty else { return nil }
-        return model.masters.first { $0.id == id }
+        return captureMastersSource.first { $0.id == id }
     }
 
-    private var skuPicker: some View {
-        let kinds: Set<String> = ["SKU", "PRODUCT", "BATCH", "PART", "MATERIAL", "RAW", "BOM"]
-        let skus = model.masters.filter { kinds.contains($0.kind.uppercased()) || $0.kind.isEmpty }
-        return Group {
-            if !skus.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Product")
-                        .font(.plusJakarta(size: 11))
-                        .foregroundStyle(theme.muted)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(skus) { sku in
-                                Button {
-                                    draft.masterId = sku.id
-                                    draft.sku = sku.name
-                                    draft.itemName = sku.name
-                                    if draft.title.isEmpty { draft.title = sku.name }
-                                    if draft.quantity.isEmpty { draft.quantity = "1" }
-                                    if draft.unit.isEmpty { draft.unit = sku.unit ?? "" }
-                                    if draft.itemPrice.isEmpty {
-                                        draft.itemPrice = sku.sellPrice ?? sku.purchasePrice ?? ""
-                                    }
-                                    if draft.gstRate.isEmpty, let rate = sku.gstRate, !rate.isEmpty {
-                                        draft.gstRate = rate
-                                    }
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        OperatingPill(
-                                            theme: theme,
-                                            label: sku.name,
-                                            accent: draft.masterId == sku.id
-                                        )
-                                        if sku.kind.uppercased() == "BATCH" {
-                                            Text(fefoFactLabel(master: sku))
-                                                .font(.plusJakarta(size: 10))
-                                                .foregroundStyle(theme.warning)
-                                        }
+    @ViewBuilder
+    private func skuPicker(alwaysShowSection: Bool = false) -> some View {
+        let source = captureMastersSource
+        let skus = source.filter {
+            OperatingLovKindMatch.masterMatches(pickerKind: "PRODUCT", masterKind: $0.kind)
+        }
+        if !skus.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Product")
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(theme.muted)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(skus) { sku in
+                            Button {
+                                draft.masterId = sku.id
+                                draft.sku = sku.name
+                                draft.itemName = sku.name
+                                if draft.title.isEmpty { draft.title = sku.name }
+                                if draft.quantity.isEmpty { draft.quantity = "1" }
+                                if draft.unit.isEmpty { draft.unit = sku.unit ?? "" }
+                                if draft.itemPrice.isEmpty {
+                                    draft.itemPrice = sku.sellPrice ?? sku.purchasePrice ?? ""
+                                }
+                                if draft.gstRate.isEmpty, let rate = sku.gstRate, !rate.isEmpty {
+                                    draft.gstRate = rate
+                                }
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    OperatingPill(
+                                        theme: theme,
+                                        label: sku.name,
+                                        accent: draft.masterId == sku.id
+                                    )
+                                    if sku.kind.uppercased() == "BATCH" {
+                                        Text(fefoFactLabel(master: sku))
+                                            .font(.plusJakarta(size: 10))
+                                            .foregroundStyle(theme.warning)
                                     }
                                 }
-                                .buttonStyle(.plain)
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
+            }
+        } else if alwaysShowSection {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Product")
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(theme.muted)
+                Text("No matching product")
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(theme.muted)
+                Text("Product not listed? Create product")
+                    .font(.plusJakarta(size: 12, weight: .medium))
+                    .foregroundStyle(theme.accent)
+                    .underline()
             }
         }
     }
