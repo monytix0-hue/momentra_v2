@@ -70,6 +70,11 @@ struct OperatingCaptureSheet: View {
         var gstRate = ""
         /// `INTRA` | `INTER` | ""
         var supplyChoice = ""
+        /// Figma TRD-QA-01: current line Sale/Purchase amount (price × qty) unless edited.
+        var lineAmount = ""
+        var lineAmountEdited = false
+        /// Itemized cart lines (Android `savedLines` parity).
+        var savedLines: [OperatingEventInput.OperatingLineItem] = []
     }
 
     private var layout: OperatingCaptureLayout? {
@@ -213,13 +218,16 @@ struct OperatingCaptureSheet: View {
     }
 
     private var tradingItemizedLineReady: Bool {
+        if !draft.savedLines.isEmpty { return true }
         let name = draft.itemName.trimmingCharacters(in: .whitespaces)
         let sku = draft.sku.trimmingCharacters(in: .whitespaces)
         let product = !name.isEmpty || !sku.isEmpty
+        let hasPrice = !draft.itemPrice.trimmingCharacters(in: .whitespaces).isEmpty
+            || (draft.lineAmountEdited && !draft.lineAmount.trimmingCharacters(in: .whitespaces).isEmpty)
         return product
             && !draft.quantity.trimmingCharacters(in: .whitespaces).isEmpty
             && !draft.unit.trimmingCharacters(in: .whitespaces).isEmpty
-            && !draft.itemPrice.trimmingCharacters(in: .whitespaces).isEmpty
+            && hasPrice
     }
 
     /// Trading TRD sheets: Quick amount needs amount; Itemized needs a full line (+ channel/GST when required).
@@ -514,10 +522,13 @@ struct OperatingCaptureSheet: View {
         } else {
             productLovField(alwaysShowSection: true)
             HStack(spacing: 10) {
-                field("Quantity", text: $draft.quantity, decimal: true)
+                field("Quantity", text: quantityBinding, decimal: true)
                 field("Unit", text: $draft.unit)
             }
-            field("Unit price", text: $draft.itemPrice, decimal: true)
+            field("Price", text: itemPriceBinding, decimal: true)
+            lineAmountAutoField(label: "Sale amount")
+            tradingAddLineButton(label: "+ Add item to sale")
+            tradingItemizedCart(title: "Sale items")
         }
         setupDateField("Sale date (M)", selection: $draft.occurredAt)
         segmented("Payment state (M)", options: ["Received", "Part paid", "Pay later"], selection: $draft.paymentChoice)
@@ -584,10 +595,13 @@ struct OperatingCaptureSheet: View {
         } else {
             productLovField(alwaysShowSection: true)
             HStack(spacing: 10) {
-                field("Quantity", text: $draft.quantity, decimal: true)
+                field("Quantity", text: quantityBinding, decimal: true)
                 field("Unit", text: $draft.unit)
             }
-            field("Unit price", text: $draft.itemPrice, decimal: true)
+            field("Price", text: itemPriceBinding, decimal: true)
+            lineAmountAutoField(label: "Purchase amount")
+            tradingAddLineButton(label: "+ Add item to purchase")
+            tradingItemizedCart(title: "Purchase items")
         }
         lovField(label: "Supplier (C/M)", value: draft.counterparty, placeholder: "supplier") {
             activeLovKind = "SUPPLIER"
@@ -1144,11 +1158,249 @@ struct OperatingCaptureSheet: View {
 
     private var canAddCaptureLov: Bool {
         let allowed = Set((model.projection?.quickAdds ?? []).map { $0.code.uppercased() })
-        return allowed.isEmpty || allowed.contains("UPDATE")
+        return allowed.contains("UPDATE")
     }
 
     private func captureLovOptions(kind: String) -> [OperatingLovOption] {
         tradingLovOptions(kind: kind, masters: captureMastersSource, local: captureLocalLovOptions)
+    }
+
+    private var quantityBinding: Binding<String> {
+        Binding(
+            get: { draft.quantity },
+            set: { draft.quantity = $0; syncLineAmountFromQtyPrice() }
+        )
+    }
+
+    private var itemPriceBinding: Binding<String> {
+        Binding(
+            get: { draft.itemPrice },
+            set: { draft.itemPrice = $0; syncLineAmountFromQtyPrice() }
+        )
+    }
+
+    private func syncLineAmountFromQtyPrice() {
+        guard !draft.lineAmountEdited else { return }
+        let qtyText = draft.quantity.trimmingCharacters(in: .whitespaces)
+        let priceText = draft.itemPrice
+            .replacingOccurrences(of: "₹", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        guard let qty = Decimal(string: qtyText), let price = Decimal(string: priceText) else {
+            draft.lineAmount = ""
+            return
+        }
+        draft.lineAmount = formatDecimalMoney(qty * price) ?? ""
+    }
+
+    private func resolvedEditorUnitPrice() -> String? {
+        let qtyText = draft.quantity.trimmingCharacters(in: .whitespaces)
+        let qty = Decimal(string: qtyText).flatMap { $0 > 0 ? $0 : nil } ?? 1
+        if draft.lineAmountEdited,
+           let amt = Decimal(string: draft.lineAmount.trimmingCharacters(in: .whitespaces)), qty > 0 {
+            let unit = amt / qty
+            return formatDecimalMoney(unit, fractionDigits: 4)
+        }
+        let price = draft.itemPrice.replacingOccurrences(of: "₹", with: "").trimmingCharacters(in: .whitespaces)
+        return price.isEmpty ? nil : price
+    }
+
+    private func pendingEditorLine() -> OperatingEventInput.OperatingLineItem? {
+        let name = draft.itemName.trimmingCharacters(in: .whitespaces)
+        let sku = draft.sku.trimmingCharacters(in: .whitespaces)
+        let lineName = !name.isEmpty ? name : sku
+        guard !lineName.isEmpty else { return nil }
+        return .init(
+            itemName: lineName,
+            quantity: draft.quantity.isEmpty ? nil : draft.quantity,
+            unit: draft.unit.isEmpty ? nil : draft.unit,
+            unitPrice: resolvedEditorUnitPrice(),
+            masterId: draft.masterId
+        )
+    }
+
+    private func lineMoneyTotal(_ line: OperatingEventInput.OperatingLineItem) -> Decimal? {
+        guard let qty = Decimal(string: (line.quantity ?? "").trimmingCharacters(in: .whitespaces)),
+              let price = Decimal(string: (line.unitPrice ?? "").trimmingCharacters(in: .whitespaces)),
+              qty > 0, price > 0 else { return nil }
+        return qty * price
+    }
+
+    private func itemizedSaleTotal(includePending: Bool) -> Decimal? {
+        var total: Decimal = 0
+        var any = false
+        for line in draft.savedLines {
+            if let part = lineMoneyTotal(line) {
+                total += part
+                any = true
+            }
+        }
+        if includePending, let pending = pendingEditorLine() {
+            if draft.lineAmountEdited,
+               let amt = Decimal(string: draft.lineAmount.trimmingCharacters(in: .whitespaces)), amt > 0 {
+                total += amt
+                any = true
+            } else if let part = lineMoneyTotal(pending) {
+                total += part
+                any = true
+            }
+        }
+        return any ? total : nil
+    }
+
+    private func formatDecimalMoney(_ value: Decimal?, fractionDigits: Int = 2) -> String? {
+        guard let value else { return nil }
+        let formatter = NumberFormatter()
+        formatter.minimumFractionDigits = fractionDigits
+        formatter.maximumFractionDigits = fractionDigits
+        formatter.numberStyle = .decimal
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter.string(from: NSDecimalNumber(decimal: value))
+    }
+
+    @ViewBuilder
+    private func lineAmountAutoField(label: String) -> some View {
+        let currency = model.currency.isEmpty ? "INR" : model.currency
+        let display: String = {
+            if draft.lineAmount.isEmpty { return "\(currency == "INR" ? "₹" : currency + " ")0.00" }
+            let prefix = currency == "INR" ? "₹" : currency + " "
+            return prefix + draft.lineAmount
+        }()
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.plusJakarta(size: 12, weight: .medium))
+                .foregroundStyle(theme.captureLabel)
+            HStack {
+                TextField(display, text: Binding(
+                    get: { draft.lineAmount },
+                    set: { raw in
+                        let cleaned = raw.filter { $0.isNumber || $0 == "." }
+                        draft.lineAmount = cleaned
+                        draft.lineAmountEdited = !cleaned.isEmpty
+                        if cleaned.isEmpty {
+                            draft.lineAmountEdited = false
+                            syncLineAmountFromQtyPrice()
+                        }
+                    }
+                ))
+                .keyboardType(.decimalPad)
+                .font(.plusJakarta(size: 15, weight: .medium))
+                .foregroundStyle(theme.captureValue)
+                Spacer()
+                Text(draft.lineAmountEdited ? "Edited" : "Auto · tap to edit")
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(draft.lineAmountEdited ? theme.muted : theme.accent)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(theme.captureField)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    @ViewBuilder
+    private func tradingAddLineButton(label: String) -> some View {
+        let ready = !(draft.itemName.trimmingCharacters(in: .whitespaces).isEmpty
+            && draft.sku.trimmingCharacters(in: .whitespaces).isEmpty)
+        if ready {
+            Button(label) {
+                guard let pending = pendingEditorLine() else { return }
+                draft.savedLines.append(pending)
+                draft.itemName = ""
+                draft.sku = ""
+                draft.masterId = nil
+                draft.quantity = "1"
+                draft.itemPrice = ""
+                draft.lineAmount = ""
+                draft.lineAmountEdited = false
+            }
+            .font(.plusJakarta(size: 13, weight: .semibold))
+            .foregroundStyle(theme.accent)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func tradingItemizedCart(title: String) -> some View {
+        let lines = draft.savedLines
+        if lines.isEmpty {
+            Text("Add products to build this line by line.")
+                .font(.plusJakarta(size: 12))
+                .foregroundStyle(theme.muted)
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title)
+                    .font(.plusJakarta(size: 11, weight: .semibold))
+                    .foregroundStyle(theme.muted)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+                ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                    HStack(alignment: .top, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(line.itemName)
+                                .font(.plusJakarta(size: 14, weight: .semibold))
+                                .foregroundStyle(theme.captureValue)
+                            let metaBits: [String] = [
+                                line.quantity,
+                                line.unit,
+                                line.unitPrice.map { "@ \($0)" },
+                            ].compactMap { $0 }.filter { !$0.isEmpty }
+                            let meta = metaBits.joined(separator: " ")
+                            if !meta.isEmpty {
+                                Text(meta)
+                                    .font(.plusJakarta(size: 12))
+                                    .foregroundStyle(theme.muted)
+                            }
+                        }
+                        Spacer()
+                        if let total = lineMoneyTotal(line), let shown = formatDecimalMoney(total) {
+                            let currency = model.currency.isEmpty ? "INR" : model.currency
+                            Text(currency == "INR" ? "₹\(shown)" : "\(currency) \(shown)")
+                                .font(.plusJakarta(size: 13, weight: .semibold))
+                                .foregroundStyle(theme.accent)
+                        }
+                        Button("×") {
+                            draft.savedLines.remove(at: index)
+                        }
+                        .font(.plusJakarta(size: 16))
+                        .foregroundStyle(theme.muted)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    if index < lines.count - 1 {
+                        Divider().background(theme.border)
+                    }
+                }
+                HStack {
+                    Text("\(lines.count) \(lines.count == 1 ? "item" : "items")")
+                        .font(.plusJakarta(size: 12))
+                        .foregroundStyle(theme.muted)
+                    Spacer()
+                    if let total = itemizedSaleTotal(includePending: false), let shown = formatDecimalMoney(total) {
+                        let currency = model.currency.isEmpty ? "INR" : model.currency
+                        Text(currency == "INR" ? "₹\(shown)" : "\(currency) \(shown)")
+                            .font(.plusJakarta(size: 16, weight: .bold))
+                            .foregroundStyle(theme.accent)
+                    }
+                }
+                .padding(12)
+                .background(theme.accent.opacity(0.10))
+                Text("Itemized total is read-only · sum of lines")
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(theme.muted)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
+            }
+            .background(theme.captureField)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(theme.border, lineWidth: 1)
+            )
+        }
     }
 
     private func lovField(label: String, value: String, placeholder: String, onOpen: @escaping () -> Void) -> some View {
@@ -1196,15 +1448,18 @@ struct OperatingCaptureSheet: View {
             draft.itemName = option.name
             if draft.title.isEmpty { draft.title = option.name }
             if draft.quantity.isEmpty { draft.quantity = "1" }
+            draft.lineAmountEdited = false
             if let unit = option.unit, !unit.isEmpty, draft.unit.isEmpty { draft.unit = unit }
             if let master = captureMastersSource.first(where: { $0.id == option.id }) {
                 if draft.itemPrice.isEmpty {
-                    draft.itemPrice = master.sellPrice ?? master.purchasePrice ?? ""
+                    let raw = master.sellPrice ?? master.purchasePrice ?? ""
+                    draft.itemPrice = raw.replacingOccurrences(of: "₹", with: "").trimmingCharacters(in: .whitespaces)
                 }
                 if draft.gstRate.isEmpty, let rate = master.gstRate, !rate.isEmpty {
                     draft.gstRate = rate
                 }
             }
+            syncLineAmountFromQtyPrice()
         case "BUYER", "CUSTOMER", "SUPPLIER":
             draft.counterparty = option.name
             if let master = captureMastersSource.first(where: { $0.name.caseInsensitiveCompare(option.name) == .orderedSame }),
@@ -1373,9 +1628,9 @@ struct OperatingCaptureSheet: View {
 
     @ViewBuilder
     private var transferBody: some View {
-        skuPicker
+        skuPicker()
         field("Item", text: $draft.title)
-        let locations = model.masters.filter {
+        let locations = captureMastersSource.filter {
             ["WAREHOUSE", "LOCATION", "ROUTE"].contains($0.kind.uppercased())
         }
         if locations.isEmpty {
@@ -1825,23 +2080,11 @@ struct OperatingCaptureSheet: View {
             }
         }()
         let itemizedSaleOrPurchase = tradingItemized && (layout == .sale || layout == .purchase)
-        let lineTotal: String? = {
-            guard itemizedSaleOrPurchase else { return nil }
-            guard let qty = Decimal(string: draft.quantity.trimmingCharacters(in: .whitespaces)),
-                  let price = Decimal(string: draft.itemPrice.trimmingCharacters(in: .whitespaces)),
-                  qty > 0, price > 0 else { return nil }
-            let total = NSDecimalNumber(decimal: qty * price)
-            let formatter = NumberFormatter()
-            formatter.minimumFractionDigits = 2
-            formatter.maximumFractionDigits = 2
-            formatter.numberStyle = .decimal
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            return formatter.string(from: total)
-        }()
         let resolvedAmount: String? = {
             let typed = draft.amount.trimmingCharacters(in: .whitespaces)
             if !typed.isEmpty { return typed }
-            return lineTotal
+            guard itemizedSaleOrPurchase else { return nil }
+            return formatDecimalMoney(itemizedSaleTotal(includePending: true))
         }()
         var input = OperatingEventInput(
             momentId: model.momentId,
@@ -2021,28 +2264,26 @@ struct OperatingCaptureSheet: View {
             contract.ownership = OperatingContractVocabulary.ownership(draft.ownership)
         }
         if itemizedSaleOrPurchase {
-            let name = draft.itemName.trimmingCharacters(in: .whitespaces)
-            let sku = draft.sku.trimmingCharacters(in: .whitespaces)
-            let lineName = !name.isEmpty ? name : (!sku.isEmpty ? sku : draft.title)
-            if !lineName.trimmingCharacters(in: .whitespaces).isEmpty {
-                input.lineItems = [
-                    .init(
-                        itemName: lineName,
-                        quantity: draft.quantity.isEmpty ? nil : draft.quantity,
-                        unit: draft.unit.isEmpty ? nil : draft.unit,
-                        unitPrice: draft.itemPrice.isEmpty ? nil : draft.itemPrice,
-                        masterId: draft.masterId,
-                        taxMode: tradingGstOn
-                            ? (draft.taxMode == "Inclusive" ? "INCLUSIVE"
-                                : draft.taxMode == "Exclusive" ? "EXCLUSIVE" : nil)
-                            : nil,
-                        gstRate: {
-                            guard tradingGstOn else { return nil }
-                            let rate = draft.gstRate.trimmingCharacters(in: .whitespaces)
-                            return rate.isEmpty ? nil : rate
-                        }()
-                    ),
-                ]
+            var lines = draft.savedLines
+            if let pending = pendingEditorLine() {
+                lines.append(pending)
+            }
+            if !lines.isEmpty {
+                let taxMode: String? = tradingGstOn
+                    ? (draft.taxMode == "Inclusive" ? "INCLUSIVE"
+                        : draft.taxMode == "Exclusive" ? "EXCLUSIVE" : nil)
+                    : nil
+                let gstRate: String? = {
+                    guard tradingGstOn else { return nil }
+                    let rate = draft.gstRate.trimmingCharacters(in: .whitespaces)
+                    return rate.isEmpty ? nil : rate
+                }()
+                input.lineItems = lines.map { line in
+                    var copy = line
+                    if copy.taxMode == nil { copy.taxMode = taxMode }
+                    if copy.gstRate == nil { copy.gstRate = gstRate }
+                    return copy
+                }
             }
         } else if !draft.masterId.isNilOrEmpty {
             input.lineItems = [
