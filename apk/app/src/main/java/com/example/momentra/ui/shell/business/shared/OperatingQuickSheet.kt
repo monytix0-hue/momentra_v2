@@ -216,6 +216,14 @@ internal class CaptureForm(
     var itemName by mutableStateOf("")
     var quantity by mutableStateOf("")
     var quantityReceived by mutableStateOf("")
+    /** Per-line delivered/received-now qty for itemized partial fulfilment (Figma TRD-QA-01/02). */
+    var lineReceivedQtys by mutableStateOf<List<String>>(emptyList())
+    /**
+     * Current line editor total (price × qty). Auto-filled unless [lineAmountEdited].
+     * Figma: "Sale amount" / "Purchase amount" with "Auto · tap to edit".
+     */
+    var lineAmount by mutableStateOf("")
+    var lineAmountEdited by mutableStateOf(false)
     var unit by mutableStateOf(unit)
     var unitPrice by mutableStateOf("")
     var parentId by mutableStateOf("")
@@ -270,7 +278,7 @@ internal class CaptureForm(
     var fxRate by mutableStateOf("")
     var returnDirection by mutableStateOf("Customer return")
     var goodsOutcome by mutableStateOf("To stock")
-    var goodsStatusLabel by mutableStateOf("Deliver later")
+    var goodsStatusLabel by mutableStateOf("Fully Delivered")
     var orderSideLabel by mutableStateOf("Sales order")
     var movementLabel by mutableStateOf("Outgoing sale")
     var returnReason by mutableStateOf("")
@@ -292,6 +300,83 @@ internal class CaptureForm(
     val dueDateText: String get() = dueDate.format(dayFormat)
     val goodsDueText: String get() = goodsDueDate.format(dayFormat)
 
+    fun syncLineAmountFromQtyPrice() {
+        if (lineAmountEdited) return
+        val q = quantity.toBigDecimalOrNull()
+        val p = unitPrice.toBigDecimalOrNull()
+        lineAmount = if (q != null && p != null) {
+            q.multiply(p).setScale(2, RoundingMode.HALF_UP).toPlainString()
+        } else {
+            ""
+        }
+    }
+
+    /**
+     * Unit price for the current editor line. When the user overrode Sale/Purchase amount,
+     * back-solve unitPrice = lineAmount / qty so cart lines and submit stay consistent.
+     */
+    fun resolvedEditorUnitPrice(): String? {
+        val qty = quantity.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: BigDecimal.ONE
+        if (lineAmountEdited) {
+            val amt = lineAmount.toBigDecimalOrNull() ?: return unitPrice.ifBlank { null }
+            return amt.divide(qty, 4, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
+        }
+        return unitPrice.ifBlank { null }
+    }
+
+    /** Pending editor line ready to fold into the cart / submit payload. */
+    fun pendingEditorLine(): com.example.momentra.data.api.OperatingLineBody? {
+        val name = itemName.trim().takeIf { it.isNotBlank() } ?: return null
+        return com.example.momentra.data.api.OperatingLineBody(
+            itemName = name,
+            quantity = quantity.ifBlank { null },
+            unit = unit.ifBlank { null },
+            unitPrice = resolvedEditorUnitPrice(),
+            masterId = productMasterId,
+        )
+    }
+
+    /**
+     * Itemized sale/purchase total: sum of cart lines, optionally including the current editor.
+     * Prefer dirty [lineAmount] for the editor line when present.
+     */
+    fun itemizedSaleTotal(includePendingEditor: Boolean = true): BigDecimal? {
+        val cart = businessLinesTotal(savedLines)
+        val pending = if (includePendingEditor) pendingEditorLine() else null
+        val pendingTotal = when {
+            pending == null -> null
+            lineAmountEdited -> lineAmount.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
+            else -> businessLineTotal(pending.quantity, pending.unitPrice)
+        }
+        return when {
+            cart == null && pendingTotal == null -> null
+            cart == null -> pendingTotal
+            pendingTotal == null -> cart
+            else -> cart.add(pendingTotal)
+        }
+    }
+
+    fun ensureLineReceivedSlots() {
+        val n = savedLines.size
+        if (lineReceivedQtys.size == n) return
+        lineReceivedQtys = List(n) { i -> lineReceivedQtys.getOrNull(i).orEmpty() }
+    }
+
+    fun sumLineReceived(): String {
+        val sum = lineReceivedQtys.mapNotNull { it.toBigDecimalOrNull() }
+            .fold(BigDecimal.ZERO) { a, b -> a.add(b) }
+        return if (sum.signum() == 0) "" else sum.stripTrailingZeros().toPlainString()
+    }
+
+    fun setLineReceivedAt(index: Int, value: String) {
+        ensureLineReceivedSlots()
+        val next = lineReceivedQtys.toMutableList()
+        while (next.size <= index) next.add("")
+        next[index] = value
+        lineReceivedQtys = next
+        quantityReceived = sumLineReceived()
+    }
+
     fun applySeed(row: OperatingActivityDto) {
         amount = row.amount.orEmpty()
         party = row.counterpartyName.orEmpty()
@@ -310,12 +395,15 @@ internal class CaptureForm(
         productMasterId = selection.id.takeUnless { it.startsWith("local-") || it.startsWith("seed-") }
         masterId = productMasterId
         if (quantity.isBlank()) quantity = "1"
+        lineAmountEdited = false
         selection.unit?.takeIf { it.isNotBlank() }?.let {
             // Service durations ("45 min") stay as display units; SKU UOMs still canonicalize.
             unit = if (selection.browserKind == OperatingBrowserKind.Services) it
             else OperatingSeedUoms.canonical(it)
         }
-        selection.unitPrice?.takeIf { it.isNotBlank() && unitPrice.isBlank() }?.let { unitPrice = it }
+        selection.unitPrice?.takeIf { it.isNotBlank() && unitPrice.isBlank() }?.let {
+            unitPrice = it
+        }
         // Finalize Charge / Booking: amount-first sheets prefill from the catalogue price.
         if (mode in setOf("SERVICE", "APPOINTMENT") && amount.isBlank()) {
             selection.unitPrice?.takeIf { it.isNotBlank() }?.let { amount = it }
@@ -333,6 +421,7 @@ internal class CaptureForm(
                 master.sellPrice?.removePrefix("₹")?.trim()?.takeIf { it.isNotBlank() }?.let { unitPrice = it }
             }
         }
+        syncLineAmountFromQtyPrice()
     }
 
     fun applyLov(
@@ -349,6 +438,8 @@ internal class CaptureForm(
                 productMasterId = option.id.takeUnless { it.startsWith("local-") || it.startsWith("seed-") }
                 OperatingSeedUoms.canonical(option.unit).takeIf { it.isNotBlank() }?.let { unit = it }
                 if (quantity.isBlank()) quantity = "1"
+                // New product resets dirty Sale/Purchase amount so price × qty can auto-fill.
+                lineAmountEdited = false
                 model.masters.orEmpty().firstOrNull { it.id == option.id }?.let { master ->
                     displayGstRate(master.gstRate)?.let { gstRate = it }
                     when (master.priceIncludesGst) {
@@ -367,6 +458,7 @@ internal class CaptureForm(
                             ?.let { unitPrice = it }
                     }
                 }
+                syncLineAmountFromQtyPrice()
             }
             "BUYER", "CUSTOMER", "SUPPLIER" -> {
                 party = option.name
@@ -970,10 +1062,44 @@ private fun SaleServiceCapture(
             )
         } else if (itemizedSale) {
             if (lovTrade) {
-                LovItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.lovKind = "PRODUCT" }, { form.lovKind = "UOM" }, { form.quantity = it }, { form.unitPrice = it })
+                LovItemLine(
+                    form.itemName,
+                    form.quantity,
+                    form.unit,
+                    form.unitPrice,
+                    { form.lovKind = "PRODUCT" },
+                    { form.lovKind = "UOM" },
+                    {
+                        form.quantity = it
+                        form.syncLineAmountFromQtyPrice()
+                    },
+                    {
+                        form.unitPrice = it
+                        form.syncLineAmountFromQtyPrice()
+                    },
+                    showComputedTotal = false,
+                )
             } else {
-                ItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.itemName = it }, { form.quantity = it }, { form.unit = it }, { form.unitPrice = it }, model.masters.orEmpty())
+                ItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.itemName = it }, {
+                    form.quantity = it
+                    form.syncLineAmountFromQtyPrice()
+                }, { form.unit = it }, {
+                    form.unitPrice = it
+                    form.syncLineAmountFromQtyPrice()
+                }, model.masters.orEmpty())
             }
+            LineAmountAutoField(
+                label = "Sale amount",
+                currency = currency,
+                value = form.lineAmount,
+                auto = !form.lineAmountEdited,
+                onValue = { raw ->
+                    val cleaned = raw.filter { c -> c.isDigit() || c == '.' }
+                    form.lineAmount = cleaned
+                    form.lineAmountEdited = cleaned.isNotBlank()
+                    if (cleaned.isBlank()) form.syncLineAmountFromQtyPrice()
+                },
+            )
             BusinessAddLineButton(form, label = "+ Add item to sale")
             BusinessPosLineCart(form, currency, title = "Sale items")
         } else {
@@ -1031,19 +1157,49 @@ private fun SaleServiceCapture(
             }
         }
         if (lovTrade && itemizedSale) {
-            // Delivery status on itemised sale (trading + distribution). Does not invent stock.
+            // Figma 108:22766 / 108:22774 / 108:22782 — delivery status branches.
             ChoiceBlock(
-                "Delivery status",
+                "Delivery status (M · itemized)",
                 listOf("Fully Delivered", "Partially Delivered", "Deliver Later"),
-                form.goodsStatusLabel.ifBlank { "Deliver Later" },
+                form.goodsStatusLabel.ifBlank { "Fully Delivered" },
             ) { form.goodsStatusLabel = it }
-            if (form.goodsStatusLabel.contains("Partial", ignoreCase = true)) {
-                EditField("Quantity delivered now", form.quantityReceived, "Less than ordered") { form.quantityReceived = it }
+            val goods = form.goodsStatusLabel
+            when {
+                goods.contains("Partial", ignoreCase = true) -> {
+                    Text(
+                        "Partial delivery posts stock only for the delivered-now quantity on each line.",
+                        color = SheetMuted,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 11.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    )
+                    PartialFulfillmentLines(
+                        form = form,
+                        actionLabel = "Delivered now",
+                        emptyHint = "Add sale items first, then set how much is delivered now.",
+                        onOpenDue = { form.goodsDueOpen = true },
+                    )
+                }
+                goods.contains("Later", ignoreCase = true) -> {
+                    Text(
+                        "Nothing ships now. Set a due date for the dispatch.",
+                        color = SheetMuted,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 11.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    )
+                    ReadField("Due date", form.goodsDueText, trailing = "Dispatch due") { form.goodsDueOpen = true }
+                }
+                else -> {
+                    Text(
+                        "Delivery status does not post stock.",
+                        color = SheetMuted,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 11.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    )
+                }
             }
-            if (!form.goodsStatusLabel.contains("Fully", ignoreCase = true)) {
-                ReadField("Remaining delivery date", form.goodsDueText) { form.goodsDueOpen = true }
-            }
-            Text("Delivery status does not post stock. Inventory follows fulfilment / Delivery Quick Add.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
         }
         // Trading GST was buried under MoreDetails while the API still requires a rate.
         if (trading && model.gstTracking == "YES") {
@@ -1136,30 +1292,97 @@ private fun PurchaseVendorCapture(
         ) { form.entryMode = it }
         val itemized = form.entryMode.contains("Item", ignoreCase = true)
         if (itemized) {
-            LovItemLine(form.itemName, form.quantity, form.unit, form.unitPrice, { form.lovKind = "PRODUCT" }, { form.lovKind = "UOM" }, { form.quantity = it }, { form.unitPrice = it })
+            LovItemLine(
+                form.itemName,
+                form.quantity,
+                form.unit,
+                form.unitPrice,
+                { form.lovKind = "PRODUCT" },
+                { form.lovKind = "UOM" },
+                {
+                    form.quantity = it
+                    form.syncLineAmountFromQtyPrice()
+                },
+                {
+                    form.unitPrice = it
+                    form.syncLineAmountFromQtyPrice()
+                },
+                showComputedTotal = false,
+            )
+            LineAmountAutoField(
+                label = "Purchase amount",
+                currency = currency,
+                value = form.lineAmount,
+                auto = !form.lineAmountEdited,
+                onValue = { raw ->
+                    val cleaned = raw.filter { c -> c.isDigit() || c == '.' }
+                    form.lineAmount = cleaned
+                    form.lineAmountEdited = cleaned.isNotBlank()
+                    if (cleaned.isBlank()) form.syncLineAmountFromQtyPrice()
+                },
+            )
             BusinessAddLineButton(form, label = "+ Add item to purchase")
             BusinessPosLineCart(form, currency, title = "Purchase items")
         } else {
             AmountBlock("Purchase amount (M)", currency, form.amount, ">0") { form.amount = it }
         }
-        LovField("Supplier / supplier (C/M)", form.party, "supplier") { form.lovKind = "SUPPLIER" }
+        if (model.gstTracking == "YES") {
+            GstPriceFields(form, model, purchase = true)
+        }
+        LovField("Supplier (C/M)", form.party, "supplier") { form.lovKind = "SUPPLIER" }
         ReadField("Purchase date (M)", form.dateText) { form.dateOpen = true }
         ChoiceBlock("Payment state (M)", listOf("Paid", "Part paid", "Pay later"), form.choice.ifBlank { "Pay later" }) { form.choice = it }
         if (form.choice == "Part paid") {
             EditField("Paid now (C)", form.receivedAmount, "< total") { form.receivedAmount = it }
+            ReadField("Due date", form.dueDateText, trailing = "Credit policy", dangerLabel = true) { form.dueDateOpen = true }
+        } else if (form.choice == "Pay later") {
+            ReadField("Due date", form.dueDateText, trailing = "Credit policy", dangerLabel = true) { form.dueDateOpen = true }
         }
-        ChoiceBlock(
-            "Goods (M)",
-            listOf("Received now", "Receive later"),
-            when {
+        // Figma 108:22881 / 108:22889 / 108:22897 — itemized goods receipt only.
+        if (itemized) {
+            val goodsSelected = when {
+                form.receiptState.contains("Part", true) -> "Part received"
                 form.receiptState.contains("later", true) || form.receiptState.contains("Await", true) -> "Receive later"
                 else -> "Received now"
-            },
-        ) {
-            form.receiptState = if (it == "Receive later") "Receive later" else "Fully received"
-        }
-        if (model.gstTracking == "YES") {
-            GstPriceFields(form, model, purchase = true)
+            }
+            ChoiceBlock(
+                "Goods received (M · itemized)",
+                listOf("Received now", "Part received", "Receive later"),
+                goodsSelected,
+            ) {
+                form.receiptState = when (it) {
+                    "Part received" -> "Part received"
+                    "Receive later" -> "Receive later"
+                    else -> "Fully received"
+                }
+            }
+            when (goodsSelected) {
+                "Part received" -> {
+                    Text(
+                        "Part received posts stock only for the received-now quantity on each line. Pending quantity waits for Delivery → Incoming.",
+                        color = SheetMuted,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 11.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    )
+                    PartialFulfillmentLines(
+                        form = form,
+                        actionLabel = "Received now",
+                        emptyHint = "Add purchase items first, then set how much is received now.",
+                        onOpenDue = { form.goodsDueOpen = true },
+                    )
+                }
+                "Receive later" -> {
+                    Text(
+                        "Nothing is received now. Set a due date for the receipt.",
+                        color = SheetMuted,
+                        fontFamily = PlusJakartaSans,
+                        fontSize = 11.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    )
+                    ReadField("Due date", form.goodsDueText, trailing = "Receipt due") { form.goodsDueOpen = true }
+                }
+            }
         }
         MoreDetails(form.moreOpen, "Tax, FX, ownership, and note. Optional.") { form.moreOpen = !form.moreOpen }
         if (form.moreOpen) {
@@ -3320,21 +3543,13 @@ private fun CaptureSheetFooter(
                         }
                     }
                     // Fold cart before buildDraft so Itemized amount survives "+ Add item to sale".
-                    val pendingLine = form.itemName.trim().takeIf { it.isNotBlank() }?.let {
-                        com.example.momentra.data.api.OperatingLineBody(
-                            itemName = it,
-                            quantity = form.quantity.ifBlank { null },
-                            unit = form.unit.ifBlank { null },
-                            unitPrice = form.unitPrice.ifBlank { null },
-                            masterId = form.productMasterId,
-                        )
-                    }
+                    val pendingLine = form.pendingEditorLine()
                     val draftLines = form.savedLines + listOfNotNull(pendingLine)
                     val itemizedMode = form.entryMode.contains("Item", ignoreCase = true)
                     val amountForDraft = when {
                         form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true -> form.amount
                         lovTrade && mode in setOf("SALE", "PURCHASE") && itemizedMode ->
-                            businessLinesTotal(draftLines)?.toPlainString().orEmpty()
+                            form.itemizedSaleTotal(includePendingEditor = true)?.toPlainString().orEmpty()
                         else -> form.amount
                     }
                     // GST preflight — avoid silent 400 once the cart amount path is fixed.
@@ -3408,7 +3623,7 @@ private fun CaptureSheetFooter(
                         returnReason = form.returnReason,
                         expenseCategory = form.expenseCategory,
                         lovTrade = lovTrade,
-                        quantityReceived = form.quantityReceived,
+                        quantityReceived = form.sumLineReceived().ifBlank { form.quantityReceived },
                         orderSideLabel = form.orderSideLabel,
                         goodsStatusLabel = form.goodsStatusLabel,
                         goodsDueDay = form.goodsDueDate.toString(),
@@ -3472,7 +3687,9 @@ private fun CaptureSheetFooter(
                             quantity = draft.quantity ?: draftLines.first().quantity,
                             unit = draft.unit ?: draftLines.first().unit,
                             unitPrice = draft.unitPrice ?: draftLines.first().unitPrice,
-                            amount = draft.amount ?: businessLinesTotal(draftLines)?.toPlainString(),
+                            amount = draft.amount
+                                ?: form.itemizedSaleTotal(includePendingEditor = true)?.toPlainString()
+                                ?: businessLinesTotal(draftLines)?.toPlainString(),
                         )
                     } else {
                         draft
@@ -3804,7 +4021,13 @@ private fun tradingFooterMeta(mode: String, form: CaptureForm, model: OperatingP
     return when (mode) {
         "SALE" -> when {
             form.choice.equals("Part paid", true) -> {
-                val total = form.amount.toBigDecimalOrNull()
+                val itemized = form.entryMode.contains("Item", ignoreCase = true)
+                val total = when {
+                    form.amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true ->
+                        form.amount.toBigDecimalOrNull()
+                    itemized -> form.itemizedSaleTotal(includePendingEditor = true)
+                    else -> form.amount.toBigDecimalOrNull()
+                }
                 val paid = form.receivedAmount.toBigDecimalOrNull()
                 if (total != null && paid != null && total > paid) {
                     "Part paid · ${formatMoney(total - paid, currency)} stays in AR"
@@ -5590,6 +5813,7 @@ internal fun LovItemLine(
     onQuantity: (String) -> Unit,
     onPrice: (String) -> Unit,
     showPrice: Boolean = true,
+    showComputedTotal: Boolean = true,
 ) {
     // Product LovField already opens the picker — no duplicate "+" next to it.
     LovField("Product", itemName, "product", Modifier.fillMaxWidth(), onPickProduct)
@@ -5598,7 +5822,7 @@ internal fun LovItemLine(
         LovField("UOM", unit, "UOM", Modifier.weight(1f), onPickUom)
         if (showPrice) EditField("Price", unitPrice, "0", Modifier.weight(1f)) { onPrice(it) }
     }
-    if (showPrice) {
+    if (showPrice && showComputedTotal) {
         val qty = quantity.toBigDecimalOrNull()
         val price = unitPrice.toBigDecimalOrNull()
         val total = if (qty != null && price != null) qty.multiply(price) else null
@@ -5606,7 +5830,7 @@ internal fun LovItemLine(
             Text("Total ${total.setScale(2, RoundingMode.HALF_UP).toPlainString()}", color = SheetInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         }
     }
-    if (showPrice) {
+    if (showPrice && showComputedTotal) {
         Text("Quantity, unit, and price stay on the sale or purchase. Stock changes only when you record that the goods were received or dispatched.", color = SheetMuted, fontFamily = PlusJakartaSans, fontSize = 12.sp)
     }
 }
@@ -5618,9 +5842,10 @@ internal fun LovItemLine(
 @Composable
 private fun BusinessAddLineButton(form: CaptureForm, label: String) {
     if (form.itemName.isBlank()) return
+    val chrome = LocalOperatingCaptureChrome.current
     Text(
         label,
-        color = SheetAccent,
+        color = chrome.accent,
         fontFamily = PlusJakartaSans,
         fontWeight = FontWeight.SemiBold,
         fontSize = 13.sp,
@@ -5628,20 +5853,201 @@ private fun BusinessAddLineButton(form: CaptureForm, label: String) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable {
-                form.savedLines = form.savedLines + com.example.momentra.data.api.OperatingLineBody(
-                    itemName = form.itemName.trim(),
-                    quantity = form.quantity.ifBlank { null },
-                    unit = form.unit.ifBlank { null },
-                    unitPrice = form.unitPrice.ifBlank { null },
-                    masterId = form.productMasterId,
-                )
+                val pending = form.pendingEditorLine() ?: return@clickable
+                form.savedLines = form.savedLines + pending
                 form.itemName = ""
-                form.quantity = ""
+                form.quantity = "1"
                 form.unitPrice = ""
+                form.lineAmount = ""
+                form.lineAmountEdited = false
                 form.productMasterId = null
+                form.ensureLineReceivedSlots()
             }
             .padding(vertical = 10.dp),
     )
+}
+
+/** Figma `QA · Line amount · Auto/edit` — price × qty with dirty override. */
+@Composable
+private fun LineAmountAutoField(
+    label: String,
+    currency: String,
+    value: String,
+    auto: Boolean,
+    onValue: (String) -> Unit,
+) {
+    val chrome = LocalOperatingCaptureChrome.current
+    val display = when {
+        value.isBlank() -> formatOperatingAmount(currency, "0")
+        else -> formatOperatingAmount(currency, value)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        Text(label, color = chrome.label, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(chrome.field)
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValue,
+                textStyle = TextStyle(
+                    color = chrome.ink,
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 15.sp,
+                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                cursorBrush = SolidColor(chrome.brand),
+                singleLine = true,
+                decorationBox = { inner ->
+                    if (value.isEmpty()) {
+                        Text(display, color = chrome.ink, fontFamily = PlusJakartaSans, fontSize = 15.sp)
+                    }
+                    inner()
+                },
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                if (auto) "Auto · tap to edit" else "Edited",
+                color = if (auto) chrome.accent else chrome.hint,
+                fontFamily = PlusJakartaSans,
+                fontSize = 12.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun QtyStepper(
+    value: String,
+    max: BigDecimal?,
+    onValue: (String) -> Unit,
+) {
+    val chrome = LocalOperatingCaptureChrome.current
+    val current = value.toBigDecimalOrNull() ?: BigDecimal.ZERO
+    fun bump(delta: Int) {
+        var next = current.add(BigDecimal.valueOf(delta.toLong()))
+        if (next.signum() < 0) next = BigDecimal.ZERO
+        if (max != null && next > max) next = max
+        onValue(next.stripTrailingZeros().toPlainString())
+    }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(chrome.field)
+                .border(1.dp, chrome.chipBorder, RoundedCornerShape(12.dp))
+                .clickable { bump(-1) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("−", color = chrome.ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        }
+        Text(
+            current.stripTrailingZeros().toPlainString().ifBlank { "0" },
+            color = chrome.ink,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(chrome.field)
+                .border(1.dp, chrome.chipBorder, RoundedCornerShape(12.dp))
+                .clickable { bump(1) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("+", color = chrome.ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        }
+    }
+}
+
+/** Per-line partial delivery / receipt cards (Figma `QA · Partial delivery/receipt line · TRD`). */
+@Composable
+private fun PartialFulfillmentLines(
+    form: CaptureForm,
+    actionLabel: String,
+    emptyHint: String,
+    onOpenDue: () -> Unit,
+) {
+    val chrome = LocalOperatingCaptureChrome.current
+    form.ensureLineReceivedSlots()
+    if (form.savedLines.isEmpty()) {
+        Text(emptyHint, color = chrome.hint, fontFamily = PlusJakartaSans, fontSize = 12.sp)
+        EditField(
+            actionLabel,
+            form.quantityReceived,
+            "Less than ordered",
+        ) { form.quantityReceived = it }
+        ReadField("Remainder due", form.goodsDueText, trailing = "Balance") { onOpenDue() }
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        form.savedLines.forEachIndexed { index, line ->
+            val ordered = line.quantity?.toBigDecimalOrNull()
+            val delivered = form.lineReceivedQtys.getOrNull(index).orEmpty()
+            val deliveredBd = delivered.toBigDecimalOrNull() ?: BigDecimal.ZERO
+            val remaining = ordered?.subtract(deliveredBd)?.coerceAtLeast(BigDecimal.ZERO)
+            val unit = line.unit.orEmpty()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(chrome.field)
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(line.itemName, color = chrome.ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                Text(
+                    buildString {
+                        append("Ordered ")
+                        append(line.quantity ?: "—")
+                        if (unit.isNotBlank()) append(" $unit")
+                    },
+                    color = chrome.label,
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(actionLabel, color = chrome.label, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+                    QtyStepper(
+                        value = delivered.ifBlank { "0" },
+                        max = ordered,
+                        onValue = { form.setLineReceivedAt(index, it) },
+                    )
+                }
+                if (remaining != null) {
+                    Text(
+                        "Remaining ${remaining.stripTrailingZeros().toPlainString()}${if (unit.isNotBlank()) " $unit" else ""}",
+                        color = chrome.ink,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 15.sp,
+                    )
+                }
+                ReadField("Remainder due", form.goodsDueText, trailing = "Balance") { onOpenDue() }
+            }
+        }
+    }
 }
 
 /**
@@ -5718,6 +6124,8 @@ private fun BusinessPosLineCart(form: CaptureForm, currency: String, title: Stri
                         .clip(RoundedCornerShape(8.dp))
                         .clickable {
                             form.savedLines = form.savedLines.filterIndexed { i, _ -> i != index }
+                            form.lineReceivedQtys = form.lineReceivedQtys.filterIndexed { i, _ -> i != index }
+                            form.quantityReceived = form.sumLineReceived()
                         }
                         .padding(6.dp),
                 )
@@ -5754,8 +6162,18 @@ private fun BusinessPosLineCart(form: CaptureForm, currency: String, title: Stri
                 fontSize = 16.sp,
             )
         }
+        Text(
+            ITEMIZED_TOTAL_CAPTION,
+            color = SheetMuted,
+            fontFamily = PlusJakartaSans,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
+        )
     }
 }
+
+/** Figma TRD-QA-01 cart footer under the read-only sum. */
+internal const val ITEMIZED_TOTAL_CAPTION = "Itemized total is read-only · sum of lines"
 
 /** Sum of quantity × unit price across itemized lines; null when no line has a price. */
 fun businessLinesTotal(
@@ -5777,9 +6195,21 @@ private data class GstPreview(
 private fun previewGst(form: CaptureForm): GstPreview? {
     val rate = form.gstRate.toBigDecimalOrNull() ?: return null
     if (rate.signum() < 0) return null
-    val qty = form.quantity.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: BigDecimal.ONE
-    val price = form.unitPrice.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
-    val entered = if (price != null) qty.multiply(price) else form.amount.toBigDecimalOrNull() ?: return null
+    val itemized = form.entryMode.contains("Item", ignoreCase = true)
+    val entered = when {
+        itemized -> form.itemizedSaleTotal(includePendingEditor = true)
+            ?: form.lineAmount.toBigDecimalOrNull()
+            ?: run {
+                val qty = form.quantity.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: BigDecimal.ONE
+                val price = form.unitPrice.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
+                if (price != null) qty.multiply(price) else null
+            }
+        else -> {
+            val qty = form.quantity.toBigDecimalOrNull()?.takeIf { it.signum() > 0 } ?: BigDecimal.ONE
+            val price = form.unitPrice.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
+            if (price != null) qty.multiply(price) else form.amount.toBigDecimalOrNull()
+        }
+    } ?: return null
     if (entered.signum() <= 0) return null
     val moneyScale = 2
     val inclusive = form.taxMode == "Inclusive"
