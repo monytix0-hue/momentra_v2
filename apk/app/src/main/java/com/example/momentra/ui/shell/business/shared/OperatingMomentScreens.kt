@@ -1058,6 +1058,7 @@ internal fun OperatingChromeSheets(model: OperatingProjectionDto, companyId: Str
                 record(draft)
                 OperatingChromeState.editing = null
             },
+            companyId = companyId,
         )
     }
     if (settling != null && record != null) {
@@ -1081,6 +1082,7 @@ internal fun OperatingChromeSheets(model: OperatingProjectionDto, companyId: Str
                 record(draft)
                 OperatingChromeState.settling = null
             },
+            companyId = companyId,
         )
     }
 

@@ -65,7 +65,7 @@ fun TradingActive(
 
     Box(modifier.fillMaxSize().background(TradeBg)) {
         if (tab == OperatingTab.QUICK_ADD) {
-            TradingQuickAddHub(model, onRecord, onDecide)
+            TradingQuickAddHub(model, onRecord, onDecide, companyId = companyId)
         } else if (tab == OperatingTab.PULSE && !model.hasUsefulPulseChrome()) {
             // Keep empty Pulse outside verticalScroll — BusinessAppStateBody scrolls itself.
             // Only take over when setup has no budget/target/GST and feeds are quiet.
