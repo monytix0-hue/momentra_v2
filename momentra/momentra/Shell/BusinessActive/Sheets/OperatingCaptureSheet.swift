@@ -261,6 +261,16 @@ struct OperatingCaptureSheet: View {
         }
     }
 
+    /// Hub→capture can open before `load()` finishes; re-run hydrate when projection or masters update.
+    private var mastersHydrationTrigger: String {
+        guard let projection = model.projection else {
+            return "awaiting-projection:\(model.masters.count)"
+        }
+        let company = projection.companyId ?? ""
+        let embedded = projection.masters?.count ?? -1
+        return "projection:\(company):\(embedded):\(model.masters.count)"
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -389,7 +399,9 @@ struct OperatingCaptureSheet: View {
             }
             applyBrowserPrefillIfNeeded()
         }
-        .task { await model.ensureMastersForCapture() }
+        .task(id: mastersHydrationTrigger) {
+            await model.ensureMastersForCapture()
+        }
     }
 
     // MARK: - Trading TRD-QA body (Figma 01…12)
