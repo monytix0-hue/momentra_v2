@@ -25,4 +25,14 @@ class OperatingLovKindMatchTest {
             ),
         )
     }
+
+    @Test
+    fun blankProductKindAndPartyVendorEdgeCases() {
+        assertTrue(OperatingLovKindMatch.masterMatchesLovKind("PRODUCT", ""))
+        assertFalse(OperatingLovKindMatch.masterMatchesLovKind("UOM", ""))
+        assertTrue(OperatingLovKindMatch.masterMatchesLovKind("UOM", "SKU"))
+        assertTrue(OperatingLovKindMatch.masterMatchesLovKind("BUYER", "PARTY"))
+        assertTrue(OperatingLovKindMatch.masterMatchesLovKind("SUPPLIER", "PARTY"))
+        assertTrue(OperatingLovKindMatch.masterMatchesLovKind("SUPPLIER", "VENDOR"))
+    }
 }
