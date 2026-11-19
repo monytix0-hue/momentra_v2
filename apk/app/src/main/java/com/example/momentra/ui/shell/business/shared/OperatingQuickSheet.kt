@@ -394,7 +394,7 @@ internal class CaptureForm(
 
     private fun applyPartySupply(name: String, model: OperatingProjectionDto) {
         val party = model.masters.orEmpty().firstOrNull {
-            it.name.equals(name, ignoreCase = true) && it.kind.uppercase() in setOf("CUSTOMER", "BUYER", "SUPPLIER")
+            it.name.equals(name, ignoreCase = true) && it.kind.uppercase() in OperatingLovKindMatch.partyKindsForSupply()
         } ?: return
         val business = model.gstState.orEmpty().trim()
         val supply = listOf(party.deliveryState, party.billingState, party.businessState)
@@ -5508,16 +5508,8 @@ private fun lovOptions(
     channels: List<String>,
     local: List<OperatingLovOption>,
 ): List<OperatingLovOption> {
-    val productKinds = setOf("PRODUCT", "SKU", "BATCH", "PART", "MATERIAL", "RAW", "BOM")
     val fromMasters = masters
-        .filter { master ->
-            val masterKind = master.kind.uppercase()
-            when {
-                kind == "PRODUCT" -> masterKind in productKinds || masterKind.isBlank()
-                kind == "BUYER" -> masterKind == "BUYER" || masterKind == "CUSTOMER"
-                else -> masterKind == kind
-            }
-        }
+        .filter { master -> OperatingLovKindMatch.masterMatchesLovKind(kind, master.kind) }
         .map { master ->
             val masterKind = master.kind.uppercase()
             val unitLabel = if (kind == "PRODUCT" || kind == "UOM") {
