@@ -1305,6 +1305,7 @@ data class OperatingQuickAddDto(
 
 data class OperatingProjectionDto(
     val retired: Boolean = false,
+    @SerializedName("companyId") val companyId: String? = null,
     val familyCode: String? = null,
     val subtype: String? = null,
     val subtypeLabel: String? = null,

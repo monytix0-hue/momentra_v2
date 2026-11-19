@@ -171,6 +171,7 @@ private func makeProjection(
     let json = """
     {
       "retired": \(retired),
+      "companyId": "c1",
       "familyCode": "TRADING",
       "subtype": "\(subtype)",
       "subtypeLabel": "Trading",
@@ -238,6 +239,24 @@ private func makeProjection(
 
 @MainActor
 struct BusinessOperatingModelTests {
+
+    // MARK: Projection decode
+
+    @Test func projectionDecodesCompanyId() throws {
+        let json = """
+        {
+          "retired": false,
+          "familyCode": "TRADING",
+          "subtype": "TRADING_WHOLESALE",
+          "companyId": "c-proj"
+        }
+        """
+        let projection = try JSONDecoder().decode(
+            OperatingProjectionPayload.self,
+            from: Data(json.utf8)
+        )
+        #expect(projection.companyId == "c-proj")
+    }
 
     // MARK: Resolution
 
