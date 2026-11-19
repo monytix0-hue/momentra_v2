@@ -335,7 +335,13 @@ internal class CaptureForm(
         }
     }
 
-    fun applyLov(kind: String, option: OperatingLovOption, mode: String, model: OperatingProjectionDto) {
+    fun applyLov(
+        kind: String,
+        option: OperatingLovOption,
+        mode: String,
+        model: OperatingProjectionDto,
+        masters: List<OperatingMasterDto> = model.masters.orEmpty(),
+    ) {
         when (kind) {
             "PRODUCT" -> {
                 itemName = option.name
@@ -364,7 +370,7 @@ internal class CaptureForm(
             }
             "BUYER", "CUSTOMER", "SUPPLIER" -> {
                 party = option.name
-                applyPartySupply(option.name, model)
+                applyPartySupply(option.name, model, masters)
             }
             "CHANNEL" -> channel = option.name
             "EXPENSE_CATEGORY" -> expenseCategory = option.name
@@ -393,8 +399,12 @@ internal class CaptureForm(
         }
     }
 
-    private fun applyPartySupply(name: String, model: OperatingProjectionDto) {
-        val party = model.masters.orEmpty().firstOrNull {
+    private fun applyPartySupply(
+        name: String,
+        model: OperatingProjectionDto,
+        masters: List<OperatingMasterDto>,
+    ) {
+        val party = masters.firstOrNull {
             it.name.equals(name, ignoreCase = true) && it.kind.uppercase() in OperatingLovKindMatch.partyKindsForSupply()
         } ?: return
         val business = model.gstState.orEmpty().trim()
@@ -3677,7 +3687,7 @@ private fun CaptureLovHost(
             canAdd = onCreateMaster != null && pickerKind !in setOf("UOM", "SALES_ORDER", "PURCHASE_ORDER", "OBLIGATION", "LINKED_SOURCE"),
             unitChoices = if (kind.equals("PRODUCT", ignoreCase = true)) OperatingSeedUoms.all else emptyList(),
             accent = if (distribution) Color(0xFF66C7A4) else Color(0xFF6DDCFF),
-            onSelect = { option -> form.applyLov(kind, option, mode, model) },
+            onSelect = { option -> form.applyLov(kind, option, mode, model, effectiveMasters) },
             onAdd = { name, unitArg, conversion ->
                 val created = OperatingLovOption(
                     id = "local-$kind-${name.lowercase()}",
@@ -3687,7 +3697,7 @@ private fun CaptureLovHost(
                     subtitle = unitArg,
                 )
                 form.localMasters = form.localMasters + created
-                form.applyLov(kind, created, mode, model)
+                form.applyLov(kind, created, mode, model, effectiveMasters)
                 onCreateMaster?.let { create -> scope.launch { create(kind, name, unitArg, conversion) } }
             },
             onDismiss = { form.lovKind = null },

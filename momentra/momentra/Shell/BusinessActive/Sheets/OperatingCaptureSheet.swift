@@ -1144,7 +1144,7 @@ struct OperatingCaptureSheet: View {
 
     private var canAddCaptureLov: Bool {
         let allowed = Set((model.projection?.quickAdds ?? []).map { $0.code.uppercased() })
-        return allowed.isEmpty || allowed.contains("UPDATE")
+        return allowed.contains("UPDATE")
     }
 
     private func captureLovOptions(kind: String) -> [OperatingLovOption] {
@@ -1375,7 +1375,7 @@ struct OperatingCaptureSheet: View {
     private var transferBody: some View {
         skuPicker
         field("Item", text: $draft.title)
-        let locations = model.masters.filter {
+        let locations = captureMastersSource.filter {
             ["WAREHOUSE", "LOCATION", "ROUTE"].contains($0.kind.uppercased())
         }
         if locations.isEmpty {
