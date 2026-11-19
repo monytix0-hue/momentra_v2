@@ -389,6 +389,7 @@ struct OperatingCaptureSheet: View {
             }
             applyBrowserPrefillIfNeeded()
         }
+        .task { await model.ensureMastersForCapture() }
     }
 
     // MARK: - Trading TRD-QA body (Figma 01…12)

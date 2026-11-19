@@ -156,12 +156,35 @@ final class BusinessOperatingModel: ObservableObject {
         await load()
     }
 
+    /// Company for master reads: shell id first, then projection (Task 3 `companyId`).
+    private var resolvedCompanyIdForMasters: String? {
+        for candidate in [companyId, projection?.companyId] {
+            guard let candidate else { continue }
+            let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return nil
+    }
+
     /// Masters are company-scoped and optional: a failed master read must not blank the tab.
     func loadMasters() async {
-        guard let companyId, !companyId.isEmpty else { return }
+        guard let companyId = resolvedCompanyIdForMasters else {
+            masters = projection?.masters ?? []
+            return
+        }
         do {
             masters = try await repo.listMasters(companyId: companyId, kind: nil, momentId: momentId)
         } catch {
+            masters = projection?.masters ?? []
+        }
+    }
+
+    /// Capture sheets need LOV rows even when the hub opened before `load()` finished.
+    func ensureMastersForCapture() async {
+        if masters.isEmpty {
+            await loadMasters()
+        }
+        if masters.isEmpty {
             masters = projection?.masters ?? []
         }
     }

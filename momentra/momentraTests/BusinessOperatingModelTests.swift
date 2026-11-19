@@ -162,16 +162,50 @@ private func makeQuietProjection(
     return try JSONDecoder().decode(OperatingProjectionPayload.self, from: Data(json.utf8))
 }
 
+private func projectionMasterJSON(id: String, kind: String, name: String) -> String {
+    """
+    {
+      "id": "\(id)",
+      "source": "MASTER",
+      "kind": "\(kind)",
+      "name": "\(name)",
+      "status": "ACTIVE",
+      "version": 1
+    }
+    """
+}
+
 private func makeProjection(
     subtype: String = "TRADING_WHOLESALE",
     title: String = "Sharma Wholesale",
     financeVisible: Bool = true,
-    retired: Bool = false
+    retired: Bool = false,
+    companyId: String? = "c1",
+    embeddedMasters: [(id: String, kind: String, name: String)] = []
 ) throws -> OperatingProjectionPayload {
+    let companyIdField: String
+    if let companyId {
+        companyIdField = "\"companyId\": \"\(companyId)\","
+    } else {
+        companyIdField = "\"companyId\": null,"
+    }
+    let mastersField: String
+    if embeddedMasters.isEmpty {
+        mastersField = ""
+    } else {
+        let rows = embeddedMasters.map { projectionMasterJSON(id: $0.id, kind: $0.kind, name: $0.name) }
+            .joined(separator: ",\n        ")
+        mastersField = """
+      "masters": [
+        \(rows)
+      ],
+"""
+    }
     let json = """
     {
       "retired": \(retired),
-      "companyId": "c1",
+      \(companyIdField)
+      \(mastersField)
       "familyCode": "TRADING",
       "subtype": "\(subtype)",
       "subtypeLabel": "Trading",
@@ -403,13 +437,59 @@ struct BusinessOperatingModelTests {
     }
 
     @Test func noCompanyMeansNoMasterRead() async throws {
-        let gateway = RecordingGateway(projection: try makeProjection())
+        let gateway = RecordingGateway(projection: try makeProjection(companyId: nil))
         gateway.masters = [RecordingGateway.master(id: "m1", kind: "SKU", name: "Rice")]
         let model = BusinessOperatingModel(momentId: "m1", companyId: nil, subtype: "TRADING_WHOLESALE", repo: gateway)
 
         await model.loadMasters()
 
         #expect(model.masters.isEmpty)
+    }
+
+    @Test func loadMastersFallsBackToProjectionWhenNoCompany() async throws {
+        let gateway = RecordingGateway(
+            projection: try makeProjection(
+                companyId: nil,
+                embeddedMasters: [(id: "m1", kind: "SKU", name: "Rice")]
+            )
+        )
+        let model = BusinessOperatingModel(momentId: "m1", companyId: nil, subtype: "TRADING_WHOLESALE", repo: gateway)
+        await model.load()
+
+        await model.loadMasters()
+
+        #expect(model.masters.count == 1)
+        #expect(model.masters.first?.name == "Rice")
+    }
+
+    @Test func loadMastersUsesProjectionCompanyWhenShellCompanyMissing() async throws {
+        let gateway = RecordingGateway(projection: try makeProjection(companyId: "c-proj"))
+        gateway.masters = [RecordingGateway.master(id: "m1", kind: "SKU", name: "Rice")]
+        let model = BusinessOperatingModel(momentId: "m1", companyId: nil, subtype: "TRADING_WHOLESALE", repo: gateway)
+        await model.load()
+
+        await model.loadMasters()
+
+        #expect(model.masters.count == 1)
+        #expect(model.masters.first?.name == "Rice")
+    }
+
+    @Test func ensureMastersForCaptureHydratesFromProjection() async throws {
+        let gateway = RecordingGateway(
+            projection: try makeProjection(
+                companyId: "c1",
+                embeddedMasters: [(id: "p1", kind: "PRODUCT", name: "Widget")]
+            )
+        )
+        gateway.masters = []
+        let model = BusinessOperatingModel(momentId: "m1", companyId: "c1", subtype: "TRADING_WHOLESALE", repo: gateway)
+        await model.load()
+        #expect(model.masters.isEmpty)
+
+        await model.ensureMastersForCapture()
+
+        #expect(model.masters.count == 1)
+        #expect(model.masters.first?.kind == "PRODUCT")
     }
 
     // MARK: Projection lookups
