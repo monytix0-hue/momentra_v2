@@ -1,6 +1,8 @@
 package com.example.momentra.ui.shell.business.shared
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -24,6 +26,14 @@ class OperatingLovKindMatchTest {
                 setOf("CUSTOMER", "BUYER", "SUPPLIER", "PRINCIPAL", "DEALER", "VENDOR"),
             ),
         )
+    }
+
+    @Test
+    fun prefersSelectedThenMomentThenProjection() {
+        assertEquals("sel", resolveOperatingCompanyId("sel", "mom", "proj"))
+        assertEquals("mom", resolveOperatingCompanyId(null, "mom", "proj"))
+        assertEquals("proj", resolveOperatingCompanyId(null, null, "proj"))
+        assertNull(resolveOperatingCompanyId(null, null, null))
     }
 
     @Test

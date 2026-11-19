@@ -25,3 +25,11 @@ object OperatingLovKindMatch {
 
     fun partyKindsForSupply(): Set<String> = partyKindsForSupplySet
 }
+
+fun resolveOperatingCompanyId(
+    selectedCompanyId: String?,
+    momentCompanyId: String?,
+    projectionCompanyId: String?,
+): String? = sequenceOf(selectedCompanyId, momentCompanyId, projectionCompanyId)
+    .mapNotNull { it?.takeIf(String::isNotBlank) }
+    .firstOrNull()
