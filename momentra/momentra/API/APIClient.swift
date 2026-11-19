@@ -205,6 +205,7 @@ struct OperatingPulseMetricGroupPayload: Decodable, Identifiable {
 
 struct OperatingProjectionPayload: Decodable {
     let retired: Bool?
+    let companyId: String?
     let familyCode: String?
     let subtype: String?
     let subtypeLabel: String?

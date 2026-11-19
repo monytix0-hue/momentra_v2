@@ -125,7 +125,9 @@ import com.example.momentra.ui.shell.business.shared.BusinessQuickAddKind
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.OperatingMomentPage
+import com.example.momentra.ui.shell.business.shared.OperatingProjectionCache
 import com.example.momentra.ui.shell.business.shared.OperatingTab
+import com.example.momentra.ui.shell.business.shared.resolveOperatingCompanyId
 import com.example.momentra.ui.shell.business.shared.BusinessRevenueSheet
 import com.example.momentra.ui.shell.business.shared.BusinessKhataHomeSheet
 import com.example.momentra.ui.shell.business.shared.BusinessRecentActivityFlow
@@ -682,6 +684,11 @@ fun AppShellScreen(
                 .align(Alignment.CenterHorizontally)
                 .momentraMaxWidth(shellWindow.contentMaxWidth),
         ) {
+            val operatingCompanyId = resolveOperatingCompanyId(
+                state.selectedCompany?.companyId,
+                state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.companyId,
+                state.selectedMomentId?.let { OperatingProjectionCache.peek(it)?.companyId },
+            )
             if (businessCreateVisible) {
                 BusinessCreateFlow(
                     companyId = state.selectedCompany?.companyId,
@@ -704,7 +711,7 @@ fun AppShellScreen(
                     experience = state.momentExperience,
                     moments = state.moments,
                     hasCompany = state.selectedCompany != null,
-                    companyId = state.selectedCompany?.companyId,
+                    companyId = operatingCompanyId,
                     companyName = state.selectedCompany?.displayName,
                     selectedMomentId = state.selectedMomentId,
                     selectedMomentTitle = state.selectedMomentTitle,

@@ -122,6 +122,7 @@ fun TradingQuickAddHub(
     model: OperatingProjectionDto,
     onRecord: suspend (TradingEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
+    companyId: String? = null,
 ) {
     val allowed = model.quickAdds.map { it.code }.toSet()
     var sheet by remember { mutableStateOf<TradingSheet?>(null) }
@@ -250,6 +251,7 @@ fun TradingQuickAddHub(
                     },
                     onDecide = onDecide,
                     onCreateMaster = if ("UPDATE" in allowed) createMaster else null,
+                    companyId = companyId,
                 )
             }
         }
@@ -270,6 +272,7 @@ fun TradingQuickAddHub(
                     onDismiss = { approvalOpen = false },
                     onSubmit = {},
                     onDecide = onDecide,
+                    companyId = companyId,
                 )
             }
         }

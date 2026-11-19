@@ -2,6 +2,7 @@ package com.example.momentra.ui.shell.business
 
 import com.example.momentra.data.api.OperatingMasterDto
 import com.example.momentra.ui.shell.business.shared.OperatingCaptureLayout
+import com.example.momentra.ui.shell.business.shared.OperatingLovKindMatch
 import com.example.momentra.ui.shell.business.shared.OperatingMasterDraft
 import com.example.momentra.ui.shell.business.shared.OperatingMasterTab
 import com.example.momentra.ui.shell.business.shared.OperatingStockReasons
@@ -18,6 +19,13 @@ import org.junit.Test
  * sends, and which QA layout a capture mode renders. No Compose, no network.
  */
 class OperatingMasterMappingTest {
+
+    @Test
+    fun principalsTabKindsAreSelectableInCaptureLovs() {
+        val principals = OperatingMasterTab.Principals.kinds()
+        assertTrue(principals.any { OperatingLovKindMatch.masterMatchesLovKind("SUPPLIER", it) })
+        assertTrue(principals.any { OperatingLovKindMatch.masterMatchesLovKind("BUYER", it) })
+    }
 
     @Test
     fun tabKindsPartitionTheMasterKinds() {

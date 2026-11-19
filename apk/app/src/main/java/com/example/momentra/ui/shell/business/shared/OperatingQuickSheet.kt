@@ -51,6 +51,7 @@ import com.example.momentra.data.api.OperatingActivityDto
 import com.example.momentra.data.api.OperatingMasterDto
 import com.example.momentra.data.api.OperatingPaymentDto
 import com.example.momentra.data.api.OperatingProjectionDto
+import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.ui.shell.business.marketing.MarketingClientQuickAddCopy
 import com.example.momentra.ui.shell.business.marketing.MarketingOwnQuickAddCopy
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -334,7 +335,13 @@ internal class CaptureForm(
         }
     }
 
-    fun applyLov(kind: String, option: OperatingLovOption, mode: String, model: OperatingProjectionDto) {
+    fun applyLov(
+        kind: String,
+        option: OperatingLovOption,
+        mode: String,
+        model: OperatingProjectionDto,
+        masters: List<OperatingMasterDto> = model.masters.orEmpty(),
+    ) {
         when (kind) {
             "PRODUCT" -> {
                 itemName = option.name
@@ -363,7 +370,7 @@ internal class CaptureForm(
             }
             "BUYER", "CUSTOMER", "SUPPLIER" -> {
                 party = option.name
-                applyPartySupply(option.name, model)
+                applyPartySupply(option.name, model, masters)
             }
             "CHANNEL" -> channel = option.name
             "EXPENSE_CATEGORY" -> expenseCategory = option.name
@@ -392,9 +399,13 @@ internal class CaptureForm(
         }
     }
 
-    private fun applyPartySupply(name: String, model: OperatingProjectionDto) {
-        val party = model.masters.orEmpty().firstOrNull {
-            it.name.equals(name, ignoreCase = true) && it.kind.uppercase() in setOf("CUSTOMER", "BUYER", "SUPPLIER")
+    private fun applyPartySupply(
+        name: String,
+        model: OperatingProjectionDto,
+        masters: List<OperatingMasterDto>,
+    ) {
+        val party = masters.firstOrNull {
+            it.name.equals(name, ignoreCase = true) && it.kind.uppercase() in OperatingLovKindMatch.partyKindsForSupply()
         } ?: return
         val business = model.gstState.orEmpty().trim()
         val supply = listOf(party.deliveryState, party.billingState, party.businessState)
@@ -498,6 +509,7 @@ fun OperatingCaptureSheet(
     seed: OperatingActivityDto? = null,
     /** kind, name, unit, optional conversionToBase */
     onCreateMaster: (suspend (String, String, String?, String?) -> Unit)? = null,
+    companyId: String? = null,
 ) {
     val currency = model.currency?.ifBlank { null } ?: "INR"
     // The retail section runs the Figma rose sheet (`2399:30253`); every other family keeps
@@ -848,7 +860,7 @@ fun OperatingCaptureSheet(
         CaptureSheetFooter(form, mode, eventType, title, model, restaurant, service, trading, distribution, marketing, client, own, production, job, standard, lovTrade, seed, onDecide, onDismiss, onSubmit, scope)
     }
     CaptureDateDialogs(form)
-    CaptureLovHost(form, model, mode, channels, distribution, onCreateMaster, scope)
+    CaptureLovHost(form, model, mode, channels, distribution, onCreateMaster, scope, companyId)
     }
     }
     }
@@ -3623,7 +3635,25 @@ private fun CaptureLovHost(
     distribution: Boolean,
     onCreateMaster: (suspend (String, String, String?, String?) -> Unit)?,
     scope: kotlinx.coroutines.CoroutineScope,
+    shellCompanyId: String? = null,
 ) {
+    val resolvedCompanyId = resolveOperatingCompanyId(shellCompanyId, null, model.companyId)
+    val momentId = OperatingChromeState.momentId
+    val repo = remember { BusinessSliceRepository() }
+    var hydratedMasters by remember(resolvedCompanyId, momentId) { mutableStateOf<List<OperatingMasterDto>?>(null) }
+    LaunchedEffect(form.lovKind, resolvedCompanyId, momentId, model.masters) {
+        val lovOpen = form.lovKind != null
+        if (!lovOpen) return@LaunchedEffect
+        if (!model.masters.isNullOrEmpty()) {
+            hydratedMasters = null
+            return@LaunchedEffect
+        }
+        val cid = resolvedCompanyId ?: return@LaunchedEffect
+        if (hydratedMasters != null) return@LaunchedEffect
+        repo.listMasters(cid, momentId = momentId).onSuccess { hydratedMasters = it }
+    }
+    val projectionMasters = model.masters.orEmpty()
+    val effectiveMasters = if (projectionMasters.isNotEmpty()) projectionMasters else hydratedMasters.orEmpty()
     form.lovKind?.let { kind ->
         val pickerKind = kind.uppercase()
         SearchableOperatingLovSheet(
@@ -3634,7 +3664,7 @@ private fun CaptureLovHost(
                 "SALES_ORDER", "PURCHASE_ORDER" -> orderLovOptions(model, pickerKind)
                 "OBLIGATION" -> obligationLovOptions(mode, model)
                 "LINKED_SOURCE" -> linkedSourceLovOptions(model)
-                else -> lovOptions(kind, model.masters.orEmpty(), channels, form.localMasters).let { rows ->
+                else -> lovOptions(kind, effectiveMasters, channels, form.localMasters).let { rows ->
                     val listed = if (
                         kind.equals("EXPENSE_CATEGORY", ignoreCase = true) &&
                         model.subtype in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP")
@@ -3646,10 +3676,10 @@ private fun CaptureLovHost(
                     if (!kind.equals("UOM", ignoreCase = true)) listed
                     else {
                         val base = OperatingSeedUoms.canonical(
-                            model.masters.orEmpty().firstOrNull { it.id == form.productMasterId }?.unit
+                            effectiveMasters.firstOrNull { it.id == form.productMasterId }?.unit
                                 ?: form.localMasters.firstOrNull { it.kind.equals("PRODUCT", true) && (it.name == form.itemName || it.name == form.purpose) }?.unit,
                         )
-                        val conversion = model.masters.orEmpty().firstOrNull { it.id == form.productMasterId }?.conversionToBase
+                        val conversion = effectiveMasters.firstOrNull { it.id == form.productMasterId }?.conversionToBase
                         if (base.isNullOrBlank()) listed else listed.filter { OperatingSeedUoms.compatible(it.name, base, conversion) }
                     }
                 }
@@ -3657,7 +3687,7 @@ private fun CaptureLovHost(
             canAdd = onCreateMaster != null && pickerKind !in setOf("UOM", "SALES_ORDER", "PURCHASE_ORDER", "OBLIGATION", "LINKED_SOURCE"),
             unitChoices = if (kind.equals("PRODUCT", ignoreCase = true)) OperatingSeedUoms.all else emptyList(),
             accent = if (distribution) Color(0xFF66C7A4) else Color(0xFF6DDCFF),
-            onSelect = { option -> form.applyLov(kind, option, mode, model) },
+            onSelect = { option -> form.applyLov(kind, option, mode, model, effectiveMasters) },
             onAdd = { name, unitArg, conversion ->
                 val created = OperatingLovOption(
                     id = "local-$kind-${name.lowercase()}",
@@ -3667,7 +3697,7 @@ private fun CaptureLovHost(
                     subtitle = unitArg,
                 )
                 form.localMasters = form.localMasters + created
-                form.applyLov(kind, created, mode, model)
+                form.applyLov(kind, created, mode, model, effectiveMasters)
                 onCreateMaster?.let { create -> scope.launch { create(kind, name, unitArg, conversion) } }
             },
             onDismiss = { form.lovKind = null },
@@ -5508,16 +5538,8 @@ private fun lovOptions(
     channels: List<String>,
     local: List<OperatingLovOption>,
 ): List<OperatingLovOption> {
-    val productKinds = setOf("PRODUCT", "SKU", "BATCH", "PART", "MATERIAL", "RAW", "BOM")
     val fromMasters = masters
-        .filter { master ->
-            val masterKind = master.kind.uppercase()
-            when {
-                kind == "PRODUCT" -> masterKind in productKinds || masterKind.isBlank()
-                kind == "BUYER" -> masterKind == "BUYER" || masterKind == "CUSTOMER"
-                else -> masterKind == kind
-            }
-        }
+        .filter { master -> OperatingLovKindMatch.masterMatchesLovKind(kind, master.kind) }
         .map { master ->
             val masterKind = master.kind.uppercase()
             val unitLabel = if (kind == "PRODUCT" || kind == "UOM") {

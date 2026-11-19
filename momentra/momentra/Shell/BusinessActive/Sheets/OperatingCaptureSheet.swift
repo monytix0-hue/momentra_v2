@@ -22,6 +22,8 @@ struct OperatingCaptureSheet: View {
     @State private var documentError: String?
     @State private var didApplyBrowserPrefill = false
     @State private var moreDetailsOpen = false
+    @State private var activeLovKind: String?
+    @State private var captureLocalLovOptions: [OperatingLovOption] = []
 
     /// The twelve frames collect the same primitives; which ones are visible depends on the mode.
     struct Draft {
@@ -261,6 +263,16 @@ struct OperatingCaptureSheet: View {
         }
     }
 
+    /// Hub→capture can open before `load()` finishes; re-run hydrate when projection or masters update.
+    private var mastersHydrationTrigger: String {
+        guard let projection = model.projection else {
+            return "awaiting-projection:\(model.masters.count)"
+        }
+        let company = projection.companyId ?? ""
+        let embedded = projection.masters?.count ?? -1
+        return "projection:\(company):\(embedded):\(model.masters.count)"
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -389,6 +401,26 @@ struct OperatingCaptureSheet: View {
             }
             applyBrowserPrefillIfNeeded()
         }
+        .task(id: mastersHydrationTrigger) {
+            await model.ensureMastersForCapture()
+        }
+        .overlay {
+            if let kind = activeLovKind {
+                SearchableOperatingLovSheet(
+                    theme: theme,
+                    kind: kind,
+                    title: operatingLovTitle(for: kind),
+                    options: captureLovOptions(kind: kind),
+                    canAdd: canAddCaptureLov,
+                    onSelect: { applyCaptureLov(option: $0, kind: kind) },
+                    onAdd: { name, unit in
+                        appendLocalLov(kind: kind, name: name, unit: unit)
+                        Task { await createCaptureLovMaster(kind: kind, name: name, unit: unit) }
+                    },
+                    onDismiss: { activeLovKind = nil }
+                )
+            }
+        }
     }
 
     // MARK: - Trading TRD-QA body (Figma 01…12)
@@ -480,7 +512,7 @@ struct OperatingCaptureSheet: View {
         if !itemized {
             TradingAmountHero(theme: theme, label: "Sale amount (M)", currency: model.currency, text: $draft.amount, hint: ">0")
         } else {
-            skuPicker
+            productLovField(alwaysShowSection: true)
             HStack(spacing: 10) {
                 field("Quantity", text: $draft.quantity, decimal: true)
                 field("Unit", text: $draft.unit)
@@ -490,10 +522,11 @@ struct OperatingCaptureSheet: View {
         setupDateField("Sale date (M)", selection: $draft.occurredAt)
         segmented("Payment state (M)", options: ["Received", "Part paid", "Pay later"], selection: $draft.paymentChoice)
         if draft.paymentChoice == "Part paid" || draft.paymentChoice == "Pay later" {
-            field(
-                draft.paymentChoice == "Part paid" ? "Customer (C · part paid)" : "Customer (C · pay later)",
-                text: $draft.counterparty
-            )
+            lovField(
+                label: draft.paymentChoice == "Part paid" ? "Customer (C · part paid)" : "Customer (C · pay later)",
+                value: draft.counterparty,
+                placeholder: "customer"
+            ) { activeLovKind = "BUYER" }
         }
         if draft.paymentChoice == "Part paid" {
             field("Received now (C)", text: $draft.amountPaidNow, decimal: true)
@@ -549,14 +582,16 @@ struct OperatingCaptureSheet: View {
         if !itemized {
             TradingAmountHero(theme: theme, label: "Purchase amount (M)", currency: model.currency, text: $draft.amount, hint: ">0")
         } else {
-            skuPicker
+            productLovField(alwaysShowSection: true)
             HStack(spacing: 10) {
                 field("Quantity", text: $draft.quantity, decimal: true)
                 field("Unit", text: $draft.unit)
             }
             field("Unit price", text: $draft.itemPrice, decimal: true)
         }
-        field("Supplier / supplier (C/M)", text: $draft.counterparty)
+        lovField(label: "Supplier (C/M)", value: draft.counterparty, placeholder: "supplier") {
+            activeLovKind = "SUPPLIER"
+        }
         setupDateField("Purchase date (M)", selection: $draft.occurredAt)
         segmented("Payment state (M)", options: ["Paid", "Part paid", "Pay later"], selection: $draft.paymentChoice)
         if draft.paymentChoice == "Part paid" {
@@ -686,12 +721,14 @@ struct OperatingCaptureSheet: View {
                 }
             )
         )
-        field(
-            draft.documentType.localizedCaseInsensitiveContains("Supplier") ? "Supplier (M · purchase order)" : "Customer (M · sales order)",
-            text: $draft.counterparty
-        )
+        let orderPartyKind = draft.documentType.localizedCaseInsensitiveContains("Supplier") ? "SUPPLIER" : "BUYER"
+        lovField(
+            label: draft.documentType.localizedCaseInsensitiveContains("Supplier") ? "Supplier (M · purchase order)" : "Customer (M · sales order)",
+            value: draft.counterparty,
+            placeholder: orderPartyKind == "SUPPLIER" ? "supplier" : "customer"
+        ) { activeLovKind = orderPartyKind }
         setupDateField("Order date (M)", selection: $draft.occurredAt)
-        skuPicker
+        productLovField(alwaysShowSection: true)
         HStack(spacing: 10) {
             field("Quantity", text: $draft.quantity, decimal: true)
             field("Unit", text: $draft.unit)
@@ -934,7 +971,7 @@ struct OperatingCaptureSheet: View {
         }
         if [.sale, .purchase, .stock, .saleReturn, .order, .shipment].contains(layout) {
             if layout != .sale || itemizedSale || !theme.isOpsQaCapture {
-                skuPicker
+                skuPicker(alwaysShowSection: itemizedSale)
             }
             if layout != .sale || itemizedSale {
                 HStack(spacing: 10) {
@@ -1091,60 +1128,185 @@ struct OperatingCaptureSheet: View {
 
     /// The display name behind a chosen master id, so the record reads in words while the
     /// contract still carries the id the server validates.
+    private var captureMastersSource: [OperatingMasterPayload] {
+        model.masters.isEmpty ? (model.projection?.masters ?? []) : model.masters
+    }
+
     private func masterName(_ id: String?) -> String? {
         guard let id, !id.isEmpty else { return nil }
-        return model.masters.first { $0.id == id }?.name
+        return captureMastersSource.first { $0.id == id }?.name
     }
 
     private var selectedMaster: OperatingMasterPayload? {
         guard let id = draft.masterId, !id.isEmpty else { return nil }
-        return model.masters.first { $0.id == id }
+        return captureMastersSource.first { $0.id == id }
     }
 
-    private var skuPicker: some View {
-        let kinds: Set<String> = ["SKU", "PRODUCT", "BATCH", "PART", "MATERIAL", "RAW", "BOM"]
-        let skus = model.masters.filter { kinds.contains($0.kind.uppercased()) || $0.kind.isEmpty }
-        return Group {
-            if !skus.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Product")
-                        .font(.plusJakarta(size: 11))
+    private var canAddCaptureLov: Bool {
+        let allowed = Set((model.projection?.quickAdds ?? []).map { $0.code.uppercased() })
+        return allowed.contains("UPDATE")
+    }
+
+    private func captureLovOptions(kind: String) -> [OperatingLovOption] {
+        tradingLovOptions(kind: kind, masters: captureMastersSource, local: captureLocalLovOptions)
+    }
+
+    private func lovField(label: String, value: String, placeholder: String, onOpen: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: theme.isOpsQaCapture ? 6 : 4) {
+            Text(label)
+                .font(.plusJakarta(size: theme.isOpsQaCapture ? 12 : 11, weight: .medium))
+                .foregroundStyle(theme.captureLabel)
+            Button(action: onOpen) {
+                HStack {
+                    Text(value.isEmpty ? "Select \(placeholder)  ›" : value)
+                        .font(.plusJakarta(size: theme.isOpsQaCapture ? 15 : 14))
+                        .foregroundStyle(value.isEmpty ? theme.muted : theme.captureValue)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(theme.muted)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(skus) { sku in
-                                Button {
-                                    draft.masterId = sku.id
-                                    draft.sku = sku.name
-                                    draft.itemName = sku.name
-                                    if draft.title.isEmpty { draft.title = sku.name }
-                                    if draft.quantity.isEmpty { draft.quantity = "1" }
-                                    if draft.unit.isEmpty { draft.unit = sku.unit ?? "" }
-                                    if draft.itemPrice.isEmpty {
-                                        draft.itemPrice = sku.sellPrice ?? sku.purchasePrice ?? ""
-                                    }
-                                    if draft.gstRate.isEmpty, let rate = sku.gstRate, !rate.isEmpty {
-                                        draft.gstRate = rate
-                                    }
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        OperatingPill(
-                                            theme: theme,
-                                            label: sku.name,
-                                            accent: draft.masterId == sku.id
-                                        )
-                                        if sku.kind.uppercased() == "BATCH" {
-                                            Text(fefoFactLabel(master: sku))
-                                                .font(.plusJakarta(size: 10))
-                                                .foregroundStyle(theme.warning)
-                                        }
+                }
+                .padding(.horizontal, theme.isOpsQaCapture ? 14 : 12)
+                .padding(.vertical, theme.isOpsQaCapture ? 12 : 11)
+                .background(theme.captureField)
+                .overlay(
+                    RoundedRectangle(cornerRadius: theme.isOpsQaCapture ? 14 : 12)
+                        .stroke(theme.isOpsQaCapture ? Color.white.opacity(0.08) : theme.border, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: theme.isOpsQaCapture ? 14 : 12))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private func productLovField(alwaysShowSection: Bool) -> some View {
+        let display = draft.itemName.isEmpty ? draft.sku : draft.itemName
+        if !display.isEmpty || alwaysShowSection {
+            lovField(label: "Product", value: display, placeholder: "product") { activeLovKind = "PRODUCT" }
+        }
+    }
+
+    private func applyCaptureLov(option: OperatingLovOption, kind: String) {
+        switch kind.uppercased() {
+        case "PRODUCT":
+            let masterId = option.id.hasPrefix("local-") || option.id.hasPrefix("seed-") ? nil : option.id
+            draft.masterId = masterId
+            draft.sku = option.name
+            draft.itemName = option.name
+            if draft.title.isEmpty { draft.title = option.name }
+            if draft.quantity.isEmpty { draft.quantity = "1" }
+            if let unit = option.unit, !unit.isEmpty, draft.unit.isEmpty { draft.unit = unit }
+            if let master = captureMastersSource.first(where: { $0.id == option.id }) {
+                if draft.itemPrice.isEmpty {
+                    draft.itemPrice = master.sellPrice ?? master.purchasePrice ?? ""
+                }
+                if draft.gstRate.isEmpty, let rate = master.gstRate, !rate.isEmpty {
+                    draft.gstRate = rate
+                }
+            }
+        case "BUYER", "CUSTOMER", "SUPPLIER":
+            draft.counterparty = option.name
+            if let master = captureMastersSource.first(where: { $0.name.caseInsensitiveCompare(option.name) == .orderedSame }),
+               OperatingLovKindMatch.partyKindsForSupply().contains(master.kind.uppercased()) {
+                let business = (model.projection?.gstState ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let supply = [master.deliveryState, master.billingState, master.businessState]
+                    .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .first { !$0.isEmpty } ?? ""
+                if let jurisdiction = IndiaStateCatalog.jurisdiction(businessState: business, supplyState: supply) {
+                    draft.supplyChoice = jurisdiction
+                }
+            }
+        default:
+            break
+        }
+    }
+
+    private func appendLocalLov(kind: String, name: String, unit: String?) {
+        let option = OperatingLovOption(
+            id: "local-\(kind)-\(name.lowercased())",
+            name: name,
+            kind: kind.uppercased(),
+            subtitle: unit,
+            unit: unit
+        )
+        captureLocalLovOptions.append(option)
+        applyCaptureLov(option: option, kind: kind)
+    }
+
+    private func lovMasterKind(for lovKind: String) -> String {
+        switch lovKind.uppercased() {
+        case "PRODUCT": return "SKU"
+        case "BUYER", "CUSTOMER": return "CUSTOMER"
+        case "SUPPLIER": return "SUPPLIER"
+        default: return lovKind.uppercased()
+        }
+    }
+
+    private func createCaptureLovMaster(kind: String, name: String, unit: String?) async {
+        var masterDraft = OperatingMasterDraft(kind: lovMasterKind(for: kind), name: name)
+        if let unit, !unit.isEmpty { masterDraft.unit = unit }
+        _ = await model.createMaster(masterDraft)
+    }
+
+    @ViewBuilder
+    private func skuPicker(alwaysShowSection: Bool = false) -> some View {
+        let source = captureMastersSource
+        let skus = source.filter {
+            OperatingLovKindMatch.masterMatches(pickerKind: "PRODUCT", masterKind: $0.kind)
+        }
+        if !skus.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Product")
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(theme.muted)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(skus) { sku in
+                            Button {
+                                draft.masterId = sku.id
+                                draft.sku = sku.name
+                                draft.itemName = sku.name
+                                if draft.title.isEmpty { draft.title = sku.name }
+                                if draft.quantity.isEmpty { draft.quantity = "1" }
+                                if draft.unit.isEmpty { draft.unit = sku.unit ?? "" }
+                                if draft.itemPrice.isEmpty {
+                                    draft.itemPrice = sku.sellPrice ?? sku.purchasePrice ?? ""
+                                }
+                                if draft.gstRate.isEmpty, let rate = sku.gstRate, !rate.isEmpty {
+                                    draft.gstRate = rate
+                                }
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    OperatingPill(
+                                        theme: theme,
+                                        label: sku.name,
+                                        accent: draft.masterId == sku.id
+                                    )
+                                    if sku.kind.uppercased() == "BATCH" {
+                                        Text(fefoFactLabel(master: sku))
+                                            .font(.plusJakarta(size: 10))
+                                            .foregroundStyle(theme.warning)
                                     }
                                 }
-                                .buttonStyle(.plain)
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
+            }
+        } else if alwaysShowSection {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Product")
+                    .font(.plusJakarta(size: 11))
+                    .foregroundStyle(theme.muted)
+                Text("No matching product")
+                    .font(.plusJakarta(size: 12))
+                    .foregroundStyle(theme.muted)
+                Text("Product not listed? Create product")
+                    .font(.plusJakarta(size: 12, weight: .medium))
+                    .foregroundStyle(theme.accent)
+                    .underline()
             }
         }
     }
@@ -1213,7 +1375,7 @@ struct OperatingCaptureSheet: View {
     private var transferBody: some View {
         skuPicker
         field("Item", text: $draft.title)
-        let locations = model.masters.filter {
+        let locations = captureMastersSource.filter {
             ["WAREHOUSE", "LOCATION", "ROUTE"].contains($0.kind.uppercased())
         }
         if locations.isEmpty {
