@@ -64,6 +64,14 @@ struct BusinessSetupFieldModelTests {
         #expect(spec.heroTitle == "BrightCare Setup")
         #expect(spec.activateLabel == "Start this business")
         #expect(spec.defaultTitleKey == "serviceName")
+        #expect(spec.sectionTitles == [
+            "Business Basics",
+            "People & Roles",
+            "Channels & Monthly Plan",
+            "GST & Tax Details",
+            "Review your setup",
+        ])
+        #expect(spec.sections.allSatisfy { $0.id != "network" })
         let keys = Set(spec.sections.flatMap { $0.fields.map(\.key) })
         for key in [
             "serviceName", "companyName", "gstin", "currency", "startDate", "endDate",
@@ -73,6 +81,7 @@ struct BusinessSetupFieldModelTests {
         ] {
             #expect(keys.contains(key))
         }
+        #expect(!keys.contains("modules"))
         let channelsField = spec.sections.flatMap(\.fields).first { $0.key == "channels" }
         if case .multiChoice(let options) = channelsField?.kind {
             #expect(options == ["Studio", "Home", "Online", "Corporate", "Events"])
@@ -85,10 +94,48 @@ struct BusinessSetupFieldModelTests {
         } else {
             Issue.record("roles missing")
         }
+    }
+
+    @Test func restaurantMatchesFigma90612() {
+        let spec = BusinessSetupDocuments.spec(for: "RESTAURANT_FOOD")
+        #expect(spec.heroTitle == "Spice Route Setup")
+        #expect(spec.activateLabel == "Start this restaurant")
+        #expect(spec.defaultTitleKey == "outletName")
+        #expect(spec.sectionTitles == [
+            "Business Basics",
+            "People & Roles",
+            "Channels & Monthly Plan",
+            "Kitchen, Menu & Network",
+            "GST & Tax Details",
+            "Review your setup",
+        ])
+        let keys = Set(spec.sections.flatMap { $0.fields.map(\.key) })
+        for key in [
+            "outletName", "companyName", "gstin", "currency", "startDate", "endDate",
+            "description", "location", "roles", "channels", "planMonth",
+            "monthlyBudget", "monthlyTarget", "targetMetric",
+            "gstTracking", "gstRegistration", "gstState", "salePriceIncludesGst",
+        ] {
+            #expect(keys.contains(key))
+        }
+        let channelsField = spec.sections.flatMap(\.fields).first { $0.key == "channels" }
+        if case .multiChoice(let options) = channelsField?.kind {
+            #expect(options == ["Dine-in", "Direct", "Zomato", "Takeaway", "Swiggy"])
+        } else {
+            Issue.record("channels missing")
+        }
+        let rolesField = spec.sections.flatMap(\.fields).first { $0.key == "roles" }
+        if case .multiChoice(let options) = rolesField?.kind {
+            #expect(options == ["Owner", "Manager", "Cashier", "Kitchen", "Waiter"])
+        } else {
+            Issue.record("roles missing")
+        }
         let modulesField = spec.sections.flatMap(\.fields).first { $0.key == "modules" }
         if case .moduleList(let modules) = modulesField?.kind {
-            #expect(modules.count == 5)
-            #expect(modules[0].subtitle.contains("SAC"))
+            #expect(modules.count == 4)
+            #expect(modules[0].title == "Menu")
+            #expect(modules[1].title == "Stations")
+            #expect(modules[2].title == "Vendors")
         } else {
             Issue.record("modules missing")
         }
@@ -130,10 +177,56 @@ struct BusinessSetupFieldModelTests {
     @Test func tradingActivateLabelIsStartTheBusiness() {
         let trading = BusinessSetupDocuments.spec(for: "TRADING_WHOLESALE")
         let distribution = BusinessSetupDocuments.spec(for: "DISTRIBUTION_DEALERSHIP")
-        #expect(trading.activateLabel == "Start the business!")
+        #expect(trading.activateLabel == "Start this business")
         #expect(distribution.activateLabel == "Start the business!")
         #expect(trading.sectionTitles.contains("Catalogue, Warehouses & Network"))
         #expect(BusinessSetupTheme.forTypeCode("TRADING_WHOLESALE").domain == .trading)
+    }
+
+    @Test func tradingMatchesFigma18833() {
+        let spec = BusinessSetupDocuments.spec(for: "TRADING_WHOLESALE")
+        #expect(spec.heroTitle == "Northstar Trading Setup")
+        #expect(spec.activateLabel == "Start this business")
+        #expect(spec.defaultTitleKey == "businessName")
+        #expect(spec.sectionTitles == [
+            "Business Basics",
+            "People & Roles",
+            "Channels & Monthly Plan",
+            "Catalogue, Warehouses & Network",
+            "GST & Tax Details",
+            "Review your setup",
+        ])
+        let keys = Set(spec.sections.flatMap { $0.fields.map(\.key) })
+        for key in [
+            "businessName", "companyName", "gstin", "currency", "startDate", "endDate",
+            "description", "location", "roles", "channels", "planMonth",
+            "monthlyBudget", "monthlyTarget", "targetMetric",
+            "gstTracking", "gstRegistration", "gstState", "salePriceIncludesGst",
+        ] {
+            #expect(keys.contains(key))
+        }
+        let channelsField = spec.sections.flatMap(\.fields).first { $0.key == "channels" }
+        if case .multiChoice(let options) = channelsField?.kind {
+            #expect(options == ["Retail buyers", "Wholesale", "Modern trade", "HoReCa", "Online"])
+        } else {
+            Issue.record("channels missing")
+        }
+        let rolesField = spec.sections.flatMap(\.fields).first { $0.key == "roles" }
+        if case .multiChoice(let options) = rolesField?.kind {
+            #expect(options == ["Owner", "Manager", "Sales exec", "Warehouse", "Sales rep"])
+        } else {
+            Issue.record("roles missing")
+        }
+        let modulesField = spec.sections.flatMap(\.fields).first { $0.key == "modules" }
+        if case .moduleList(let modules) = modulesField?.kind {
+            #expect(modules.count == 4)
+            #expect(modules[0].title == "Catalogue & SKU")
+            #expect(modules[1].title == "Godowns & branches")
+            #expect(modules[2].title == "Suppliers & buyers")
+            #expect(modules[3].title == "Team invite & QR")
+        } else {
+            Issue.record("modules missing")
+        }
     }
 
     @Test func retailStoreMatchesFigma80797FiveSections() {
@@ -170,13 +263,14 @@ struct BusinessSetupFieldModelTests {
     }
 
     @Test func retailTrioSectionParity() {
-        for code in ["RETAIL_STORE", "RESTAURANT_FOOD", "CONSUMER_SERVICE"] {
+        let expectedLabels = [
+            "RETAIL_STORE": "Start this store",
+            "RESTAURANT_FOOD": "Start this restaurant",
+            "CONSUMER_SERVICE": "Start this business",
+        ]
+        for (code, label) in expectedLabels {
             let spec = BusinessSetupDocuments.spec(for: code)
-            if code == "RETAIL_STORE" {
-                #expect(spec.activateLabel == "Start this store")
-            } else {
-                #expect(spec.activateLabel == "Start this business")
-            }
+            #expect(spec.activateLabel == label)
             #expect(spec.sectionTitles.contains("Business Basics"))
             #expect(spec.sectionTitles.contains("People & Roles"))
             #expect(spec.sectionTitles.contains("GST & Tax Details"))

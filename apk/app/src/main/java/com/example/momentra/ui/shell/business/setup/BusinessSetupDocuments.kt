@@ -125,8 +125,17 @@ object BusinessSetupDocuments {
             kind = BusinessSetupFieldSpec.Kind.ModuleList(modules.map { BusinessSetupModuleRow(it) }),
         )
 
-    private fun moduleListRows(key: String, label: String, modules: List<BusinessSetupModuleRow>) =
-        BusinessSetupFieldSpec(key, label, kind = BusinessSetupFieldSpec.Kind.ModuleList(modules))
+    private fun moduleListRows(
+        key: String,
+        label: String,
+        modules: List<BusinessSetupModuleRow>,
+        helper: String = "",
+    ) = BusinessSetupFieldSpec(
+        key,
+        label,
+        kind = BusinessSetupFieldSpec.Kind.ModuleList(modules),
+        helper = helper,
+    )
 
     private fun panelHeader(key: String, title: String) =
         BusinessSetupFieldSpec(key, title, kind = BusinessSetupFieldSpec.Kind.PanelHeader(title))
@@ -272,68 +281,116 @@ object BusinessSetupDocuments {
         ),
     )
 
+    /** Figma `5:18833` TRD-SETUP-v6 — §04 modules are display-only (no masters sheets). */
     val trading = BusinessSetupDocumentSpec(
         typeCode = "TRADING_WHOLESALE",
         familyTitle = "Trading",
-        eyebrow = "Wholesale trading",
-        heroTitle = "Set up wholesale trading",
-        heroSubtitle = "Bring your business, supply, and mobility plan together before you start.",
-        activateLabel = "Start the business!",
+        eyebrow = "Trading",
+        heroTitle = "Northstar Trading Setup",
+        heroSubtitle = "Bring your business, people, and monthly plan together before you start.",
+        activateLabel = "Start this business",
         defaultTitleKey = "businessName",
         sections = listOf(
             section(
-                "basics", "Business Basics", "Who you trade as.",
+                "basics", "Business Basics", "A home for this trading business.",
                 listOf(
+                    panelHeader("panelIdentity", "Identity"),
                     text("businessName", "Business name", "Northstar Trading"),
-                    text("companyName", "Company name", "Northstar Trading"),
-                    text("gstin", "GSTIN", "15-digit GSTIN"),
-                    text("industry", "Industry", "FMCG, Retail & Personal Care"),
-                    date("startedOn", "Started on", "12 October 2023"),
-                    text("headquarters", "Headquarters", "City / location"),
-                ),
-            ),
-            section(
-                "people", "People & Roles", "Who runs the trade.",
-                listOf(
-                    memberList("teamMembers", "Team", listOf("You (Administrator)")),
-                    multiChoice("roles", "Roles", listOf("Owners", "Manager", "Delivery", "Warehouse", "Salesman")),
-                    rowAction("addPeople", "Add Member / Invite Member", "Add"),
-                ),
-            ),
-            section(
-                "channels", "Channels & Monthly Plan", "How you sell and plan.",
-                listOf(
-                    multiChoice(
-                        "channels", "Platforms",
-                        listOf("Business App", "WhatsApp", "Phone/Mobile", "Website", "Others"),
+                    text(
+                        "companyName", "Company name", "Northstar Trading",
+                        helper = "Registered company name",
                     ),
-                    text("targetSales", "Target sales", "₹25,00,000"),
-                    text("monthlyExpense", "Monthly expense", "₹1,00,000"),
-                    text("marketingBudget", "Monthly marketing budget", "₹20,000"),
+                    text(
+                        "gstin", "GSTIN", "29ABCDE4321T1Z5",
+                        helper = "15-digit GSTIN, if you have one",
+                    ),
+                    text("currency", "Currency", "INR · Indian Rupee (₹)"),
+                    date("startDate", "Start date", "12 October 2026"),
+                    date("endDate", "End date", "Still open"),
+                    panelHeader("panelDates", "Dates & more"),
+                    text("description", "Description", "Everyday notes about this business"),
+                    text("location", "Location", "Add your DC location"),
                 ),
             ),
             section(
-                "network", "Catalogue, Warehouses & Network", "Modules that light up after start.",
+                "people", "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
                 listOf(
-                    moduleList(
+                    memberList("teamMembers", "Team", listOf("You (Owner)")),
+                    multiChoice(
+                        "roles", "Roles on invite",
+                        listOf("Owner", "Manager", "Sales exec", "Warehouse", "Sales rep"),
+                        helper = "Default Sales rep · own beat orders & collections. Role applies when they join.",
+                    ),
+                ),
+            ),
+            section(
+                "channels", "Channels & Monthly Plan", "Where do you sell? Choose at least one.",
+                listOf(
+                    panelHeader("panelChannels", "Channels"),
+                    multiChoice(
+                        "channels", "Channels",
+                        listOf("Retail buyers", "Wholesale", "Modern trade", "HoReCa", "Online"),
+                        helper = "These are the places you sell or serve. They are not a different kind of business.",
+                    ),
+                    date("planMonth", "Month", "October 2026"),
+                    text("monthlyBudget", "Monthly budget", "₹60,00,000", helper = "Amount"),
+                    text("monthlyTarget", "Monthly sales target", "₹90,00,000", helper = "Amount"),
+                    text("targetMetric", "How the target is measured", "Revenue"),
+                ),
+            ),
+            section(
+                "network", "Catalogue, Warehouses & Network",
+                "Modules your orders, dispatches and purchases will use after start.",
+                listOf(
+                    moduleListRows(
                         "modules", "Modules",
                         listOf(
-                            "Catalogue & Bills",
-                            "e-Commerce Store",
-                            "Delivery & Logistics",
-                            "Suppliers & Buyers",
-                            "Team Tasks & Chat",
+                            BusinessSetupModuleRow(
+                                "Catalogue & SKU",
+                                "386 SKUs · 4 price lists · HSN + GST on each",
+                            ),
+                            BusinessSetupModuleRow(
+                                "Godowns & branches",
+                                "Peenya godown · Yeshwanthpur branch · Cold room · 12 routes",
+                            ),
+                            BusinessSetupModuleRow(
+                                "Suppliers & buyers",
+                                "6 suppliers · 240 buyers · GSTIN on file",
+                            ),
+                            BusinessSetupModuleRow(
+                                "Team invite & QR",
+                                "Owner · Manager · Sales exec · Warehouse · Sales rep",
+                            ),
                         ),
                     ),
                 ),
             ),
             section(
-                "gst", "GST & Tax Details", "Registration in your country.",
+                "gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.",
                 listOf(
-                    toggle("gstRegistered", "Are you registered for GST in the country?"),
-                    choice("gstType", "Registration type", listOf("Regular", "Composition", "Unregistered")),
-                    text("gstState", "State", "Maharashtra"),
-                    choice("filingFrequency", "Filing frequency", listOf("Monthly", "Quarterly")),
+                    panelHeader("panelTracking", "Tracking"),
+                    choice(
+                        "gstTracking", "Do you want to track GST in this Moment?",
+                        listOf("Yes", "Not now"),
+                        helper = "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.",
+                    ),
+                    panelHeader("panelRegistration", "Registration"),
+                    choice(
+                        "gstRegistration", "How is your business registered for GST?",
+                        listOf("Regular", "Composition", "Unregistered", "Not sure"),
+                    ),
+                    text(
+                        "gstState", "Which state is your business registered in?", "Maharashtra",
+                        helper = "State",
+                    ),
+                    panelHeader("panelPricing", "Pricing"),
+                    choice(
+                        "salePriceIncludesGst", "Do prices include GST?",
+                        listOf("Prices include GST", "GST is added separately"),
+                        helper = "Your GSTIN stays the one entered above. It is stored as a reference only.",
+                    ),
+                    date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
                 ),
             ),
             section(
@@ -341,7 +398,14 @@ object BusinessSetupDocuments {
                 listOf(
                     reviewSummary(
                         "review", "Summary",
-                        listOf("businessName", "companyName", "gstin", "industry", "targetSales"),
+                        listOf(
+                            "companyName",
+                            "gstin",
+                            "channels",
+                            "monthlyBudget",
+                            "monthlyTarget",
+                            "targetMetric",
+                        ),
                     ),
                 ),
             ),
@@ -702,37 +766,6 @@ object BusinessSetupDocuments {
                         helper = "Amount",
                     ),
                     text("targetMetric", "How the target is measured", "Revenue"),
-                ),
-            ),
-            section(
-                "network", "Services, Rooms & Clients",
-                "Masters your bookings, charges and purchases read from. Each opens its own sheet.",
-                listOf(
-                    moduleListRows(
-                        "modules", "Modules",
-                        listOf(
-                            BusinessSetupModuleRow(
-                                "Services catalogue",
-                                "26 services · 4 packages · SAC + GST on each",
-                            ),
-                            BusinessSetupModuleRow(
-                                "Rooms & infrastructure",
-                                "Name, capacity, and bookable slots",
-                            ),
-                            BusinessSetupModuleRow(
-                                "Team & Staff",
-                                "Name, duration, price, SAC, GST, room",
-                            ),
-                            BusinessSetupModuleRow(
-                                "Clients",
-                                "312 clients · GSTIN only for B2B",
-                            ),
-                            BusinessSetupModuleRow(
-                                "Team Tasks & Chat",
-                                "Stats Manager active · Interface items",
-                            ),
-                        ),
-                    ),
                 ),
             ),
             section(

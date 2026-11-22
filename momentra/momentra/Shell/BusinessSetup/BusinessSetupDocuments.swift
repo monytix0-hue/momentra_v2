@@ -213,52 +213,105 @@ enum BusinessSetupDocuments {
 
     // MARK: - Trading (5:18833 / 5:8637)
 
+    /// Figma `5:18833` TRD-SETUP-v6 — §04 modules are display-only (no masters sheets).
     static let trading = BusinessSetupDocumentSpec(
         typeCode: "TRADING_WHOLESALE",
         familyTitle: "Trading",
-        eyebrow: "Wholesale trading",
-        heroTitle: "Set up wholesale trading",
-        heroSubtitle: "Bring your business, supply, and mobility plan together before you start.",
-        activateLabel: "Start the business!",
+        eyebrow: "Trading",
+        heroTitle: "Northstar Trading Setup",
+        heroSubtitle: "Bring your business, people, and monthly plan together before you start.",
+        activateLabel: "Start this business",
         defaultTitleKey: "businessName",
         sections: [
-            section("basics", "Business Basics", "Who you trade as.", [
+            section("basics", "Business Basics", "A home for this trading business.", [
+                panelHeader("panelIdentity", "Identity"),
                 text("businessName", "Business name", "Northstar Trading"),
-                text("companyName", "Company name", "Northstar Trading"),
-                text("gstin", "GSTIN", "15-digit GSTIN"),
-                text("industry", "Industry", "FMCG, Retail & Personal Care"),
-                date("startedOn", "Started on", "12 October 2023"),
-                text("headquarters", "Headquarters", "City / location"),
+                text("companyName", "Company name", "Northstar Trading", helper: "Registered company name"),
+                text("gstin", "GSTIN", "29ABCDE4321T1Z5", helper: "15-digit GSTIN, if you have one"),
+                text("currency", "Currency", "INR · Indian Rupee (₹)"),
+                date("startDate", "Start date", "12 October 2026"),
+                date("endDate", "End date", "Still open"),
+                panelHeader("panelDates", "Dates & more"),
+                text("description", "Description", "Everyday notes about this business"),
+                text("location", "Location", "Add your DC location"),
             ]),
-            section("people", "People & Roles", "Who runs the trade.", [
-                memberList("teamMembers", "Team", ["You (Administrator)"]),
-                multiChoice("roles", "Roles", ["Owners", "Manager", "Delivery", "Warehouse", "Salesman"]),
-                rowAction("addPeople", "Add Member / Invite Member", "Add"),
+            section(
+                "people",
+                "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
+                [
+                    memberList("teamMembers", "Team", ["You (Owner)"]),
+                    multiChoice(
+                        "roles",
+                        "Roles on invite",
+                        ["Owner", "Manager", "Sales exec", "Warehouse", "Sales rep"],
+                        helper: "Default Sales rep · own beat orders & collections. Role applies when they join."
+                    ),
+                ]
+            ),
+            section("channels", "Channels & Monthly Plan", "Where do you sell? Choose at least one.", [
+                panelHeader("panelChannels", "Channels"),
+                multiChoice(
+                    "channels",
+                    "Channels",
+                    ["Retail buyers", "Wholesale", "Modern trade", "HoReCa", "Online"],
+                    helper: "These are the places you sell or serve. They are not a different kind of business."
+                ),
+                date("planMonth", "Month", "October 2026"),
+                text("monthlyBudget", "Monthly budget", "₹60,00,000", helper: "Amount"),
+                text("monthlyTarget", "Monthly sales target", "₹90,00,000", helper: "Amount"),
+                text("targetMetric", "How the target is measured", "Revenue"),
             ]),
-            section("channels", "Channels & Monthly Plan", "How you sell and plan.", [
-                multiChoice("channels", "Platforms", ["Business App", "WhatsApp", "Phone/Mobile", "Website", "Others"]),
-                text("targetSales", "Target sales", "₹25,00,000"),
-                text("monthlyExpense", "Monthly expense", "₹1,00,000"),
-                text("marketingBudget", "Monthly marketing budget", "₹20,000"),
-            ]),
-            section("network", "Catalogue, Warehouses & Network", "Modules that light up after start.", [
-                moduleList("modules", "Modules", [
-                    "Catalogue & Bills",
-                    "e-Commerce Store",
-                    "Delivery & Logistics",
-                    "Suppliers & Buyers",
-                    "Team Tasks & Chat",
-                ]),
-            ]),
-            section("gst", "GST & Tax Details", "Registration in your country.", [
-                toggle("gstRegistered", "Are you registered for GST in the country?"),
-                choice("gstType", "Registration type", ["Regular", "Composition", "Unregistered"]),
-                text("gstState", "State", "Maharashtra"),
-                choice("filingFrequency", "Filing frequency", ["Monthly", "Quarterly"]),
+            section(
+                "network",
+                "Catalogue, Warehouses & Network",
+                "Modules your orders, dispatches and purchases will use after start.",
+                [
+                    moduleListRows("modules", "Modules", [
+                        BusinessSetupModuleRow("Catalogue & SKU", subtitle: "386 SKUs · 4 price lists · HSN + GST on each"),
+                        BusinessSetupModuleRow("Godowns & branches", subtitle: "Peenya godown · Yeshwanthpur branch · Cold room · 12 routes"),
+                        BusinessSetupModuleRow("Suppliers & buyers", subtitle: "6 suppliers · 240 buyers · GSTIN on file"),
+                        BusinessSetupModuleRow("Team invite & QR", subtitle: "Owner · Manager · Sales exec · Warehouse · Sales rep"),
+                    ]),
+                ]
+            ),
+            section("gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.", [
+                panelHeader("panelTracking", "Tracking"),
+                choice(
+                    "gstTracking",
+                    "Do you want to track GST in this Moment?",
+                    ["Yes", "Not now"],
+                    helper: "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt."
+                ),
+                panelHeader("panelRegistration", "Registration"),
+                choice(
+                    "gstRegistration",
+                    "How is your business registered for GST?",
+                    ["Regular", "Composition", "Unregistered", "Not sure"]
+                ),
+                text(
+                    "gstState",
+                    "Which state is your business registered in?",
+                    "Maharashtra",
+                    helper: "State"
+                ),
+                panelHeader("panelPricing", "Pricing"),
+                choice(
+                    "salePriceIncludesGst",
+                    "Do prices include GST?",
+                    ["Prices include GST", "GST is added separately"],
+                    helper: "Your GSTIN stays the one entered above. It is stored as a reference only."
+                ),
+                date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
             ]),
             section("review", "Review your setup", "Confirm before you start.", [
                 reviewSummary("review", "Summary", [
-                    "businessName", "companyName", "gstin", "industry", "targetSales",
+                    "companyName",
+                    "gstin",
+                    "channels",
+                    "monthlyBudget",
+                    "monthlyTarget",
+                    "targetMetric",
                 ]),
             ]),
         ]
@@ -557,20 +610,6 @@ enum BusinessSetupDocuments {
                 text("monthlyChargeTarget", "Monthly charge target", "₹6,50,000", helper: "Amount"),
                 text("targetMetric", "How the target is measured", "Revenue"),
             ]),
-            section(
-                "network",
-                "Services, Rooms & Clients",
-                "Masters your bookings, charges and purchases read from. Each opens its own sheet.",
-                [
-                    moduleListRows("modules", "Modules", [
-                        BusinessSetupModuleRow("Services catalogue", subtitle: "26 services · 4 packages · SAC + GST on each"),
-                        BusinessSetupModuleRow("Rooms & infrastructure", subtitle: "Name, capacity, and bookable slots"),
-                        BusinessSetupModuleRow("Team & Staff", subtitle: "Name, duration, price, SAC, GST, room"),
-                        BusinessSetupModuleRow("Clients", subtitle: "312 clients · GSTIN only for B2B"),
-                        BusinessSetupModuleRow("Team Tasks & Chat", subtitle: "Stats Manager active · Interface items"),
-                    ]),
-                ]
-            ),
             section("gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.", [
                 panelHeader("panelTracking", "Tracking"),
                 choice(
@@ -778,9 +817,10 @@ enum BusinessSetupDocuments {
     private static func moduleListRows(
         _ key: String,
         _ label: String,
-        _ modules: [BusinessSetupModuleRow]
+        _ modules: [BusinessSetupModuleRow],
+        helper: String = ""
     ) -> BusinessSetupFieldSpec {
-        BusinessSetupFieldSpec(key: key, label: label, placeholder: "", kind: .moduleList(modules))
+        BusinessSetupFieldSpec(key: key, label: label, placeholder: "", kind: .moduleList(modules), helper: helper)
     }
 
     private static func panelHeader(_ key: String, _ title: String) -> BusinessSetupFieldSpec {
