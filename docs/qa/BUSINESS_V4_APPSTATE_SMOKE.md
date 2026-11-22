@@ -41,8 +41,8 @@ Continue from guided create opens `BusinessSetupShell` with in-document chips. A
 
 Setup smoke (Figma v6 parity):
 
-- [ ] Scroll through Basics → People & Roles → Network/Catalogue → Channels & Plan → GST → Review for each of 9 subtypes
-- [ ] CTA copy matches frame (`Start this business` / `Start the business!` for trading pair)
+- [ ] Scroll through Basics → People & Roles → Network/Catalogue → Channels & Plan → GST → Review for subtypes that still include Network (not Retail Store)
+- [ ] CTA copy matches frame (`Start this business` for trading wholesale / `Start the business!` for distribution / `Start this store` / `Start this restaurant`)
 - [ ] Chip swap reseeds fields + rethemes without losing typed title when keys match
 - [ ] Kind of business chips match Figma tiles (`◈`, border select, retail order Restaurant / Food → Consumer Service → Retail Store) — not capsule pills
 - [ ] GST “No” / “Not now” hides registration type / state / GSTIN / pricing fields
@@ -53,12 +53,44 @@ Setup smoke (Figma v6 parity):
 - [ ] Edit / Manage moment opens same shell preselected to subtype
 - [ ] Personal / Group create & chrome unchanged
 
+### Retail Store (`5:80797`) — five sections (no Catalogue/Network)
+
+- [ ] Sections: Basics → People & Roles → Channels & Plan → GST → Review only (no Catalogue / Stock / Network rows)
+- [ ] Hero **Harbor Mart Setup**; CTA **Start this store**
+- [ ] Basics: store name, company name, GSTIN, currency, start/end, description, location
+- [ ] Channels: Counter / Home / Online / B2B / Market + budget + sales target + measure
+- [ ] Soft plan status pill under Channels (green when budget+target parse)
+- [ ] **Save draft** creates or patches DRAFT; pill shows `Setup in progress`; reopen restores prefs
+- [ ] **Discard draft** in header when status is DRAFT; leaves setup and removes draft
+- [ ] Activate with empty channels highlights channels (danger border + message), form values kept
+- [ ] Invalid GSTIN with tracking Yes highlights GSTIN; Save draft still succeeds
+
+### Restaurant (`5:90612`) — six sections; §04 display-only
+
+- [ ] Hero **Spice Route Setup**; CTA **Start this restaurant**
+- [ ] Basics: restaurant name (`outletName`), company, GSTIN, currency, start/end, description, location
+- [ ] Channels: Dine-in / Direct / Zomato / Takeaway / Swiggy + budget + sales target + measure
+- [ ] Roles: Owner / Manager / Cashier / Kitchen / Waiter
+- [ ] §04 Kitchen, Menu & Network rows (Menu / Stations / Vendors / Team invite) are visible, not masters sheets
+- [ ] **Save draft** | **Schedule later**; reopen draft restores prefs
+- [ ] Activate with empty channels highlights channels; invalid GSTIN with tracking Yes highlights GSTIN
+
+### Trading Wholesale (`5:18833`) — six sections; §04 display-only
+
+- [ ] Hero **Northstar Trading Setup**; CTA **Start this business**
+- [ ] Basics: business name, company, GSTIN, currency, start/end, description, location
+- [ ] Channels: Retail buyers / Wholesale / Modern trade / HoReCa / Online + budget + sales target + measure
+- [ ] Roles: Owner / Manager / Sales exec / Warehouse / Sales rep
+- [ ] §04 Catalogue & SKU / Godowns & branches / Suppliers & buyers / Team invite display-only (no masters sheets)
+- [ ] **Save draft** | **Schedule later**; reopen draft restores prefs
+- [ ] Activate missing budget/target highlights those fields; invalid GSTIN with tracking Yes highlights GSTIN
+
 ### Consumer Service (`5:71162`) extras
 
 - [ ] Basics include company, currency, start/end, description, location (+ Identity / Dates & more panels)
 - [ ] Channels are Studio / Home / Online / Corporate / Events (not Walk-in/WhatsApp)
 - [ ] Roles are Owner / Manager / Stylist / Front desk / Therapist
-- [ ] Network rows show Services / Rooms / Team & Staff / Clients / Team Tasks with subtitles
+- [ ] Five sections only (no Services / Rooms / Clients network strip)
 - [ ] **Save draft** creates or patches DRAFT; pill shows `Setup in progress`; reopen restores prefs
 - [ ] Activate with empty channels highlights channels (danger border + message), form values kept
 - [ ] Invalid GSTIN with tracking Yes highlights GSTIN; Save draft still succeeds
@@ -76,6 +108,7 @@ Setup smoke (Figma v6 parity):
 ## Unit gates
 
 ```bash
+cd backend/typescript && npx tsx --test tests/business-setup-draft.test.ts
 cd apk && ./gradlew :app:testDebugUnitTest --tests '*.BusinessTokensObsidianTest' --tests '*.BusinessSetupThemeTest' --tests '*.BusinessSetupFieldModelTest' --tests '*.OperatingSetupPayloadBuilderTest' --tests '*.BusinessAppStateSpecsTest' -q
 cd tools/design-pipeline && npm run business-tokens -- --check
 # iOS: BusinessSetupThemeTests + BusinessSetupFieldModelTests + OperatingSetupPayloadBuilderTests
