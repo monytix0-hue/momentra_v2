@@ -385,6 +385,71 @@ describe('business setup draft preferences', () => {
     assert.equal(draft.monthlyTarget, '9000000.0000');
   });
 
+  it('maps distribution Figma aliases and accepts a distribution draft', () => {
+    const aliased = applyOperatingSetupAliases({
+      subtype: 'DISTRIBUTION_DEALERSHIP',
+      businessName: 'Metro Distribution',
+      companyName: 'Metro Distribution',
+      channels: ['Retail dealers', 'Van sales'],
+      monthlyBudget: '₹60,00,000',
+      monthlySalesTarget: '₹90,00,000',
+      targetMetric: 'Revenue',
+    });
+    assert.equal(aliased.identityName, 'Metro Distribution');
+    assert.equal(aliased.partyName, 'Metro Distribution');
+    assert.equal(aliased.monthlyTarget, '₹90,00,000');
+
+    const draft = normalizeOperatingPreferences(
+      'TRADING_DISTRIBUTION',
+      {
+        subtype: 'DISTRIBUTION_DEALERSHIP',
+        businessName: 'Metro Distribution',
+        companyName: 'Metro Distribution',
+        channels: ['Retail dealers'],
+        currency: 'INR',
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(draft.subtype, 'DISTRIBUTION_DEALERSHIP');
+    assert.equal(draft.identityName, 'Metro Distribution');
+    assert.deepEqual(draft.channels, ['Retail dealers']);
+  });
+
+  it('distribution activate rejects missing budget with companyName/businessName field keys', () => {
+    assert.throws(
+      () =>
+        normalizeOperatingPreferences(
+          'TRADING_DISTRIBUTION',
+          { subtype: 'DISTRIBUTION_DEALERSHIP' },
+          creator
+        ),
+      (err: unknown) => {
+        assert.ok(err instanceof OperatingSetupFieldError);
+        assert.equal(err.fields.businessName, 'Moment name is required.');
+        return true;
+      }
+    );
+
+    assert.throws(
+      () =>
+        normalizeOperatingPreferences(
+          'TRADING_DISTRIBUTION',
+          {
+            subtype: 'DISTRIBUTION_DEALERSHIP',
+            businessName: 'Metro Distribution',
+            companyName: 'Metro Distribution',
+          },
+          creator
+        ),
+      (err: unknown) => {
+        assert.ok(err instanceof OperatingSetupFieldError);
+        assert.equal(err.fields.monthlyBudget, 'Monthly budget must be a positive amount.');
+        return true;
+      }
+    );
+  });
+
   it('maps restaurant Figma aliases and accepts a restaurant draft', () => {
     const aliased = applyOperatingSetupAliases({
       subtype: 'RESTAURANT_FOOD',

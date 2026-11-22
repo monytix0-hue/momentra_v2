@@ -446,6 +446,7 @@ const ROLE_LABEL_ALIASES: Record<string, OperatingRole> = {
   marketer: 'OPERATIONS_LEAD',
   executive: 'OPERATIONS_LEAD',
   delivery: 'OPERATIONS_LEAD',
+  'route lead': 'OPERATIONS_LEAD',
   warehouse: 'OPERATIONS_LEAD',
   'sales exec': 'OPERATIONS_LEAD',
   'sales executive': 'OPERATIONS_LEAD',
@@ -842,8 +843,15 @@ export function normalizeOperatingPreferences(
       ? 'outletName'
       : subtype === 'CONSUMER_SERVICE'
         ? 'serviceName'
-        : 'identityName';
-  const partyField = RETAIL_SUBTYPES.has(subtype) ? 'companyName' : 'partyName';
+        : subtype === 'TRADING_WHOLESALE' || subtype === 'DISTRIBUTION_DEALERSHIP'
+          ? 'businessName'
+          : 'identityName';
+  const partyField =
+    RETAIL_SUBTYPES.has(subtype)
+    || subtype === 'TRADING_WHOLESALE'
+    || subtype === 'DISTRIBUTION_DEALERSHIP'
+      ? 'companyName'
+      : 'partyName';
   if (!draft) {
     if (!identityName) {
       fieldFail('Moment name is required.', { [identityField]: 'Moment name is required.' });
