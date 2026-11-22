@@ -57,6 +57,7 @@ object OperatingSetupPayloadBuilder {
         "operations lead" to "OPERATIONS_LEAD",
         "operations" to "OPERATIONS_LEAD",
         "campaign lead" to "OPERATIONS_LEAD",
+        "campaignlead" to "OPERATIONS_LEAD",
         "commercial" to "OPERATIONS_LEAD",
         "marketer" to "OPERATIONS_LEAD",
         "executive" to "OPERATIONS_LEAD",
@@ -131,6 +132,8 @@ object OperatingSetupPayloadBuilder {
                 prefs["partyName"],
                 prefs["clientName"],
             )
+        } else if (subtype == "OWN_BUSINESS_CAMPAIGN") {
+            firstNonEmpty(prefs["partyName"], prefs["brandName"])
         } else {
             firstNonEmpty(
                 prefs["partyName"],
@@ -164,17 +167,26 @@ object OperatingSetupPayloadBuilder {
             prefs["salePriceIncludesGst"] = it
         }
 
+        if (positiveAmount(prefs["marketingBudget"]) == null) {
+            val ownBudget = prefs["ownMarketingBudget"]
+            if (positiveAmount(ownBudget) != null) prefs["marketingBudget"] = ownBudget!!
+        }
         if (positiveAmount(prefs["monthlyBudget"]) == null) {
             val budget = firstNonEmpty(
                 prefs["monthlyBudget"],
                 prefs["campaignBudget"],
                 prefs["monthlyExpense"],
+                prefs["ownMarketingBudget"],
                 prefs["marketingBudget"],
                 prefs["targetSales"],
                 prefs["coverTarget"],
                 prefs["avgTicket"],
             )
             if (positiveAmount(budget) != null) prefs["monthlyBudget"] = budget
+        }
+        if (stringValue(prefs["conversionGoal"]).isEmpty()) {
+            val primaryTarget = stringValue(prefs["primaryTarget"])
+            if (primaryTarget.isNotEmpty()) prefs["conversionGoal"] = primaryTarget
         }
         positiveAmount(prefs["clientFee"])?.let { prefs["clientFee"] = it }
         positiveAmount(prefs["clientApprovedMediaBudget"])?.let { prefs["clientApprovedMediaBudget"] = it }
@@ -192,6 +204,7 @@ object OperatingSetupPayloadBuilder {
                 prefs["targetSales"],
                 prefs["leadGoal"],
                 prefs["conversionGoal"],
+                prefs["primaryTarget"],
                 prefs["monthlyOutput"],
                 prefs["monthlyJobs"],
                 prefs["coverTarget"],
@@ -207,7 +220,9 @@ object OperatingSetupPayloadBuilder {
             }
         }
         positiveAmount(prefs["monthlyBudget"])?.let { prefs["monthlyBudget"] = it }
+        positiveAmount(prefs["marketingBudget"])?.let { prefs["marketingBudget"] = it }
         positiveAmount(prefs["monthlyTarget"])?.let { prefs["monthlyTarget"] = it }
+        positiveAmount(prefs["conversionGoal"])?.let { prefs["conversionGoal"] = it }
 
         val tracking = mapGstTracking(prefs["gstTracking"] ?: prefs["gstRegistered"])
         if (tracking.isNotEmpty()) prefs["gstTracking"] = tracking
@@ -448,11 +463,10 @@ object OperatingSetupPayloadBuilder {
             errors[titleKey] = "Moment name is required."
         }
         if (stringValue(prefs["partyName"]).isEmpty()) {
-            val partyKey = if (subtype == "CLIENT_CAMPAIGN") "clientName" else "companyName"
-            errors[partyKey] = if (subtype == "CLIENT_CAMPAIGN") {
-                "Client name is required."
-            } else {
-                "Business party name is required."
+            when (subtype) {
+                "CLIENT_CAMPAIGN" -> errors["clientName"] = "Client name is required."
+                "OWN_BUSINESS_CAMPAIGN" -> errors["brandName"] = "Promoted brand is required."
+                else -> errors["companyName"] = "Business party name is required."
             }
         }
         if (subtype in marketingSubtypes) {

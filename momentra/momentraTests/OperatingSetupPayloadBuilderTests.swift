@@ -270,6 +270,61 @@ struct OperatingSetupPayloadBuilderTests {
         #expect(built.fieldErrors["companyName"] == nil)
     }
 
+    @Test func ownMarketingFigmaAliasesRoundTrip() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "campaignName": "Harbor spring push",
+                "brandName": "Harbor & Loom",
+                "channels": "Paid social|Search",
+                "ownMarketingBudget": "₹2,00,000",
+                "primaryTarget": "₹1,50,000",
+                "startDate": "2026-10-01",
+                "roles": "Campaign Lead",
+            ],
+            momentTypeCode: "OWN_BUSINESS_CAMPAIGN",
+            title: "Fallback",
+            activating: false
+        )
+        #expect(built.preferences["identityName"] as? String == "Harbor spring push")
+        #expect(built.preferences["partyName"] as? String == "Harbor & Loom")
+        #expect(built.preferences["marketingBudget"] as? String == "200000.0000")
+        #expect(built.preferences["monthlyBudget"] as? String == "200000.0000")
+        #expect(built.preferences["conversionGoal"] as? String == "150000.0000")
+        #expect(built.preferences["monthlyTarget"] as? String == "150000.0000")
+        #expect(built.validationError == nil)
+        #expect(built.fieldErrors.isEmpty)
+        #expect(OperatingSetupPayloadBuilder.mapRole("Campaign Lead") == "OPERATIONS_LEAD")
+    }
+
+    @Test func ownMarketingActivateMissingBudgetSetsFieldError() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "campaignName": "Harbor spring push",
+                "brandName": "Harbor & Loom",
+            ],
+            momentTypeCode: "OWN_BUSINESS_CAMPAIGN",
+            title: "Harbor spring push",
+            activating: true
+        )
+        #expect(built.fieldErrors["monthlyBudget"] == "Monthly budget must be a positive amount.")
+        #expect(built.fieldErrors["startDate"] == "Campaign start date is required.")
+    }
+
+    @Test func ownMarketingActivateMissingBrandSetsFieldError() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "campaignName": "Harbor spring push",
+                "monthlyBudget": "₹2,00,000",
+                "startDate": "2026-10-12",
+            ],
+            momentTypeCode: "OWN_BUSINESS_CAMPAIGN",
+            title: "Harbor spring push",
+            activating: true
+        )
+        #expect(built.fieldErrors["brandName"] == "Promoted brand is required.")
+        #expect(built.fieldErrors["companyName"] == nil)
+    }
+
     @Test func restaurantFigmaAliasesRoundTrip() {
         let built = OperatingSetupPayloadBuilder.build(
             preferences: [

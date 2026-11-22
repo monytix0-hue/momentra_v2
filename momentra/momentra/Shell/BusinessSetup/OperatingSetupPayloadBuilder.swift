@@ -77,6 +77,7 @@ enum OperatingSetupPayloadBuilder {
         "operations lead": "OPERATIONS_LEAD",
         "operations": "OPERATIONS_LEAD",
         "campaign lead": "OPERATIONS_LEAD",
+        "campaignlead": "OPERATIONS_LEAD",
         "commercial": "OPERATIONS_LEAD",
         "marketer": "OPERATIONS_LEAD",
         "executive": "OPERATIONS_LEAD",
@@ -152,6 +153,8 @@ enum OperatingSetupPayloadBuilder {
                 prefs["partyName"],
                 prefs["clientName"]
             )
+        } else if subtype == "OWN_BUSINESS_CAMPAIGN" {
+            party = firstNonEmpty(prefs["partyName"], prefs["brandName"])
         } else {
             party = firstNonEmpty(
                 prefs["partyName"],
@@ -186,17 +189,28 @@ enum OperatingSetupPayloadBuilder {
             prefs["salePriceIncludesGst"] = saleIncludes
         }
 
+        if positiveAmount(prefs["marketingBudget"]) == nil,
+           let ownBudget = prefs["ownMarketingBudget"],
+           positiveAmount(ownBudget) != nil {
+            prefs["marketingBudget"] = ownBudget
+        }
         if positiveAmount(prefs["monthlyBudget"]) == nil {
             let budget = firstNonEmpty(
                 prefs["monthlyBudget"],
                 prefs["campaignBudget"],
                 prefs["monthlyExpense"],
+                prefs["ownMarketingBudget"],
                 prefs["marketingBudget"],
                 prefs["targetSales"],
                 prefs["coverTarget"],
                 prefs["avgTicket"]
             )
             if positiveAmount(budget) != nil { prefs["monthlyBudget"] = budget }
+        }
+        if stringValue(prefs["conversionGoal"]).isEmpty,
+           let primaryTarget = prefs["primaryTarget"],
+           !stringValue(primaryTarget).isEmpty {
+            prefs["conversionGoal"] = primaryTarget
         }
         if let fee = positiveAmount(prefs["clientFee"]) { prefs["clientFee"] = fee }
         if let media = positiveAmount(prefs["clientApprovedMediaBudget"]) {
@@ -220,6 +234,7 @@ enum OperatingSetupPayloadBuilder {
                 prefs["targetSales"],
                 prefs["leadGoal"],
                 prefs["conversionGoal"],
+                prefs["primaryTarget"],
                 prefs["monthlyOutput"],
                 prefs["monthlyJobs"],
                 prefs["coverTarget"]
@@ -235,7 +250,9 @@ enum OperatingSetupPayloadBuilder {
             }
         }
         if let budget = positiveAmount(prefs["monthlyBudget"]) { prefs["monthlyBudget"] = budget }
+        if let marketingBudget = positiveAmount(prefs["marketingBudget"]) { prefs["marketingBudget"] = marketingBudget }
         if let target = positiveAmount(prefs["monthlyTarget"]) { prefs["monthlyTarget"] = target }
+        if let conversionGoal = positiveAmount(prefs["conversionGoal"]) { prefs["conversionGoal"] = conversionGoal }
 
         let tracking = mapGstTracking(prefs["gstTracking"] ?? prefs["gstRegistered"])
         if !tracking.isEmpty { prefs["gstTracking"] = tracking }
@@ -482,6 +499,8 @@ enum OperatingSetupPayloadBuilder {
         if stringValue(prefs["partyName"]).isEmpty {
             if subtype == "CLIENT_CAMPAIGN" {
                 errors["clientName"] = "Client name is required."
+            } else if subtype == "OWN_BUSINESS_CAMPAIGN" {
+                errors["brandName"] = "Promoted brand is required."
             } else {
                 errors["companyName"] = "Business party name is required."
             }

@@ -277,6 +277,64 @@ class OperatingSetupPayloadBuilderTest {
     }
 
     @Test
+    fun ownMarketingFigmaAliasesRoundTrip() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "campaignName" to "Harbor spring push",
+                "brandName" to "Harbor & Loom",
+                "channels" to "Paid social|Search",
+                "ownMarketingBudget" to "₹2,00,000",
+                "primaryTarget" to "₹1,50,000",
+                "startDate" to "2026-10-01",
+                "roles" to "Campaign Lead",
+            ),
+            momentTypeCode = "OWN_BUSINESS_CAMPAIGN",
+            title = "Fallback",
+            activating = false,
+        )
+        assertEquals("Harbor spring push", result.preferences["identityName"])
+        assertEquals("Harbor & Loom", result.preferences["partyName"])
+        assertEquals("200000.0000", result.preferences["marketingBudget"])
+        assertEquals("200000.0000", result.preferences["monthlyBudget"])
+        assertEquals("150000.0000", result.preferences["conversionGoal"])
+        assertEquals("150000.0000", result.preferences["monthlyTarget"])
+        assertNull(result.validationError)
+        assertTrue(result.fieldErrors.isEmpty())
+        assertEquals("OPERATIONS_LEAD", OperatingSetupPayloadBuilder.mapRole("Campaign Lead"))
+    }
+
+    @Test
+    fun ownMarketingActivateMissingBudgetSetsFieldError() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "campaignName" to "Harbor spring push",
+                "brandName" to "Harbor & Loom",
+            ),
+            momentTypeCode = "OWN_BUSINESS_CAMPAIGN",
+            title = "Harbor spring push",
+            activating = true,
+        )
+        assertEquals("Monthly budget must be a positive amount.", result.fieldErrors["monthlyBudget"])
+        assertEquals("Campaign start date is required.", result.fieldErrors["startDate"])
+    }
+
+    @Test
+    fun ownMarketingActivateMissingBrandSetsFieldError() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "campaignName" to "Harbor spring push",
+                "monthlyBudget" to "₹2,00,000",
+                "startDate" to "2026-10-12",
+            ),
+            momentTypeCode = "OWN_BUSINESS_CAMPAIGN",
+            title = "Harbor spring push",
+            activating = true,
+        )
+        assertEquals("Promoted brand is required.", result.fieldErrors["brandName"])
+        assertTrue(result.fieldErrors["companyName"] == null)
+    }
+
+    @Test
     fun restaurantFigmaAliasesRoundTrip() {
         val result = OperatingSetupPayloadBuilder.build(
             preferences = mapOf(
