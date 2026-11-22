@@ -13,9 +13,12 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   OPERATING_FAMILIES,
+  OperatingSetupFieldError,
+  applyOperatingSetupAliases,
   normalizeOperatingPreferences,
   type OperatingFamilyCode,
 } from '../src/modules/business/operating-catalog';
+import { AppError, ErrorCode } from '../src/platform/errors/errors';
 import { updateBusinessSetupDraftSchema } from '../src/modules/moment/service';
 import { validateAndMergeBusinessPreferences } from '../src/modules/moment/setup-preferences';
 
@@ -75,8 +78,7 @@ describe('business setup draft preferences', () => {
   });
 
   it('still rejects an incomplete setup at activation', () => {
-    // Strict normalisation checks identity before the plan fields, so this trips the
-    // party guard first — either way the document cannot activate half-filled.
+    // Identity alone aliases into partyName, so the monthly plan is what blocks activation.
     assert.throws(
       () =>
         normalizeOperatingPreferences(
@@ -84,9 +86,13 @@ describe('business setup draft preferences', () => {
           { subtype: 'TRADING_WHOLESALE', identityName: 'Northstar' },
           creator
         ),
-      /Business name is required/i
+      (err: unknown) => {
+        assert.ok(err instanceof OperatingSetupFieldError);
+        assert.match(err.message, /budget must be a positive amount/i);
+        assert.ok(err.fields.monthlyBudget);
+        return true;
+      }
     );
-    // With identity supplied, the missing monthly plan is what blocks activation.
     assert.throws(
       () =>
         normalizeOperatingPreferences(
@@ -131,7 +137,7 @@ describe('business setup draft preferences', () => {
         salePriceIncludesGst: 'YES',
         purchasePriceIncludesGst: 'NO',
         gstEffectiveFrom: '2026-11-01',
-        channels: ['Wholesale', 'Retail'],
+        channels: ['Retail buyers', 'Wholesale'],
         monthlyBudget: '250000',
         monthlyTarget: '500000',
         targetMetric: 'REVENUE',
@@ -145,7 +151,7 @@ describe('business setup draft preferences', () => {
     for (const key of DOCUMENT_KEYS) {
       assert.ok(key in stored, `document emits ${key} but the contract does not store it`);
     }
-    assert.deepEqual(stored.channels, ['Wholesale', 'Retail']);
+    assert.deepEqual(stored.channels, ['Retail buyers', 'Wholesale']);
     // The state is stored canonically with its code, so `MH` can never be compared as a name.
     assert.equal(stored.gstState, 'Maharashtra');
     assert.equal(stored.gstStateCode, '27');
@@ -256,6 +262,146 @@ describe('business setup draft preferences', () => {
         creator
       )
     );
+  });
+
+  it('maps retail Figma aliases into closed prefs and persists a full draft', () => {
+    const aliased = applyOperatingSetupAliases({
+      subtype: 'RETAIL_STORE',
+      storeName: 'Harbor Mart',
+      companyName: 'Harbor Mart Pvt',
+      locality: 'Andheri West',
+      channels: ['Counter', 'Online'],
+      planMonth: '2026-10',
+      monthlyBudget: '₹8,40,000',
+      monthlyTarget: '₹12,00,000',
+      targetMetric: 'Revenue',
+      salePriceIncludesGst: 'GST is added separately',
+      format: 'Kirana',
+    });
+    assert.equal(aliased.identityName, 'Harbor Mart');
+    assert.equal(aliased.partyName, 'Harbor Mart Pvt');
+    assert.equal(aliased.location, 'Andheri West');
+    assert.equal(aliased.startDate, '2026-10-01');
+    assert.equal(aliased.salePriceIncludesGst, 'NO');
+    // Retail must not treat format chips as the company/party name.
+    assert.notEqual(aliased.partyName, 'Kirana');
+
+    const draft = normalizeOperatingPreferences(
+      'RETAIL_CONSUMER',
+      {
+        subtype: 'RETAIL_STORE',
+        storeName: 'Harbor Mart',
+        companyName: 'Harbor Mart Pvt',
+        currency: 'INR',
+        location: 'Andheri West',
+        channels: ['Counter'],
+        monthlyBudget: '840000',
+        monthlyTarget: '1200000',
+        targetMetric: 'Revenue',
+        gstTracking: 'YES',
+        gstType: 'Regular',
+        gstState: 'Maharashtra',
+        gstin: '27AAGCB7383J1Z5',
+        salePriceIncludesGst: 'GST is added separately',
+        description: 'Neighborhood mart',
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(draft.subtype, 'RETAIL_STORE');
+    assert.equal(draft.identityName, 'Harbor Mart');
+    assert.equal(draft.partyName, 'Harbor Mart Pvt');
+    assert.deepEqual(draft.channels, ['Counter']);
+    assert.equal(draft.targetMetric, 'REVENUE');
+    assert.equal(draft.gstRegistration, 'REGULAR');
+    assert.equal(draft.salePriceIncludesGst, 'NO');
+  });
+
+  it('maps service monthlyChargeTarget alias and accepts a consumer-service draft', () => {
+    const aliased = applyOperatingSetupAliases({
+      subtype: 'CONSUMER_SERVICE',
+      serviceName: 'BrightCare',
+      companyName: 'BrightCare',
+      channels: ['Studio', 'Home'],
+      monthlyBudget: '₹3,20,000',
+      monthlyChargeTarget: '₹6,50,000',
+      targetMetric: 'Revenue',
+    });
+    assert.equal(aliased.identityName, 'BrightCare');
+    assert.equal(aliased.partyName, 'BrightCare');
+    assert.equal(aliased.monthlyTarget, '₹6,50,000');
+
+    const draft = normalizeOperatingPreferences(
+      'RETAIL_CONSUMER',
+      {
+        subtype: 'CONSUMER_SERVICE',
+        serviceName: 'BrightCare',
+        companyName: 'BrightCare',
+        channels: ['Studio'],
+        monthlyBudget: '320000',
+        monthlyChargeTarget: '650000',
+        currency: 'INR',
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(draft.subtype, 'CONSUMER_SERVICE');
+    assert.equal(draft.identityName, 'BrightCare');
+    assert.deepEqual(draft.channels, ['Studio']);
+    assert.equal(draft.monthlyTarget, '650000.0000');
+  });
+
+  it('activates retail with Counter channel and rejects missing channels with field keys', () => {
+    const active = normalizeOperatingPreferences(
+      'RETAIL_CONSUMER',
+      {
+        subtype: 'RETAIL_STORE',
+        storeName: 'Harbor Mart',
+        companyName: 'Harbor Mart',
+        channels: ['Counter'],
+        currency: 'INR',
+      },
+      creator
+    );
+    assert.equal(active.identityName, 'Harbor Mart');
+    assert.deepEqual(active.channels, ['Counter']);
+
+    assert.throws(
+      () =>
+        normalizeOperatingPreferences(
+          'RETAIL_CONSUMER',
+          {
+            subtype: 'RETAIL_STORE',
+            storeName: 'Harbor Mart',
+            companyName: 'Harbor Mart',
+          },
+          creator
+        ),
+      (err: unknown) => {
+        assert.ok(err instanceof OperatingSetupFieldError);
+        assert.match(err.message, /channel/i);
+        assert.equal(err.fields.channels, 'Select at least one channel.');
+        return true;
+      }
+    );
+
+    try {
+      validateAndMergeBusinessPreferences(
+        'RETAIL_CONSUMER',
+        {
+          subtype: 'RETAIL_STORE',
+          storeName: 'Harbor Mart',
+          companyName: 'Harbor Mart',
+        },
+        creator
+      );
+      assert.fail('expected validation failure');
+    } catch (err) {
+      assert.ok(err instanceof AppError);
+      assert.equal(err.code, ErrorCode.VALIDATION_FAILED);
+      const details = err.details as { fields?: Record<string, string> };
+      assert.equal(details.fields?.channels, 'Select at least one channel.');
+    }
   });
 
   it('accepts a marketing draft flip Client → Own and clears clientFee on Own activate', () => {

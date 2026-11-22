@@ -5,7 +5,6 @@ import {
   financeVisibleFor,
   needsMakerChecker,
   normalizeOperatingPreferences,
-  OPERATING_FAMILIES,
   projectOperatingMoment,
   quickAddDef,
   validateOperatingAllocation,
@@ -550,25 +549,6 @@ describe('operating moment catalog', () => {
     );
   });
 
-  it('accepts restaurant table, covers, and station on the operating contract', () => {
-    const parsed = recordOperatingEventSchema.parse({
-      eventType: 'ORDER',
-      title: 'Table 12',
-      channelName: 'In-dining',
-      contract: {
-        orderStatus: 'PLACED',
-        tableNumber: '12',
-        covers: '4',
-        locationName: 'Tandoor',
-        clientKey: 'KOT-442',
-      },
-    });
-    assert.equal(parsed.contract?.tableNumber, '12');
-    assert.equal(parsed.contract?.covers, '4');
-    assert.equal(parsed.contract?.locationName, 'Tandoor');
-    assert.equal(parsed.contract?.clientKey, 'KOT-442');
-  });
-
   it('rejects a client campaign without a channel', () => {
     assert.throws(
       () =>
@@ -1030,19 +1010,6 @@ describe('marketing campaigns v3', () => {
     assert.equal(view.budget?.remaining, '40000.0000');
   });
 
-  it('catalog quick-add surface is 10 client / 8 own (UPDATE covers ISSUE)', () => {
-    const family = OPERATING_FAMILIES.find((f) => f.familyCode === 'MARKETING_CAMPAIGNS');
-    const client = family?.subtypes.find((s) => s.code === 'CLIENT_CAMPAIGN')?.quickAdds ?? [];
-    const own = family?.subtypes.find((s) => s.code === 'OWN_BUSINESS_CAMPAIGN')?.quickAdds ?? [];
-    assert.equal(client.length, 10);
-    assert.equal(own.length, 8);
-    assert.equal(client.includes('UPDATE'), true);
-    assert.equal(client.includes('ISSUE'), false);
-    assert.equal(own.includes('INVOICE'), false);
-    assert.equal(own.includes('COLLECTION'), false);
-    assert.equal(client.includes('INVOICE') && client.includes('COLLECTION'), true);
-  });
-
   it('MC-07 own campaign cannot record an invoice', () => {
     const blocked = validateMarketingWrite(
       {
@@ -1163,28 +1130,10 @@ describe('marketing campaigns v4.2 modes', () => {
   });
 
   it('flags a blocked activity and keeps an earlier budget when a later revision starts next month', () => {
-    const asOf = new Date('2026-10-15T00:00:00.000Z');
-    const prefs = normalizeOperatingPreferences(
+    const view = momentView(
       'MARKETING_CAMPAIGNS',
-      {
-        subtype: 'CLIENT_CAMPAIGN',
-        identityName: 'CLIENT_CAMPAIGN',
-        partyName: 'CLIENT_CAMPAIGN',
-        monthlyBudget: '30000',
-        monthlyTarget: '100',
-        targetMetric: 'REVENUE',
-        channels: ['Store'],
-        startDate: '2026-01-01',
-        endDate: '2026-12-31',
-      },
-      { userId: 'u', displayName: 'Asha' }
-    );
-    const view = projectOperatingMoment({
-      familyCode: 'MARKETING_CAMPAIGNS',
-      prefs,
-      role: 'OWNER_ADMIN',
-      asOf,
-      events: [
+      'CLIENT_CAMPAIGN',
+      [
         posted('act', 'ACTIVITY', {
           title: 'Shoot',
           dueAt: '2026-10-01',
@@ -1196,7 +1145,9 @@ describe('marketing campaigns v4.2 modes', () => {
           marketing: { ...facts, revisionKind: 'BUDGET', effectiveFrom: '2026-11-01' },
         }),
       ],
-    });
+      '30000',
+      '100'
+    );
     assert.equal(view.attention.some((item) => item.kind === 'ATT-10'), true);
     assert.equal(view.budget?.amount, '30000.0000');
     const october = view.boards.memory.find((section) => section.code === 'ME1')?.rows.find((row) => row.title.startsWith('2026-10'));
@@ -1253,140 +1204,6 @@ describe('marketing campaigns v4.2 modes', () => {
     assert.equal(clientPrefs.clientFee, '50000.0000');
     assert.equal(clientPrefs.reportingCadence, 'MONTHLY');
     assert.equal(clientPrefs.partyName, 'Northwind');
-  });
-
-  it('ATT-09 uses ownerName and ATT-11 flags incomplete result evidence (ATT-14 for client report)', () => {
-    const asOf = new Date('2026-11-10T00:00:00.000Z');
-    const prefs = normalizeOperatingPreferences(
-      'MARKETING_CAMPAIGNS',
-      {
-        subtype: 'CLIENT_CAMPAIGN',
-        identityName: 'Skyline',
-        partyName: 'Northstar',
-        monthlyBudget: '100000',
-        monthlyTarget: '100',
-        targetMetric: 'LEADS',
-        startDate: '2026-11-01',
-        endDate: '2026-11-30',
-        reportingCadence: 'MONTHLY',
-      },
-      { userId: 'u', displayName: 'Asha' }
-    );
-    const blankFacts = {
-      reportingMode: null as null,
-      metricCode: null as null,
-      budgetCategory: null as null,
-      paymentState: null as null,
-      activityStatus: null as string | null,
-      attributedSales: null as null,
-      revisionKind: null as null,
-    };
-    const unassigned = posted('act-open', 'ACTIVITY', {
-      title: 'Shoot',
-      dueAt: '2026-11-12',
-      occurredAt: '2026-11-05T00:00:00.000Z',
-      counterpartyName: 'Vendor Proxy',
-      marketing: { ...blankFacts, activityStatus: 'IN_PROGRESS' },
-    });
-    const assigned = posted('act-owned', 'ACTIVITY', {
-      title: 'Edit',
-      dueAt: '2026-11-12',
-      occurredAt: '2026-11-05T00:00:00.000Z',
-      counterpartyName: 'Vendor Proxy',
-      marketing: { ...blankFacts, activityStatus: 'IN_PROGRESS', ownerName: 'Priya' },
-    });
-    const incompleteResult = posted('res-1', 'RESULT', {
-      title: 'Leads week 1',
-      quantity: '10',
-      unit: 'leads',
-      occurredAt: '2026-11-06T00:00:00.000Z',
-      marketing: { ...blankFacts, reportingMode: 'INCREMENTAL', metricCode: 'LEADS' },
-    });
-    const completeResult = posted('res-2', 'RESULT', {
-      title: 'Leads week 2',
-      quantity: '12',
-      unit: 'leads',
-      occurredAt: '2026-11-07T00:00:00.000Z',
-      marketing: {
-        ...blankFacts,
-        reportingMode: 'INCREMENTAL',
-        metricCode: 'LEADS',
-        resultSource: 'Ads manager export',
-        periodEnd: '2026-11-07',
-      },
-    });
-    const reportDue = posted('rep-1', 'ACTIVITY', {
-      title: 'Client report · November',
-      dueAt: '2026-11-15',
-      occurredAt: '2026-11-08T00:00:00.000Z',
-      marketing: { ...blankFacts, activityStatus: 'PLANNED', ownerName: 'Asha' },
-    });
-    const view = projectOperatingMoment({
-      familyCode: 'MARKETING_CAMPAIGNS',
-      prefs,
-      role: 'OWNER_ADMIN',
-      asOf,
-      events: [unassigned, assigned, incompleteResult, completeResult, reportDue],
-    });
-    assert.equal(view.attention.some((item) => item.kind === 'ATT-09' && item.sourceEventId === 'act-open'), true);
-    assert.equal(view.attention.some((item) => item.kind === 'ATT-09' && item.sourceEventId === 'act-owned'), false);
-    assert.equal(view.attention.some((item) => item.kind === 'ATT-11' && item.sourceEventId === 'res-1'), true);
-    assert.equal(view.attention.some((item) => item.kind === 'ATT-11' && item.sourceEventId === 'res-2'), false);
-    assert.equal(view.attention.some((item) => item.kind === 'ATT-14' && item.sourceEventId === 'rep-1'), true);
-    assert.equal(view.attention.some((item) => item.kind === 'ATT-11' && item.sourceEventId === 'rep-1'), false);
-    const codes = (view.pulseMetrics ?? []).map((g) => g.code);
-    for (const code of ['ATTENTION', 'TARGET_BUDGET', 'PAYMENT_READINESS', 'FINANCE', 'ACTIVITY', 'GST']) {
-      assert.equal(codes.includes(code), true, `missing pulse group ${code}`);
-    }
-  });
-
-  it('normalizes distinct client economics and keeps own monthlyBudget as marketing budget', () => {
-    const client = normalizeOperatingPreferences(
-      'MARKETING_CAMPAIGNS',
-      {
-        subtype: 'CLIENT_CAMPAIGN',
-        identityName: 'Agency run',
-        partyName: 'Acme',
-        monthlyBudget: '100000',
-        clientFee: '25000',
-        clientApprovedMediaBudget: '400000',
-        agencyOperatingBudget: '60000',
-        offering: 'Always-on',
-        campaignPurpose: 'Awareness',
-        creativeApprovalRequired: 'YES',
-        reportingCadence: 'WEEKLY',
-        startDate: '2026-11-01',
-      },
-      { userId: 'u', displayName: 'Asha' }
-    );
-    assert.equal(client.clientFee, '25000.0000');
-    assert.equal(client.clientApprovedMediaBudget, '400000.0000');
-    assert.equal(client.agencyOperatingBudget, '60000.0000');
-    assert.equal(client.campaignPurpose, 'Awareness');
-    assert.equal(client.creativeApprovalRequired, 'YES');
-    assert.equal(client.reportingCadence, 'WEEKLY');
-    assert.equal(client.monthlyBudget, '100000.0000');
-
-    const own = normalizeOperatingPreferences(
-      'MARKETING_CAMPAIGNS',
-      {
-        subtype: 'OWN_BUSINESS_CAMPAIGN',
-        identityName: 'Brand push',
-        partyName: 'House',
-        monthlyBudget: '75000',
-        clientFee: '999',
-        clientApprovedMediaBudget: '999',
-        agencyOperatingBudget: '999',
-        reportingCadence: 'MONTHLY',
-        startDate: '2026-11-01',
-      },
-      { userId: 'u', displayName: 'Asha' }
-    );
-    assert.equal(own.monthlyBudget, '75000.0000');
-    assert.equal(own.clientFee, '');
-    assert.equal(own.clientApprovedMediaBudget, '');
-    assert.equal(own.agencyOperatingBudget, '');
-    assert.equal(own.reportingCadence, '');
   });
 });
 

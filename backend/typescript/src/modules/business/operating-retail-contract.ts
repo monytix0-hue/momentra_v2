@@ -7,22 +7,6 @@ import { parseGstSnapshot, stampPostedGst, type GstPostingContext } from './oper
 
 export const RETAIL_SUBTYPES = ['RETAIL_STORE', 'RESTAURANT_FOOD', 'CONSUMER_SERVICE'] as const;
 
-/**
- * CF-05 / QA-02 — a quotation is not a confirmed sales order.
- * Unaccepted quotationStatus values stay pipeline-only and never inflate ORDERS.
- */
-export function isConfirmedOrder(row: {
-  eventType?: string | null;
-  contract?: { quotationStatus?: string | null; orderStatus?: string | null } | null;
-}): boolean {
-  const type = String(row.eventType ?? '').toUpperCase();
-  if (type !== 'ORDER' && type !== 'CUSTOMER_ORDER') return false;
-  const quote = String(row.contract?.quotationStatus ?? '').toUpperCase();
-  if (quote && quote !== 'ACCEPTED') return false;
-  if (String(row.contract?.orderStatus ?? '').toUpperCase() === 'CANCELLED') return false;
-  return true;
-}
-
 export const EXPENSE_CATEGORIES = [
   'Rent/lease',
   'Utilities',
@@ -77,12 +61,6 @@ export interface OperatingAllocation {
   amount: string;
 }
 
-/** Split tender instrument on SALE / SERVICE / settlements. Sum must equal amount collected now. */
-export interface OperatingPaymentInstrument {
-  method: string;
-  amount: string;
-}
-
 export interface OperatingContract {
   entryMode?: 'QUICK' | 'ITEMIZED' | null;
   paymentState?: 'RECEIVED' | 'PART_PAID' | 'PAY_LATER' | 'PAID' | null;
@@ -101,10 +79,6 @@ export interface OperatingContract {
   transferToName?: string | null;
   /** Which location a stock record belongs to. Empty means the single default store. */
   locationName?: string | null;
-  /** Restaurant floor table label on SALE / ORDER tickets. */
-  tableNumber?: string | null;
-  /** Restaurant covers / party size on SALE / ORDER tickets. */
-  covers?: string | null;
   expenseCategory?: string | null;
   appointmentStatus?: 'BOOKED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW' | null;
   appointmentAction?: 'RESCHEDULE' | 'CANCEL' | 'NO_SHOW' | 'START' | 'COMPLETE' | null;
@@ -129,12 +103,6 @@ export interface OperatingContract {
   taxAmount?: string | null;
   gstRate?: string | null;
   discount?: string | null;
-  /** Explicit cess ₹ (operator-entered). Never from HSN/CBIC tables. */
-  cessAmount?: string | null;
-  /** Explicit cess % of taxable (operator-entered). Ignored when cessAmount > 0. */
-  cessRate?: string | null;
-  /** Multi-instrument tender; when present, amounts must sum to receivedAmount. */
-  payments?: OperatingPaymentInstrument[] | null;
   taxJurisdiction?: 'INTRA' | 'INTER' | null;
   placeOfSupply?: string | null;
   taxStatus?: 'CALCULATED' | 'NOT_CONFIGURED' | null;
@@ -228,8 +196,6 @@ export interface RetailWrite {
   contract?: OperatingContract | null;
   revisingId?: string | null;
   gst?: GstPostingContext | null;
-  /** Table-backed masters resolved for this write (same path Trading uses). */
-  masterRefs?: import('./operating-trading-contract').TradingMasterRefs;
 }
 
 export interface RetailAttention {
@@ -294,16 +260,6 @@ export function parseOperatingContract(raw: unknown): OperatingContract | null {
         return [{ sourceId, amount }];
       })
     : [];
-  const payments = Array.isArray(rec.payments)
-    ? rec.payments.flatMap((row) => {
-        if (!row || typeof row !== 'object') return [];
-        const part = row as Record<string, unknown>;
-        const method = String(part.method ?? '').trim();
-        const amount = String(part.amount ?? '').trim();
-        if (!method || !amount) return [];
-        return [{ method, amount }];
-      })
-    : [];
   const contract: OperatingContract = {
     entryMode: rec.entryMode === 'QUICK' || rec.entryMode === 'ITEMIZED' ? rec.entryMode : null,
     paymentState:
@@ -336,8 +292,6 @@ export function parseOperatingContract(raw: unknown): OperatingContract | null {
     transferFromName: rec.transferFromName == null ? null : String(rec.transferFromName),
     transferToName: rec.transferToName == null ? null : String(rec.transferToName),
     locationName: rec.locationName == null ? null : String(rec.locationName),
-    tableNumber: rec.tableNumber == null ? null : String(rec.tableNumber).trim() || null,
-    covers: rec.covers == null ? null : String(rec.covers).trim() || null,
     expenseCategory: rec.expenseCategory == null ? null : String(rec.expenseCategory),
     appointmentStatus:
       rec.appointmentStatus === 'BOOKED' ||
@@ -386,9 +340,6 @@ export function parseOperatingContract(raw: unknown): OperatingContract | null {
     taxAmount: rec.taxAmount == null ? null : String(rec.taxAmount),
     gstRate: rec.gstRate == null ? null : String(rec.gstRate),
     discount: rec.discount == null ? null : String(rec.discount),
-    cessAmount: rec.cessAmount == null ? null : String(rec.cessAmount),
-    cessRate: rec.cessRate == null ? null : String(rec.cessRate),
-    payments: payments.length > 0 ? payments : null,
     taxJurisdiction: rec.taxJurisdiction === 'INTRA' || rec.taxJurisdiction === 'INTER' ? rec.taxJurisdiction : null,
     placeOfSupply: rec.placeOfSupply == null ? null : String(rec.placeOfSupply),
     taxStatus: rec.taxStatus === 'CALCULATED' || rec.taxStatus === 'NOT_CONFIGURED' ? rec.taxStatus : null,
@@ -512,37 +463,11 @@ export function validateRetailWrite(input: RetailWrite, existing: RetailEvent[])
   };
 }
 
-function partySupplyState(
-  name: string | null | undefined,
-  existing: RetailEvent[],
-  refs?: import('./operating-trading-contract').TradingMasterRefs
-): string {
+function partySupplyState(name: string | null | undefined, existing: RetailEvent[]): string {
   const key = String(name ?? '').trim().toLowerCase();
   if (!key) return '';
-  const partyKind = (kind: string) =>
-    ['CUSTOMER', 'BUYER', 'SUPPLIER', 'VENDOR', 'GUEST', 'PARTY'].includes(kind);
-  for (const ref of refs?.values() ?? []) {
-    if (!partyKind(String(ref.kind ?? '').toUpperCase())) continue;
-    if (ref.name.trim().toLowerCase() !== key) continue;
-    return String(ref.deliveryState || ref.billingState || ref.businessState || '').trim();
-  }
   const party = existing.find((row) => row.master && row.master.name.trim().toLowerCase() === key);
   return String(party?.master?.deliveryState || party?.master?.billingState || party?.master?.businessState || '').trim();
-}
-
-function retailMasterForLine(
-  line: RetailLine,
-  existing: RetailEvent[],
-  refs?: import('./operating-trading-contract').TradingMasterRefs
-) {
-  if (line.masterId && refs?.has(line.masterId)) return refs.get(line.masterId) ?? null;
-  if (line.masterId) {
-    const byId = existing.find((row) => row.operatingEventId === line.masterId && row.master);
-    if (byId?.master) return byId.master;
-  }
-  const name = line.itemName.trim().toLowerCase();
-  if (!name) return null;
-  return existing.find((row) => row.master && row.master.name.trim().toLowerCase() === name)?.master ?? null;
 }
 
 function withPostedGst(
@@ -560,9 +485,9 @@ function withPostedGst(
     title: input.title,
     lines: lines.map((line) => ({
       ...line,
-      master: retailMasterForLine(line, existing, input.masterRefs),
+      master: existing.find((row) => (line.masterId && row.operatingEventId === line.masterId) || (row.master && row.master.name.trim().toLowerCase() === line.itemName.trim().toLowerCase()))?.master ?? null,
     })),
-    partyState: contract.placeOfSupply || partySupplyState(input.counterpartyName, existing, input.masterRefs),
+    partyState: contract.placeOfSupply || partySupplyState(input.counterpartyName, existing),
     contract,
   });
 }
@@ -574,42 +499,6 @@ export function matchingIdempotency<T extends { idempotencyKey?: string | null }
   const trimmed = String(key ?? '').trim();
   if (!trimmed) return undefined;
   return events.find((row) => row.idempotencyKey === trimmed);
-}
-
-function validatePayments(
-  contract: OperatingContract,
-  state: 'RECEIVED' | 'PART_PAID' | 'PAY_LATER',
-  received: number
-): { ok: true } | { ok: false; message: string } {
-  const rows = contract.payments ?? [];
-  if (rows.length === 0) {
-    if (state === 'PAY_LATER') {
-      contract.payments = null;
-      return { ok: true };
-    }
-    return { ok: true };
-  }
-  if (state === 'PAY_LATER') return fail('Pay later cannot include tender instruments.');
-  if (rows.length > 6) return fail('At most six tender instruments on one sale.');
-  let total = 0;
-  const seen = new Set<string>();
-  const normalized: OperatingPaymentInstrument[] = [];
-  for (const row of rows) {
-    const method = String(row.method ?? '').trim();
-    const amount = num(row.amount);
-    if (!method) return fail('Each tender needs a method.');
-    if (!(amount > 0)) return fail('Each tender amount must be more than zero.');
-    const key = method.toLowerCase();
-    if (seen.has(key)) return fail('Each tender method can be used once.');
-    seen.add(key);
-    total += amount;
-    normalized.push({ method, amount: money(amount) });
-  }
-  if (Math.abs(total - received) > 0.00005) {
-    return fail('Tender instruments must add up to the amount collected now.');
-  }
-  contract.payments = normalized;
-  return { ok: true };
 }
 
 function validateSale(input: RetailWrite, existing: RetailEvent[], contract: OperatingContract): RetailWriteResult | { ok: false; message: string } {
@@ -627,9 +516,6 @@ function validateSale(input: RetailWrite, existing: RetailEvent[], contract: Ope
     }
     amount = lineTotal(lines);
   }
-  const discount = num(contract.discount);
-  if (discount < 0) return fail('Discount must be zero or more.');
-  if (discount - amount > 0.00005) return fail('Discount cannot exceed the sale amount.');
   const stamped = withPostedGst(input, existing, contract, 'SALE', amount, lines);
   if (!stamped.ok) return stamped;
   amount = stamped.amount;
@@ -639,8 +525,6 @@ function validateSale(input: RetailWrite, existing: RetailEvent[], contract: Ope
   const received = state === 'RECEIVED' ? amount : state === 'PAY_LATER' ? 0 : num(contract.receivedAmount);
   if (state === 'PART_PAID' && !(received > 0 && received < amount)) return fail('Part paid must be more than zero and less than the total.');
   if (received < amount && !namedParty(input.counterpartyName)) return fail('A named customer is required when a balance remains.');
-  const paymentsOk = validatePayments(contract, state, received);
-  if (!paymentsOk.ok) return paymentsOk;
   if (input.parentEventId) {
     const parent = existing.find((row) => row.operatingEventId === input.parentEventId);
     if (!parent) return fail('Choose a record on this moment.');
@@ -792,15 +676,6 @@ function validateOrderRevision(
   const status = contract.orderStatus ?? current.contract?.orderStatus ?? 'PLACED';
   if (!['PLACED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'].includes(status)) return fail('Choose an order status.');
   contract.orderStatus = status;
-  // Status bumps often send only `orderStatus` — keep floor / station ticket fields.
-  const prior = current.contract;
-  if (prior) {
-    if (contract.tableNumber == null) contract.tableNumber = prior.tableNumber ?? null;
-    if (contract.covers == null) contract.covers = prior.covers ?? null;
-    if (contract.locationName == null) contract.locationName = prior.locationName ?? null;
-    if (contract.clientKey == null) contract.clientKey = prior.clientKey ?? null;
-    if (contract.estimatedAmount == null) contract.estimatedAmount = prior.estimatedAmount ?? null;
-  }
   return {
     ok: true,
     paymentStatus: 'NONE',
@@ -1183,12 +1058,7 @@ export function salesCoverage(events: RetailEvent[]): string | null {
 export function postedSalesSummary(events: RetailEvent[], visible: boolean, currency: string): string {
   const rows = events.filter((row) => row.approvalStatus !== 'REJECTED');
   const sales = rows.filter((row) => (row.eventType === 'SALE' || row.eventType === 'SERVICE') && effective(row));
-  const openOrders = rows.filter(
-    (row) =>
-      isConfirmedOrder(row) &&
-      row.contract?.orderStatus !== 'CANCELLED' &&
-      row.contract?.orderStatus !== 'COMPLETED'
-  );
+  const openOrders = rows.filter((row) => row.eventType === 'ORDER' && row.contract?.orderStatus !== 'CANCELLED' && row.contract?.orderStatus !== 'COMPLETED');
   const total = sales.reduce((sum, row) => sum + num(row.amount), 0);
   const moneyText = visible ? ` · ${money(total)} ${currency}` : '';
   return `Posted sales ${sales.length}${moneyText} · Open orders ${openOrders.length}`;
