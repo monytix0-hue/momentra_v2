@@ -41,7 +41,7 @@ Continue from guided create opens `BusinessSetupShell` with in-document chips. A
 
 Setup smoke (Figma v6 parity):
 
-- [ ] Scroll through Basics → People & Roles → Network/Catalogue → Channels & Plan → GST → Review for subtypes that still include Network (not Retail Store / Distribution / Client Campaign)
+- [ ] Scroll through Basics → People & Roles → Network/Catalogue → Channels & Plan → GST → Review for subtypes that still include Network (not Retail Store / Distribution / Client Campaign / Own Business Campaign)
 - [ ] CTA copy matches frame (`Start this business` for trading / distribution / client campaign / `Start this store` / `Start this restaurant`)
 - [ ] Chip swap reseeds fields + rethemes without losing typed title when keys match
 - [ ] Kind of business chips match Figma tiles (`◈`, border select, retail order Restaurant / Food → Consumer Service → Retail Store) — not capsule pills
@@ -107,6 +107,18 @@ Setup smoke (Figma v6 parity):
 - [ ] Roles: Owner / Admin / Campaign Lead / Finance / Approver
 - [ ] **Save draft** / **Discard draft**; reopen restores prefs
 - [ ] Activate missing budget or startDate highlights those fields; missing client highlights `clientName`; bad GSTIN with tracking Yes highlights GSTIN
+
+### Own Business Campaign (`5:38325`) — five sections (no Network)
+
+- [ ] Sections: Basics → People & Roles → Channels & Monthly Plan → GST → Review only (no Network / Counterparties)
+- [ ] Hero **Harbor & Loom Setup**; eyebrow **Own Business Campaign**; CTA **Start this business**
+- [ ] Basics: campaign name, promoted brand (`brandName`), GSTIN, currency, start/end dates, purpose chips, structure (One-time / Ongoing), promoted products, location, description
+- [ ] People & Roles: team members; roles Owner / Admin / Campaign Lead / Finance / Approver
+- [ ] Channels: Paid social / Search / Print / Influencer / Events / Store window + own marketing budget + plan month + monthly budget + primary target (`conversionGoal`) + target unit
+- [ ] Soft plan status pill under Channels (green when budget+target parse)
+- [ ] GST v7 panels: tracking, registration, state, sale price includes GST, effective from; hide registration/pricing when Not now
+- [ ] **Save draft** | **Schedule later** (shared sticky bar); reopen draft restores prefs
+- [ ] Activate missing `monthlyBudget` or `startDate` highlights those fields; missing promoted brand highlights `brandName`; bad GSTIN with tracking Yes highlights GSTIN; Save draft still succeeds with half-filled form
 
 ### Consumer Service (`5:71162`) extras
 
