@@ -159,7 +159,27 @@ fun BusinessSetupShell(
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = PlusJakartaSans,
+                    modifier = Modifier.weight(1f),
                 )
+                if (draftMomentStatus.equals("DRAFT", ignoreCase = true) && draftMomentId != null) {
+                    Text(
+                        text = "Discard draft",
+                        color = BusinessTokens.Colors.SignalDanger,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier
+                            .clickable(enabled = !createState.submitting) {
+                                val id = draftMomentId ?: return@clickable
+                                createViewModel.discardMomentDraft(id) {
+                                    draftMomentId = null
+                                    draftMomentStatus = null
+                                    onBack()
+                                }
+                            }
+                            .padding(horizontal = 4.dp, vertical = 8.dp),
+                    )
+                }
             }
 
             BusinessSetupDocumentKit.HeroCard(
@@ -322,6 +342,7 @@ fun BusinessSetupShell(
                                 BusinessSetupDocumentKit.ModuleList(
                                     theme = theme,
                                     modules = kind.modules,
+                                    helper = field.helper,
                                 )
                             }
                             is BusinessSetupFieldSpec.Kind.ReviewSummary -> {
@@ -341,6 +362,33 @@ fun BusinessSetupShell(
                             companyId = companyId,
                             mintInvite = { id -> createViewModel.mintCompanyInvite(id) },
                             embedded = true,
+                        )
+                    }
+                    if (
+                        section.id == "channels" &&
+                        typeCode in setOf("RETAIL_STORE", "DISTRIBUTION_DEALERSHIP", "TRADING_WHOLESALE")
+                    ) {
+                        val status = OperatingSetupPayloadBuilder.planStatusMessage(values.toMap())
+                        Text(
+                            text = "●  ${status.second}",
+                            color = if (status.first) {
+                                BusinessTokens.Colors.SignalPositive
+                            } else {
+                                theme.accent
+                            },
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSans,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(
+                                    if (status.first) {
+                                        BusinessTokens.Colors.SignalPositive.copy(alpha = 0.14f)
+                                    } else {
+                                        theme.accent.copy(alpha = 0.08f)
+                                    },
+                                )
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
                         )
                     }
                 }

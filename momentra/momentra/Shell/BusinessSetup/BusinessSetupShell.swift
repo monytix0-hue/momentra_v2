@@ -124,6 +124,27 @@ struct BusinessSetupShell: View {
                                     await createModel.mintCompanyInvite(companyId: id)
                                 }
                             }
+                            if section.id == "channels",
+                               ["RETAIL_STORE", "DISTRIBUTION_DEALERSHIP", "TRADING_WHOLESALE"].contains(typeCode) {
+                                let status = OperatingSetupPayloadBuilder.planStatusMessage(
+                                    preferences: preferencesPayload()
+                                )
+                                Text("●  \(status.message)")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(
+                                        status.ok
+                                            ? BusinessTokens.Colors.signalPositive
+                                            : theme.accent
+                                    )
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        (status.ok
+                                            ? BusinessTokens.Colors.signalPositive.opacity(0.14)
+                                            : theme.accent.opacity(0.08)),
+                                        in: Capsule()
+                                    )
+                            }
                         }
                     }
                     Color.clear.frame(height: 120)
@@ -184,6 +205,19 @@ struct BusinessSetupShell: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(BusinessTokens.Colors.textPrimary)
             Spacer()
+            if setupInProgress, let draftId = draftMomentId {
+                Button("Discard draft") {
+                    createModel.discardMomentDraft(momentId: draftId) {
+                        draftMomentId = nil
+                        draftMomentStatus = nil
+                        onBack()
+                    }
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(BusinessTokens.Colors.signalDanger)
+                .buttonStyle(.plain)
+                .disabled(createModel.state.submitting)
+            }
         }
     }
 
@@ -279,7 +313,7 @@ struct BusinessSetupShell: View {
                 : stored.split(separator: "|").map(String.init)
             BusinessSetupDocumentKit.MemberList(theme: theme, members: list)
         case .moduleList(let modules):
-            BusinessSetupDocumentKit.ModuleList(theme: theme, modules: modules)
+            BusinessSetupDocumentKit.ModuleList(theme: theme, modules: modules, helper: field.helper)
         case .reviewSummary(let keys):
             BusinessSetupDocumentKit.ReviewSummary(
                 theme: theme,
