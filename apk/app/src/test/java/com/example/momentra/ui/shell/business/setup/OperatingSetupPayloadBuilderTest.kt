@@ -160,6 +160,62 @@ class OperatingSetupPayloadBuilderTest {
     }
 
     @Test
+    fun distributionFigmaAliasesRoundTrip() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Metro Distribution",
+                "companyName" to "Metro Distribution",
+                "channels" to "Retail dealers|Van sales",
+                "monthlyBudget" to "₹60,00,000",
+                "monthlySalesTarget" to "₹90,00,000",
+                "roles" to "Route lead|Salesman",
+            ),
+            momentTypeCode = "DISTRIBUTION_DEALERSHIP",
+            title = "Fallback",
+            activating = false,
+        )
+        assertEquals("Metro Distribution", result.preferences["identityName"])
+        assertEquals("Metro Distribution", result.preferences["partyName"])
+        assertEquals("9000000.0000", result.preferences["monthlyTarget"])
+        assertNull(result.validationError)
+        assertEquals("OPERATIONS_LEAD", OperatingSetupPayloadBuilder.mapRole("Route lead"))
+        assertEquals("TEAM_MEMBER", OperatingSetupPayloadBuilder.mapRole("Salesman"))
+    }
+
+    @Test
+    fun distributionActivateMissingBudgetAndTargetSetsFieldErrors() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Metro Distribution",
+                "companyName" to "Metro Distribution",
+            ),
+            momentTypeCode = "DISTRIBUTION_DEALERSHIP",
+            title = "Metro Distribution",
+            activating = true,
+        )
+        assertEquals("Monthly budget must be a positive amount.", result.fieldErrors["monthlyBudget"])
+        assertEquals("Monthly target must be a positive amount.", result.fieldErrors["monthlyTarget"])
+    }
+
+    @Test
+    fun distributionActivateDualWriteFromTargetOnly() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Metro Distribution",
+                "companyName" to "Metro Distribution",
+                "monthlyTarget" to "₹90,00,000",
+            ),
+            momentTypeCode = "DISTRIBUTION_DEALERSHIP",
+            title = "Metro Distribution",
+            activating = true,
+        )
+        assertTrue(result.fieldErrors["monthlyBudget"] == null)
+        assertTrue(result.fieldErrors["monthlyTarget"] == null)
+        assertEquals("9000000.0000", result.preferences["monthlyBudget"])
+        assertEquals("9000000.0000", result.preferences["monthlyTarget"])
+    }
+
+    @Test
     fun restaurantFigmaAliasesRoundTrip() {
         val result = OperatingSetupPayloadBuilder.build(
             preferences = mapOf(

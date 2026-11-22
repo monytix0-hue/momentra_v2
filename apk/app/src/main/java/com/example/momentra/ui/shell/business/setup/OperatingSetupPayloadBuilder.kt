@@ -61,6 +61,7 @@ object OperatingSetupPayloadBuilder {
         "marketer" to "OPERATIONS_LEAD",
         "executive" to "OPERATIONS_LEAD",
         "delivery" to "OPERATIONS_LEAD",
+        "route lead" to "OPERATIONS_LEAD",
         "warehouse" to "OPERATIONS_LEAD",
         "sales exec" to "OPERATIONS_LEAD",
         "sales executive" to "OPERATIONS_LEAD",

@@ -81,6 +81,7 @@ enum OperatingSetupPayloadBuilder {
         "marketer": "OPERATIONS_LEAD",
         "executive": "OPERATIONS_LEAD",
         "delivery": "OPERATIONS_LEAD",
+        "route lead": "OPERATIONS_LEAD",
         "warehouse": "OPERATIONS_LEAD",
         "sales exec": "OPERATIONS_LEAD",
         "sales executive": "OPERATIONS_LEAD",

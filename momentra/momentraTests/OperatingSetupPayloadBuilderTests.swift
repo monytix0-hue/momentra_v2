@@ -159,6 +159,59 @@ struct OperatingSetupPayloadBuilderTests {
         #expect(built.fieldErrors["monthlyTarget"] == "Monthly target must be a positive amount.")
     }
 
+    @Test func distributionFigmaAliasesRoundTrip() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "businessName": "Metro Distribution",
+                "companyName": "Metro Distribution",
+                "channels": "Retail dealers|Van sales",
+                "monthlyBudget": "₹60,00,000",
+                "monthlySalesTarget": "₹90,00,000",
+                "roles": "Route lead|Salesman",
+            ],
+            momentTypeCode: "DISTRIBUTION_DEALERSHIP",
+            title: "Fallback",
+            activating: false
+        )
+        #expect(built.preferences["identityName"] as? String == "Metro Distribution")
+        #expect(built.preferences["partyName"] as? String == "Metro Distribution")
+        #expect(built.preferences["monthlyTarget"] as? String == "9000000.0000")
+        #expect(built.validationError == nil)
+        #expect(OperatingSetupPayloadBuilder.mapRole("Route lead") == "OPERATIONS_LEAD")
+        #expect(OperatingSetupPayloadBuilder.mapRole("Salesman") == "TEAM_MEMBER")
+    }
+
+    @Test func distributionActivateMissingBudgetAndTargetSetsFieldErrors() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "businessName": "Metro Distribution",
+                "companyName": "Metro Distribution",
+            ],
+            momentTypeCode: "DISTRIBUTION_DEALERSHIP",
+            title: "Metro Distribution",
+            activating: true
+        )
+        #expect(built.fieldErrors["monthlyBudget"] == "Monthly budget must be a positive amount.")
+        #expect(built.fieldErrors["monthlyTarget"] == "Monthly target must be a positive amount.")
+    }
+
+    @Test func distributionActivateDualWriteFromTargetOnly() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "businessName": "Metro Distribution",
+                "companyName": "Metro Distribution",
+                "monthlyTarget": "₹90,00,000",
+            ],
+            momentTypeCode: "DISTRIBUTION_DEALERSHIP",
+            title: "Metro Distribution",
+            activating: true
+        )
+        #expect(built.fieldErrors["monthlyBudget"] == nil)
+        #expect(built.fieldErrors["monthlyTarget"] == nil)
+        #expect(built.preferences["monthlyBudget"] as? String == "9000000.0000")
+        #expect(built.preferences["monthlyTarget"] as? String == "9000000.0000")
+    }
+
     @Test func restaurantFigmaAliasesRoundTrip() {
         let built = OperatingSetupPayloadBuilder.build(
             preferences: [
