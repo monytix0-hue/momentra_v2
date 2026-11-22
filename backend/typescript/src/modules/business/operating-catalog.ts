@@ -447,15 +447,19 @@ const ROLE_LABEL_ALIASES: Record<string, OperatingRole> = {
   executive: 'OPERATIONS_LEAD',
   delivery: 'OPERATIONS_LEAD',
   warehouse: 'OPERATIONS_LEAD',
+  'sales exec': 'OPERATIONS_LEAD',
+  'sales executive': 'OPERATIONS_LEAD',
   cashier: 'TEAM_MEMBER',
   floor: 'TEAM_MEMBER',
   kitchen: 'TEAM_MEMBER',
+  waiter: 'TEAM_MEMBER',
   service: 'TEAM_MEMBER',
   specialist: 'TEAM_MEMBER',
   stylist: 'TEAM_MEMBER',
   therapist: 'TEAM_MEMBER',
   'front desk': 'TEAM_MEMBER',
   salesman: 'TEAM_MEMBER',
+  'sales rep': 'TEAM_MEMBER',
   sales: 'TEAM_MEMBER',
   supervisor: 'OPERATIONS_LEAD',
   operator: 'TEAM_MEMBER',
@@ -624,6 +628,11 @@ export function applyOperatingSetupAliases(
   const subtypeUpper = String(prefs.subtype ?? '').toUpperCase();
   const isRetail = RETAIL_SUBTYPES.has(subtypeUpper);
 
+  if (!String(prefs.outletName ?? '').trim()) {
+    const restaurantName = firstNonEmpty(prefs.restaurantName);
+    if (restaurantName) prefs.outletName = restaurantName;
+  }
+
   const identityName = firstNonEmpty(
     prefs.identityName,
     prefs.title,
@@ -631,6 +640,7 @@ export function applyOperatingSetupAliases(
     prefs.businessName,
     prefs.storeName,
     prefs.outletName,
+    prefs.restaurantName,
     prefs.serviceName,
     prefs.plantName,
     prefs.shopName
@@ -697,6 +707,7 @@ export function applyOperatingSetupAliases(
   if (!positiveAmount(prefs.monthlyTarget)) {
     const target = firstNonEmpty(
       prefs.monthlyTarget,
+      prefs.monthlySalesTarget,
       prefs.monthlyChargeTarget,
       prefs.targetSales,
       prefs.leadGoal,

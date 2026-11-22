@@ -351,6 +351,75 @@ describe('business setup draft preferences', () => {
     assert.equal(draft.monthlyTarget, '650000.0000');
   });
 
+  it('maps trading Figma aliases and accepts a trading draft', () => {
+    const aliased = applyOperatingSetupAliases({
+      subtype: 'TRADING_WHOLESALE',
+      businessName: 'Northstar Trading',
+      companyName: 'Northstar Trading',
+      channels: ['Retail buyers', 'Wholesale'],
+      monthlyBudget: '₹60,00,000',
+      monthlySalesTarget: '₹90,00,000',
+      targetMetric: 'Revenue',
+    });
+    assert.equal(aliased.identityName, 'Northstar Trading');
+    assert.equal(aliased.partyName, 'Northstar Trading');
+    assert.equal(aliased.monthlyTarget, '₹90,00,000');
+
+    const draft = normalizeOperatingPreferences(
+      'TRADING_DISTRIBUTION',
+      {
+        subtype: 'TRADING_WHOLESALE',
+        businessName: 'Northstar Trading',
+        companyName: 'Northstar Trading',
+        channels: ['Retail buyers'],
+        monthlyBudget: '6000000',
+        monthlySalesTarget: '9000000',
+        currency: 'INR',
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(draft.subtype, 'TRADING_WHOLESALE');
+    assert.equal(draft.identityName, 'Northstar Trading');
+    assert.deepEqual(draft.channels, ['Retail buyers']);
+    assert.equal(draft.monthlyTarget, '9000000.0000');
+  });
+
+  it('maps restaurant Figma aliases and accepts a restaurant draft', () => {
+    const aliased = applyOperatingSetupAliases({
+      subtype: 'RESTAURANT_FOOD',
+      restaurantName: 'Spice Route Kitchen',
+      companyName: 'Spice Route Kitchen',
+      channels: ['Dine-in', 'Swiggy'],
+      monthlyBudget: '₹5,20,000',
+      monthlySalesTarget: '₹6,50,000',
+      targetMetric: 'Revenue',
+    });
+    assert.equal(aliased.outletName, 'Spice Route Kitchen');
+    assert.equal(aliased.identityName, 'Spice Route Kitchen');
+    assert.equal(aliased.partyName, 'Spice Route Kitchen');
+    assert.equal(aliased.monthlyTarget, '₹6,50,000');
+
+    const draft = normalizeOperatingPreferences(
+      'RETAIL_CONSUMER',
+      {
+        subtype: 'RESTAURANT_FOOD',
+        outletName: 'Spice Route Kitchen',
+        companyName: 'Spice Route Kitchen',
+        channels: ['Dine-in'],
+        monthlyBudget: '520000',
+        monthlySalesTarget: '650000',
+        currency: 'INR',
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(draft.subtype, 'RESTAURANT_FOOD');
+    assert.equal(draft.identityName, 'Spice Route Kitchen');
+    assert.deepEqual(draft.channels, ['Dine-in']);
+    assert.equal(draft.monthlyTarget, '650000.0000');
+  });
+
   it('activates retail with Counter channel and rejects missing channels with field keys', () => {
     const active = normalizeOperatingPreferences(
       'RETAIL_CONSUMER',
