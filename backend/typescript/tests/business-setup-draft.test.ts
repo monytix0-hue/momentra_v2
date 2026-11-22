@@ -538,6 +538,143 @@ describe('business setup draft preferences', () => {
     }
   });
 
+  it('maps client campaign Figma aliases and accepts a client draft', () => {
+    const aliased = applyOperatingSetupAliases({
+      subtype: 'CLIENT_CAMPAIGN',
+      campaignName: 'Brightline Q2',
+      clientName: 'Northstar Residences',
+      companyName: 'Brightline Creative',
+      channels: ['Paid social', 'Search'],
+      campaignBudget: '₹6,00,000',
+      campaignPurpose: 'Leads',
+      targetMetric: 'Leads',
+      clientFee: '₹1,50,000',
+      clientApprovedMediaBudget: '₹4,00,000',
+      agencyOperatingBudget: '₹50,000',
+    });
+    assert.equal(aliased.identityName, 'Brightline Q2');
+    assert.equal(aliased.partyName, 'Northstar Residences');
+    assert.equal(aliased.monthlyBudget, '₹6,00,000');
+    assert.equal(aliased.offering, 'Leads');
+    assert.equal(aliased.targetMetric, 'LEADS');
+
+    const draft = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      {
+        subtype: 'CLIENT_CAMPAIGN',
+        campaignName: 'Brightline Q2',
+        clientName: 'Northstar Residences',
+        channels: ['Paid social'],
+        currency: 'INR',
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(draft.subtype, 'CLIENT_CAMPAIGN');
+    assert.equal(draft.identityName, 'Brightline Q2');
+    assert.equal(draft.partyName, 'Northstar Residences');
+    assert.deepEqual(draft.channels, ['Paid social']);
+  });
+
+  it('client campaign activate rejects with campaignName/clientName/monthlyBudget/startDate field keys', () => {
+    assert.throws(
+      () =>
+        normalizeOperatingPreferences(
+          'MARKETING_CAMPAIGNS',
+          { subtype: 'CLIENT_CAMPAIGN' },
+          creator
+        ),
+      (err: unknown) => {
+        assert.ok(err instanceof OperatingSetupFieldError);
+        assert.equal(err.fields.campaignName, 'Moment name is required.');
+        return true;
+      }
+    );
+
+    assert.throws(
+      () =>
+        normalizeOperatingPreferences(
+          'MARKETING_CAMPAIGNS',
+          {
+            subtype: 'CLIENT_CAMPAIGN',
+            campaignName: 'Brightline Q2',
+            companyName: 'Brightline Creative',
+            monthlyBudget: '200000',
+            startDate: '2026-10-12',
+          },
+          creator
+        ),
+      (err: unknown) => {
+        assert.ok(err instanceof OperatingSetupFieldError);
+        assert.match(err.fields.clientName ?? '', /client/i);
+        return true;
+      }
+    );
+
+    assert.throws(
+      () =>
+        normalizeOperatingPreferences(
+          'MARKETING_CAMPAIGNS',
+          {
+            subtype: 'CLIENT_CAMPAIGN',
+            campaignName: 'Brightline Q2',
+            clientName: 'Northstar Residences',
+            startDate: '2026-10-12',
+          },
+          creator
+        ),
+      (err: unknown) => {
+        assert.ok(err instanceof OperatingSetupFieldError);
+        assert.equal(err.fields.monthlyBudget, 'Monthly budget must be a positive amount.');
+        return true;
+      }
+    );
+
+    assert.throws(
+      () =>
+        normalizeOperatingPreferences(
+          'MARKETING_CAMPAIGNS',
+          {
+            subtype: 'CLIENT_CAMPAIGN',
+            campaignName: 'Brightline Q2',
+            clientName: 'Northstar Residences',
+            monthlyBudget: '200000',
+          },
+          creator
+        ),
+      (err: unknown) => {
+        assert.ok(err instanceof OperatingSetupFieldError);
+        assert.equal(err.fields.startDate, 'Campaign start date is required.');
+        return true;
+      }
+    );
+
+    const active = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      {
+        subtype: 'CLIENT_CAMPAIGN',
+        campaignName: 'Brightline Q2',
+        clientName: 'Northstar Residences',
+        monthlyBudget: '200000',
+        clientFee: '150000',
+        clientApprovedMediaBudget: '400000',
+        agencyOperatingBudget: '50000',
+        campaignPurpose: 'Leads',
+        targetMetric: 'Leads',
+        startDate: '2026-10-12',
+        channels: ['Paid social'],
+      },
+      creator
+    );
+    assert.equal(active.identityName, 'Brightline Q2');
+    assert.equal(active.partyName, 'Northstar Residences');
+    assert.equal(active.clientFee, '150000.0000');
+    assert.equal(active.clientApprovedMediaBudget, '400000.0000');
+    assert.equal(active.agencyOperatingBudget, '50000.0000');
+    assert.equal(active.offering, 'Leads');
+    assert.equal(active.targetMetric, 'LEADS');
+  });
+
   it('accepts a marketing draft flip Client → Own and clears clientFee on Own activate', () => {
     const draftFlip = normalizeOperatingPreferences(
       'MARKETING_CAMPAIGNS',

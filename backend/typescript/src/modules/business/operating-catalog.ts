@@ -419,6 +419,10 @@ export interface OperatingPreferences {
   purchasePriceIncludesGst: string;
   gstEffectiveFrom: string;
   clientFee: string;
+  /** Optional Figma client-approved media envelope (CLIENT_CAMPAIGN). */
+  clientApprovedMediaBudget: string;
+  /** Optional Figma agency operating envelope (CLIENT_CAMPAIGN). */
+  agencyOperatingBudget: string;
   offering: string;
   creativeApprovalRequired: string;
   reportingCadence: string;
@@ -653,14 +657,8 @@ export function applyOperatingSetupAliases(
   const partyName = isRetail
     ? firstNonEmpty(prefs.partyName, prefs.companyName, identityName)
     : subtypeUpper === 'CLIENT_CAMPAIGN'
-      ? firstNonEmpty(
-          prefs.partyName,
-          prefs.clientName,
-          prefs.brandName,
-          prefs.principalBrand,
-          prefs.companyName,
-          prefs.customerName
-        )
+      ? // Agency companyName must not satisfy the Client party requirement.
+        firstNonEmpty(prefs.partyName, prefs.clientName)
       : firstNonEmpty(
           prefs.partyName,
           prefs.clientName,
@@ -696,6 +694,7 @@ export function applyOperatingSetupAliases(
   if (!positiveAmount(prefs.monthlyBudget)) {
     const budget = firstNonEmpty(
       prefs.monthlyBudget,
+      prefs.campaignBudget,
       prefs.monthlyExpense,
       prefs.marketingBudget,
       prefs.targetSales,
@@ -704,6 +703,15 @@ export function applyOperatingSetupAliases(
     );
     if (positiveAmount(budget)) prefs.monthlyBudget = budget;
   }
+
+  const purpose = firstNonEmpty(prefs.offering, prefs.campaignPurpose);
+  if (purpose) prefs.offering = purpose;
+
+  const metricLabel = String(prefs.targetMetric ?? '').trim().toLowerCase();
+  if (metricLabel === 'leads') prefs.targetMetric = 'LEADS';
+  else if (metricLabel === 'reach') prefs.targetMetric = 'REACH';
+  else if (metricLabel === 'clicks') prefs.targetMetric = 'ENGAGEMENT';
+  else if (metricLabel === 'sales') prefs.targetMetric = 'REVENUE';
 
   if (!positiveAmount(prefs.monthlyTarget)) {
     const target = firstNonEmpty(
@@ -845,13 +853,18 @@ export function normalizeOperatingPreferences(
         ? 'serviceName'
         : subtype === 'TRADING_WHOLESALE' || subtype === 'DISTRIBUTION_DEALERSHIP'
           ? 'businessName'
-          : 'identityName';
+          : subtype === 'CLIENT_CAMPAIGN' || subtype === 'OWN_BUSINESS_CAMPAIGN'
+            ? 'campaignName'
+            : 'identityName';
   const partyField =
-    RETAIL_SUBTYPES.has(subtype)
-    || subtype === 'TRADING_WHOLESALE'
-    || subtype === 'DISTRIBUTION_DEALERSHIP'
-      ? 'companyName'
-      : 'partyName';
+    subtype === 'CLIENT_CAMPAIGN'
+      ? 'clientName'
+      : RETAIL_SUBTYPES.has(subtype)
+        || subtype === 'TRADING_WHOLESALE'
+        || subtype === 'DISTRIBUTION_DEALERSHIP'
+          || subtype === 'OWN_BUSINESS_CAMPAIGN'
+        ? 'companyName'
+        : 'partyName';
   if (!draft) {
     if (!identityName) {
       fieldFail('Moment name is required.', { [identityField]: 'Moment name is required.' });
@@ -976,6 +989,8 @@ function normalizeMarketingPreferences(
 ): Pick<
   OperatingPreferences,
   | 'clientFee'
+  | 'clientApprovedMediaBudget'
+  | 'agencyOperatingBudget'
   | 'offering'
   | 'creativeApprovalRequired'
   | 'reportingCadence'
@@ -986,6 +1001,8 @@ function normalizeMarketingPreferences(
 > {
   const empty = {
     clientFee: '',
+    clientApprovedMediaBudget: '',
+    agencyOperatingBudget: '',
     offering: '',
     creativeApprovalRequired: '',
     reportingCadence: '',
@@ -999,7 +1016,9 @@ function normalizeMarketingPreferences(
   const cadence = String(prefs.reportingCadence ?? '').trim().toUpperCase();
   return {
     clientFee: client ? positiveAmount(prefs.clientFee) ?? '' : '',
-    offering: String(prefs.offering ?? '').trim(),
+    clientApprovedMediaBudget: client ? positiveAmount(prefs.clientApprovedMediaBudget) ?? '' : '',
+    agencyOperatingBudget: client ? positiveAmount(prefs.agencyOperatingBudget) ?? '' : '',
+    offering: String(prefs.offering ?? prefs.campaignPurpose ?? '').trim(),
     creativeApprovalRequired: String(prefs.creativeApprovalRequired ?? '').toUpperCase() === 'YES' ? 'YES' : '',
     reportingCadence: client && ['WEEKLY', 'MONTHLY', 'CUSTOM'].includes(cadence) ? cadence : '',
     conversionNumerator: String(prefs.conversionNumerator ?? '').trim(),
