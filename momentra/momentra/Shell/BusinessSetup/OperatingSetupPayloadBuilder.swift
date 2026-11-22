@@ -147,13 +147,10 @@ enum OperatingSetupPayloadBuilder {
         if retailSubtypes.contains(subtype) {
             party = firstNonEmpty(prefs["partyName"], prefs["companyName"], identity)
         } else if subtype == "CLIENT_CAMPAIGN" {
+            // Agency companyName must not satisfy the Client party requirement.
             party = firstNonEmpty(
                 prefs["partyName"],
-                prefs["clientName"],
-                prefs["brandName"],
-                prefs["principalBrand"],
-                prefs["companyName"],
-                prefs["customerName"]
+                prefs["clientName"]
             )
         } else {
             party = firstNonEmpty(
@@ -192,6 +189,7 @@ enum OperatingSetupPayloadBuilder {
         if positiveAmount(prefs["monthlyBudget"]) == nil {
             let budget = firstNonEmpty(
                 prefs["monthlyBudget"],
+                prefs["campaignBudget"],
                 prefs["monthlyExpense"],
                 prefs["marketingBudget"],
                 prefs["targetSales"],
@@ -199,6 +197,20 @@ enum OperatingSetupPayloadBuilder {
                 prefs["avgTicket"]
             )
             if positiveAmount(budget) != nil { prefs["monthlyBudget"] = budget }
+        }
+        if let fee = positiveAmount(prefs["clientFee"]) { prefs["clientFee"] = fee }
+        if let media = positiveAmount(prefs["clientApprovedMediaBudget"]) {
+            prefs["clientApprovedMediaBudget"] = media
+        }
+        if let agency = positiveAmount(prefs["agencyOperatingBudget"]) {
+            prefs["agencyOperatingBudget"] = agency
+        }
+        let purpose = stringValue(prefs["campaignPurpose"]).isEmpty
+            ? stringValue(prefs["offering"])
+            : stringValue(prefs["campaignPurpose"])
+        if !purpose.isEmpty { prefs["offering"] = purpose }
+        if let metric = mapMarketingTargetMetric(prefs["targetMetric"]) {
+            prefs["targetMetric"] = metric
         }
         if positiveAmount(prefs["monthlyTarget"]) == nil {
             let target = firstNonEmpty(
@@ -289,6 +301,8 @@ enum OperatingSetupPayloadBuilder {
             ("vendorName", "SUPPLIER"),
             ("principalBrand", "PRINCIPAL"),
             ("clientName", "CLIENT"),
+            ("companyName", "AGENCY"),
+            ("promotedBrand", "BRAND"),
         ]
         for (key, kind) in networkSeeds {
             let name = stringValue(prefs[key])
@@ -429,6 +443,21 @@ enum OperatingSetupPayloadBuilder {
         return roleAliases[raw.lowercased()] ?? "TEAM_MEMBER"
     }
 
+    /// Figma target-unit chips → closed marketing metrics.
+    static func mapMarketingTargetMetric(_ value: Any?) -> String? {
+        let raw = stringValue(value)
+        if raw.isEmpty { return nil }
+        switch raw.lowercased() {
+        case "leads": return "LEADS"
+        case "reach": return "REACH"
+        case "clicks": return "ENGAGEMENT"
+        case "sales": return "REVENUE"
+        default:
+            let code = raw.uppercased().replacingOccurrences(of: " ", with: "_")
+            return code.isEmpty ? nil : code
+        }
+    }
+
     // MARK: - Helpers
 
     private static func validationFieldErrors(
@@ -451,7 +480,11 @@ enum OperatingSetupPayloadBuilder {
             errors[titleKey] = "Moment name is required."
         }
         if stringValue(prefs["partyName"]).isEmpty {
-            errors["companyName"] = "Business party name is required."
+            if subtype == "CLIENT_CAMPAIGN" {
+                errors["clientName"] = "Client name is required."
+            } else {
+                errors["companyName"] = "Business party name is required."
+            }
         }
         if marketingSubtypes.contains(subtype) {
             if positiveAmount(prefs["monthlyBudget"]) == nil {

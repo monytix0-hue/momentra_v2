@@ -126,13 +126,10 @@ object OperatingSetupPayloadBuilder {
         val party = if (subtype in retailSubtypes) {
             firstNonEmpty(prefs["partyName"], prefs["companyName"], identity)
         } else if (subtype == "CLIENT_CAMPAIGN") {
+            // Agency companyName must not satisfy the Client party requirement.
             firstNonEmpty(
                 prefs["partyName"],
                 prefs["clientName"],
-                prefs["brandName"],
-                prefs["principalBrand"],
-                prefs["companyName"],
-                prefs["customerName"],
             )
         } else {
             firstNonEmpty(
@@ -170,6 +167,7 @@ object OperatingSetupPayloadBuilder {
         if (positiveAmount(prefs["monthlyBudget"]) == null) {
             val budget = firstNonEmpty(
                 prefs["monthlyBudget"],
+                prefs["campaignBudget"],
                 prefs["monthlyExpense"],
                 prefs["marketingBudget"],
                 prefs["targetSales"],
@@ -178,6 +176,14 @@ object OperatingSetupPayloadBuilder {
             )
             if (positiveAmount(budget) != null) prefs["monthlyBudget"] = budget
         }
+        positiveAmount(prefs["clientFee"])?.let { prefs["clientFee"] = it }
+        positiveAmount(prefs["clientApprovedMediaBudget"])?.let { prefs["clientApprovedMediaBudget"] = it }
+        positiveAmount(prefs["agencyOperatingBudget"])?.let { prefs["agencyOperatingBudget"] = it }
+
+        val purpose = stringValue(prefs["campaignPurpose"]).ifEmpty { stringValue(prefs["offering"]) }
+        if (purpose.isNotEmpty()) prefs["offering"] = purpose
+
+        mapMarketingTargetMetric(prefs["targetMetric"])?.let { prefs["targetMetric"] = it }
         if (positiveAmount(prefs["monthlyTarget"]) == null) {
             val target = firstNonEmpty(
                 prefs["monthlyTarget"],
@@ -266,6 +272,8 @@ object OperatingSetupPayloadBuilder {
             "vendorName" to "SUPPLIER",
             "principalBrand" to "PRINCIPAL",
             "clientName" to "CLIENT",
+            "companyName" to "AGENCY",
+            "promotedBrand" to "BRAND",
         )
         for ((key, kind) in networkSeeds) {
             val name = stringValue(prefs[key])
@@ -405,6 +413,22 @@ object OperatingSetupPayloadBuilder {
         return roleAliases[raw.lowercase()] ?: "TEAM_MEMBER"
     }
 
+    /** Figma target-unit chips → closed marketing metrics. */
+    fun mapMarketingTargetMetric(value: Any?): String? {
+        val raw = stringValue(value)
+        if (raw.isEmpty()) return null
+        return when (raw.lowercase()) {
+            "leads" -> "LEADS"
+            "reach" -> "REACH"
+            "clicks" -> "ENGAGEMENT"
+            "sales" -> "REVENUE"
+            else -> {
+                val code = raw.uppercase().replace(" ", "_")
+                code.ifEmpty { null }
+            }
+        }
+    }
+
     private fun validationFieldErrors(
         subtype: String,
         prefs: Map<String, Any>,
@@ -424,7 +448,12 @@ object OperatingSetupPayloadBuilder {
             errors[titleKey] = "Moment name is required."
         }
         if (stringValue(prefs["partyName"]).isEmpty()) {
-            errors["companyName"] = "Business party name is required."
+            val partyKey = if (subtype == "CLIENT_CAMPAIGN") "clientName" else "companyName"
+            errors[partyKey] = if (subtype == "CLIENT_CAMPAIGN") {
+                "Client name is required."
+            } else {
+                "Business party name is required."
+            }
         }
         if (subtype in marketingSubtypes) {
             if (positiveAmount(prefs["monthlyBudget"]) == null) {

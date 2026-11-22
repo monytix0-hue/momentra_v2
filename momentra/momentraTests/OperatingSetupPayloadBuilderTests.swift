@@ -212,6 +212,64 @@ struct OperatingSetupPayloadBuilderTests {
         #expect(built.preferences["monthlyTarget"] as? String == "9000000.0000")
     }
 
+    @Test func clientCampaignFigmaAliasesRoundTrip() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "campaignName": "Brightline Q2",
+                "clientName": "Northstar Residences",
+                "companyName": "Brightline Creative",
+                "channels": "Paid social|Search",
+                "monthlyBudget": "₹2,00,000",
+                "clientFee": "₹1,50,000",
+                "campaignPurpose": "Leads",
+                "monthlyTarget": "120",
+                "targetMetric": "Leads",
+                "roles": "Campaign Lead",
+            ],
+            momentTypeCode: "CLIENT_CAMPAIGN",
+            title: "Fallback",
+            activating: false
+        )
+        #expect(built.preferences["identityName"] as? String == "Brightline Q2")
+        #expect(built.preferences["partyName"] as? String == "Northstar Residences")
+        #expect(built.preferences["offering"] as? String == "Leads")
+        #expect(built.preferences["monthlyBudget"] as? String == "200000.0000")
+        #expect(built.preferences["clientFee"] as? String == "150000.0000")
+        #expect(built.preferences["targetMetric"] as? String == "LEADS")
+        #expect(built.validationError == nil)
+        #expect(OperatingSetupPayloadBuilder.mapRole("Campaign Lead") == "OPERATIONS_LEAD")
+    }
+
+    @Test func clientCampaignActivateMissingBudgetAndStartSetsFieldErrors() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "campaignName": "Brightline Q2",
+                "clientName": "Northstar Residences",
+            ],
+            momentTypeCode: "CLIENT_CAMPAIGN",
+            title: "Brightline Q2",
+            activating: true
+        )
+        #expect(built.fieldErrors["monthlyBudget"] == "Monthly budget must be a positive amount.")
+        #expect(built.fieldErrors["startDate"] == "Campaign start date is required.")
+    }
+
+    @Test func clientCampaignActivateMissingClientHighlightsClientName() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "campaignName": "Brightline Q2",
+                "companyName": "Brightline Creative",
+                "monthlyBudget": "₹2,00,000",
+                "startDate": "2026-10-12",
+            ],
+            momentTypeCode: "CLIENT_CAMPAIGN",
+            title: "Brightline Q2",
+            activating: true
+        )
+        #expect(built.fieldErrors["clientName"] == "Client name is required.")
+        #expect(built.fieldErrors["companyName"] == nil)
+    }
+
     @Test func restaurantFigmaAliasesRoundTrip() {
         let built = OperatingSetupPayloadBuilder.build(
             preferences: [
