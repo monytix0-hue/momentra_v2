@@ -112,52 +112,108 @@ enum BusinessSetupDocuments {
 
     // MARK: - Marketing (5:33148 / 5:38325)
 
+    /// Figma `5:33148` — five sections (Network/Catalogue omitted by product choice).
     static let clientMarketing = BusinessSetupDocumentSpec(
         typeCode: "CLIENT_CAMPAIGN",
         familyTitle: "Marketing",
         eyebrow: "Client campaign",
-        heroTitle: "Set up a client campaign",
-        heroSubtitle: "Budgets, channels, retainers, and leads for one client engagement.",
+        heroTitle: "Brightline Setup",
+        heroSubtitle: "Bring your business, people, and monthly plan together before you start.",
         activateLabel: "Start this business",
         defaultTitleKey: "campaignName",
         sections: [
-            section("basics", "Business Basics", "Name the engagement and client.", [
-                text("campaignName", "Campaign name", "Brightline Q2 push"),
-                text("clientName", "Client name", "Acme Co."),
-                choice("billingModel", "Billing", ["Retainer", "Project", "Hybrid"]),
-                date("startDate", "Start date", "01 Nov 2024"),
-                date("endDate", "End date", "30 Nov 2024"),
-                text("currency", "Currency", "INR"),
+            section("basics", "Business Basics", "A home for this client campaign.", [
+                panelHeader("panelCampaign", "Campaign"),
+                text("campaignName", "Campaign name", "Brightline Creative for Northstar Residences"),
+                text("companyName", "Company", "Brightline Creative", helper: "Agency / firm name"),
+                text("gstin", "GSTIN", "27AAKCM4321D1Z2", helper: "15-digit GSTIN, if you have one"),
+                text("currency", "Currency", "INR · Indian Rupee (₹)"),
+                date("startDate", "Start date", "12 October 2026"),
+                date("endDate", "End date", "Still open"),
+                panelHeader("panelClient", "Client"),
+                text("clientName", "Client", "Northstar Residences"),
+                text("clientContact", "Client contact (optional)", "Optional"),
+                panelHeader("panelPurpose", "Purpose & structure"),
+                choice(
+                    "campaignPurpose",
+                    "Campaign purpose",
+                    ["Leads", "Launch", "Awareness", "Sales", "Event", "Traffic"]
+                ),
+                text("promotedBrand", "Promoted brand", "Optional"),
             ]),
-            section("people", "People & Roles", "Who runs the work day to day.", [
-                memberList("teamMembers", "Team", ["You (Owner)", "Account lead"]),
-                multiChoice("roles", "Roles", ["Owner", "Admin", "Commercial", "Viewer", "Executive"]),
-                rowAction("addPeople", "Add specialized people", "Add"),
+            section(
+                "people",
+                "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
+                [
+                    memberList("teamMembers", "Team", ["You (Owner)"]),
+                    multiChoice(
+                        "roles",
+                        "Roles on invite",
+                        ["Owner", "Admin", "Campaign Lead", "Finance", "Approver"],
+                        helper: "Default Campaign Lead · owns delivery & reporting. Role applies when they join."
+                    ),
+                ]
+            ),
+            section("channels", "Channels & Monthly Plan", "Channels, client commercials, budget and targets.", [
+                panelHeader("panelChannels", "Channels"),
+                multiChoice(
+                    "channels",
+                    "Where do you run it?",
+                    ["Paid social", "Search", "Print", "Influencer", "Events"],
+                    helper: "These are the places you run the campaign. They are not a different kind of business."
+                ),
+                panelHeader("panelCommercials", "Client commercials"),
+                text("clientFee", "Client fee", "₹1,50,000", helper: "Amount"),
+                choice("billingBasis", "Billing basis", ["Retainer", "Deliverable", "Pass-through"]),
+                panelHeader("panelBudget", "Budget"),
+                date("planMonth", "Month", "October 2026"),
+                text("monthlyBudget", "Monthly budget", "₹2,00,000", helper: "Amount"),
+                text("campaignBudget", "Campaign budget", "₹6,00,000", helper: "Optional · aliases into monthly if empty"),
+                text("clientApprovedMediaBudget", "Client-approved media", "₹4,00,000", helper: "Optional"),
+                text("agencyOperatingBudget", "Agency operating", "₹50,000", helper: "Optional"),
+                panelHeader("panelTargets", "Targets"),
+                text("monthlyTarget", "Primary target", "120", helper: "Amount / count"),
+                choice("targetMetric", "Target unit", ["Leads", "Reach", "Clicks", "Sales"]),
             ]),
-            section("network", "Network / Counterparties", "Partners and platforms on this engagement.", [
-                moduleList("modules", "Modules", [
-                    "Agency / partners",
-                    "Media platforms",
-                    "Creative vendors",
-                    "Analytics tools",
-                    "Client stakeholders",
-                ]),
-            ]),
-            section("channels", "Channels & Monthly Plan", "Where spend and leads will land.", [
-                multiChoice("channels", "Channels", ["Meta Ads", "Google", "LinkedIn", "Email", "Other"]),
-                text("monthlyBudget", "Monthly budget", "₹2,00,000"),
-                text("leadGoal", "Lead / revenue goal", "120 leads / month"),
-                choice("billingFrequency", "Billing frequency", ["Monthly", "Quarterly", "Half yearly"]),
-            ]),
-            section("gst", "GST & Tax Details", "Registration for this engagement.", [
-                toggle("gstRegistered", "Registered for GST?"),
-                choice("gstType", "Registration type", ["Regular", "Composition", "Unregistered"]),
-                text("gstState", "State", "Maharashtra"),
-                text("gstin", "GSTIN / PAN", "Optional"),
+            section("gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.", [
+                panelHeader("panelTracking", "Tracking"),
+                choice(
+                    "gstTracking",
+                    "Do you want to track GST in this Moment?",
+                    ["Yes", "Not now"],
+                    helper: "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt."
+                ),
+                panelHeader("panelRegistration", "Registration"),
+                choice(
+                    "gstRegistration",
+                    "How is your business registered for GST?",
+                    ["Regular", "Composition", "Unregistered", "Not sure"]
+                ),
+                text(
+                    "gstState",
+                    "Which state is your business registered in?",
+                    "Maharashtra",
+                    helper: "State"
+                ),
+                panelHeader("panelPricing", "Pricing"),
+                choice(
+                    "salePriceIncludesGst",
+                    "Do prices include GST?",
+                    ["Prices include GST", "GST is added separately"],
+                    helper: "Your GSTIN stays the one entered above. It is stored as a reference only."
+                ),
+                date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
             ]),
             section("review", "Review your setup", "Confirm before you start.", [
                 reviewSummary("review", "Summary", [
-                    "campaignName", "clientName", "billingModel", "monthlyBudget", "leadGoal",
+                    "clientName",
+                    "gstin",
+                    "channels",
+                    "monthlyBudget",
+                    "clientFee",
+                    "monthlyTarget",
+                    "targetMetric",
                 ]),
             ]),
         ]
@@ -213,7 +269,7 @@ enum BusinessSetupDocuments {
 
     // MARK: - Trading (5:18833 / 5:8637)
 
-    /// Figma `5:18833` TRD-SETUP-v6 — §04 modules are display-only (no masters sheets).
+    /// Figma `5:18833` TRD-SETUP-v6 — Catalogue/Network section omitted (five sections).
     static let trading = BusinessSetupDocumentSpec(
         typeCode: "TRADING_WHOLESALE",
         familyTitle: "Trading",
@@ -262,19 +318,6 @@ enum BusinessSetupDocuments {
                 text("monthlyTarget", "Monthly sales target", "₹90,00,000", helper: "Amount"),
                 text("targetMetric", "How the target is measured", "Revenue"),
             ]),
-            section(
-                "network",
-                "Catalogue, Warehouses & Network",
-                "Modules your orders, dispatches and purchases will use after start.",
-                [
-                    moduleListRows("modules", "Modules", [
-                        BusinessSetupModuleRow("Catalogue & SKU", subtitle: "386 SKUs · 4 price lists · HSN + GST on each"),
-                        BusinessSetupModuleRow("Godowns & branches", subtitle: "Peenya godown · Yeshwanthpur branch · Cold room · 12 routes"),
-                        BusinessSetupModuleRow("Suppliers & buyers", subtitle: "6 suppliers · 240 buyers · GSTIN on file"),
-                        BusinessSetupModuleRow("Team invite & QR", subtitle: "Owner · Manager · Sales exec · Warehouse · Sales rep"),
-                    ]),
-                ]
-            ),
             section("gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.", [
                 panelHeader("panelTracking", "Tracking"),
                 choice(

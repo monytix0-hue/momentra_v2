@@ -149,32 +149,124 @@ class BusinessSetupFieldModelTest {
     }
 
     @Test
-    fun clientCampaignHasV6SectionsAndActivateLabel() {
+    fun clientCampaignMatchesFigma33148FiveSections() {
         val spec = BusinessSetupDocuments.spec("CLIENT_CAMPAIGN")
+        assertEquals("Brightline Setup", spec.heroTitle)
+        assertEquals(
+            "Bring your business, people, and monthly plan together before you start.",
+            spec.heroSubtitle,
+        )
         assertEquals("Start this business", spec.activateLabel)
+        assertEquals("campaignName", spec.defaultTitleKey)
+        assertEquals("Client campaign", spec.eyebrow)
         assertEquals(
             listOf(
                 "Business Basics",
                 "People & Roles",
-                "Network / Counterparties",
                 "Channels & Monthly Plan",
                 "GST & Tax Details",
                 "Review your setup",
             ),
             spec.sectionTitles,
         )
-        assertEquals("Client campaign", spec.eyebrow)
-        assertEquals("Set up a client campaign", spec.heroTitle)
+        assertTrue(spec.sections.none { it.id == "network" })
+        val keys = spec.sections.flatMap { it.fields.map { f -> f.key } }.toSet()
+        assertTrue(
+            keys.containsAll(
+                listOf(
+                    "campaignName", "companyName", "clientName", "currency", "startDate", "endDate",
+                    "gstin", "campaignPurpose", "roles", "channels", "clientFee",
+                    "monthlyBudget", "monthlyTarget", "targetMetric",
+                    "gstTracking", "gstRegistration",
+                ),
+            ),
+        )
+        assertTrue(!keys.contains("modules"))
+        assertTrue(!keys.contains("leadGoal"))
+        assertTrue(!keys.contains("billingFrequency"))
+        assertTrue(!keys.contains("addPeople"))
+        val channels = spec.sections
+            .flatMap { it.fields }
+            .first { it.key == "channels" }
+            .kind as BusinessSetupFieldSpec.Kind.MultiChoice
+        assertEquals(
+            listOf("Paid social", "Search", "Print", "Influencer", "Events"),
+            channels.options,
+        )
+        val roles = spec.sections
+            .flatMap { it.fields }
+            .first { it.key == "roles" }
+            .kind as BusinessSetupFieldSpec.Kind.MultiChoice
+        assertEquals(
+            listOf("Owner", "Admin", "Campaign Lead", "Finance", "Approver"),
+            roles.options,
+        )
     }
 
     @Test
     fun ownMarketingMatchesMarketingPair() {
         val spec = BusinessSetupDocuments.spec("OWN_BUSINESS_CAMPAIGN")
         assertEquals("Start this business", spec.activateLabel)
-        assertTrue(spec.sectionTitles.contains("Business Basics"))
-        assertTrue(spec.sectionTitles.contains("People & Roles"))
-        assertTrue(spec.sectionTitles.contains("GST & Tax Details"))
-        assertTrue(spec.sectionTitles.contains("Review your setup"))
+        assertEquals(
+            listOf(
+                "Business Basics",
+                "People & Roles",
+                "Channels & Monthly Plan",
+                "GST & Tax Details",
+                "Review your setup",
+            ),
+            spec.sectionTitles,
+        )
+        assertTrue(spec.sections.none { it.id == "network" })
+    }
+
+    @Test
+    fun ownMarketingMatchesFigma38325() {
+        val spec = BusinessSetupDocuments.spec("OWN_BUSINESS_CAMPAIGN")
+        assertEquals("Harbor & Loom Setup", spec.heroTitle)
+        assertTrue(spec.eyebrow.contains("Own"))
+        assertEquals("Start this business", spec.activateLabel)
+        assertEquals("campaignName", spec.defaultTitleKey)
+        assertEquals(
+            listOf(
+                "Business Basics",
+                "People & Roles",
+                "Channels & Monthly Plan",
+                "GST & Tax Details",
+                "Review your setup",
+            ),
+            spec.sectionTitles,
+        )
+        assertTrue(spec.sections.none { it.id == "network" })
+        val keys = spec.sections.flatMap { it.fields.map { f -> f.key } }.toSet()
+        assertTrue(
+            keys.containsAll(
+                listOf(
+                    "brandName", "endDate", "campaignPurpose", "offerType", "promotedProducts",
+                    "location", "description", "channels", "marketingBudget", "planMonth",
+                    "monthlyBudget", "conversionGoal", "targetMetric", "gstTracking",
+                    "gstRegistration", "salePriceIncludesGst",
+                ),
+            ),
+        )
+        assertTrue(!keys.contains("modules"))
+        assertTrue(!keys.contains("addPeople"))
+        val channels = spec.sections
+            .flatMap { it.fields }
+            .first { it.key == "channels" }
+            .kind as BusinessSetupFieldSpec.Kind.MultiChoice
+        assertEquals(
+            listOf("Paid social", "Search", "Print", "Influencer", "Events", "Store window"),
+            channels.options,
+        )
+        val roles = spec.sections
+            .flatMap { it.fields }
+            .first { it.key == "roles" }
+            .kind as BusinessSetupFieldSpec.Kind.MultiChoice
+        assertEquals(
+            listOf("Owner", "Admin", "Campaign Lead", "Finance", "Approver"),
+            roles.options,
+        )
     }
 
     @Test
@@ -183,7 +275,7 @@ class BusinessSetupFieldModelTest {
         val distribution = BusinessSetupDocuments.spec("DISTRIBUTION_DEALERSHIP")
         assertEquals("Start this business", trading.activateLabel)
         assertEquals("Start this business", distribution.activateLabel)
-        assertTrue(trading.sectionTitles.contains("Catalogue, Warehouses & Network"))
+        assertTrue(!trading.sectionTitles.contains("Catalogue, Warehouses & Network"))
         assertEquals(
             com.example.momentra.ui.theme.generated.BusinessDomain.TRADING,
             BusinessSetupTheme.forTypeCode("TRADING_WHOLESALE").domain,
@@ -257,12 +349,12 @@ class BusinessSetupFieldModelTest {
                 "Business Basics",
                 "People & Roles",
                 "Channels & Monthly Plan",
-                "Catalogue, Warehouses & Network",
                 "GST & Tax Details",
                 "Review your setup",
             ),
             spec.sectionTitles,
         )
+        assertTrue(spec.sections.none { it.id == "network" })
         val keys = spec.sections.flatMap { it.fields.map { f -> f.key } }.toSet()
         assertTrue(keys.containsAll(listOf(
             "businessName", "companyName", "gstin", "currency", "startDate", "endDate",
@@ -270,6 +362,7 @@ class BusinessSetupFieldModelTest {
             "monthlyBudget", "monthlyTarget", "targetMetric",
             "gstTracking", "gstRegistration", "gstState", "salePriceIncludesGst",
         )))
+        assertTrue(!keys.contains("modules"))
         val channels = spec.sections
             .flatMap { it.fields }
             .first { it.key == "channels" }
@@ -280,15 +373,6 @@ class BusinessSetupFieldModelTest {
             .first { it.key == "roles" }
             .kind as BusinessSetupFieldSpec.Kind.MultiChoice
         assertEquals(listOf("Owner", "Manager", "Sales exec", "Warehouse", "Sales rep"), roles.options)
-        val modules = spec.sections
-            .flatMap { it.fields }
-            .first { it.key == "modules" }
-            .kind as BusinessSetupFieldSpec.Kind.ModuleList
-        assertEquals(4, modules.modules.size)
-        assertEquals("Catalogue & SKU", modules.modules[0].title)
-        assertEquals("Godowns & branches", modules.modules[1].title)
-        assertEquals("Suppliers & buyers", modules.modules[2].title)
-        assertEquals("Team invite & QR", modules.modules[3].title)
     }
 
     @Test
