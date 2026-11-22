@@ -41,8 +41,8 @@ Continue from guided create opens `BusinessSetupShell` with in-document chips. A
 
 Setup smoke (Figma v6 parity):
 
-- [ ] Scroll through Basics → People & Roles → Network/Catalogue → Channels & Plan → GST → Review for subtypes that still include Network (not Retail Store / Distribution)
-- [ ] CTA copy matches frame (`Start this business` for trading wholesale + distribution / `Start this store` / `Start this restaurant`)
+- [ ] Scroll through Basics → People & Roles → Network/Catalogue → Channels & Plan → GST → Review for subtypes that still include Network (not Retail Store / Distribution / Client Campaign)
+- [ ] CTA copy matches frame (`Start this business` for trading / distribution / client campaign / `Start this store` / `Start this restaurant`)
 - [ ] Chip swap reseeds fields + rethemes without losing typed title when keys match
 - [ ] Kind of business chips match Figma tiles (`◈`, border select, retail order Restaurant / Food → Consumer Service → Retail Store) — not capsule pills
 - [ ] GST “No” / “Not now” hides registration type / state / GSTIN / pricing fields
@@ -75,13 +75,13 @@ Setup smoke (Figma v6 parity):
 - [ ] **Save draft** | **Schedule later**; reopen draft restores prefs
 - [ ] Activate with empty channels highlights channels; invalid GSTIN with tracking Yes highlights GSTIN
 
-### Trading Wholesale (`5:18833`) — six sections; §04 display-only
+### Trading Wholesale (`5:18833`) — five sections (no Catalogue/Network)
 
 - [ ] Hero **Northstar Trading Setup**; CTA **Start this business**
+- [ ] Sections: Basics → People & Roles → Channels & Plan → GST → Review only
 - [ ] Basics: business name, company, GSTIN, currency, start/end, description, location
 - [ ] Channels: Retail buyers / Wholesale / Modern trade / HoReCa / Online + budget + sales target + measure
 - [ ] Roles: Owner / Manager / Sales exec / Warehouse / Sales rep
-- [ ] §04 Catalogue & SKU / Godowns & branches / Suppliers & buyers / Team invite display-only (no masters sheets)
 - [ ] **Save draft** | **Schedule later**; reopen draft restores prefs
 - [ ] Activate missing budget/target highlights those fields; invalid GSTIN with tracking Yes highlights GSTIN
 
@@ -96,6 +96,17 @@ Setup smoke (Figma v6 parity):
 - [ ] **Save draft** creates or patches DRAFT; reopen restores prefs
 - [ ] **Discard draft** in header when status is DRAFT
 - [ ] Activate missing budget/target highlights those fields; invalid GSTIN with tracking Yes highlights GSTIN; Save draft still succeeds
+
+### Client Campaign (`5:33148`) — five sections (no Network)
+
+- [ ] Sections: Basics → People & Roles → Channels & Plan → GST → Review only
+- [ ] Hero **Brightline Setup**; CTA **Start this business**; accent indigo
+- [ ] Basics: campaign name, company, client, GSTIN, currency, dates, purpose chips
+- [ ] Channels: Paid social / Search / Print / Influencer / Events + client fee + monthly budget + primary target / unit
+- [ ] Soft plan status pill under Channels (green when budget+target parse)
+- [ ] Roles: Owner / Admin / Campaign Lead / Finance / Approver
+- [ ] **Save draft** / **Discard draft**; reopen restores prefs
+- [ ] Activate missing budget or startDate highlights those fields; missing client highlights `clientName`; bad GSTIN with tracking Yes highlights GSTIN
 
 ### Consumer Service (`5:71162`) extras
 

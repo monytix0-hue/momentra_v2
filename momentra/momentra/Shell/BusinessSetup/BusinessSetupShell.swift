@@ -125,7 +125,7 @@ struct BusinessSetupShell: View {
                                 }
                             }
                             if section.id == "channels",
-                               ["RETAIL_STORE", "DISTRIBUTION_DEALERSHIP", "TRADING_WHOLESALE"].contains(typeCode) {
+                               ["RETAIL_STORE", "DISTRIBUTION_DEALERSHIP", "TRADING_WHOLESALE", "CLIENT_CAMPAIGN"].contains(typeCode) {
                                 let status = OperatingSetupPayloadBuilder.planStatusMessage(
                                     preferences: preferencesPayload()
                                 )

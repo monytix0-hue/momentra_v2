@@ -366,7 +366,12 @@ fun BusinessSetupShell(
                     }
                     if (
                         section.id == "channels" &&
-                        typeCode in setOf("RETAIL_STORE", "DISTRIBUTION_DEALERSHIP", "TRADING_WHOLESALE")
+                        typeCode in setOf(
+                            "RETAIL_STORE",
+                            "DISTRIBUTION_DEALERSHIP",
+                            "TRADING_WHOLESALE",
+                            "CLIENT_CAMPAIGN",
+                        )
                     ) {
                         val status = OperatingSetupPayloadBuilder.planStatusMessage(values.toMap())
                         Text(
