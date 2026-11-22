@@ -41,8 +41,8 @@ Continue from guided create opens `BusinessSetupShell` with in-document chips. A
 
 Setup smoke (Figma v6 parity):
 
-- [ ] Scroll through Basics → People & Roles → Network/Catalogue → Channels & Plan → GST → Review for subtypes that still include Network (not Retail Store)
-- [ ] CTA copy matches frame (`Start this business` for trading wholesale / `Start the business!` for distribution / `Start this store` / `Start this restaurant`)
+- [ ] Scroll through Basics → People & Roles → Network/Catalogue → Channels & Plan → GST → Review for subtypes that still include Network (not Retail Store / Distribution)
+- [ ] CTA copy matches frame (`Start this business` for trading wholesale + distribution / `Start this store` / `Start this restaurant`)
 - [ ] Chip swap reseeds fields + rethemes without losing typed title when keys match
 - [ ] Kind of business chips match Figma tiles (`◈`, border select, retail order Restaurant / Food → Consumer Service → Retail Store) — not capsule pills
 - [ ] GST “No” / “Not now” hides registration type / state / GSTIN / pricing fields
@@ -84,6 +84,18 @@ Setup smoke (Figma v6 parity):
 - [ ] §04 Catalogue & SKU / Godowns & branches / Suppliers & buyers / Team invite display-only (no masters sheets)
 - [ ] **Save draft** | **Schedule later**; reopen draft restores prefs
 - [ ] Activate missing budget/target highlights those fields; invalid GSTIN with tracking Yes highlights GSTIN
+
+### Distribution (`5:8637`) — five sections (no Catalogue/Network)
+
+- [ ] Sections: Basics → People & Roles → Channels & Plan → GST → Review only
+- [ ] Hero **Metro Distribution Setup**; CTA **Start this business**; accent Flame/orange
+- [ ] Basics: business name, company name, GSTIN, currency, start/end, description, DC location
+- [ ] Channels: Retail dealers / Wholesale / Modern trade / HoReCa / Van sales + budget + sales target + measure
+- [ ] Soft plan status pill under Channels (green when budget+target parse)
+- [ ] Roles: Owner / Manager / Route lead / Warehouse / Salesman
+- [ ] **Save draft** creates or patches DRAFT; reopen restores prefs
+- [ ] **Discard draft** in header when status is DRAFT
+- [ ] Activate missing budget/target highlights those fields; invalid GSTIN with tracking Yes highlights GSTIN; Save draft still succeeds
 
 ### Consumer Service (`5:71162`) extras
 
