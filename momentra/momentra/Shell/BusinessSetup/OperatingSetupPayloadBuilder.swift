@@ -82,6 +82,8 @@ enum OperatingSetupPayloadBuilder {
         "executive": "OPERATIONS_LEAD",
         "delivery": "OPERATIONS_LEAD",
         "warehouse": "OPERATIONS_LEAD",
+        "sales exec": "OPERATIONS_LEAD",
+        "sales executive": "OPERATIONS_LEAD",
         "cashier": "TEAM_MEMBER",
         "floor": "TEAM_MEMBER",
         "stock": "TEAM_MEMBER",
@@ -93,6 +95,7 @@ enum OperatingSetupPayloadBuilder {
         "therapist": "TEAM_MEMBER",
         "front desk": "TEAM_MEMBER",
         "salesman": "TEAM_MEMBER",
+        "sales rep": "TEAM_MEMBER",
         "sales": "TEAM_MEMBER",
         "supervisor": "OPERATIONS_LEAD",
         "operator": "TEAM_MEMBER",
@@ -199,6 +202,7 @@ enum OperatingSetupPayloadBuilder {
         if positiveAmount(prefs["monthlyTarget"]) == nil {
             let target = firstNonEmpty(
                 prefs["monthlyTarget"],
+                prefs["monthlySalesTarget"],
                 prefs["monthlyChargeTarget"],
                 prefs["targetSales"],
                 prefs["leadGoal"],

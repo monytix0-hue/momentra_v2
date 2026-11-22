@@ -124,6 +124,61 @@ struct OperatingSetupPayloadBuilderTests {
         #expect(built.preferences["monthlyTarget"] as? String == "650000.0000")
     }
 
+    @Test func tradingFigmaAliasesRoundTrip() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "businessName": "Northstar Trading",
+                "companyName": "Northstar Trading",
+                "channels": "Retail buyers|Wholesale",
+                "monthlyBudget": "₹60,00,000",
+                "monthlySalesTarget": "₹90,00,000",
+                "roles": "Sales exec|Sales rep",
+            ],
+            momentTypeCode: "TRADING_WHOLESALE",
+            title: "Fallback",
+            activating: false
+        )
+        #expect(built.preferences["identityName"] as? String == "Northstar Trading")
+        #expect(built.preferences["partyName"] as? String == "Northstar Trading")
+        #expect(built.preferences["monthlyTarget"] as? String == "9000000.0000")
+        #expect(OperatingSetupPayloadBuilder.mapRole("Sales exec") == "OPERATIONS_LEAD")
+        #expect(OperatingSetupPayloadBuilder.mapRole("Sales rep") == "TEAM_MEMBER")
+    }
+
+    @Test func tradingActivateMissingBudgetSetsFieldError() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "businessName": "Northstar Trading",
+                "companyName": "Northstar Trading",
+            ],
+            momentTypeCode: "TRADING_WHOLESALE",
+            title: "Northstar Trading",
+            activating: true
+        )
+        #expect(built.fieldErrors["monthlyBudget"] == "Monthly budget must be a positive amount.")
+        #expect(built.fieldErrors["monthlyTarget"] == "Monthly target must be a positive amount.")
+    }
+
+    @Test func restaurantFigmaAliasesRoundTrip() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "restaurantName": "Spice Route Kitchen",
+                "companyName": "Spice Route Kitchen",
+                "channels": "Dine-in|Swiggy",
+                "monthlyBudget": "₹5,20,000",
+                "monthlySalesTarget": "₹6,50,000",
+                "roles": "Cashier|Waiter",
+            ],
+            momentTypeCode: "RESTAURANT_FOOD",
+            title: "Fallback",
+            activating: false
+        )
+        #expect(built.preferences["outletName"] as? String == "Spice Route Kitchen")
+        #expect(built.preferences["identityName"] as? String == "Spice Route Kitchen")
+        #expect(built.preferences["monthlyTarget"] as? String == "650000.0000")
+        #expect(OperatingSetupPayloadBuilder.mapRole("Waiter") == "TEAM_MEMBER")
+    }
+
     @Test func invalidGstinHighlightsFieldOnActivate() {
         let built = OperatingSetupPayloadBuilder.build(
             preferences: [

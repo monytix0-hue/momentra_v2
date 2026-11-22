@@ -121,4 +121,62 @@ class OperatingSetupPayloadBuilderTest {
         )
         assertEquals("Select at least one channel.", result.fieldErrors["channels"])
     }
+
+    @Test
+    fun tradingFigmaAliasesRoundTrip() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Northstar Trading",
+                "companyName" to "Northstar Trading",
+                "channels" to "Retail buyers|Wholesale",
+                "monthlyBudget" to "₹60,00,000",
+                "monthlySalesTarget" to "₹90,00,000",
+                "roles" to "Sales exec|Sales rep",
+            ),
+            momentTypeCode = "TRADING_WHOLESALE",
+            title = "Fallback",
+            activating = false,
+        )
+        assertEquals("Northstar Trading", result.preferences["identityName"])
+        assertEquals("Northstar Trading", result.preferences["partyName"])
+        assertEquals("9000000.0000", result.preferences["monthlyTarget"])
+        assertEquals("OPERATIONS_LEAD", OperatingSetupPayloadBuilder.mapRole("Sales exec"))
+        assertEquals("TEAM_MEMBER", OperatingSetupPayloadBuilder.mapRole("Sales rep"))
+    }
+
+    @Test
+    fun tradingActivateMissingBudgetSetsFieldError() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Northstar Trading",
+                "companyName" to "Northstar Trading",
+            ),
+            momentTypeCode = "TRADING_WHOLESALE",
+            title = "Northstar Trading",
+            activating = true,
+        )
+        assertEquals("Monthly budget must be a positive amount.", result.fieldErrors["monthlyBudget"])
+        assertEquals("Monthly target must be a positive amount.", result.fieldErrors["monthlyTarget"])
+    }
+
+    @Test
+    fun restaurantFigmaAliasesRoundTrip() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "restaurantName" to "Spice Route Kitchen",
+                "companyName" to "Spice Route Kitchen",
+                "channels" to "Dine-in|Swiggy",
+                "monthlyBudget" to "₹5,20,000",
+                "monthlySalesTarget" to "₹6,50,000",
+                "roles" to "Cashier|Waiter",
+            ),
+            momentTypeCode = "RESTAURANT_FOOD",
+            title = "Fallback",
+            activating = false,
+        )
+        assertEquals("Spice Route Kitchen", result.preferences["outletName"])
+        assertEquals("Spice Route Kitchen", result.preferences["identityName"])
+        assertEquals("650000.0000", result.preferences["monthlyTarget"])
+        assertEquals("TEAM_MEMBER", OperatingSetupPayloadBuilder.mapRole("Waiter"))
+    }
 }

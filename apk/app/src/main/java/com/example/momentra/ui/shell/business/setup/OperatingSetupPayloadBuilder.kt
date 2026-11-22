@@ -62,16 +62,20 @@ object OperatingSetupPayloadBuilder {
         "executive" to "OPERATIONS_LEAD",
         "delivery" to "OPERATIONS_LEAD",
         "warehouse" to "OPERATIONS_LEAD",
+        "sales exec" to "OPERATIONS_LEAD",
+        "sales executive" to "OPERATIONS_LEAD",
         "cashier" to "TEAM_MEMBER",
         "floor" to "TEAM_MEMBER",
         "stock" to "TEAM_MEMBER",
         "kitchen" to "TEAM_MEMBER",
+        "waiter" to "TEAM_MEMBER",
         "service" to "TEAM_MEMBER",
         "specialist" to "TEAM_MEMBER",
         "stylist" to "TEAM_MEMBER",
         "therapist" to "TEAM_MEMBER",
         "front desk" to "TEAM_MEMBER",
         "salesman" to "TEAM_MEMBER",
+        "sales rep" to "TEAM_MEMBER",
         "sales" to "TEAM_MEMBER",
         "supervisor" to "OPERATIONS_LEAD",
         "operator" to "TEAM_MEMBER",
@@ -106,11 +110,16 @@ object OperatingSetupPayloadBuilder {
             prefs["businessName"],
             prefs["storeName"],
             prefs["outletName"],
+            prefs["restaurantName"],
             prefs["serviceName"],
             prefs["plantName"],
             prefs["shopName"],
             title,
         )
+        if (prefs["outletName"] == null) {
+            val restaurantName = stringValue(prefs["restaurantName"])
+            if (restaurantName.isNotEmpty()) prefs["outletName"] = restaurantName
+        }
         if (identity.isNotEmpty()) prefs["identityName"] = identity
 
         val party = if (subtype in retailSubtypes) {
@@ -171,6 +180,7 @@ object OperatingSetupPayloadBuilder {
         if (positiveAmount(prefs["monthlyTarget"]) == null) {
             val target = firstNonEmpty(
                 prefs["monthlyTarget"],
+                prefs["monthlySalesTarget"],
                 prefs["monthlyChargeTarget"],
                 prefs["targetSales"],
                 prefs["leadGoal"],
