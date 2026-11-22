@@ -538,6 +538,47 @@ describe('business setup draft preferences', () => {
     }
   });
 
+  it('maps own marketing Figma aliases and accepts an own-campaign draft', () => {
+    const aliased = applyOperatingSetupAliases({
+      subtype: 'OWN_BUSINESS_CAMPAIGN',
+      campaignName: 'Harbor Spring',
+      brandName: 'Harbor & Loom',
+      channels: ['Paid social', 'Search'],
+      ownMarketingBudget: '₹2,00,000',
+      primaryTarget: '₹5,00,000',
+      targetMetric: 'Leads',
+      roles: ['Campaign Lead'],
+      teamMembers: ['Priya'],
+    });
+    assert.equal(aliased.identityName, 'Harbor Spring');
+    assert.equal(aliased.partyName, 'Harbor & Loom');
+    assert.equal(aliased.marketingBudget, '₹2,00,000');
+    assert.equal(aliased.conversionGoal, '₹5,00,000');
+    assert.equal(aliased.monthlyBudget, '₹2,00,000');
+    assert.equal(aliased.monthlyTarget, '₹5,00,000');
+    assert.equal(aliased.targetMetric, 'LEADS');
+    const participants = aliased.participants as Array<{ displayName: string; role: string }>;
+    assert.equal(participants[0]?.displayName, 'Priya');
+    assert.equal(participants[0]?.role, 'OPERATIONS_LEAD');
+
+    const draft = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      {
+        subtype: 'OWN_BUSINESS_CAMPAIGN',
+        campaignName: 'Harbor Spring',
+        brandName: 'Harbor & Loom',
+        channels: ['Paid social'],
+        currency: 'INR',
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(draft.subtype, 'OWN_BUSINESS_CAMPAIGN');
+    assert.equal(draft.identityName, 'Harbor Spring');
+    assert.equal(draft.partyName, 'Harbor & Loom');
+    assert.deepEqual(draft.channels, ['Paid social']);
+  });
+
   it('maps client campaign Figma aliases and accepts a client draft', () => {
     const aliased = applyOperatingSetupAliases({
       subtype: 'CLIENT_CAMPAIGN',

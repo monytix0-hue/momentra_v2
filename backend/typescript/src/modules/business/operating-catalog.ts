@@ -446,6 +446,7 @@ const ROLE_LABEL_ALIASES: Record<string, OperatingRole> = {
   'operations lead': 'OPERATIONS_LEAD',
   operations: 'OPERATIONS_LEAD',
   'campaign lead': 'OPERATIONS_LEAD',
+  campaignlead: 'OPERATIONS_LEAD',
   commercial: 'OPERATIONS_LEAD',
   marketer: 'OPERATIONS_LEAD',
   executive: 'OPERATIONS_LEAD',
@@ -691,17 +692,28 @@ export function applyOperatingSetupAliases(
   const saleIncludes = mapSalePriceIncludesGst(prefs.salePriceIncludesGst);
   if (saleIncludes) prefs.salePriceIncludesGst = saleIncludes;
 
+  if (!String(prefs.marketingBudget ?? '').trim()) {
+    const ownMarketingBudget = firstNonEmpty(prefs.ownMarketingBudget);
+    if (ownMarketingBudget) prefs.marketingBudget = ownMarketingBudget;
+  }
+
   if (!positiveAmount(prefs.monthlyBudget)) {
     const budget = firstNonEmpty(
       prefs.monthlyBudget,
       prefs.campaignBudget,
       prefs.monthlyExpense,
       prefs.marketingBudget,
+      prefs.ownMarketingBudget,
       prefs.targetSales,
       prefs.coverTarget,
       prefs.avgTicket
     );
     if (positiveAmount(budget)) prefs.monthlyBudget = budget;
+  }
+
+  if (!String(prefs.conversionGoal ?? '').trim()) {
+    const primaryTarget = firstNonEmpty(prefs.primaryTarget);
+    if (primaryTarget) prefs.conversionGoal = primaryTarget;
   }
 
   const purpose = firstNonEmpty(prefs.offering, prefs.campaignPurpose);
@@ -720,6 +732,7 @@ export function applyOperatingSetupAliases(
       prefs.monthlyChargeTarget,
       prefs.targetSales,
       prefs.leadGoal,
+      prefs.primaryTarget,
       prefs.conversionGoal,
       prefs.monthlyOutput,
       prefs.monthlyJobs,
@@ -859,12 +872,13 @@ export function normalizeOperatingPreferences(
   const partyField =
     subtype === 'CLIENT_CAMPAIGN'
       ? 'clientName'
-      : RETAIL_SUBTYPES.has(subtype)
-        || subtype === 'TRADING_WHOLESALE'
-        || subtype === 'DISTRIBUTION_DEALERSHIP'
-          || subtype === 'OWN_BUSINESS_CAMPAIGN'
-        ? 'companyName'
-        : 'partyName';
+      : subtype === 'OWN_BUSINESS_CAMPAIGN'
+        ? 'brandName'
+        : RETAIL_SUBTYPES.has(subtype)
+          || subtype === 'TRADING_WHOLESALE'
+          || subtype === 'DISTRIBUTION_DEALERSHIP'
+          ? 'companyName'
+          : 'partyName';
   if (!draft) {
     if (!identityName) {
       fieldFail('Moment name is required.', { [identityField]: 'Moment name is required.' });
