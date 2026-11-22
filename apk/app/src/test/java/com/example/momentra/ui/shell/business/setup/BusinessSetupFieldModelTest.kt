@@ -182,11 +182,67 @@ class BusinessSetupFieldModelTest {
         val trading = BusinessSetupDocuments.spec("TRADING_WHOLESALE")
         val distribution = BusinessSetupDocuments.spec("DISTRIBUTION_DEALERSHIP")
         assertEquals("Start this business", trading.activateLabel)
-        assertEquals("Start the business!", distribution.activateLabel)
+        assertEquals("Start this business", distribution.activateLabel)
         assertTrue(trading.sectionTitles.contains("Catalogue, Warehouses & Network"))
         assertEquals(
             com.example.momentra.ui.theme.generated.BusinessDomain.TRADING,
             BusinessSetupTheme.forTypeCode("TRADING_WHOLESALE").domain,
+        )
+    }
+
+    @Test
+    fun distributionMatchesFigma8637FiveSections() {
+        val spec = BusinessSetupDocuments.spec("DISTRIBUTION_DEALERSHIP")
+        assertEquals("Metro Distribution Setup", spec.heroTitle)
+        assertEquals(
+            "Bring your business, people, and monthly plan together before you start.",
+            spec.heroSubtitle,
+        )
+        assertEquals("Start this business", spec.activateLabel)
+        assertEquals("businessName", spec.defaultTitleKey)
+        assertEquals(
+            listOf(
+                "Business Basics",
+                "People & Roles",
+                "Channels & Monthly Plan",
+                "GST & Tax Details",
+                "Review your setup",
+            ),
+            spec.sectionTitles,
+        )
+        assertTrue(spec.sections.none { it.id == "network" })
+        val keys = spec.sections.flatMap { it.fields.map { f -> f.key } }.toSet()
+        assertTrue(
+            keys.containsAll(
+                listOf(
+                    "businessName", "companyName", "gstin", "currency", "startDate", "endDate",
+                    "description", "location", "roles", "channels", "planMonth",
+                    "monthlyBudget", "monthlyTarget", "targetMetric",
+                    "gstTracking", "gstRegistration", "gstState", "salePriceIncludesGst",
+                ),
+            ),
+        )
+        assertTrue(!keys.contains("principalBrand"))
+        assertTrue(!keys.contains("territory"))
+        assertTrue(!keys.contains("routeStyle"))
+        assertTrue(!keys.contains("dealerCount"))
+        assertTrue(!keys.contains("targetSales"))
+        assertTrue(!keys.contains("modules"))
+        val channels = spec.sections
+            .flatMap { it.fields }
+            .first { it.key == "channels" }
+            .kind as BusinessSetupFieldSpec.Kind.MultiChoice
+        assertEquals(
+            listOf("Retail dealers", "Wholesale", "Modern trade", "HoReCa", "Van sales"),
+            channels.options,
+        )
+        val roles = spec.sections
+            .flatMap { it.fields }
+            .first { it.key == "roles" }
+            .kind as BusinessSetupFieldSpec.Kind.MultiChoice
+        assertEquals(
+            listOf("Owner", "Manager", "Route lead", "Warehouse", "Salesman"),
+            roles.options,
         )
     }
 

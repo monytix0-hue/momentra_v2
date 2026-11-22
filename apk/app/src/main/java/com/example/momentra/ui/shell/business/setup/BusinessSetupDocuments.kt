@@ -412,62 +412,89 @@ object BusinessSetupDocuments {
         ),
     )
 
+    /** Figma `5:8637` — five sections (Catalogue/Network omitted by product choice). */
     val distribution = BusinessSetupDocumentSpec(
         typeCode = "DISTRIBUTION_DEALERSHIP",
         familyTitle = "Trading",
         eyebrow = "Distribution",
-        heroTitle = "Set up distribution",
-        heroSubtitle = "Routes, dealers, and collections for a distribution moment.",
-        activateLabel = "Start the business!",
+        heroTitle = "Metro Distribution Setup",
+        heroSubtitle = "Bring your business, people, and monthly plan together before you start.",
+        activateLabel = "Start this business",
         defaultTitleKey = "businessName",
         sections = listOf(
             section(
-                "basics", "Business Basics", "Who you distribute as.",
+                "basics", "Business Basics", "A home for this distribution business.",
                 listOf(
-                    text("businessName", "Distributor name", "Coastal Distributors"),
-                    text("principalBrand", "Principal / brand", "Optional"),
-                    text("territory", "Territory", "West zone"),
-                    text("gstin", "GSTIN", "Optional"),
+                    panelHeader("panelIdentity", "Identity"),
+                    text("businessName", "Business name", "Metro Distribution"),
+                    text(
+                        "companyName", "Company name", "Metro Distribution",
+                        helper = "Registered company name",
+                    ),
+                    text(
+                        "gstin", "GSTIN", "27AAKCM4321D1Z2",
+                        helper = "15-digit GSTIN, if you have one",
+                    ),
+                    text("currency", "Currency", "INR · Indian Rupee (₹)"),
+                    date("startDate", "Start date", "12 October 2026"),
+                    date("endDate", "End date", "Still open"),
+                    panelHeader("panelDates", "Dates & more"),
+                    text("description", "Description", "Everyday notes about this business"),
+                    text("location", "Location", "Add your DC location"),
                 ),
             ),
             section(
-                "people", "People & Roles", "Field and office roles.",
+                "people", "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
                 listOf(
                     memberList("teamMembers", "Team", listOf("You (Owner)")),
-                    multiChoice("roles", "Roles", listOf("Owner", "Manager", "Delivery", "Salesman")),
-                    rowAction("addPeople", "Add Member / Invite Member", "Add"),
-                ),
-            ),
-            section(
-                "channels", "Channels & Monthly Plan", "Coverage and collections.",
-                listOf(
-                    choice("routeStyle", "Coverage", listOf("Beat routes", "Dealer network", "Both")),
-                    text("dealerCount", "Approx. dealers", "40"),
-                    text("collectionCycle", "Collection cycle", "Weekly"),
-                    text("targetSales", "Target sales", "₹10,00,000"),
-                ),
-            ),
-            section(
-                "network", "Catalogue, Warehouses & Network", "Modules that light up after start.",
-                listOf(
-                    moduleList(
-                        "modules", "Modules",
-                        listOf(
-                            "Catalogue & Bills",
-                            "Dealer network",
-                            "Delivery & Logistics",
-                            "Suppliers & Buyers",
-                            "Team Tasks & Chat",
-                        ),
+                    multiChoice(
+                        "roles", "Roles on invite",
+                        listOf("Owner", "Manager", "Route lead", "Warehouse", "Salesman"),
+                        helper = "Default Salesman · own beat orders & collections. Role applies when they join.",
                     ),
                 ),
             ),
             section(
-                "gst", "GST & Tax Details", "Registration for distribution.",
+                "channels", "Channels & Monthly Plan", "Where do you sell? Choose at least one.",
                 listOf(
-                    toggle("gstRegistered", "Registered for GST?"),
-                    choice("gstType", "Registration type", listOf("Regular", "Composition", "Unregistered")),
-                    text("gstState", "State", "Maharashtra"),
+                    panelHeader("panelChannels", "Channels"),
+                    multiChoice(
+                        "channels", "Channels",
+                        listOf("Retail dealers", "Wholesale", "Modern trade", "HoReCa", "Van sales"),
+                        helper = "These are the places you sell or serve. They are not a different kind of business.",
+                    ),
+                    date("planMonth", "Month", "October 2026"),
+                    text("monthlyBudget", "Monthly budget", "₹60,00,000", helper = "Amount"),
+                    text("monthlyTarget", "Monthly sales target", "₹90,00,000", helper = "Amount"),
+                    text("targetMetric", "How the target is measured", "Revenue"),
+                ),
+            ),
+            section(
+                "gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.",
+                listOf(
+                    panelHeader("panelTracking", "Tracking"),
+                    choice(
+                        "gstTracking", "Do you want to track GST in this Moment?",
+                        listOf("Yes", "Not now"),
+                        helper = "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.",
+                    ),
+                    panelHeader("panelRegistration", "Registration"),
+                    choice(
+                        "gstRegistration", "How is your business registered for GST?",
+                        listOf("Regular", "Composition", "Unregistered", "Not sure"),
+                    ),
+                    text(
+                        "gstState", "Which state is your business registered in?", "Maharashtra",
+                        helper = "State",
+                    ),
+                    panelHeader("panelPricing", "Pricing"),
+                    choice(
+                        "salePriceIncludesGst", "Do prices include GST?",
+                        listOf("Prices include GST", "GST is added separately"),
+                        helper = "Your GSTIN stays the one entered above. It is stored as a reference only.",
+                    ),
+                    date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
                 ),
             ),
             section(
@@ -475,7 +502,14 @@ object BusinessSetupDocuments {
                 listOf(
                     reviewSummary(
                         "review", "Summary",
-                        listOf("businessName", "territory", "routeStyle", "dealerCount", "targetSales"),
+                        listOf(
+                            "companyName",
+                            "gstin",
+                            "channels",
+                            "monthlyBudget",
+                            "monthlyTarget",
+                            "targetMetric",
+                        ),
                     ),
                 ),
             ),
