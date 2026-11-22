@@ -219,49 +219,108 @@ enum BusinessSetupDocuments {
         ]
     )
 
+    /// Figma `5:38325` MKT-OWN-SETUP-v6 — Network section omitted (five sections).
     static let ownMarketing = BusinessSetupDocumentSpec(
         typeCode: "OWN_BUSINESS_CAMPAIGN",
         familyTitle: "Marketing",
-        eyebrow: "Own business",
-        heroTitle: "Promote your own business",
-        heroSubtitle: "Track ads, offers, and inbound interest for your brand — not a client.",
+        eyebrow: "Own Business Campaign",
+        heroTitle: "Harbor & Loom Setup",
+        heroSubtitle: "Bring your business, people, and monthly plan together before you start.",
         activateLabel: "Start this business",
         defaultTitleKey: "campaignName",
         sections: [
-            section("basics", "Business Basics", "What you're promoting.", [
-                text("campaignName", "Campaign name", "Summer launch"),
-                text("brandName", "Brand / business", "Harbor Mart"),
-                choice("offerType", "Offer type", ["Promotion", "Launch", "Always-on"]),
-                date("startDate", "Start date", "01 Nov 2024"),
-                text("currency", "Currency", "INR"),
+            section("basics", "Business Basics", "Name the campaign and what it promotes.", [
+                panelHeader("panelIdentity", "Identity"),
+                text("campaignName", "Campaign name", "Harbor & Loom launch"),
+                text("brandName", "Promoted brand", "Harbor & Loom", helper: "Your company — not a client"),
+                text("gstin", "GSTIN", "29ABCDE4321T1Z5", helper: "15-digit GSTIN, if you have one"),
+                text("currency", "Currency", "INR · Indian Rupee (₹)"),
+                date("startDate", "Start date", "12 October 2026"),
+                date("endDate", "End date", "Still open"),
+                panelHeader("panelPurpose", "Purpose & structure"),
+                multiChoice(
+                    "campaignPurpose",
+                    "Campaign purpose",
+                    ["Awareness", "Leads", "Sales", "Traffic", "Retention"]
+                ),
+                choice("offerType", "Structure", ["One-time", "Ongoing"]),
+                text("promotedProducts", "Promoted products", "Seasonal collection, hero SKU"),
+                panelHeader("panelMore", "More"),
+                text("description", "Description", "Everyday notes about this campaign"),
+                text("location", "Location", "Add a region or outlet"),
             ]),
-            section("people", "People & Roles", "Who owns the spend.", [
-                memberList("teamMembers", "Team", ["You (Owner)"]),
-                multiChoice("roles", "Roles", ["Owner", "Admin", "Marketer", "Viewer"]),
-                rowAction("addPeople", "Add member", "Add"),
+            section(
+                "people",
+                "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
+                [
+                    memberList("teamMembers", "Team", ["You (Owner)"]),
+                    multiChoice(
+                        "roles",
+                        "Roles on invite",
+                        ["Owner", "Admin", "Campaign Lead", "Finance", "Approver"],
+                        helper: "Default Campaign Lead · plan, launch, measure. Role applies when they join."
+                    ),
+                ]
+            ),
+            section("channels", "Channels & Monthly Plan", "Where you run it, budget, and targets.", [
+                panelHeader("panelChannels", "Channels"),
+                multiChoice(
+                    "channels",
+                    "Channels",
+                    ["Paid social", "Search", "Print", "Influencer", "Events", "Store window"],
+                    helper: "These are where you run creative — not separate businesses."
+                ),
+                text(
+                    "marketingBudget",
+                    "Own marketing budget",
+                    "₹2,00,000",
+                    helper: "Overall envelope for this campaign"
+                ),
+                date("planMonth", "Month", "October 2026"),
+                text("monthlyBudget", "Monthly budget", "₹50,000", helper: "Amount"),
+                text("conversionGoal", "Primary target", "Store visits / sales", helper: "What success looks like"),
+                text("targetMetric", "Target unit", "Leads"),
+                text("supportingTarget", "Supporting target", "Optional secondary metric"),
             ]),
-            section("network", "Network / Counterparties", "Channels and tools you use.", [
-                moduleList("modules", "Modules", [
-                    "Ad platforms",
-                    "Landing pages",
-                    "CRM / leads",
-                    "Creative assets",
-                ]),
-            ]),
-            section("channels", "Channels & Monthly Plan", "Where your ads run.", [
-                multiChoice("channels", "Channels", ["Meta", "Google", "WhatsApp", "Other"]),
-                text("monthlyBudget", "Monthly budget", "₹50,000"),
-                text("conversionGoal", "Conversion goal", "Store visits / sales"),
-            ]),
-            section("gst", "GST & Tax Details", "Your business registration.", [
-                toggle("gstRegistered", "Registered for GST?"),
-                choice("gstType", "Registration type", ["Regular", "Composition", "Unregistered"]),
-                text("gstState", "State", "Maharashtra"),
-                text("gstin", "GSTIN", "Optional"),
+            section("gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.", [
+                panelHeader("panelTracking", "Tracking"),
+                choice(
+                    "gstTracking",
+                    "Do you want to track GST in this Moment?",
+                    ["Yes", "Not now"],
+                    helper: "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt."
+                ),
+                panelHeader("panelRegistration", "Registration"),
+                choice(
+                    "gstRegistration",
+                    "How is your business registered for GST?",
+                    ["Regular", "Composition", "Unregistered", "Not sure"]
+                ),
+                text(
+                    "gstState",
+                    "Which state is your business registered in?",
+                    "Maharashtra",
+                    helper: "State"
+                ),
+                panelHeader("panelPricing", "Pricing"),
+                choice(
+                    "salePriceIncludesGst",
+                    "Do prices include GST?",
+                    ["Prices include GST", "GST is added separately"],
+                    helper: "Your GSTIN stays the one entered above. It is stored as a reference only."
+                ),
+                date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
             ]),
             section("review", "Review your setup", "Confirm before you start.", [
                 reviewSummary("review", "Summary", [
-                    "campaignName", "brandName", "offerType", "monthlyBudget", "conversionGoal",
+                    "campaignName",
+                    "brandName",
+                    "gstin",
+                    "channels",
+                    "monthlyBudget",
+                    "conversionGoal",
+                    "targetMetric",
                 ]),
             ]),
         ]
