@@ -8,9 +8,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-/** Copy for the Operating “Setup activated” toast after business moment activate. */
+/** Copy for the Operating activate toast after business moment activate (animated ✓). */
 object BusinessSetupActivateToastCopy {
-    const val DEFAULT_TITLE = "Setup activated"
+    const val DEFAULT_TITLE = "Moment activated"
 
     fun subtitle(momentTitle: String, momentTypeCode: String?): String {
         val name = momentTitle.trim()
@@ -18,7 +18,7 @@ object BusinessSetupActivateToastCopy {
         val livePhrase = when (code) {
             "DISTRIBUTION_DEALERSHIP" -> "Distribution is live"
             "TRADING_WHOLESALE" -> "Trading is live"
-            "CLIENT_CAMPAIGN" -> "Campaign is live"
+            "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN" -> "Campaign is live"
             else -> "is live"
         }
         return "$name · $livePhrase · opening Pulse"

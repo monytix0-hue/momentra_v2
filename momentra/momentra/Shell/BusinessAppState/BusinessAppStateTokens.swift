@@ -19,6 +19,8 @@ enum BusinessAppStateAccent: String, CaseIterable {
     case cyan
     /// Client Campaign indigo `#6366F1`.
     case indigo
+    /// Own Business Campaign magenta `#D946EF`.
+    case magenta
 
     var color: Color {
         switch self {
@@ -28,11 +30,12 @@ enum BusinessAppStateAccent: String, CaseIterable {
         case .flame: return BusinessTokens.Colors.restaurantAccent
         case .cyan: return BusinessTokens.Colors.signalInfo
         case .indigo: return BusinessTokens.Colors.marketingAccent
+        case .magenta: return BusinessTokens.Colors.marketingOwnAccent
         }
     }
 
     /// Trading wholesale → Emerald; Distribution dealership → Flame (`#EA580C`); Retail → Rose;
-    /// Client Campaign → Indigo; else Emerald.
+    /// Client Campaign → Indigo; Own Business Campaign → Magenta; else Emerald.
     /// ViewAll screens pass `.cyan` explicitly at the call site.
     static func forTypeCode(_ momentTypeCode: String?) -> BusinessAppStateAccent {
         switch momentTypeCode?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
@@ -41,6 +44,7 @@ enum BusinessAppStateAccent: String, CaseIterable {
         case "RETAIL_STORE": return .rose
         case "RESTAURANT_FOOD": return .flame
         case "CLIENT_CAMPAIGN": return .indigo
+        case "OWN_BUSINESS_CAMPAIGN": return .magenta
         default: return .emerald
         }
     }

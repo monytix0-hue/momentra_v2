@@ -26,6 +26,8 @@ enum class BusinessAppStateAccent(val color: Color) {
     Cyan(BusinessTokens.Colors.SignalInfo),
     /** Client Campaign indigo `#6366F1`. */
     Indigo(BusinessTokens.Colors.MARKETINGAccent),
+    /** Own Business Campaign magenta `#D946EF`. */
+    Magenta(BusinessTokens.Colors.MARKETING_OWNAccent),
     ;
 
     companion object {
@@ -33,7 +35,7 @@ enum class BusinessAppStateAccent(val color: Color) {
          * Resolve the accent for an operating moment subtype code.
          *
          * Trading wholesale → Emerald; Distribution dealership → Flame (`#EA580C`); Retail → Rose;
-         * Client Campaign → Indigo; Services/MFG/Own Marketing → Emerald unless they grow own accents.
+         * Client Campaign → Indigo; Own Business Campaign → Magenta; Services/MFG → Emerald.
          * ViewAll screens pass [Cyan] explicitly at the call site.
          */
         fun forTypeCode(momentTypeCode: String?): BusinessAppStateAccent =
@@ -43,6 +45,7 @@ enum class BusinessAppStateAccent(val color: Color) {
                 "RETAIL_STORE" -> Rose
                 "RESTAURANT_FOOD" -> Flame
                 "CLIENT_CAMPAIGN" -> Indigo
+                "OWN_BUSINESS_CAMPAIGN" -> Magenta
                 else -> Emerald
             }
     }

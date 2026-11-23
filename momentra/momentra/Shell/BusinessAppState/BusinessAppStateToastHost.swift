@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Copy for the Operating “Setup activated” toast after business moment activate.
+/// Copy for the Operating activate toast after business moment activate (animated ✓).
 enum BusinessSetupActivateToastCopy {
-    static let defaultTitle = "Setup activated"
+    static let defaultTitle = "Moment activated"
 
     static func subtitle(momentTitle: String, momentTypeCode: String?) -> String {
         let name = momentTitle.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -15,7 +15,7 @@ enum BusinessSetupActivateToastCopy {
             livePhrase = "Distribution is live"
         case "TRADING_WHOLESALE":
             livePhrase = "Trading is live"
-        case "CLIENT_CAMPAIGN":
+        case "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN":
             livePhrase = "Campaign is live"
         default:
             livePhrase = "is live"
