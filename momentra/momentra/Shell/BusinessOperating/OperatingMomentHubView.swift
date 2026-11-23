@@ -66,7 +66,7 @@ enum WidgetCoveragePresentation: String {
     }
 }
 
-private struct HubPalette {
+struct HubPalette {
     let bg: Color
     let card: Color
     let border: Color
@@ -77,8 +77,20 @@ private struct HubPalette {
 
     static func forType(subtype: String?, family: String?) -> HubPalette {
         let code = subtype?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        let trading = code == "TRADING_WHOLESALE" || code == "DISTRIBUTION_DEALERSHIP" || family == "TRADING_DISTRIBUTION"
-        if trading {
+        if code == DistributionDealershipHub.typeCode {
+            return HubPalette(
+                bg: BusinessTokens.Colors.distributionCanvas,
+                card: BusinessTokens.Colors.distributionSurface,
+                border: BusinessTokens.Colors.distributionAccent.opacity(0.28),
+                muted: BusinessTokens.Colors.distributionHint,
+                text: BusinessTokens.Colors.distributionLabel,
+                accent: BusinessTokens.Colors.distributionAccent,
+                onAccent: BusinessTokens.Colors.distributionOnAccent
+            )
+        }
+        let tradingWholesale = code == "TRADING_WHOLESALE" ||
+            (family == "TRADING_DISTRIBUTION" && code != DistributionDealershipHub.typeCode)
+        if tradingWholesale {
             return HubPalette(
                 bg: BusinessTokens.Colors.tradingCanvas,
                 card: Color(hex: "#111827"),
@@ -118,10 +130,14 @@ struct OperatingMomentHubView: View {
     let momentId: String
     let momentTitle: String?
     var momentTypeCode: String? = nil
+    var companyId: String? = nil
     let tab: OperatingHubTab
     let refreshToken: Int
     var onCreateMoment: () -> Void = {}
     var onOpenQuickAdd: () -> Void = {}
+    var onViewAllAttention: () -> Void = {}
+    var onQuickAddCode: (String) -> Void = { _ in }
+    var onGenerateStory: () -> Void = {}
 
     @State private var projection: OperatingProjectionPayload?
     @State private var widgets: WidgetsProjectionPayload?
@@ -139,27 +155,60 @@ struct OperatingMomentHubView: View {
         HubPalette.forType(subtype: momentTypeCode ?? projection?.subtype, family: projection?.familyCode)
     }
 
+    private var typeCode: String? {
+        (momentTypeCode ?? projection?.subtype)?.uppercased()
+    }
+
+    private var isDistribution: Bool {
+        DistributionDealershipHub.isDistribution(typeCode)
+    }
+
+    private var isTradingWholesale: Bool {
+        typeCode == "TRADING_WHOLESALE"
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text(familyKicker(projection?.familyCode))
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(palette.accent)
-                Text(projection?.subtypeLabel ?? momentTitle ?? "Business moment")
+                if isDistribution, projection != nil {
+                    DistributionHeroHeader(
+                        projection: projection,
+                        momentTitle: momentTitle,
+                        companyId: companyId ?? projection?.companyId,
+                        palette: palette
+                    )
+                } else {
+                    Text(familyKicker(projection?.familyCode))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(palette.accent)
+                    Text(
+                        projection?.title.flatMap { $0.isEmpty ? nil : $0 }
+                            ?? momentTitle
+                            ?? projection?.subtypeLabel
+                            ?? "Business moment"
+                    )
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(palette.text)
-                if (momentTypeCode ?? projection?.subtype)?.uppercased() == "CLIENT_CAMPAIGN" {
-                    Text("Plan. Launch. Measure.")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(palette.accent)
+                    if typeCode == "CLIENT_CAMPAIGN" {
+                        Text("Plan. Launch. Measure.")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(palette.accent)
+                    }
+                    if let party = projection?.partyName, !party.isEmpty {
+                        Text(party).font(.system(size: 13)).foregroundStyle(palette.muted)
+                    }
+                    if let role = projection?.role, !role.isEmpty {
+                        Text(role.replacingOccurrences(of: "_", with: " "))
+                            .font(.system(size: 12))
+                            .foregroundStyle(palette.accent)
+                    }
                 }
-                if let party = projection?.partyName, !party.isEmpty {
-                    Text(party).font(.system(size: 13)).foregroundStyle(palette.muted)
-                }
-                if let role = projection?.role, !role.isEmpty {
-                    Text(role.replacingOccurrences(of: "_", with: " "))
-                        .font(.system(size: 12))
-                        .foregroundStyle(palette.accent)
+
+                if tab != .quickAdd && (isDistribution || isTradingWholesale) {
+                    DistributionQuickActionStrip(palette: palette) { code in
+                        BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: code)
+                        onQuickAddCode(code)
+                    }
                 }
 
                 if loading && projection == nil {
@@ -229,6 +278,9 @@ struct OperatingMomentHubView: View {
         if clientCampaign {
             return ClientCampaignHubWidgets.displayTitle(widgetId: w.widgetId, serverTitle: server)
         }
+        if DistributionDealershipHub.isDistribution(typeCode) {
+            return DistributionDealershipHub.displayTitle(widgetId: w.widgetId, serverTitle: server)
+        }
         return server.isEmpty ? w.widgetId : server
     }
 
@@ -248,6 +300,10 @@ struct OperatingMomentHubView: View {
                 && !clientCampaignPulseWidgets.isEmpty
             if skipPulseFallback {
                 EmptyView()
+            } else if isDistribution {
+                ForEach(projection?.pulseMetrics ?? []) { group in
+                    pulseGroupCard(group, distribution: true)
+                }
             } else {
                 let groups = projection?.pulseMetrics ?? []
                 if !groups.isEmpty {
@@ -330,14 +386,25 @@ struct OperatingMomentHubView: View {
     }
 
     @ViewBuilder
-    private func pulseGroupCard(_ group: OperatingPulseMetricGroupPayload) -> some View {
+    private func pulseGroupCard(_ group: OperatingPulseMetricGroupPayload, distribution: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(pulseGroupTitle(group.code))
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(palette.text)
+            HStack {
+                Text(pulseGroupTitle(group.code))
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(palette.text)
+                Spacer()
+                if distribution && group.code.uppercased() == "ATTENTION" {
+                    Button("View all ›", action: onViewAllAttention)
+                        .font(.system(size: 12))
+                        .foregroundStyle(palette.accent)
+                }
+            }
             metricTiles(group.metrics ?? [])
             if let why = group.why, !why.isEmpty {
-                Text(why).font(.system(size: 12)).foregroundStyle(palette.muted)
+                Text(why)
+                    .font(.system(size: 12))
+                    .italic(distribution)
+                    .foregroundStyle(palette.muted)
             }
         }
         .padding(16)
@@ -386,7 +453,11 @@ struct OperatingMomentHubView: View {
                     Text(m.label.isEmpty ? m.key : m.label)
                         .font(.system(size: 11))
                         .foregroundStyle(palette.muted)
-                    Text(m.value.isEmpty ? "Not recorded" : m.value)
+                    Text(
+                        isDistribution
+                            ? DistributionDealershipHub.formatMetricValue(m.value)
+                            : (m.value.isEmpty ? "Not recorded" : m.value)
+                    )
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(palette.text)
                 }
@@ -430,8 +501,13 @@ struct OperatingMomentHubView: View {
             ($0.screen ?? "").caseInsensitiveCompare(screen) == .orderedSame
         }
         let list: [OperatingWidgetPayload] = {
-            guard subtype == ClientCampaignHubWidgets.typeCode else { return filtered }
-            return ClientCampaignHubWidgets.sortWidgets(screen: screen, widgets: filtered)
+            if subtype == ClientCampaignHubWidgets.typeCode {
+                return ClientCampaignHubWidgets.sortWidgets(screen: screen, widgets: filtered)
+            }
+            if DistributionDealershipHub.isDistribution(subtype) {
+                return DistributionDealershipHub.sortWidgets(screen: screen, widgets: filtered)
+            }
+            return filtered
         }()
         if !list.isEmpty {
             Text("Widgets")
@@ -578,7 +654,9 @@ struct OperatingMomentHubView: View {
             let op = try await APIClient.shared.getOperatingMoment(momentId: momentId)
             projection = op
             if selectedQuickAdd.isEmpty {
-                selectedQuickAdd = op.quickAdds?.first?.code ?? ""
+                selectedQuickAdd = BusinessMomentFamilyConfig.consumePendingQuickAdd(momentId: momentId)
+                    ?? op.quickAdds?.first?.code
+                    ?? ""
             }
             error = nil
         } catch {

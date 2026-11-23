@@ -64,53 +64,6 @@ import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.theme.generated.BusinessTokens
 import kotlinx.coroutines.launch
 
-private data class HubPalette(
-    val bg: Color,
-    val card: Color,
-    val border: Color,
-    val muted: Color,
-    val text: Color,
-    val accent: Color,
-    val onAccent: Color,
-)
-
-private fun hubPaletteFor(typeCode: String?, familyCode: String?): HubPalette {
-    val trading = typeCode?.uppercase() in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP") ||
-        familyCode == "TRADING_DISTRIBUTION"
-    return if (trading) {
-        HubPalette(
-            bg = BusinessTokens.Colors.TRADINGCanvas,
-            card = Color(0xFF111827),
-            border = BusinessTokens.Colors.TRADINGAccent.copy(alpha = 0.28f),
-            muted = Color(0xFF94A3B8),
-            text = Color(0xFFF1F5F9),
-            accent = BusinessTokens.Colors.TRADINGAccent,
-            onAccent = BusinessTokens.Colors.TRADINGOnAccent,
-        )
-    } else {
-        val accent = BusinessAppStateAccent.forTypeCode(typeCode).color
-        HubPalette(
-            bg = Color(0xFF0C0F15),
-            card = Color(0xFF161B26),
-            border = Color(0xFF1E293B),
-            muted = Color(0xFF94A3B8),
-            text = Color(0xFFE5E0EE),
-            accent = accent,
-            onAccent = Color(0xFF0C0F15),
-        )
-    }
-}
-
-private fun pulseGroupTitle(code: String): String = when (code.uppercase()) {
-    "TARGET_BUDGET" -> "Target & budget"
-    "FINANCE" -> "Finance"
-    "PAYMENT_READINESS" -> "Payment readiness"
-    "ATTENTION" -> "Needs Attention"
-    "ACTIVITY" -> "Activity"
-    "GST" -> "GST"
-    else -> code.replace('_', ' ')
-}
-
 enum class OperatingTab { PULSE, MOMENTS, LIFE, MEMORY, QUICK_ADD }
 
 object OperatingProjectionCache {
@@ -153,6 +106,10 @@ fun OperatingMomentPage(
     onCreateMoment: () -> Unit,
     onOpenQuickAdd: () -> Unit = {},
     onViewAllAttention: () -> Unit = {},
+    companyId: String? = null,
+    onSwitchMoment: () -> Unit = {},
+    onQuickAddCode: (String) -> Unit = {},
+    onGenerateStory: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (momentId.isNullOrBlank()) {
@@ -204,6 +161,9 @@ fun OperatingMomentPage(
     }
 
     val palette = hubPaletteFor(momentTypeCode ?: model?.subtype, model?.familyCode)
+    val typeCode = (momentTypeCode ?: model?.subtype)?.uppercase()
+    val isDistribution = DistributionDealershipHub.isDistribution(typeCode)
+    val isTradingWholesale = typeCode == "TRADING_WHOLESALE"
 
     Column(
         modifier = modifier
@@ -213,38 +173,60 @@ fun OperatingMomentPage(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            familyKicker(model?.familyCode),
-            color = palette.accent,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = PlusJakartaSans,
-        )
-        Text(
-            model?.subtypeLabel ?: momentTitle ?: "Business moment",
-            color = palette.text,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 22.sp,
-            fontFamily = PlusJakartaSans,
-        )
-        val typeCode = (momentTypeCode ?: model?.subtype)?.uppercase()
-        if (typeCode == "CLIENT_CAMPAIGN") {
+        if (isDistribution && model != null) {
+            DistributionHeroHeader(model, momentTitle, palette, companyId ?: model.companyId)
+        } else {
             Text(
-                "Plan. Launch. Measure.",
-                color = palette.accent,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = PlusJakartaSans,
-            )
-        }
-        Text(model?.partyName.orEmpty(), color = palette.muted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
-        if (!model?.role.isNullOrBlank()) {
-            Text(
-                model!!.role!!.replace('_', ' '),
+                familyKicker(model?.familyCode),
                 color = palette.accent,
                 fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
                 fontFamily = PlusJakartaSans,
             )
+            Text(
+                model?.title?.takeIf { it.isNotBlank() } ?: momentTitle ?: model?.subtypeLabel ?: "Business moment",
+                color = palette.text,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 22.sp,
+                fontFamily = PlusJakartaSans,
+            )
+            if (typeCode == "CLIENT_CAMPAIGN") {
+                Text(
+                    "Plan. Launch. Measure.",
+                    color = palette.accent,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+            model?.partyName?.takeIf { it.isNotBlank() }?.let {
+                Text(it, color = palette.muted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+            }
+            if (!model?.role.isNullOrBlank()) {
+                Text(
+                    model!!.role!!.replace('_', ' '),
+                    color = palette.accent,
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+        }
+
+        if (tab != OperatingTab.QUICK_ADD && (isDistribution || isTradingWholesale)) {
+            DistributionQuickActionStrip(palette) { code ->
+                momentId?.let { BusinessMomentFamilyConfig.setPendingQuickAdd(it, code) }
+                onQuickAddCode(code)
+            }
+        }
+
+        when (tab) {
+            OperatingTab.MOMENTS -> if (isDistribution) DistributionMomentsHero(model, palette)
+            OperatingTab.LIFE -> if (isDistribution) {
+                DistributionLifeHeader(palette)
+                DistributionPaymentChips(model, palette)
+            }
+            OperatingTab.MEMORY -> if (isDistribution) DistributionMemoryHero(model, palette)
+            else -> Unit
         }
 
         if (loading && model == null) {
@@ -272,10 +254,12 @@ fun OperatingMomentPage(
             -> {
                 val screen = screenCode(tab)!!
                 val screenWidgets = widgets?.widgets.orEmpty().filter { it.screen.equals(screen, ignoreCase = true) }
-                val tabWidgets = if (typeCode == ClientCampaignHubWidgets.TYPE_CODE) {
-                    ClientCampaignHubWidgets.presentForClient(screen, screenWidgets)
-                } else {
-                    screenWidgets
+                val tabWidgets = when {
+                    typeCode == ClientCampaignHubWidgets.TYPE_CODE ->
+                        ClientCampaignHubWidgets.presentForClient(screen, screenWidgets)
+                    isDistribution ->
+                        DistributionDealershipHub.presentWidgets(screen, screenWidgets)
+                    else -> screenWidgets
                 }
                 WidgetBlocks(
                     widgets = tabWidgets,
@@ -292,9 +276,15 @@ fun OperatingMomentPage(
                     },
                 )
                 if (tab == OperatingTab.PULSE) {
-                    val skipPulseFallback = typeCode == ClientCampaignHubWidgets.TYPE_CODE && tabWidgets.isNotEmpty()
-                    if (!skipPulseFallback) {
-                        PulseFallback(model, palette, onViewAllAttention)
+                    when {
+                        isDistribution ->
+                            DistributionPulseMetricCards(
+                                groups = model?.pulseMetrics.orEmpty(),
+                                palette = palette,
+                                onViewAllAttention = onViewAllAttention,
+                            )
+                        typeCode == ClientCampaignHubWidgets.TYPE_CODE && tabWidgets.isNotEmpty() -> Unit
+                        else -> PulseFallback(model, palette, onViewAllAttention)
                     }
                 } else {
                     val sections = when (tab) {
@@ -305,26 +295,58 @@ fun OperatingMomentPage(
                     BoardSections(sections, momentsHeading(model?.familyCode, tab, typeCode), palette)
                 }
             }
-            OperatingTab.QUICK_ADD -> TypedOperatingQuickAddForm(
-                model = model,
-                palette = palette,
-                onSubmit = { eventType, title, amount ->
-                    repo.recordOperatingEvent(
-                        momentId = momentId,
-                        eventType = eventType,
-                        title = title,
-                        amount = amount,
-                        note = null,
-                    ).fold(
-                        onSuccess = {
-                            confirm = "Saved $title"
-                            OperatingProjectionCache.invalidate(momentId)
-                            tick += 1
+            OperatingTab.QUICK_ADD -> {
+                val pending = BusinessMomentFamilyConfig.consumePendingQuickAdd(momentId)
+                if (isDistribution) {
+                    DistributionQuickAddHub(
+                        adds = model?.quickAdds.orEmpty(),
+                        palette = palette,
+                        initialCode = pending,
+                        onSubmit = { eventType, title, amount ->
+                            repo.recordOperatingEvent(
+                                momentId = momentId,
+                                eventType = eventType,
+                                title = title,
+                                amount = amount,
+                                note = null,
+                            ).fold(
+                                onSuccess = {
+                                    confirm = "Saved $title"
+                                    OperatingProjectionCache.invalidate(momentId)
+                                    tick += 1
+                                },
+                                onFailure = { error = it.message },
+                            )
                         },
-                        onFailure = { error = it.message },
                     )
-                },
-            )
+                } else {
+                    TypedOperatingQuickAddForm(
+                        model = model,
+                        palette = palette,
+                        initialCode = pending,
+                        onSubmit = { eventType, title, amount ->
+                            repo.recordOperatingEvent(
+                                momentId = momentId,
+                                eventType = eventType,
+                                title = title,
+                                amount = amount,
+                                note = null,
+                            ).fold(
+                                onSuccess = {
+                                    confirm = "Saved $title"
+                                    OperatingProjectionCache.invalidate(momentId)
+                                    tick += 1
+                                },
+                                onFailure = { error = it.message },
+                            )
+                        },
+                    )
+                }
+            }
+        }
+
+        if (tab == OperatingTab.MEMORY && isDistribution) {
+            DistributionGenerateStoryButton(palette, onGenerateStory)
         }
 
         sources?.let { src ->
@@ -671,10 +693,16 @@ private fun InfoCard(label: String, body: String, palette: HubPalette) {
 private fun TypedOperatingQuickAddForm(
     model: OperatingProjectionDto?,
     palette: HubPalette,
+    initialCode: String? = null,
     onSubmit: suspend (eventType: String, title: String, amount: String?) -> Unit,
 ) {
     val adds = model?.quickAdds.orEmpty()
-    var selected by remember(adds) { mutableStateOf(adds.firstOrNull()?.code.orEmpty()) }
+    var selected by remember(adds, initialCode) {
+        mutableStateOf(
+            initialCode?.takeIf { code -> adds.any { it.code.equals(code, ignoreCase = true) } }
+                ?: adds.firstOrNull()?.code.orEmpty(),
+        )
+    }
     var titleText by remember { mutableStateOf("") }
     var amountText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -711,9 +739,34 @@ private fun TypedOperatingQuickAddForm(
             }
         }
     }
+    TypedOperatingQuickAddFormFields(
+        selectedCode = selected,
+        adds = adds,
+        titleText = titleText,
+        amountText = amountText,
+        onTitleChange = { titleText = it },
+        onAmountChange = { amountText = it },
+        palette = palette,
+        onSubmit = onSubmit,
+    )
+}
+
+@Composable
+fun TypedOperatingQuickAddFormFields(
+    selectedCode: String,
+    adds: List<com.example.momentra.data.api.OperatingQuickAddDto>,
+    titleText: String,
+    amountText: String,
+    onTitleChange: (String) -> Unit,
+    onAmountChange: (String) -> Unit,
+    palette: HubPalette,
+    onSubmit: suspend (eventType: String, title: String, amount: String?) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val selectedAdd = adds.firstOrNull { it.code == selectedCode }
     BasicTextField(
         value = titleText,
-        onValueChange = { titleText = it },
+        onValueChange = onTitleChange,
         textStyle = TextStyle(color = palette.text, fontSize = 14.sp, fontFamily = PlusJakartaSans),
         cursorBrush = SolidColor(palette.accent),
         modifier = Modifier
@@ -730,7 +783,7 @@ private fun TypedOperatingQuickAddForm(
     if (selectedAdd?.needsAmount == true) {
         BasicTextField(
             value = amountText,
-            onValueChange = { amountText = it },
+            onValueChange = onAmountChange,
             textStyle = TextStyle(color = palette.text, fontSize = 14.sp, fontFamily = PlusJakartaSans),
             cursorBrush = SolidColor(palette.accent),
             modifier = Modifier
@@ -745,7 +798,7 @@ private fun TypedOperatingQuickAddForm(
             },
         )
     }
-    val canSubmit = selected.isNotBlank() && titleText.isNotBlank()
+    val canSubmit = selectedCode.isNotBlank() && titleText.isNotBlank()
     Text(
         "Add",
         color = palette.onAccent,
@@ -754,13 +807,12 @@ private fun TypedOperatingQuickAddForm(
             .clip(RoundedCornerShape(12.dp))
             .background(if (canSubmit) palette.accent else palette.muted.copy(alpha = 0.35f))
             .clickable(enabled = canSubmit) {
-                val code = selected
                 val title = titleText.trim()
                 val amount = amountText.trim().ifBlank { null }
                 scope.launch {
-                    onSubmit(code, title, amount)
-                    titleText = ""
-                    amountText = ""
+                    onSubmit(selectedCode, title, amount)
+                    onTitleChange("")
+                    onAmountChange("")
                 }
             }
             .padding(horizontal = 16.dp, vertical = 12.dp),
