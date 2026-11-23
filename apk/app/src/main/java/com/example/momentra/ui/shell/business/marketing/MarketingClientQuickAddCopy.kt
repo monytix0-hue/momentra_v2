@@ -134,4 +134,19 @@ object MarketingClientQuickAddCopy {
         "REPRINT" -> "Reprint invoice"
         else -> "Quick Add"
     }
+
+    /** Compact hub tile labels for CREATE (Figma `64:16631`). */
+    fun hubTileLabel(code: String): String = when (code.uppercase()) {
+        "ACTIVITY" -> "Activity"
+        "PROGRESS" -> "Progress"
+        "SPEND" -> "Spend"
+        "PAYMENT" -> "Payment"
+        "INVOICE" -> "Invoice"
+        "COLLECTION" -> "Collection"
+        "REVISION" -> "Revision"
+        "APPROVAL" -> "Approval"
+        "UPDATE" -> "Update"
+        "RESULT" -> "Result"
+        else -> title(code)
+    }
 }

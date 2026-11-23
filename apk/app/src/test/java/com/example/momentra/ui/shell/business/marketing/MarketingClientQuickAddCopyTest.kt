@@ -75,6 +75,15 @@ class MarketingClientQuickAddCopyTest {
     }
 
     @Test
+    fun hubTileLabelsMatchCreateCatalog() {
+        assertEquals("Activity", MarketingClientQuickAddCopy.hubTileLabel("ACTIVITY"))
+        assertEquals("Invoice", MarketingClientQuickAddCopy.hubTileLabel("INVOICE"))
+        assertEquals("Collection", MarketingClientQuickAddCopy.hubTileLabel("COLLECTION"))
+        assertEquals("Update", MarketingClientQuickAddCopy.hubTileLabel("UPDATE"))
+        assertEquals("Result", MarketingClientQuickAddCopy.hubTileLabel("RESULT"))
+    }
+
+    @Test
     fun moreDetailsAndStickyMetaMatchFigma() {
         assertEquals("More details", MarketingClientQuickAddCopy.MORE_DETAILS_LABEL)
         assertEquals("Notes · Attachment · Tags", MarketingClientQuickAddCopy.MORE_DETAILS_HINT)

@@ -88,6 +88,17 @@ struct HubPalette {
                 onAccent: BusinessTokens.Colors.distributionOnAccent
             )
         }
+        if OwnMarketingHub.isOwn(code) {
+            return HubPalette(
+                bg: BusinessTokens.Colors.marketingOwnCanvas,
+                card: BusinessTokens.Colors.marketingOwnSurface,
+                border: BusinessTokens.Colors.marketingOwnAccent.opacity(0.28),
+                muted: BusinessTokens.Colors.marketingOwnHint,
+                text: BusinessTokens.Colors.marketingOwnLabel,
+                accent: BusinessTokens.Colors.marketingOwnAccent,
+                onAccent: BusinessTokens.Colors.marketingOwnOnAccent
+            )
+        }
         let tradingWholesale = code == "TRADING_WHOLESALE" ||
             (family == "TRADING_DISTRIBUTION" && code != DistributionDealershipHub.typeCode)
         if tradingWholesale {
@@ -164,6 +175,10 @@ struct OperatingMomentHubView: View {
         DistributionDealershipHub.isDistribution(typeCode)
     }
 
+    private var isOwn: Bool {
+        OwnMarketingHub.isOwn(typeCode)
+    }
+
     private var isTradingWholesale: Bool {
         typeCode == "TRADING_WHOLESALE"
     }
@@ -171,14 +186,26 @@ struct OperatingMomentHubView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                if isDistribution, projection != nil {
+                if isOwn, tab == .pulse {
+                    OwnMarketingHeroHeader(
+                        projection: projection,
+                        momentTitle: momentTitle,
+                        palette: palette
+                    )
+                } else if isOwn, tab != .quickAdd {
+                    OwnMarketingTabHeader(
+                        tab: tab,
+                        projection: projection,
+                        momentTitle: momentTitle
+                    )
+                } else if isDistribution, projection != nil {
                     DistributionHeroHeader(
                         projection: projection,
                         momentTitle: momentTitle,
                         companyId: companyId ?? projection?.companyId,
                         palette: palette
                     )
-                } else {
+                } else if !isOwn {
                     Text(familyKicker(projection?.familyCode))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(palette.accent)
@@ -235,7 +262,7 @@ struct OperatingMomentHubView: View {
                     Button("Retry") { tick += 1 }.foregroundStyle(palette.accent)
                 }
 
-                if let confirm {
+                if let confirm, !isOwn {
                     infoCard(label: "Saved", body: confirm)
                 }
 
@@ -261,6 +288,11 @@ struct OperatingMomentHubView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if tab == .memory && isDistribution {
                 DistributionGenerateStoryButton(palette: palette, action: onGenerateStory)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(palette.bg.opacity(0.95))
+            } else if tab == .memory && isOwn {
+                OwnGenerateBusinessStoryButton(palette: palette, action: onGenerateStory)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
                     .background(palette.bg.opacity(0.95))
@@ -301,6 +333,9 @@ struct OperatingMomentHubView: View {
         if clientCampaign {
             return ClientCampaignHubWidgets.displayTitle(widgetId: w.widgetId, serverTitle: server)
         }
+        if OwnMarketingHub.isOwn(typeCode) {
+            return OwnMarketingHub.displayTitle(widgetId: w.widgetId, serverTitle: server)
+        }
         if DistributionDealershipHub.isDistribution(typeCode) {
             return DistributionDealershipHub.displayTitle(widgetId: w.widgetId, serverTitle: server)
         }
@@ -323,6 +358,12 @@ struct OperatingMomentHubView: View {
                 && !clientCampaignPulseWidgets.isEmpty
             if skipPulseFallback {
                 EmptyView()
+            } else if isOwn {
+                OwnMarketingPulseGroups(
+                    groups: projection?.pulseMetrics ?? [],
+                    palette: palette,
+                    onViewAllAttention: onViewAllAttention
+                )
             } else if isDistribution {
                 ForEach(projection?.pulseMetrics ?? []) { group in
                     pulseGroupCard(group, distribution: true)
@@ -337,6 +378,20 @@ struct OperatingMomentHubView: View {
                     legacyPulseFallback
                 }
             }
+        } else if isOwn {
+            let sections: [OperatingBoardSectionPayload] = {
+                switch tab {
+                case .moments: return projection?.boards?.moments ?? []
+                case .life: return projection?.boards?.life ?? []
+                case .memory: return projection?.boards?.memory ?? []
+                default: return []
+                }
+            }()
+            OwnMarketingBoardSections(
+                sections: sections,
+                heading: OwnMarketingHub.tabHeading(tab),
+                palette: palette
+            )
         } else {
             let sections: [OperatingBoardSectionPayload] = {
                 switch tab {
@@ -527,49 +582,62 @@ struct OperatingMomentHubView: View {
             if subtype == ClientCampaignHubWidgets.typeCode {
                 return ClientCampaignHubWidgets.sortWidgets(screen: screen, widgets: filtered)
             }
+            if OwnMarketingHub.isOwn(subtype) {
+                return OwnMarketingHub.sortWidgets(screen: screen, widgets: filtered)
+            }
             if DistributionDealershipHub.isDistribution(subtype) {
                 return DistributionDealershipHub.sortWidgets(screen: screen, widgets: filtered)
             }
             return filtered
         }()
         if !list.isEmpty {
-            Text("Widgets")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(palette.text)
-            ForEach(list, id: \.widgetId) { w in
-                let cov = WidgetCoveragePresentation.fromServer(w.coverage)
-                let financeVisible = widgets?.financeVisible == true
-                Button {
-                    Task { await openSources(w.widgetId) }
-                } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(widgetTitle(w, clientCampaign: subtype == ClientCampaignHubWidgets.typeCode))
-                                .font(.system(size: 11))
-                                .foregroundStyle(palette.muted)
-                            Spacer()
-                            Text(cov.label).font(.system(size: 11)).foregroundStyle(palette.accent)
+            if OwnMarketingHub.isOwn(subtype) {
+                OwnMarketingWidgetCards(
+                    widgets: list,
+                    financeVisible: widgets?.financeVisible == true,
+                    palette: palette,
+                    onOpenSources: { id in Task { await openSources(id) } },
+                    onViewAll: onViewAllAttention
+                )
+            } else {
+                Text("Widgets")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(palette.text)
+                ForEach(list, id: \.widgetId) { w in
+                    let cov = WidgetCoveragePresentation.fromServer(w.coverage)
+                    let financeVisible = widgets?.financeVisible == true
+                    Button {
+                        Task { await openSources(w.widgetId) }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(widgetTitle(w, clientCampaign: subtype == ClientCampaignHubWidgets.typeCode))
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(palette.muted)
+                                Spacer()
+                                Text(cov.label).font(.system(size: 11)).foregroundStyle(palette.accent)
+                            }
+                            Text(
+                                (!financeVisible && (w.financeOnly == true))
+                                    ? "Finance redacted for your role"
+                                    : metricLine(w, cov: cov)
+                            )
+                            .font(.system(size: 14))
+                            .foregroundStyle(palette.text)
+                            if let why = w.why, !why.isEmpty {
+                                Text(why).font(.system(size: 12)).foregroundStyle(palette.muted)
+                            }
                         }
-                        Text(
-                            (!financeVisible && (w.financeOnly == true))
-                                ? "Finance redacted for your role"
-                                : metricLine(w, cov: cov)
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(palette.card)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16).stroke(palette.border, lineWidth: 1)
                         )
-                        .font(.system(size: 14))
-                        .foregroundStyle(palette.text)
-                        if let why = w.why, !why.isEmpty {
-                            Text(why).font(.system(size: 12)).foregroundStyle(palette.muted)
-                        }
                     }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(palette.card)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16).stroke(palette.border, lineWidth: 1)
-                    )
+                    .disabled(!(cov.showSources || !(w.sourceEventIds ?? []).isEmpty))
                 }
-                .disabled(!(cov.showSources || !(w.sourceEventIds ?? []).isEmpty))
             }
         }
     }
@@ -591,7 +659,16 @@ struct OperatingMomentHubView: View {
     @ViewBuilder
     private var quickAddForm: some View {
         let adds = projection?.quickAdds ?? []
-        if isDistribution {
+        if isOwn {
+            OwnMarketingQuickAddHub(
+                projection: projection,
+                palette: palette,
+                selectedCode: $selectedQuickAdd,
+                onSubmit: { eventType, title, amount in
+                    await submitOwnQuickAdd(eventType: eventType, title: title, amount: amount)
+                }
+            )
+        } else if isDistribution {
             if adds.isEmpty {
                 Text("Your role cannot add to this moment.")
                     .font(.system(size: 13))
@@ -608,12 +685,13 @@ struct OperatingMomentHubView: View {
                 )
             }
         } else {
+            let client = ClientCampaignHubWidgets.isClientCampaign(momentTypeCode ?? projection?.subtype)
             Text("Quick Adds")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: client ? 28 : 18, weight: .semibold))
                 .foregroundStyle(palette.text)
-            Text("Post a real capture — empty tiles stay honest until you add.")
-                .font(.system(size: 12))
-                .foregroundStyle(palette.muted)
+            Text(client ? "Plan. Launch. Measure." : "Post a real capture — empty tiles stay honest until you add.")
+                .font(.system(size: client ? 15 : 12, weight: client ? .bold : .regular))
+                .foregroundStyle(client ? palette.accent : palette.muted)
             if adds.isEmpty {
                 Text("Your role cannot add to this moment.")
                     .font(.system(size: 13))
@@ -622,10 +700,13 @@ struct OperatingMomentHubView: View {
             FlowLayout(spacing: 10) {
                 ForEach(adds) { add in
                     let on = add.code == selectedQuickAdd
+                    let label = client
+                        ? MarketingClientQuickAddCopy.hubTileLabel(add.code)
+                        : add.label
                     Button {
                         selectedQuickAdd = add.code
                     } label: {
-                        Text(add.label)
+                        Text(label)
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(on ? palette.accent : palette.text)
                             .padding(.horizontal, 14)
@@ -638,6 +719,19 @@ struct OperatingMomentHubView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
                 }
+            }
+            if client, !selectedQuickAdd.isEmpty {
+                Text(MarketingClientQuickAddCopy.why(selectedQuickAdd))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(hex: "#C4B5FD"))
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(hex: "#8B5CF6").opacity(0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color(hex: "#8B5CF6").opacity(0.40), lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             TextField("Title", text: $titleText)
                 .textFieldStyle(.plain)
@@ -653,7 +747,7 @@ struct OperatingMomentHubView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .foregroundStyle(palette.text)
             }
-            Button("Add") {
+            Button(client ? MarketingClientQuickAddCopy.cta(selectedQuickAdd) : "Add") {
                 Task { await submitQuickAdd() }
             }
             .disabled(selectedQuickAdd.isEmpty || titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -742,6 +836,20 @@ struct OperatingMomentHubView: View {
             confirm = "Saved \(title)"
             titleText = ""
             amountText = ""
+            tick += 1
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func submitOwnQuickAdd(eventType: String, title: String, amount: String?) async {
+        do {
+            _ = try await APIClient.shared.recordOperatingEvent(
+                momentId: momentId,
+                eventType: eventType,
+                title: title,
+                amount: amount
+            )
             tick += 1
         } catch {
             self.error = error.localizedDescription

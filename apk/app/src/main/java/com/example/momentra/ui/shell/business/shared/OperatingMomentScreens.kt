@@ -60,6 +60,8 @@ import com.example.momentra.ui.shell.business.appstate.AppStateGlassCard
 import com.example.momentra.ui.shell.business.appstate.AppStateSecondaryButton
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateTokens
+import com.example.momentra.ui.shell.business.marketing.MarketingEventDraft
+import com.example.momentra.ui.shell.business.marketing.MarketingQuickAddHub
 import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.theme.generated.BusinessTokens
 import kotlinx.coroutines.launch
@@ -297,50 +299,79 @@ fun OperatingMomentPage(
             }
             OperatingTab.QUICK_ADD -> {
                 val pending = BusinessMomentFamilyConfig.consumePendingQuickAdd(momentId)
-                if (isDistribution) {
-                    DistributionQuickAddHub(
-                        adds = model?.quickAdds.orEmpty(),
-                        palette = palette,
-                        initialCode = pending,
-                        onSubmit = { eventType, title, amount ->
-                            repo.recordOperatingEvent(
-                                momentId = momentId,
-                                eventType = eventType,
-                                title = title,
-                                amount = amount,
-                                note = null,
-                            ).fold(
-                                onSuccess = {
-                                    confirm = "Saved $title"
-                                    OperatingProjectionCache.invalidate(momentId)
-                                    tick += 1
-                                },
-                                onFailure = { error = it.message },
-                            )
-                        },
-                    )
-                } else {
-                    TypedOperatingQuickAddForm(
-                        model = model,
-                        palette = palette,
-                        initialCode = pending,
-                        onSubmit = { eventType, title, amount ->
-                            repo.recordOperatingEvent(
-                                momentId = momentId,
-                                eventType = eventType,
-                                title = title,
-                                amount = amount,
-                                note = null,
-                            ).fold(
-                                onSuccess = {
-                                    confirm = "Saved $title"
-                                    OperatingProjectionCache.invalidate(momentId)
-                                    tick += 1
-                                },
-                                onFailure = { error = it.message },
-                            )
-                        },
-                    )
+                when {
+                    typeCode == ClientCampaignHubWidgets.TYPE_CODE && model != null -> {
+                        MarketingQuickAddHub(
+                            model = model,
+                            momentId = momentId,
+                            onRecord = { draft ->
+                                recordClientMarketingDraft(repo, momentId, draft).fold(
+                                    onSuccess = {
+                                        confirm = "Saved ${draft.title}"
+                                        OperatingProjectionCache.invalidate(momentId)
+                                        tick += 1
+                                    },
+                                    onFailure = { error = it.message },
+                                )
+                            },
+                            onDecide = { eventId, decision ->
+                                repo.decideOperatingEvent(momentId, eventId, decision).fold(
+                                    onSuccess = {
+                                        confirm = "Decision saved"
+                                        OperatingProjectionCache.invalidate(momentId)
+                                        tick += 1
+                                    },
+                                    onFailure = { error = it.message },
+                                )
+                            },
+                        )
+                    }
+                    isDistribution -> {
+                        DistributionQuickAddHub(
+                            adds = model?.quickAdds.orEmpty(),
+                            palette = palette,
+                            initialCode = pending,
+                            onSubmit = { eventType, title, amount ->
+                                repo.recordOperatingEvent(
+                                    momentId = momentId,
+                                    eventType = eventType,
+                                    title = title,
+                                    amount = amount,
+                                    note = null,
+                                ).fold(
+                                    onSuccess = {
+                                        confirm = "Saved $title"
+                                        OperatingProjectionCache.invalidate(momentId)
+                                        tick += 1
+                                    },
+                                    onFailure = { error = it.message },
+                                )
+                            },
+                        )
+                    }
+                    else -> {
+                        TypedOperatingQuickAddForm(
+                            model = model,
+                            palette = palette,
+                            initialCode = pending,
+                            onSubmit = { eventType, title, amount ->
+                                repo.recordOperatingEvent(
+                                    momentId = momentId,
+                                    eventType = eventType,
+                                    title = title,
+                                    amount = amount,
+                                    note = null,
+                                ).fold(
+                                    onSuccess = {
+                                        confirm = "Saved $title"
+                                        OperatingProjectionCache.invalidate(momentId)
+                                        tick += 1
+                                    },
+                                    onFailure = { error = it.message },
+                                )
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -819,3 +850,41 @@ fun TypedOperatingQuickAddFormFields(
         fontFamily = PlusJakartaSans,
     )
 }
+
+private suspend fun recordClientMarketingDraft(
+    repo: BusinessSliceRepository,
+    momentId: String,
+    draft: MarketingEventDraft,
+): Result<Unit> = repo.recordOperatingEvent(
+    momentId = momentId,
+    eventType = draft.eventType,
+    title = draft.title,
+    amount = draft.amount,
+    note = draft.note,
+    channelName = draft.channelName,
+    counterpartyName = draft.counterpartyName,
+    paymentStatus = draft.paymentStatus,
+    occurredAt = draft.occurredAt,
+    quantity = draft.quantity,
+    unit = draft.unit,
+    parentEventId = draft.parentEventId,
+    revisesEventId = draft.revisesEventId,
+    dueAt = draft.dueAt,
+    contract = draft.contract,
+    reportingMode = draft.reportingMode,
+    metricCode = draft.metricCode,
+    budgetCategory = draft.budgetCategory,
+    activityStatus = draft.activityStatus,
+    attributedSales = draft.attributedSales,
+    revisionKind = draft.revisionKind,
+    costBasis = draft.costBasis,
+    overlapDeduped = draft.overlapDeduped,
+    creativeVersion = draft.creativeVersion,
+    resultSource = draft.resultSource,
+    idempotencyKey = draft.idempotencyKey,
+    effectiveFrom = draft.effectiveFrom,
+    periodStart = draft.periodStart,
+    periodEnd = draft.periodEnd,
+    supersedesEventId = draft.supersedesEventId,
+    lines = draft.lines,
+)
