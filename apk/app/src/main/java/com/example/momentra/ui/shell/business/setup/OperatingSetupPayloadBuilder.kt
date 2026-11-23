@@ -163,7 +163,7 @@ object OperatingSetupPayloadBuilder {
             }
         }
 
-        mapSalePriceIncludesGst(prefs["salePriceIncludesGst"])?.let {
+        mapSalePriceIncludesGst(prefs["salePriceIncludesGst"] ?: prefs["priceIncludesGst"])?.let {
             prefs["salePriceIncludesGst"] = it
         }
 
@@ -195,7 +195,9 @@ object OperatingSetupPayloadBuilder {
         val purpose = stringValue(prefs["campaignPurpose"]).ifEmpty { stringValue(prefs["offering"]) }
         if (purpose.isNotEmpty()) prefs["offering"] = purpose
 
-        mapMarketingTargetMetric(prefs["targetMetric"])?.let { prefs["targetMetric"] = it }
+        (mapManufacturingTargetMetric(prefs["targetMetric"])
+            ?: mapMarketingTargetMetric(prefs["targetMetric"]))
+            ?.let { prefs["targetMetric"] = it }
         if (positiveAmount(prefs["monthlyTarget"]) == null) {
             val target = firstNonEmpty(
                 prefs["monthlyTarget"],
@@ -402,6 +404,20 @@ object OperatingSetupPayloadBuilder {
         return if (upper in setOf("YES", "NO")) upper else null
     }
 
+    /** Figma Job-order / manufacturing target chips → closed metrics. */
+    fun mapManufacturingTargetMetric(value: Any?): String? {
+        val raw = stringValue(value)
+        if (raw.isEmpty()) return null
+        val lower = raw.lowercase()
+        return when {
+            "invoiced" in lower || "accepted job" in lower -> "REVENUE"
+            "production" in lower || "finished goods" in lower -> "PRODUCTION_OUTPUT"
+            "deliver" in lower -> "DELIVERY_COUNT"
+            lower == "orders" || lower == "order" -> "ORDERS"
+            else -> null
+        }
+    }
+
     /** Soft Channels status copy — informational, never blocks activate for retail. */
     fun planStatusMessage(preferences: Map<String, Any>): Pair<Boolean, String> {
         val budgetOk = positiveAmount(preferences["monthlyBudget"]) != null
@@ -455,8 +471,7 @@ object OperatingSetupPayloadBuilder {
                 "CONSUMER_SERVICE" -> "serviceName"
                 "RETAIL_STORE" -> "storeName"
                 "RESTAURANT_FOOD" -> "outletName"
-                "STANDARD_PRODUCTION" -> "plantName"
-                "MADE_TO_ORDER" -> "shopName"
+                "STANDARD_PRODUCTION", "MADE_TO_ORDER" -> "businessName"
                 "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN" -> "campaignName"
                 else -> "businessName"
             }
@@ -485,13 +500,17 @@ object OperatingSetupPayloadBuilder {
                 errors["monthlyTarget"] = "Monthly target must be a positive amount."
             }
         }
-        if (subtype in retailChannelsRequired && channels.isEmpty()) {
+        val manufacturingSubtypes = setOf("STANDARD_PRODUCTION", "MADE_TO_ORDER")
+        if ((subtype in retailChannelsRequired || subtype in manufacturingSubtypes) && channels.isEmpty()) {
             errors["channels"] = "Select at least one channel."
         }
         val tracking = stringValue(prefs["gstTracking"])
         val gstin = stringValue(prefs["gstin"])
-        if (tracking == "YES" && gstin.isNotEmpty() && !isValidGstin(gstin)) {
-            errors["gstin"] = "Enter a valid 15-digit GSTIN."
+        if (tracking == "YES") {
+            when {
+                gstin.isEmpty() -> errors["gstin"] = "GSTIN is required when GST tracking is on."
+                !isValidGstin(gstin) -> errors["gstin"] = "Enter a valid 15-digit GSTIN."
+            }
         }
         return errors
     }

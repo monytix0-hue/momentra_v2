@@ -185,7 +185,7 @@ enum OperatingSetupPayloadBuilder {
             }
         }
 
-        if let saleIncludes = mapSalePriceIncludesGst(prefs["salePriceIncludesGst"]) {
+        if let saleIncludes = mapSalePriceIncludesGst(prefs["salePriceIncludesGst"] ?? prefs["priceIncludesGst"]) {
             prefs["salePriceIncludesGst"] = saleIncludes
         }
 
@@ -223,7 +223,8 @@ enum OperatingSetupPayloadBuilder {
             ? stringValue(prefs["offering"])
             : stringValue(prefs["campaignPurpose"])
         if !purpose.isEmpty { prefs["offering"] = purpose }
-        if let metric = mapMarketingTargetMetric(prefs["targetMetric"]) {
+        if let metric = mapManufacturingTargetMetric(prefs["targetMetric"])
+            ?? mapMarketingTargetMetric(prefs["targetMetric"]) {
             prefs["targetMetric"] = metric
         }
         if positiveAmount(prefs["monthlyTarget"]) == nil {
@@ -460,6 +461,18 @@ enum OperatingSetupPayloadBuilder {
         return roleAliases[raw.lowercased()] ?? "TEAM_MEMBER"
     }
 
+    /// Figma Job-order / manufacturing target chips → closed metrics.
+    static func mapManufacturingTargetMetric(_ value: Any?) -> String? {
+        let raw = stringValue(value)
+        if raw.isEmpty { return nil }
+        let lower = raw.lowercased()
+        if lower.contains("invoiced") || lower.contains("accepted job") { return "REVENUE" }
+        if lower.contains("production") || lower.contains("finished goods") { return "PRODUCTION_OUTPUT" }
+        if lower.contains("deliver") { return "DELIVERY_COUNT" }
+        if lower == "orders" || lower == "order" { return "ORDERS" }
+        return nil
+    }
+
     /// Figma target-unit chips → closed marketing metrics.
     static func mapMarketingTargetMetric(_ value: Any?) -> String? {
         let raw = stringValue(value)
@@ -489,8 +502,7 @@ enum OperatingSetupPayloadBuilder {
             case "CONSUMER_SERVICE": titleKey = "serviceName"
             case "RETAIL_STORE": titleKey = "storeName"
             case "RESTAURANT_FOOD": titleKey = "outletName"
-            case "STANDARD_PRODUCTION": titleKey = "plantName"
-            case "MADE_TO_ORDER": titleKey = "shopName"
+            case "STANDARD_PRODUCTION", "MADE_TO_ORDER": titleKey = "businessName"
             case "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN": titleKey = "campaignName"
             default: titleKey = "businessName"
             }
@@ -522,13 +534,18 @@ enum OperatingSetupPayloadBuilder {
                 errors["monthlyTarget"] = "Monthly target must be a positive amount."
             }
         }
-        if retailChannelsRequired.contains(subtype), channels.isEmpty {
+        let manufacturingSubtypes: Set<String> = ["STANDARD_PRODUCTION", "MADE_TO_ORDER"]
+        if retailChannelsRequired.contains(subtype) || manufacturingSubtypes.contains(subtype), channels.isEmpty {
             errors["channels"] = "Select at least one channel."
         }
         let tracking = stringValue(prefs["gstTracking"])
         let gstin = stringValue(prefs["gstin"])
-        if tracking == "YES", !gstin.isEmpty, !isValidGstin(gstin) {
-            errors["gstin"] = "Enter a valid 15-digit GSTIN."
+        if tracking == "YES" {
+            if gstin.isEmpty {
+                errors["gstin"] = "GSTIN is required when GST tracking is on."
+            } else if !isValidGstin(gstin) {
+                errors["gstin"] = "Enter a valid 15-digit GSTIN."
+            }
         }
         return errors
     }

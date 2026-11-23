@@ -767,4 +767,53 @@ describe('business setup draft preferences', () => {
       /Client/i
     );
   });
+
+  it('stores Job-order (MADE_TO_ORDER) quote policy on draft and activate', () => {
+    const draft = normalizeOperatingPreferences(
+      'MANUFACTURING_PRODUCTION',
+      {
+        subtype: 'MADE_TO_ORDER',
+        identityName: 'Forge & Form',
+        quoteValidity: '15 days · expired quotes revise, never invoice',
+        specificationTemplate: 'Drawing · material · tolerance · finish',
+        orderApproval: 'No approval required',
+        jobOnConfirm: 'Open job manually after confirm',
+        productsBomNote: 'Skip for now · never forced',
+        targetMetric: 'Invoiced value (or accepted job units)',
+        priceIncludesGst: 'Prices include GST',
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(draft.subtype, 'MADE_TO_ORDER');
+    assert.equal(draft.quoteValidity, '15 days · expired quotes revise, never invoice');
+    assert.equal(draft.specificationTemplate, 'Drawing · material · tolerance · finish');
+    assert.equal(draft.orderApproval, 'No approval required');
+    assert.equal(draft.jobOnConfirm, 'NO');
+    assert.equal(draft.productsBomNote, 'Skip for now · never forced');
+    assert.equal(draft.targetMetric, 'REVENUE');
+    assert.equal(draft.salePriceIncludesGst, 'YES');
+    assert.equal(draft.planMonth, '');
+
+    const active = normalizeOperatingPreferences(
+      'MANUFACTURING_PRODUCTION',
+      {
+        subtype: 'MADE_TO_ORDER',
+        identityName: 'Forge & Form',
+        partyName: 'Forge & Form Pvt Ltd',
+        monthlyBudget: '900000',
+        monthlyTarget: '1800000',
+        channels: ['Direct B2B', 'Job work'],
+        targetMetric: 'Production output',
+        quoteValidity: '30 days · expired quotes revise, never invoice',
+        jobOnConfirm: 'Accepted order opens a job with target qty',
+        gstTracking: 'NOT_NOW',
+      },
+      creator
+    );
+    assert.equal(active.targetMetric, 'PRODUCTION_OUTPUT');
+    assert.equal(active.quoteValidity, '30 days · expired quotes revise, never invoice');
+    assert.equal(active.jobOnConfirm, 'YES');
+  });
+
 });

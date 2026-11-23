@@ -516,7 +516,9 @@ describe('manufacturing and MTO v2.1', () => {
       { ...asEvent('rework', 'PRODUCTION'), title: 'Frame', unit: 'pcs', contract: rework.contract },
     ]);
     assert.equal(stock.find((item) => item.kind === 'FINISHED')?.onHand, 68);
-    assert.equal(manufacturingStock([parent]).find((item) => item.kind === 'MATERIAL'), undefined);
+    const material = manufacturingStock([parent]).find((item) => item.kind === 'MATERIAL');
+    assert.equal(material?.item, 'Resin');
+    assert.equal(material?.onHand, -10);
   });
 
   it('dispatches and collects without posting the sale twice, and caps MTO invoices', () => {

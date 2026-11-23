@@ -432,14 +432,32 @@ class BusinessSetupFieldModelTest {
 
     @Test
     fun manufacturingPairSectionParity() {
-        listOf("STANDARD_PRODUCTION", "MADE_TO_ORDER").forEach { code ->
-            val spec = BusinessSetupDocuments.spec(code)
-            assertEquals("Start this business", spec.activateLabel)
-            assertTrue(spec.sectionTitles.contains("Business Basics"))
-            assertTrue(spec.sectionTitles.contains("People & Roles"))
-            assertTrue(spec.sectionTitles.contains("GST & Tax Details"))
-            assertTrue(spec.sectionTitles.contains("Review your setup"))
-        }
+        val mfg = BusinessSetupDocuments.spec("STANDARD_PRODUCTION")
+        assertEquals("Start this business", mfg.activateLabel)
+        assertTrue(mfg.sectionTitles.contains("Business Basics"))
+        assertTrue(mfg.sectionTitles.contains("People & Roles"))
+        assertTrue(mfg.sectionTitles.contains("GST & Tax Details"))
+        assertTrue(mfg.sectionTitles.contains("Review your setup"))
+
+        val mto = BusinessSetupDocuments.spec("MADE_TO_ORDER")
+        assertEquals("Activate Moment", mto.activateLabel)
+        assertEquals("Job order", mto.eyebrow)
+        assertEquals("businessName", mto.defaultTitleKey)
+        assertEquals("Forge & Form Setup", mto.heroTitle)
+        assertTrue(mto.sectionTitles.contains("Business Basics"))
+        assertTrue(mto.sectionTitles.contains("People & Roles"))
+        assertTrue(mto.sectionTitles.contains("Job order · Quotes & order approval"))
+        assertTrue(mto.sectionTitles.contains("GST & Tax Details"))
+        assertTrue(mto.sectionTitles.contains("Activate"))
+        assertTrue(!mto.sectionTitles.any { it.contains("Plan · Monthly") || it == "Channels & Monthly Plan" })
+        val keys = mto.sections.flatMap { s -> s.fields.map { it.key } }.toSet()
+        assertTrue(keys.containsAll(listOf(
+            "businessName", "companyName", "monthlyBudget", "monthlyTarget",
+            "channels", "targetMetric", "gstRegistered", "priceIncludesGst",
+            "quoteValidity", "specificationTemplate", "orderApproval", "jobOnConfirm",
+            "productsBomNote",
+        )))
+        assertTrue(!keys.contains("planMonth"))
     }
 
     @Test
@@ -452,4 +470,27 @@ class BusinessSetupFieldModelTest {
             }
         }
     }
+
+    @Test
+    fun allNineSetupsUseCurrencyDropdownOptions() {
+        val expected = listOf(
+            "INR · Indian Rupee (₹)",
+            "USD · US Dollar ($)",
+            "EUR · Euro (€)",
+            "GBP · British Pound (£)",
+            "AED · UAE Dirham (د.إ)",
+        )
+        listOf(
+            "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN", "TRADING_WHOLESALE",
+            "DISTRIBUTION_DEALERSHIP", "RETAIL_STORE", "RESTAURANT_FOOD",
+            "CONSUMER_SERVICE", "STANDARD_PRODUCTION", "MADE_TO_ORDER",
+        ).forEach { code ->
+            val field = BusinessSetupDocuments.spec(code).sections
+                .flatMap { it.fields }.first { it.key == "currency" }
+            assertTrue(field.kind is BusinessSetupFieldSpec.Kind.Choice)
+            assertEquals(expected, (field.kind as BusinessSetupFieldSpec.Kind.Choice).options)
+        }
+    }
+
+
 }

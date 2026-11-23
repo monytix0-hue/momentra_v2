@@ -254,22 +254,41 @@ struct BusinessSetupShell: View {
                 placeholder: field.placeholder,
                 text: binding(for: field.key),
                 helper: field.helper,
-                error: fieldErrors[field.key]
+                error: fieldErrors[field.key],
+                forceUppercase: field.key == "gstin"
             )
         case .choice(let options):
-            VStack(alignment: .leading, spacing: 6) {
-                Text(field.label)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(theme.label)
-                BusinessSetupDocumentKit.ChoiceChips(
+            if field.key == "currency" {
+                BusinessSetupDocumentKit.CurrencyDropdown(
                     theme: theme,
+                    label: field.label,
                     options: options,
-                    selected: binding(for: field.key)
+                    selected: Binding(
+                        get: {
+                            let current = values[field.key] ?? ""
+                            if current.isEmpty { return options.first ?? "" }
+                            return current
+                        },
+                        set: { values[field.key] = $0; fieldErrors[field.key] = nil }
+                    ),
+                    helper: field.helper,
+                    error: fieldErrors[field.key]
                 )
-                if !field.helper.isEmpty, fieldErrors[field.key] == nil {
-                    Text(field.helper)
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundStyle(theme.hint)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(field.label)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(theme.label)
+                    BusinessSetupDocumentKit.ChoiceChips(
+                        theme: theme,
+                        options: options,
+                        selected: binding(for: field.key)
+                    )
+                    if !field.helper.isEmpty, fieldErrors[field.key] == nil {
+                        Text(field.helper)
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(theme.hint)
+                    }
                 }
             }
         case .multiChoice(let options):
@@ -298,7 +317,8 @@ struct BusinessSetupShell: View {
                 placeholder: field.placeholder,
                 text: binding(for: field.key),
                 helper: field.helper,
-                error: fieldErrors[field.key]
+                error: fieldErrors[field.key],
+                fieldKey: field.key
             )
         case .rowAction(let action):
             BusinessSetupDocumentKit.RowAction(

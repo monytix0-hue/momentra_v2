@@ -379,7 +379,7 @@ private fun HubTile(
  */
 @Composable
 fun BusinessAppStateViewAllSheet(
-    accent: BusinessAppStateAccent,
+    @Suppress("UNUSED_PARAMETER") accent: BusinessAppStateAccent,
     selectedFilter: String,
     onSelectFilter: (String) -> Unit,
     onClose: () -> Unit,
@@ -387,17 +387,13 @@ fun BusinessAppStateViewAllSheet(
     modifier: Modifier = Modifier,
 ) {
     val spec = BusinessAppStateSpecs.spec(BusinessAppStateScreen.ViewAll, BusinessAppStatePhase.Empty)
-    val accentColor = accent.color
+    // View All frame (2:1287) uses cyan regardless of vertical accent.
+    val accentColor = BusinessAppStateAccent.Cyan.color
     val filters = listOf("All", "Open", "Due soon", "Closed")
-    val sheetShape = RoundedCornerShape(
-        topStart = BusinessAppStateTokens.CardRadius,
-        topEnd = BusinessAppStateTokens.CardRadius,
-    )
-
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.55f))
+            .background(BusinessGlassSheetChrome.Scrim)
             .clickable(role = Role.Button, onClick = onClose),
     ) {
         Column(
@@ -405,13 +401,7 @@ fun BusinessAppStateViewAllSheet(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .clip(sheetShape)
-                .background(BusinessAppStateTokens.GlassCardFill)
-                .border(
-                    BusinessAppStateTokens.GlassCardStrokeWidth,
-                    BusinessAppStateTokens.GlassCardStroke,
-                    sheetShape,
-                )
+                .businessGlassPanelBackground()
                 .clickable(enabled = false) {}
                 .padding(horizontal = 20.dp, vertical = 12.dp),
         ) {

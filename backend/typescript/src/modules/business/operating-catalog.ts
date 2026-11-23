@@ -430,6 +430,13 @@ export interface OperatingPreferences {
   conversionDenominator: string;
   conversionDefinitionVersion: string;
   campaignStatus: string;
+  /** Job-order (MADE_TO_ORDER) setup policy — empty for other subtypes. */
+  quoteValidity: string;
+  specificationTemplate: string;
+  orderApproval: string;
+  jobOnConfirm: string;
+  productsBomNote: string;
+  planMonth: string;
   /** COMPANY (default) = any active company member; RESTRICTED = grant/Moment membership required. */
   momentAccess: 'COMPANY' | 'RESTRICTED';
 }
@@ -627,6 +634,14 @@ function mapSalePriceIncludesGst(value: unknown): string {
   return upper === 'YES' || upper === 'NO' ? upper : '';
 }
 
+/** Figma currency chips like `INR · Indian Rupee (₹)` → `INR`. */
+function normalizeCurrencyCode(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const token = raw.split(/[·•|\s]/)[0]?.trim().toUpperCase() ?? '';
+  return /^[A-Z]{3}$/.test(token) ? token : raw.toUpperCase();
+}
+
 export function applyOperatingSetupAliases(
   input: Record<string, unknown> | undefined
 ): Record<string, unknown> {
@@ -689,8 +704,14 @@ export function applyOperatingSetupAliases(
     }
   }
 
-  const saleIncludes = mapSalePriceIncludesGst(prefs.salePriceIncludesGst);
+  const saleIncludes = mapSalePriceIncludesGst(
+    prefs.salePriceIncludesGst ?? prefs.priceIncludesGst
+  );
   if (saleIncludes) prefs.salePriceIncludesGst = saleIncludes;
+
+  if (prefs.currency != null && String(prefs.currency).trim()) {
+    prefs.currency = normalizeCurrencyCode(prefs.currency);
+  }
 
   if (!String(prefs.marketingBudget ?? '').trim()) {
     const ownMarketingBudget = firstNonEmpty(prefs.ownMarketingBudget);
@@ -723,7 +744,11 @@ export function applyOperatingSetupAliases(
   if (metricLabel === 'leads') prefs.targetMetric = 'LEADS';
   else if (metricLabel === 'reach') prefs.targetMetric = 'REACH';
   else if (metricLabel === 'clicks') prefs.targetMetric = 'ENGAGEMENT';
-  else if (metricLabel === 'sales') prefs.targetMetric = 'REVENUE';
+  else if (metricLabel === 'sales' || metricLabel === 'revenue') prefs.targetMetric = 'REVENUE';
+  else if (/invoiced|accepted job/.test(metricLabel)) prefs.targetMetric = 'REVENUE';
+  else if (/production\s*output|finished goods/.test(metricLabel)) prefs.targetMetric = 'PRODUCTION_OUTPUT';
+  else if (/deliver/.test(metricLabel)) prefs.targetMetric = 'DELIVERY_COUNT';
+  else if (/^orders?$/.test(metricLabel) || metricLabel === 'orders') prefs.targetMetric = 'ORDERS';
 
   if (!positiveAmount(prefs.monthlyTarget)) {
     const target = firstNonEmpty(
@@ -788,9 +813,11 @@ export function applyOperatingSetupAliases(
   if (startDate) prefs.startDate = startDate;
   const endDate = coerceSetupDate(prefs.endDate);
   if (endDate) prefs.endDate = endDate;
+  const gstEffective = coerceSetupDate(prefs.gstEffectiveFrom);
+  if (gstEffective) prefs.gstEffectiveFrom = gstEffective;
 
   if (prefs.currency != null) {
-    prefs.currency = String(prefs.currency).trim().toUpperCase() || 'INR';
+    prefs.currency = normalizeCurrencyCode(prefs.currency) || 'INR';
   }
   if (prefs.gstin != null) {
     prefs.gstin = String(prefs.gstin).trim().toUpperCase();
@@ -990,9 +1017,49 @@ export function normalizeOperatingPreferences(
     targetMetric,
     ...normalizeGstPreferences(familyCode, prefs, draft),
     ...normalizeMarketingPreferences(familyCode, subtype, prefs),
+    ...normalizeMtoPreferences(subtype, prefs),
     momentAccess: String(prefs.momentAccess ?? prefs.accessMode ?? '').toUpperCase() === 'RESTRICTED'
       ? 'RESTRICTED'
       : 'COMPANY',
+  };
+}
+
+function normalizeMtoPreferences(
+  subtype: string,
+  prefs: Record<string, unknown>
+): Pick<
+  OperatingPreferences,
+  | 'quoteValidity'
+  | 'specificationTemplate'
+  | 'orderApproval'
+  | 'jobOnConfirm'
+  | 'productsBomNote'
+  | 'planMonth'
+> {
+  const empty = {
+    quoteValidity: '',
+    specificationTemplate: '',
+    orderApproval: '',
+    jobOnConfirm: '',
+    productsBomNote: '',
+    planMonth: '',
+  };
+  if (subtype !== 'MADE_TO_ORDER') return empty;
+  const jobRaw = String(prefs.jobOnConfirm ?? '').trim().toUpperCase();
+  let jobOnConfirm = '';
+  if (jobRaw) {
+    jobOnConfirm =
+      jobRaw === 'NO' || jobRaw === 'N' || jobRaw === 'FALSE' || jobRaw.startsWith('OPEN JOB MANUALLY')
+        ? 'NO'
+        : 'YES';
+  }
+  return {
+    quoteValidity: String(prefs.quoteValidity ?? '').trim(),
+    specificationTemplate: String(prefs.specificationTemplate ?? '').trim(),
+    orderApproval: String(prefs.orderApproval ?? '').trim(),
+    jobOnConfirm,
+    productsBomNote: String(prefs.productsBomNote ?? '').trim(),
+    planMonth: String(prefs.planMonth ?? '').trim(),
   };
 }
 
@@ -1139,6 +1206,8 @@ export interface OperatingEventRow {
   contract?: OperatingContract | null;
   marketing?: import('./operating-marketing').MarketingFacts | null;
   idempotencyKey?: string | null;
+  /** Append-only correction marker; SUPERSEDED originals stay in audit history but drop from finance. */
+  ledgerStatus?: 'SUPERSEDED' | null;
 }
 
 export interface OperatingLine {
@@ -1400,6 +1469,9 @@ function money(value: number): string {
 }
 
 function effective(row: OperatingEventRow): boolean {
+  // P2/P3: SUPERSEDED + REVERSAL excluded from finance/analytics; retained in activity history.
+  if (row.ledgerStatus === 'SUPERSEDED') return false;
+  if (row.eventType === 'REVERSAL') return false;
   return row.approvalStatus !== 'PENDING' && row.approvalStatus !== 'REJECTED' && row.paymentStatus !== 'CANCELLED';
 }
 
@@ -1857,6 +1929,7 @@ export function projectOperatingMoment(args: {
     ? pulseEvents
         .filter(
           (row) =>
+            effective(row) &&
             row.paymentRelevance !== 'NONE' &&
             (row.paymentStatus === 'PENDING' || row.paymentStatus === 'READY') &&
             row.approvalStatus !== 'REJECTED' &&
@@ -2050,7 +2123,10 @@ export function projectOperatingMoment(args: {
         : null,
     marketing: marketingInsight,
     pulseMetrics:
-      isTradingSubtype(args.prefs.subtype) || isRetailSubtype(args.prefs.subtype)
+      isTradingSubtype(args.prefs.subtype) ||
+      isRetailSubtype(args.prefs.subtype) ||
+      isMarketingSubtype(args.prefs.subtype) ||
+      isManufacturingSubtype(args.prefs.subtype)
         ? tradingPulseMetrics({
             events: args.events,
             visible,

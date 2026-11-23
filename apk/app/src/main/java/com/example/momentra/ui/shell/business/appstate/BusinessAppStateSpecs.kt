@@ -354,9 +354,8 @@ object BusinessAppStateSpecs {
             dotGlyph = "⚡",
             title = "Start with a capture",
             body = "Nothing recorded yet. One sale, purchase or stock update is enough to light up Pulse.",
-            // Figma Hub frame: primary capture CTA then "Back to Pulse"; the 2x3 tile grid is
-            // rendered by `BusinessAppStateHubBody` above them.
-            primaryLabel = "Record first capture",
+            // Obsidian Hub (2:613): tiles + footnote; no invented primary CTA.
+            primaryLabel = null,
             secondaryLabel = "Back to Pulse",
             footnote = "Tap a tile to begin — the rest unlock as you go.",
         )

@@ -24,11 +24,24 @@ import {
 } from './setup-persistence';
 import { bindInviteToMoment } from '../collaboration/invite-service';
 import { emitLeanBusinessEvent } from '../analytics/lean-events';
-import {
-  assertMarketingSubtypeStable,
-  isMarketingSubtype,
-  type MarketingEvent,
-} from '../business/operating-marketing';
+/** Phase 1A: marketing subtype helpers stubbed (Business V4 tear-down). */
+type MarketingEvent = {
+  operatingEventId: string;
+  eventType: string;
+  title: string;
+  amount: string | null;
+  paymentStatus: string;
+  approvalStatus: string;
+  occurredAt: string;
+};
+function isMarketingSubtype(_code: string): boolean { return false; }
+function assertMarketingSubtypeStable(
+  _previous: string,
+  _next: string,
+  _events: MarketingEvent[]
+): { ok: true } | { ok: false; message: string } {
+  return { ok: true };
+}
 
 const participantRoleSchema = z.enum([
   'ORGANIZER',

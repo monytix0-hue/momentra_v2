@@ -99,3 +99,7 @@ V098__operating_event_idempotency.sql
 V099__operating_master.sql
 V100__gst_state_codes.sql
 V101__operating_moment_capabilities.sql
+V102__business_authz_isolation.sql
+V104__business_v4_foundations.sql
+V105__business_v4_ledger_integrity.sql
+V103__drop_business_v4_teardown.sql

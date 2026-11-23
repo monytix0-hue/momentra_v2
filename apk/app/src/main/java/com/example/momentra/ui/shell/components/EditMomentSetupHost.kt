@@ -4,20 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.momentra.domain.AppContext
 import com.example.momentra.ui.create.MomentCreateViewModel
-import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
-import com.example.momentra.ui.shell.empty.business.BusinessSetupKind
-import com.example.momentra.ui.shell.empty.business.BusinessSetupWizardContent
 import com.example.momentra.ui.shell.empty.group.GroupExperienceSetupContent
 import com.example.momentra.ui.shell.empty.group.GroupLivingSetupContent
 import com.example.momentra.ui.shell.empty.group.GroupPurchaseSetupContent
@@ -26,6 +20,8 @@ import com.example.momentra.ui.shell.empty.personal.PersonalSetupWizardContent
 import com.example.momentra.ui.shell.group.shared.groupExperienceFamilyFor
 import com.example.momentra.ui.shell.group.shared.isThemedLiving
 import com.example.momentra.ui.shell.group.shared.isThemedPurchase
+import com.example.momentra.ui.shell.business.setup.BusinessSetupFamily
+import com.example.momentra.ui.shell.business.setup.BusinessSetupShell
 import com.example.momentra.ui.shell.personal.shared.PersonalPulseFamily
 import com.example.momentra.ui.shell.personal.shared.personalPulseFamilyFor
 
@@ -39,12 +35,13 @@ fun EditMomentSetupHost(
     onClose: () -> Unit,
     onSaved: () -> Unit,
     createViewModel: MomentCreateViewModel = viewModel(),
+    editingMomentStatus: String? = null,
 ) {
     val createState by createViewModel.state.collectAsState()
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(0.94f)
+            .fillMaxHeight()
             .background(Color(0xFF0C0F15)),
     ) {
         when (context) {
@@ -65,30 +62,18 @@ fun EditMomentSetupHost(
                 )
             }
             AppContext.BUSINESS -> {
-                val kind = OperatingMomentCatalog.kindForTypeCode(momentTypeCode)
-                if (kind == BusinessSetupKind.MARKETING_CAMPAIGNS ||
-                    kind == BusinessSetupKind.TRADING_DISTRIBUTION
-                ) {
-                    BusinessSetupWizardContent(
-                        kind = kind,
-                        companyId = companyId.orEmpty(),
-                        createViewModel = createViewModel,
-                        submitting = createState.submitting,
-                        error = createState.error,
-                        onClose = onClose,
-                        onCreated = { onSaved() },
-                        editingMomentId = momentId,
-                        initialTitle = momentTitle,
-                        ownerName = "",
-                    )
-                } else {
-                    Text(
-                        "This business moment is retired. Create a new one.",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                }
+                val family = BusinessSetupFamily.forTypeCode(momentTypeCode)
+                BusinessSetupShell(
+                    family = family,
+                    createViewModel = createViewModel,
+                    onBack = onClose,
+                    onCreated = { onSaved() },
+                    initialTypeCode = momentTypeCode ?: family.defaultTypeCode,
+                    companyId = companyId,
+                    editingMomentId = momentId,
+                    editingMomentStatus = editingMomentStatus,
+                    initialTitle = momentTitle,
+                )
             }
             AppContext.GROUP -> {
                 val family = groupExperienceFamilyFor(momentTypeCode)

@@ -42,12 +42,13 @@ struct OperatingPaymentPayload: Decodable, Identifiable {
 }
 
 struct OperatingFinancePayload: Decodable {
-    let sales: String
-    let received: String
-    let outstanding: String
+    /// Null when omitted — never invent ₹0 client-side (RFC v5).
+    let sales: String?
+    let received: String?
+    let outstanding: String?
     let payable: String?
-    let eligibleCost: String
-    let cashPaid: String
+    let eligibleCost: String?
+    let cashPaid: String?
 }
 
 struct OperatingActivityLinePayload: Decodable, Equatable {
@@ -201,6 +202,93 @@ struct OperatingPulseMetricGroupPayload: Decodable, Identifiable {
     let metrics: [OperatingBoardMetricPayload]?
     let why: String?
     var id: String { code }
+}
+
+/// Callers: OperatingMomentHubView + getBusinessMomentWidgets. P4 widget contracts.
+/// No prior WidgetsProjectionPayload existed. Reads server JSON only.
+/// User: "Include `/widgets` and `/widgets/:widgetId/sources`."
+struct WidgetsProjectionPayload: Decodable {
+    let momentId: String?
+    let familyCode: String?
+    let subtype: String?
+    let currency: String?
+    let role: String?
+    let financeVisible: Bool?
+    let postingComplete: Bool?
+    let residualIncomplete: Bool?
+    let widgets: [OperatingWidgetPayload]?
+}
+
+struct OperatingWidgetPayload: Decodable, Identifiable {
+    let widgetId: String
+    let screen: String?
+    let title: String?
+    let financeOnly: Bool?
+    let formula: String?
+    let metrics: [OperatingWidgetMetricPayload]?
+    let sourceEventIds: [String]?
+    let coverage: String?
+    let why: String?
+    var id: String { widgetId }
+}
+
+struct OperatingWidgetMetricPayload: Decodable {
+    let key: String?
+    let label: String?
+    let unit: String?
+    let coverage: String?
+    private let value: FlexibleMetricValue?
+    var valueString: String? { value?.stringValue }
+}
+
+private enum FlexibleMetricValue: Decodable {
+    case string(String)
+    case number(Double)
+    case null
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() {
+            self = .null
+        } else if let s = try? c.decode(String.self) {
+            self = .string(s)
+        } else if let n = try? c.decode(Double.self) {
+            self = .number(n)
+        } else {
+            self = .null
+        }
+    }
+
+    var stringValue: String? {
+        switch self {
+        case .string(let s): return s
+        case .number(let n): return String(n)
+        case .null: return nil
+        }
+    }
+}
+
+struct WidgetSourcesPayload: Decodable {
+    let widgetId: String
+    let formula: String
+    let coverage: String
+    private let reconciledTotalRaw: FlexibleMetricValue?
+    let sources: [WidgetSourceRowPayload]
+    var reconciledTotal: String? { reconciledTotalRaw?.stringValue }
+
+    enum CodingKeys: String, CodingKey {
+        case widgetId, formula, coverage, sources
+        case reconciledTotalRaw = "reconciledTotal"
+    }
+}
+
+struct WidgetSourceRowPayload: Decodable {
+    let sourceEventId: String
+    let eventType: String
+    let title: String
+    let amount: String?
+    let occurredAt: String
+    let ledgerStatus: String?
 }
 
 struct OperatingProjectionPayload: Decodable {
@@ -567,6 +655,90 @@ struct SoftDeletePayload: Decodable {
     let status: String
 }
 
+struct MeExportPayload: Codable {
+    let exportedAt: String?
+    let profile: MeExportProfilePayload?
+    let devices: [MeExportDevicePayload]?
+    let consents: [MeExportConsentPayload]?
+    let processors: [MeExportProcessorPayload]?
+    let notes: [String]?
+}
+
+struct MeExportProfilePayload: Codable {
+    let userId: String?
+    let email: String?
+    let displayName: String?
+    let timezone: String?
+    let locale: String?
+    let status: String?
+}
+
+struct MeExportDevicePayload: Codable {
+    let deviceId: String?
+    let platform: String?
+    let appVersion: String?
+    let lastSeenAt: String?
+    let revoked: Bool?
+}
+
+struct MeExportConsentPayload: Codable {
+    let code: String?
+    let displayName: String?
+    let description: String?
+    let granted: Bool?
+    let consentId: String?
+    let grantedAt: String?
+}
+
+struct MeExportProcessorPayload: Codable {
+    let name: String?
+    let purpose: String?
+}
+
+struct ErasurePreflightPayload: Decodable {
+    let canErase: Bool?
+    let blockers: [ErasureBlockerPayload]?
+    let personalMomentsToDelete: [ErasureMomentPayload]?
+    let groupMembershipsToLeave: [ErasureMomentPayload]?
+    let companyMembershipsToLeave: [ErasureCompanyPayload]?
+    let soleMemberGroupsToDelete: [ErasureMomentPayload]?
+}
+
+struct ErasureBlockerPayload: Decodable {
+    let kind: String?
+    let id: String?
+    let title: String?
+    let message: String?
+}
+
+struct ErasureMomentPayload: Decodable {
+    let momentId: String?
+    let title: String?
+    let role: String?
+}
+
+struct ErasureCompanyPayload: Decodable {
+    let companyId: String?
+    let name: String?
+    let membershipType: String?
+}
+
+struct AccountErasedPayload: Decodable {
+    let userId: String?
+    let status: String?
+    let erased: MeErasedCountsPayload?
+}
+
+struct MeErasedCountsPayload: Decodable {
+    let personalMoments: Int?
+    let soleMemberGroups: Int?
+    let groupsLeft: Int?
+    let companiesLeft: Int?
+    let consentsWithdrawn: Int?
+    let userMediaExpired: Int?
+    let notificationsCleared: Int?
+}
+
 struct DeviceListPayload: Decodable {
     let items: [DeviceItemPayload]
 }
@@ -877,8 +1049,12 @@ final class APIClient {
     }
 
     @discardableResult
-    func softDeleteMe() async throws -> SoftDeletePayload {
+    func softDeleteMe() async throws -> AccountErasedPayload {
         try await authorizedDelete(path: "v1/me")
+    }
+
+    func erasurePreflight() async throws -> ErasurePreflightPayload {
+        try await authorizedGet(path: "v1/me/erasure-preflight")
     }
 
     func listDevices() async throws -> DeviceListPayload {
@@ -1012,6 +1188,10 @@ final class APIClient {
 
     func listConsents() async throws -> ConsentListPayload {
         try await authorizedGet(path: "v1/me/consents")
+    }
+
+    func exportMe() async throws -> MeExportPayload {
+        try await authorizedGet(path: "v1/me/export")
     }
 
     @discardableResult
@@ -5657,6 +5837,32 @@ final class APIClient {
         )
     }
 
+    /// Callers: OperatingMomentHubView.reload — P4 GET /widgets.
+    func getBusinessMomentWidgets(
+        momentId: String,
+        period: String? = nil,
+        from: String? = nil,
+        to: String? = nil
+    ) async throws -> WidgetsProjectionPayload {
+        var query: [String: String] = [:]
+        if let period, !period.isEmpty { query["period"] = period }
+        if let from, !from.isEmpty { query["from"] = from }
+        if let to, !to.isEmpty { query["to"] = to }
+        return try await authorizedGet(
+            path: "v1/business/moments/\(momentId)/widgets",
+            query: query
+        )
+    }
+
+    func getBusinessMomentWidgetSources(
+        momentId: String,
+        widgetId: String
+    ) async throws -> WidgetSourcesPayload {
+        try await authorizedGet(
+            path: "v1/business/moments/\(momentId)/widgets/\(widgetId)/sources"
+        )
+    }
+
     /// Advisory HSN / SAC chapter search (`GET /business/gst/hsn`).
     func searchHsn(query: String = "", limit: Int = 25) async throws -> HsnLookupResponsePayload {
         var q: [String: String] = ["limit": String(max(1, min(100, limit)))]
@@ -6034,7 +6240,21 @@ final class APIClient {
     }
 
     func getBusinessRoster(momentId: String) async throws -> BusinessRosterBody {
-        try await authorizedGet(path: "v1/business/moments/\(momentId)/roster")
+        let body: BusinessRosterBody =
+            try await authorizedGet(path: "v1/business/moments/\(momentId)/roster")
+        WidgetSnapshotManager.writeBusinessRoster(
+            momentId: momentId,
+            payload: BusinessRosterWidgetSnapshot(
+                members: body.members.map {
+                    BusinessRosterWidgetSnapshot.RosterMember(
+                        displayName: $0.displayName,
+                        membershipType: nil
+                    )
+                },
+                updatedAt: Date().timeIntervalSince1970
+            )
+        )
+        return body
     }
 
     func listBusinessExpenses(momentId: String) async throws -> BusinessProjectionPayload {
@@ -6678,7 +6898,12 @@ final class APIClient {
     }
 
     func listKhataParties(companyId: String, partyKind: String = "CUSTOMER") async throws -> KhataPartyListResult {
-        try await authorizedGet(path: "v1/companies/\(companyId)/khata/parties?partyKind=\(partyKind)")
+        // Query must be separate — embedding `?` in path is percent-encoded to `%3F` by
+        // `appendingPathComponent`, which 404s as `/khata/parties%3FpartyKind=…`.
+        try await authorizedGet(
+            path: "v1/companies/\(companyId)/khata/parties",
+            query: ["partyKind": partyKind]
+        )
     }
 
     struct KhataEntryItem: Decodable, Identifiable {

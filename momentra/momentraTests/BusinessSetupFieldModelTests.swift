@@ -384,13 +384,39 @@ struct BusinessSetupFieldModelTests {
     }
 
     @Test func manufacturingPairSectionParity() {
-        for code in ["STANDARD_PRODUCTION", "MADE_TO_ORDER"] {
-            let spec = BusinessSetupDocuments.spec(for: code)
-            #expect(spec.activateLabel == "Start this business")
-            #expect(spec.sectionTitles.contains("Business Basics"))
-            #expect(spec.sectionTitles.contains("People & Roles"))
-            #expect(spec.sectionTitles.contains("GST & Tax Details"))
-            #expect(spec.sectionTitles.contains("Review your setup"))
+        let mfg = BusinessSetupDocuments.spec(for: "STANDARD_PRODUCTION")
+        #expect(mfg.activateLabel == "Start this business")
+        #expect(mfg.sectionTitles.contains("Business Basics"))
+        #expect(mfg.sectionTitles.contains("People & Roles"))
+        #expect(mfg.sectionTitles.contains("GST & Tax Details"))
+        #expect(mfg.sectionTitles.contains("Review your setup"))
+
+        let mto = BusinessSetupDocuments.spec(for: "MADE_TO_ORDER")
+        #expect(mto.activateLabel == "Activate Moment")
+        #expect(mto.eyebrow == "Job order")
+        #expect(mto.defaultTitleKey == "businessName")
+        #expect(mto.heroTitle == "Forge & Form Setup")
+        #expect(mto.sectionTitles.contains("Business Basics"))
+        #expect(mto.sectionTitles.contains("People & Roles"))
+        #expect(mto.sectionTitles.contains("Job order · Quotes & order approval"))
+        #expect(mto.sectionTitles.contains("GST & Tax Details"))
+        #expect(mto.sectionTitles.contains("Activate"))
+        #expect(!mto.sectionTitles.contains(where: { $0.contains("Plan · Monthly") || $0 == "Channels & Monthly Plan" }))
+        let keys = Set(mto.sections.flatMap { $0.fields.map(\.key) })
+        for key in [
+            "businessName", "companyName", "monthlyBudget", "monthlyTarget",
+            "channels", "targetMetric", "gstRegistered", "priceIncludesGst",
+            "quoteValidity", "specificationTemplate", "orderApproval", "jobOnConfirm",
+            "productsBomNote",
+        ] {
+            #expect(keys.contains(key))
+        }
+        #expect(!keys.contains("planMonth"))
+        let mtoChannels = mto.sections.flatMap(\.fields).first { $0.key == "channels" }
+        if case .multiChoice(let options) = mtoChannels?.kind {
+            #expect(options == ["Direct B2B", "Dealers", "OEM", "Export", "Job work"])
+        } else {
+            Issue.record("MTO channels missing")
         }
     }
 
@@ -403,4 +429,33 @@ struct BusinessSetupFieldModelTests {
             }
         }
     }
+
+    @Test func allNineSetupsUseCurrencyDropdownOptions() {
+        let expected = [
+            "INR · Indian Rupee (₹)",
+            "USD · US Dollar ($)",
+            "EUR · Euro (€)",
+            "GBP · British Pound (£)",
+            "AED · UAE Dirham (د.إ)",
+        ]
+        for code in [
+            "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN", "TRADING_WHOLESALE",
+            "DISTRIBUTION_DEALERSHIP", "RETAIL_STORE", "RESTAURANT_FOOD",
+            "CONSUMER_SERVICE", "STANDARD_PRODUCTION", "MADE_TO_ORDER",
+        ] {
+            let field = BusinessSetupDocuments.spec(for: code).sections
+                .flatMap(\.fields).first { $0.key == "currency" }
+            guard let field else {
+                Issue.record("currency missing for \(code)")
+                continue
+            }
+            if case .choice(let options) = field.kind {
+                #expect(options == expected)
+            } else {
+                Issue.record("currency not choice for \(code)")
+            }
+        }
+    }
+
+
 }

@@ -5,6 +5,13 @@ import { assertGroupMember } from '../collaboration/group-membership';
 import { countMediaForMemories, listMediaForMemories } from '../memory/memory-attachments';
 import { listMetricsForScope, PHASE7_PULSE_METRIC_CODES } from '../analytics/engine';
 import {
+  personalFamilyFromMomentTypeCode,
+  personalFamilyLabel,
+  type PersonalFamilyCode,
+} from '../personal/moment-family';
+import { lifeActivityCountExclusionSql } from './life-activity-count';
+import { netsAfterContributions, type ContributionNetPosition } from './contribution-net';
+import {
   assembleTypedSignals,
   computeLifeModuleScores,
   formatScore,
@@ -12,12 +19,10 @@ import {
   mapFamily,
 } from '../business/business-life-enrichment';
 import {
-  personalFamilyFromMomentTypeCode,
-  personalFamilyLabel,
-  type PersonalFamilyCode,
-} from '../personal/moment-family';
-import { lifeActivityCountExclusionSql } from './life-activity-count';
-import { netsAfterContributions, type ContributionNetPosition } from './contribution-net';
+  BUSINESS_MOMENT_LIST_ACCESS_SQL,
+  redactActivityItem,
+  redactLegacyFinanceProjection,
+} from '../business/access-policy';
 
 export interface CursorPage<T> {
   items: T[];
@@ -2140,11 +2145,7 @@ export async function listBusinessMoments(
          bmc.status = 'ACTIVE'
          OR (bmc.status = 'DRAFT' AND m.created_by_user_id = $1)
        )
-       AND (
-         cm.company_membership_id IS NOT NULL
-         OR mp.participant_id IS NOT NULL
-         OR m.created_by_user_id = $1
-       )
+       AND (${BUSINESS_MOMENT_LIST_ACCESS_SQL})
        AND ${statusClause} ${cursorClause}
      ORDER BY m.updated_at DESC
      LIMIT $2`,
@@ -2247,74 +2248,73 @@ export async function getBusinessMomentProjection(
     const vendorActive = Object.keys(vendorPayload).length > 0;
     const has = !!life.rows[0] && (teamActive || runwayActive || opsActive || vendorActive);
 
-    const [pulseRows, moduleRows, signalRows, activityRows, journeyRows, trends] = await Promise.all([
-      client.query<{
-        attention_count: number;
-        active_moment_count: number;
-        runway_months: string | null;
-        financial_health_score: string | null;
-      }>(
-        `SELECT attention_count, active_moment_count, runway_months::text,
-                financial_health_score::text
-         FROM projection.business_pulse WHERE company_id = $1`,
-        [scope.companyId]
-      ),
-      client.query<{ n: string }>(
-        `SELECT COUNT(DISTINCT business_family)::text AS n
-         FROM business.business_moment_context
-         WHERE company_id = $1 AND status = 'ACTIVE'`,
-        [scope.companyId]
-      ),
-      client.query<{
-        issue_id: string;
-        title: string;
-        severity: string;
-        status: string;
-        business_family: string | null;
-      }>(
-        `SELECT i.issue_id, i.title, i.severity, i.status, bmc.business_family
-         FROM business.issue i
-         LEFT JOIN business.business_moment_context bmc ON bmc.moment_id = i.moment_id
-         WHERE i.company_id = $1
-           AND i.status IN ('OPEN', 'IN_PROGRESS', 'BLOCKED')
-         ORDER BY
-           CASE i.severity
-             WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 ELSE 3
-           END,
-           i.opened_at DESC
-         LIMIT 6`,
-        [scope.companyId]
-      ),
-      client.query<{
-        activity_code: string;
-        title: string;
-        occurred_at: Date;
-        activity_payload: Record<string, unknown> | null;
-        business_family: string | null;
-      }>(
-        `SELECT ra.activity_code, ra.title, ra.occurred_at, ra.activity_payload, bmc.business_family
-         FROM projection.recent_activity ra
-         JOIN business.business_moment_context bmc
-           ON bmc.moment_id = ra.scope_id::uuid AND bmc.company_id = $1 AND bmc.status = 'ACTIVE'
-         WHERE ra.scope_type = 'MOMENT'
-           AND ra.domain_code = 'BUSINESS'
-         ORDER BY ra.occurred_at DESC
-         LIMIT 8`,
-        [scope.companyId]
-      ),
-      client.query<{
-        family_code: string;
-        title: string;
-        created_at: Date;
-      }>(
-        `SELECT DISTINCT ON (family_code) family_code, title, created_at
-         FROM business.business_system_setup
-         WHERE company_id = $1 AND status = 'ACTIVE'
-         ORDER BY family_code, created_at ASC`,
-        [scope.companyId]
-      ),
-      loadLifeTrendSeries(client, scope.companyId),
-    ]);
+    // Sequential on shared PoolClient (withUserConnection forbids concurrent client.query).
+    const pulseRows = await client.query<{
+      attention_count: number;
+      active_moment_count: number;
+      runway_months: string | null;
+      financial_health_score: string | null;
+    }>(
+      `SELECT attention_count, active_moment_count, runway_months::text,
+              financial_health_score::text
+       FROM projection.business_pulse WHERE company_id = $1`,
+      [scope.companyId]
+    );
+    const moduleRows = await client.query<{ n: string }>(
+      `SELECT COUNT(DISTINCT business_family)::text AS n
+       FROM business.business_moment_context
+       WHERE company_id = $1 AND status = 'ACTIVE'`,
+      [scope.companyId]
+    );
+    const signalRows = await client.query<{
+      issue_id: string;
+      title: string;
+      severity: string;
+      status: string;
+      business_family: string | null;
+    }>(
+      `SELECT i.issue_id, i.title, i.severity, i.status, bmc.business_family
+       FROM business.issue i
+       LEFT JOIN business.business_moment_context bmc ON bmc.moment_id = i.moment_id
+       WHERE i.company_id = $1
+         AND i.status IN ('OPEN', 'IN_PROGRESS', 'BLOCKED')
+       ORDER BY
+         CASE i.severity
+           WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 ELSE 3
+         END,
+         i.opened_at DESC
+       LIMIT 6`,
+      [scope.companyId]
+    );
+    const activityRows = await client.query<{
+      activity_code: string;
+      title: string;
+      occurred_at: Date;
+      activity_payload: Record<string, unknown> | null;
+      business_family: string | null;
+    }>(
+      `SELECT ra.activity_code, ra.title, ra.occurred_at, ra.activity_payload, bmc.business_family
+       FROM projection.recent_activity ra
+       JOIN business.business_moment_context bmc
+         ON bmc.moment_id = ra.scope_id::uuid AND bmc.company_id = $1 AND bmc.status = 'ACTIVE'
+       WHERE ra.scope_type = 'MOMENT'
+         AND ra.domain_code = 'BUSINESS'
+       ORDER BY ra.occurred_at DESC
+       LIMIT 8`,
+      [scope.companyId]
+    );
+    const journeyRows = await client.query<{
+      family_code: string;
+      title: string;
+      created_at: Date;
+    }>(
+      `SELECT DISTINCT ON (family_code) family_code, title, created_at
+       FROM business.business_system_setup
+       WHERE company_id = $1 AND status = 'ACTIVE'
+       ORDER BY family_code, created_at ASC`,
+      [scope.companyId]
+    );
+    const trends = await loadLifeTrendSeries(client, scope.companyId);
 
     const pulse = pulseRows.rows[0];
     const activeModuleCount = Number(moduleRows.rows[0]?.n ?? 0);
@@ -2376,9 +2376,10 @@ export async function getBusinessMomentProjection(
         kpis: {
           activeModuleCount,
           activeMomentCount: pulse?.active_moment_count ?? 0,
-          runwayMonths: pulse?.runway_months ?? null,
-          financialHealthScore: pulse?.financial_health_score ?? null,
+          runwayMonths: scope.financeVisible ? (pulse?.runway_months ?? null) : null,
+          financialHealthScore: scope.financeVisible ? (pulse?.financial_health_score ?? null) : null,
           attentionCount: pulse?.attention_count ?? 0,
+          financeVisible: scope.financeVisible,
         },
         modules: {
           teamOperations: {
@@ -2504,6 +2505,13 @@ async function getBusinessPulseOrFinance(
   momentId: string,
   facet: 'pulse' | 'finance'
 ): Promise<Record<string, unknown>> {
+  // Authz before any finance/pulse projection read (company + moment gate).
+  const { assertCompanyMomentAccess } = await import('../business/membership');
+  const scope = await assertCompanyMomentAccess(client, ctx, momentId);
+  if (scope.companyId == null) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'This record stays with a company.', 409);
+  }
+
   const bundled = await client.query<{
     company_id: string;
     business_family: string;
@@ -2571,23 +2579,33 @@ async function getBusinessPulseOrFinance(
     throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Not an active company member for this business moment.', 403);
   }
   const row = bundled.rows[0];
-  const totals = (row.totals ?? []) as Array<Record<string, unknown>>;
+  const totals = scope.financeVisible
+    ? ((row.totals ?? []) as Array<Record<string, unknown>>)
+    : [];
   const financePayload = {
-    dataQuality: totals.length ? ('OK' as const) : ('EMPTY' as const),
+    dataQuality: scope.financeVisible
+      ? totals.length
+        ? ('OK' as const)
+        : ('EMPTY' as const)
+      : ('RESTRICTED' as const),
+    financeVisible: scope.financeVisible,
     totals,
-    snapshotPayload: row.snapshot_payload ?? {},
+    snapshotPayload: scope.financeVisible ? (row.snapshot_payload ?? {}) : {},
   };
   const title = row.title ?? '';
   if (facet === 'finance') {
-    return {
-      momentId,
-      facet,
-      title,
-      companyId: row.company_id,
-      businessFamily: row.business_family,
-      status: financePayload.dataQuality === 'EMPTY' ? 'EMPTY' : 'OK',
-      payload: financePayload,
-    };
+    return redactLegacyFinanceProjection(
+      {
+        momentId,
+        facet,
+        title,
+        companyId: row.company_id,
+        businessFamily: row.business_family,
+        status: financePayload.dataQuality === 'EMPTY' ? 'EMPTY' : 'OK',
+        payload: financePayload,
+      },
+      scope.financeVisible
+    );
   }
 
   const family = (row.business_family ?? '').toUpperCase();
@@ -2599,25 +2617,32 @@ async function getBusinessPulseOrFinance(
   }
 
   const hasPulse = row.attention_count != null || row.active_moment_count != null;
-  return {
-    momentId,
-    facet: 'pulse',
-    title,
-    companyId: row.company_id,
-    businessFamily: row.business_family,
-    status: financePayload.dataQuality === 'EMPTY' && !hasPulse && !operations ? 'EMPTY' : 'OK',
-    payload: {
-      dataQuality: financePayload.dataQuality,
-      attentionCount: row.attention_count ?? 0,
-      activeMomentCount: row.active_moment_count ?? 0,
-      runwayMonths: row.runway_months ?? null,
-      financialHealthScore: row.financial_health_score ?? null,
-      widgetPayload: row.widget_payload ?? {},
-      finance: financePayload,
-      activity: row.activity ?? [],
-      ...(operations ? { operations } : {}),
+  const activityRaw = (row.activity ?? []) as Array<{
+    activityCode: string;
+    activityPayload?: Record<string, unknown>;
+  }>;
+  return redactLegacyFinanceProjection(
+    {
+      momentId,
+      facet: 'pulse',
+      title,
+      companyId: row.company_id,
+      businessFamily: row.business_family,
+      status: financePayload.dataQuality === 'EMPTY' && !hasPulse && !operations ? 'EMPTY' : 'OK',
+      payload: {
+        dataQuality: financePayload.dataQuality,
+        attentionCount: row.attention_count ?? 0,
+        activeMomentCount: row.active_moment_count ?? 0,
+        runwayMonths: scope.financeVisible ? (row.runway_months ?? null) : null,
+        financialHealthScore: scope.financeVisible ? (row.financial_health_score ?? null) : null,
+        widgetPayload: scope.financeVisible ? (row.widget_payload ?? {}) : {},
+        finance: financePayload,
+        activity: activityRaw.map((a) => redactActivityItem(a, scope.financeVisible)),
+        ...(operations ? { operations } : {}),
+      },
     },
-  };
+    scope.financeVisible
+  );
 }
 
 export async function getBusinessMomentActivity(
@@ -2680,13 +2705,18 @@ export async function getBusinessMomentActivity(
   );
   const hasMore = rows.rows.length > safeLimit;
   const slice = rows.rows.slice(0, safeLimit);
-  const items = slice.map((r) => ({
-    activityCode: r.activity_code,
-    title: r.title,
-    occurredAt: r.occurred_at.toISOString(),
-    activityPayload: r.activity_payload ?? {},
-    actorDisplayName: r.actor_display_name,
-  }));
+  const items = slice.map((r) =>
+    redactActivityItem(
+      {
+        activityCode: r.activity_code,
+        title: r.title,
+        occurredAt: r.occurred_at.toISOString(),
+        activityPayload: r.activity_payload ?? {},
+        actorDisplayName: r.actor_display_name,
+      },
+      scope.financeVisible
+    )
+  );
   const last = slice[slice.length - 1];
   const nextCursor =
     hasMore && last ? `${last.occurred_at.toISOString()}|${last.recent_activity_id}` : null;

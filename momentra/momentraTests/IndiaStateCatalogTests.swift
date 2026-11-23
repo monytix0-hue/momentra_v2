@@ -102,9 +102,13 @@ struct IndiaStateCatalogTests {
     @Test func searchGroupsStatesBeforeUnionTerritories() {
         let all = IndiaStateCatalog.search(nil)
         #expect(all.count == IndiaStateCatalog.all.count)
-        let firstTerritory = all.firstIndex { $0.isUnionTerritory }
-        #expect(firstTerritory! >= IndiaStateCatalog.states.count)
-        #expect(all[firstTerritory!...].allSatisfy(\.isUnionTerritory))
+        guard let firstTerritory = all.firstIndex(where: { $0.isUnionTerritory }) else {
+            Issue.record("Expected at least one union territory in the catalog")
+            return
+        }
+        #expect(firstTerritory >= IndiaStateCatalog.states.count)
+        let territories = Array(all[firstTerritory...])
+        #expect(territories.allSatisfy { $0.isUnionTerritory })
 
         #expect(IndiaStateCatalog.search("mahar").map(\.name) == ["Maharashtra"])
         #expect(IndiaStateCatalog.search("27").map(\.name) == ["Maharashtra"])

@@ -594,7 +594,8 @@ function momentView(
   subtype: string,
   events: OperatingEventRow[],
   budget = '1000',
-  target = '1000'
+  target = '1000',
+  asOf?: Date
 ) {
   const prefs = normalizeOperatingPreferences(
     family,
@@ -611,7 +612,7 @@ function momentView(
     },
     { userId: 'u', displayName: 'Asha' }
   );
-  return projectOperatingMoment({ familyCode: family, prefs, role: 'OWNER_ADMIN', events });
+  return projectOperatingMoment({ familyCode: family, prefs, role: 'OWNER_ADMIN', events, asOf });
 }
 
 describe('operating allocation continuity', () => {
@@ -1146,7 +1147,8 @@ describe('marketing campaigns v4.2 modes', () => {
         }),
       ],
       '30000',
-      '100'
+      '100',
+      new Date('2026-10-15T00:00:00.000Z')
     );
     assert.equal(view.attention.some((item) => item.kind === 'ATT-10'), true);
     assert.equal(view.budget?.amount, '30000.0000');
@@ -1446,5 +1448,181 @@ describe('marketing campaigns v5 sequential', () => {
       [posted('spend', 'SPEND', { amount: '10', marketing: { ...blank, idempotencyKey: 'spend-1' } })]
     );
     assert.equal(again.ok, true);
+  });
+});
+
+describe('Figma setup aliases → OperatingPreferences', () => {
+  const creator = { userId: 'owner-1', displayName: 'Asha' };
+
+  it('maps marketing Figma keys, pipe channels, money commas, dates, and GST', () => {
+    const prefs = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      {
+        subtype: 'CLIENT_CAMPAIGN',
+        campaignName: 'Summer launch',
+        clientName: 'Northwind',
+        channels: 'Instagram|WhatsApp',
+        monthlyBudget: '₹2,00,000',
+        startDate: '01 Nov 2024',
+        endDate: '30 Nov 2024',
+        currency: 'inr',
+        gstRegistered: 'Yes',
+        gstType: 'Regular',
+        gstState: 'Maharashtra',
+        gstin: '27aaaaa0000a1z2',
+        roles: 'Owner|Finance',
+        teamMembers: 'Asha|Ravi',
+      },
+      creator
+    );
+    assert.equal(prefs.identityName, 'Summer launch');
+    assert.equal(prefs.partyName, 'Northwind');
+    assert.deepEqual(prefs.channels, ['Instagram', 'WhatsApp']);
+    assert.equal(prefs.monthlyBudget, '200000.0000');
+    assert.equal(prefs.startDate, '2024-11-01');
+    assert.equal(prefs.endDate, '2024-11-30');
+    assert.equal(prefs.currency, 'INR');
+    assert.equal(prefs.gstTracking, 'YES');
+    assert.equal(prefs.gstRegistration, 'REGULAR');
+    assert.equal(prefs.gstin, '27AAAAA0000A1Z2');
+    assert.ok(prefs.participants.some((p) => p.role === 'FINANCE' && p.displayName === 'Ravi'));
+    assert.ok(prefs.counterparties.some((c) => c.kind === 'CLIENT' && c.name === 'Northwind'));
+  });
+
+  it('maps trading targetSales and GST Yes/Regular', () => {
+    const prefs = normalizeOperatingPreferences(
+      'TRADING_DISTRIBUTION',
+      {
+        subtype: 'TRADING_WHOLESALE',
+        businessName: 'Metro Trade',
+        companyName: 'Metro Co',
+        targetSales: '₹25,00,000',
+        channels: 'Walk-in|Dealer',
+        gstRegistered: 'Yes',
+        gstType: 'Composition',
+        gstState: 'Karnataka',
+      },
+      creator
+    );
+    assert.equal(prefs.identityName, 'Metro Trade');
+    assert.equal(prefs.partyName, 'Metro Co');
+    assert.equal(prefs.monthlyTarget, '2500000.0000');
+    assert.equal(prefs.monthlyBudget, '2500000.0000');
+    assert.equal(prefs.gstTracking, 'YES');
+    assert.equal(prefs.gstRegistration, 'COMPOSITION');
+  });
+
+  it('maps retail storeName/posStyle into identity and channels', () => {
+    const prefs = normalizeOperatingPreferences(
+      'RETAIL_CONSUMER',
+      {
+        subtype: 'RETAIL_STORE',
+        storeName: 'Corner Kirana',
+        format: 'Kirana',
+        posStyle: 'Counter POS',
+        targetSales: '₹5,00,000',
+        gstRegistered: 'No',
+        gstType: 'Unregistered',
+      },
+      creator
+    );
+    assert.equal(prefs.identityName, 'Corner Kirana');
+    // Retail party prefers companyName; without it, identity — not format chips.
+    assert.equal(prefs.partyName, 'Corner Kirana');
+    assert.deepEqual(prefs.channels, ['Counter POS']);
+    assert.equal(prefs.gstTracking, 'NOT_NOW');
+    assert.equal(prefs.gstRegistration, 'UNREGISTERED');
+  });
+
+  it('maps manufacturing plantName and monthlyOutput', () => {
+    const prefs = normalizeOperatingPreferences(
+      'MANUFACTURING_PRODUCTION',
+      {
+        subtype: 'STANDARD_PRODUCTION',
+        plantName: 'Unit A',
+        companyName: 'Forge Pvt',
+        monthlyOutput: '₹10,00,000',
+        gstRegistered: 'Yes',
+        gstType: 'Regular',
+        gstState: 'Tamil Nadu',
+      },
+      creator
+    );
+    assert.equal(prefs.identityName, 'Unit A');
+    assert.equal(prefs.partyName, 'Forge Pvt');
+    assert.equal(prefs.monthlyTarget, '1000000.0000');
+    assert.equal(prefs.monthlyBudget, '1000000.0000');
+  });
+
+
+  it('maps manufacturing Figma keys budget target channels GST', () => {
+    const prefs = normalizeOperatingPreferences(
+      'MANUFACTURING_PRODUCTION',
+      {
+        subtype: 'STANDARD_PRODUCTION',
+        businessName: 'Forge & Form',
+        companyName: 'Forge & Form Pvt',
+        currency: 'INR · Indian Rupee (₹)',
+        monthlyBudget: '₹42,00,000',
+        monthlyTarget: '₹65,00,000',
+        targetMetric: 'Revenue',
+        channels: 'Direct B2B|OEM|Export',
+        gstRegistered: 'Yes',
+        gstType: 'Regular',
+        gstState: 'Maharashtra',
+        gstin: '27AAAAA0000A1Z2',
+        priceIncludesGst: 'GST is added separately',
+        gstEffectiveFrom: '12 October 2026',
+        startDate: '12 October 2026',
+        location: 'Pune plant',
+        description: 'Standard production',
+      },
+      creator
+    );
+    assert.equal(prefs.identityName, 'Forge & Form');
+    assert.equal(prefs.partyName, 'Forge & Form Pvt');
+    assert.equal(prefs.currency, 'INR');
+    assert.equal(prefs.monthlyBudget, '4200000.0000');
+    assert.equal(prefs.monthlyTarget, '6500000.0000');
+    assert.equal(prefs.targetMetric, 'REVENUE');
+    assert.deepEqual(prefs.channels, ['Direct B2B', 'OEM', 'Export']);
+    assert.equal(prefs.gstTracking, 'YES');
+    assert.equal(prefs.gstRegistration, 'REGULAR');
+    assert.equal(prefs.gstin, '27AAAAA0000A1Z2');
+    assert.equal(prefs.salePriceIncludesGst, 'NO');
+    assert.equal(prefs.gstEffectiveFrom, '2026-10-12');
+    assert.equal(prefs.startDate, '2026-10-12');
+    assert.equal(prefs.location, 'Pune plant');
+  });
+
+    it('maps own marketing brandName and made-to-order shopName', () => {
+    const own = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      {
+        subtype: 'OWN_BUSINESS_CAMPAIGN',
+        campaignName: 'Diwali push',
+        brandName: 'Acme',
+        monthlyBudget: '50000',
+        channels: ['Email'],
+        startDate: '2024-11-01',
+      },
+      creator
+    );
+    assert.equal(own.partyName, 'Acme');
+
+    const mto = normalizeOperatingPreferences(
+      'MANUFACTURING_PRODUCTION',
+      {
+        subtype: 'MADE_TO_ORDER',
+        shopName: 'Custom Works',
+        companyName: 'Custom Works',
+        monthlyJobs: '40',
+        monthlyBudget: '80000',
+        gstRegistered: 'No',
+      },
+      creator
+    );
+    assert.equal(mto.identityName, 'Custom Works');
+    assert.equal(mto.monthlyTarget, '40.0000');
   });
 });

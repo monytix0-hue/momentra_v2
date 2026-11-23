@@ -165,7 +165,7 @@ final class MomentCreateModel: ObservableObject {
             return
         }
         submit(
-            draftKey: "business:\(kind.rawValue):\(companyId ?? "moment")",
+            draftKey: "business:\(momentTypeCode):\(companyId ?? "moment"):\(resolvedTitle)",
             block: { draftKey in
                 let resolvedCompanyId = try await self.ensureBusinessCompany(
                     companyId: companyId,

@@ -48,8 +48,11 @@ struct AppStateRow: Equatable {
 
 /// The lucide glyph Figma places inside the hero badge (18pt, white stroke).
 enum AppStateIcon: String, CaseIterable {
-    case sparkle
+    /// Pulse empty — lockstep Android `Bolt`. Used by Content via `spec.icon`.
+    case bolt
+    /// Moments empty — lockstep Android `Hexagon`.
     case moments
+    case sparkle
     case sun
     case memory
     case plus
@@ -60,8 +63,9 @@ enum AppStateIcon: String, CaseIterable {
     /// SF Symbol equivalent, tinted white at 18pt inside the badge.
     var systemName: String {
         switch self {
+        case .bolt: return "bolt.fill"
+        case .moments: return "hexagon.fill"
         case .sparkle: return "sparkles"
-        case .moments: return "bolt.fill"
         case .sun: return "sun.max"
         case .memory: return "clock.arrow.circlepath"
         case .plus: return "plus"
@@ -92,6 +96,8 @@ struct BusinessAppStateSpec {
     var secondaryLabel: String? = nil
     var errorCode: String? = nil
     var footnote: String? = nil
+    /// Glyph inside the floating status dot. Figma alternates this per frame — lockstep Android.
+    var dotGlyph: String = "✓"
 }
 
 /// Copy and row data for every state in the Figma kit (node 2666:32397).
@@ -162,7 +168,7 @@ enum BusinessAppStateSpecs {
             return BusinessAppStateSpec(
                 screen: .pulse,
                 phase: phase,
-                icon: .plus,
+                icon: .bolt,
                 title: "No pulse yet",
                 body: "Nothing has been recorded for your business this period. Pulse fills in as sales, collections and stock land.",
                 rows: [
@@ -172,7 +178,8 @@ enum BusinessAppStateSpecs {
                 ],
                 eyebrow: "WHAT SHOWS UP HERE",
                 primaryLabel: "Record first sale",
-                secondaryLabel: "Open Quick adds"
+                secondaryLabel: "Open Quick adds",
+                dotGlyph: "+"
             )
         case .loading:
             return BusinessAppStateSpec(
@@ -212,7 +219,8 @@ enum BusinessAppStateSpecs {
                 ],
                 eyebrow: "A MOMENT HOLDS",
                 primaryLabel: "Add first order",
-                secondaryLabel: "Invite your team"
+                secondaryLabel: "Invite your team",
+                dotGlyph: "✦"
             )
         case .loading:
             return BusinessAppStateSpec(
@@ -252,7 +260,8 @@ enum BusinessAppStateSpecs {
                 ],
                 eyebrow: todayLabel(now),
                 primaryLabel: "Open Quick adds",
-                secondaryLabel: "Back to Pulse"
+                secondaryLabel: "Back to Pulse",
+                dotGlyph: "✦"
             )
         case .loading:
             return BusinessAppStateSpec(
@@ -294,7 +303,8 @@ enum BusinessAppStateSpecs {
                 ],
                 eyebrow: month,
                 primaryLabel: "Pick another month",
-                secondaryLabel: "Back to Pulse"
+                secondaryLabel: "Back to Pulse",
+                dotGlyph: "✦"
             )
         case .loading:
             return BusinessAppStateSpec(
@@ -328,7 +338,11 @@ enum BusinessAppStateSpecs {
                 screen: .hub, phase: phase, icon: .plus,
                 title: "Start with a capture",
                 body: "Nothing recorded yet. One sale, purchase or stock update is enough to light up Pulse.",
-                footnote: "Tap Sale to begin — the rest unlock as you go."
+                // Obsidian Hub (2:613): tiles + footnote; no invented primary CTA.
+                primaryLabel: nil,
+                secondaryLabel: "Back to Pulse",
+                footnote: "Tap a tile to begin — the rest unlock as you go.",
+                dotGlyph: "⚡"
             )
         case .error:
             return BusinessAppStateSpec(

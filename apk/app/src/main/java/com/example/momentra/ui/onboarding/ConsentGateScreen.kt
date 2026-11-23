@@ -48,7 +48,7 @@ fun ConsentGateScreen(
     prefs: AppPreferences,
 ) {
     val context = LocalContext.current
-    var confirmedAge13Plus by remember { mutableStateOf(prefs.isAgeGateAccepted()) }
+    var confirmedAge18Plus by remember { mutableStateOf(prefs.isAgeGateAccepted()) }
 
     Column(
         modifier = Modifier
@@ -68,7 +68,7 @@ fun ConsentGateScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            "Momentra uses your account and moment data to run the product. You can manage these purposes anytime in Account → Privacy:",
+            "Momentra uses your account and moment data to run the product. You can manage optional purposes, download a data summary, or raise a privacy request anytime in Account → Privacy:",
             color = Color.White.copy(alpha = 0.75f),
             fontSize = 14.sp,
         )
@@ -77,6 +77,12 @@ fun ConsentGateScreen(
         PurposeBullet("Analytics — optional product analytics (Personal / Business)")
         PurposeBullet("AI insights — optional AI suggestions and recommendations")
         PurposeBullet("Memory patterns — optional pattern analysis on your memories")
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            "Momentra is not directed at anyone under 18. Privacy / grievance: hello@momentra.app.",
+            color = Color.White.copy(alpha = 0.65f),
+            fontSize = 12.sp,
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             "By continuing you agree to our Privacy Policy and Terms of Service.",
@@ -114,18 +120,18 @@ fun ConsentGateScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .toggleable(
-                    value = confirmedAge13Plus,
+                    value = confirmedAge18Plus,
                     role = Role.Checkbox,
-                    onValueChange = { confirmedAge13Plus = it },
+                    onValueChange = { confirmedAge18Plus = it },
                 )
                 .testTag("consent.age_gate"),
         ) {
             Checkbox(
-                checked = confirmedAge13Plus,
+                checked = confirmedAge18Plus,
                 onCheckedChange = null,
             )
             Text(
-                "I confirm I am 13 years of age or older",
+                "I confirm I am 18 years of age or older",
                 color = Color.White,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(start = 4.dp),
@@ -137,12 +143,12 @@ fun ConsentGateScreen(
                 prefs.setAgeGateAccepted(true)
                 onContinue()
             },
-            enabled = confirmedAge13Plus,
+            enabled = confirmedAge18Plus,
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics {
-                    if (!confirmedAge13Plus) {
-                        stateDescription = "Confirm you are 13 or older to continue"
+                    if (!confirmedAge18Plus) {
+                        stateDescription = "Confirm you are 18 or older to continue"
                     }
                 }
                 .testTag(MaestroIds.CONSENT_CONTINUE),

@@ -259,21 +259,7 @@ struct PersonalLifeSummaryModel: Equatable {
             let row = byFamily.first { $0.familyCode.caseInsensitiveCompare(fam.code) == .orderedSame }
             return (fam.code, fam.label, Double(row?.periodLogs ?? 0))
         }
-        let total = values.reduce(0.0) { $0 + $1.2 }
-        guard total > 0 else {
-            return PersonalLifeAllocation(hasData: false, slices: [])
-        }
-        let slices: [PersonalLifeAllocationSlice] = values.compactMap { item in
-            guard item.2 > 0 else { return nil }
-            let pct = Int((item.2 / total * 100.0).rounded())
-            return PersonalLifeAllocationSlice(
-                familyCode: item.0,
-                label: item.1,
-                value: item.2,
-                percent: pct
-            )
-        }
-        return PersonalLifeAllocation(hasData: true, slices: rebalancePercents(slices))
+        return allocation(from: values)
     }
 
     private static func deriveMoneyAllocation(
@@ -283,6 +269,10 @@ struct PersonalLifeSummaryModel: Equatable {
             let row = byFamily.first { $0.familyCode.caseInsensitiveCompare(fam.code) == .orderedSame }
             return (fam.code, fam.label, parseAmount(row?.expenseTotal))
         }
+        return allocation(from: values)
+    }
+
+    private static func allocation(from values: [(String, String, Double)]) -> PersonalLifeAllocation {
         let total = values.reduce(0.0) { $0 + $1.2 }
         guard total > 0 else {
             return PersonalLifeAllocation(hasData: false, slices: [])
@@ -300,17 +290,26 @@ struct PersonalLifeSummaryModel: Equatable {
         return PersonalLifeAllocation(hasData: true, slices: rebalancePercents(slices))
     }
 
+    /// Absorbs rounding drift into the **largest** slice, not the last one.
+    ///
+    /// Rounding each share independently leaves the column short of 100. The old code gave the
+    /// whole difference to `slices.last`, so `[10, 10, 10]` rendered as `10 / 10 / 80` — a slice
+    /// worth a third of the total, labelled four-fifths of it. Adjusting the largest keeps every
+    /// percentage within a point of the truth. `MomentStoryViewerView.categoryPercents` does the
+    /// same thing, so the two surfaces now agree.
     private static func rebalancePercents(_ slices: [PersonalLifeAllocationSlice]) -> [PersonalLifeAllocationSlice] {
         guard !slices.isEmpty else { return slices }
         let sum = slices.reduce(0) { $0 + $1.percent }
         let delta = 100 - sum
-        guard delta != 0, let last = slices.indices.last else { return slices }
+        guard delta != 0,
+              let largest = slices.indices.max(by: { slices[$0].value < slices[$1].value })
+        else { return slices }
         var out = slices
-        out[last] = PersonalLifeAllocationSlice(
-            familyCode: out[last].familyCode,
-            label: out[last].label,
-            value: out[last].value,
-            percent: max(out[last].percent + delta, 0)
+        out[largest] = PersonalLifeAllocationSlice(
+            familyCode: out[largest].familyCode,
+            label: out[largest].label,
+            value: out[largest].value,
+            percent: max(out[largest].percent + delta, 0)
         )
         return out
     }

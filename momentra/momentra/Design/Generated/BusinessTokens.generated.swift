@@ -10,6 +10,7 @@ enum BusinessDomain: String, CaseIterable {
     case corporate = "corporate"
     case trading = "trading"
     case manufacturing = "manufacturing"
+    case madeToOrder = "madeToOrder"
     case retail = "retail"
     case services = "services"
     case restaurant = "restaurant"
@@ -21,30 +22,30 @@ enum BusinessDomain: String, CaseIterable {
 
 enum BusinessTokens {
     enum Colors {
-        static let bgCanvas = Color(hex: "#090D16")
-        static let bgCanvasElevated = Color(hex: "#0F172A")
-        static let bgCanvasDeep = Color(hex: "#05070C")
+        static let bgCanvas = Color(hex: "#05070B")
+        static let bgCanvasElevated = Color(hex: "#0F1623")
+        static let bgCanvasDeep = Color(hex: "#05070B")
         static let surfaceSheet = Color(hex: "#0F1623")
-        static let surfaceCard = Color(hex: "#151D2E")
+        static let surfaceCard = Color(hex: "#101623")
         static let surfaceInset = Color(hex: "#101828")
         static let surfaceRaised = Color(hex: "#1E293B")
-        static let surfaceGlass = Color(hex: "#FFFFFF")
+        static let surfaceGlass = Color(hex: "#101623")
         static let borderDefault = Color(hex: "#1E293B")
-        static let borderHairline = Color(hex: "#FFFFFF")
-        static let borderStrong = Color(hex: "#334155")
+        static let borderHairline = Color(hex: "#10B981")
+        static let borderStrong = Color(hex: "#10B981")
         static let textPrimary = Color(hex: "#FFFFFF")
-        static let textSecondary = Color(hex: "#CBD5E1")
-        static let textMuted = Color(hex: "#94A3B8")
+        static let textSecondary = Color(hex: "#C7D1E0")
+        static let textMuted = Color(hex: "#94A4B8")
         static let textSubtle = Color(hex: "#64748B")
-        static let textInverse = Color(hex: "#0B0A1F")
-        static let signalPositive = Color(hex: "#22C55E")
-        static let signalWarning = Color(hex: "#FBBF24")
-        static let signalDanger = Color(hex: "#EF4444")
+        static let textInverse = Color(hex: "#080A0F")
+        static let signalPositive = Color(hex: "#10B981")
+        static let signalWarning = Color(hex: "#F5A624")
+        static let signalDanger = Color(hex: "#FF5C38")
         static let signalInfo = Color(hex: "#06B6D4")
-        static let signalNeutral = Color(hex: "#94A3B8")
-        static let ctaStart = Color(hex: "#E8621A")
-        static let ctaEnd = Color(hex: "#F5A623")
-        static let ctaText = Color(hex: "#140B06")
+        static let signalNeutral = Color(hex: "#94A4B8")
+        static let ctaStart = Color(hex: "#059669")
+        static let ctaEnd = Color(hex: "#34D399")
+        static let ctaText = Color(hex: "#FFFFFF")
 
         // Domain color palettes
         static let corporateCanvas = Color(hex: "#0F172A")
@@ -58,20 +59,22 @@ enum BusinessTokens {
         static let corporateOnAccent = Color(hex: "#FFFFFF")
         static let corporateHeroStart = Color(hex: "#60A5FA")
         static let corporateHeroEnd = Color(hex: "#3B82F6")
-        static let tradingCanvas = Color(hex: "#090D16")
+        static let corporateLabel = Color(hex: "#C7D1E0")
+        static let corporateHint = Color(hex: "#94A4B8")
+        static let tradingCanvas = Color(hex: "#05070B")
         static let tradingCanvasTop = Color(hex: "#0F1623")
-        static let tradingCanvasDeep = Color(hex: "#05070C")
+        static let tradingCanvasDeep = Color(hex: "#05070B")
         static let tradingSurface = Color(hex: "#0F1623")
-        static let tradingInset = Color(hex: "#090D16")
+        static let tradingInset = Color(hex: "#05070B")
         static let tradingAccent = Color(hex: "#10B981")
-        static let tradingAccentSoft = Color(hex: "#6EE7B7")
-        static let tradingAccentDeep = Color(hex: "#047857")
-        static let tradingOnAccent = Color(hex: "#090D16")
-        static let tradingHeroStart = Color(hex: "#6EE7B7")
+        static let tradingAccentSoft = Color(hex: "#34D399")
+        static let tradingAccentDeep = Color(hex: "#059669")
+        static let tradingOnAccent = Color(hex: "#FFFFFF")
+        static let tradingHeroStart = Color(hex: "#34D399")
         static let tradingHeroEnd = Color(hex: "#10B981")
-        static let tradingSheetSurface = Color(hex: "#151D2E")
-        static let tradingLabel = Color(hex: "#8B97AD")
-        static let tradingHint = Color(hex: "#6B7790")
+        static let tradingSheetSurface = Color(hex: "#101623")
+        static let tradingLabel = Color(hex: "#C7D1E0")
+        static let tradingHint = Color(hex: "#94A4B8")
         static let tradingValue = Color(hex: "#F1F5F9")
         static let tradingWhyBody = Color(hex: "#CFEFF6")
         static let manufacturingCanvas = Color(hex: "#18181B")
@@ -85,6 +88,21 @@ enum BusinessTokens {
         static let manufacturingOnAccent = Color(hex: "#1C1917")
         static let manufacturingHeroStart = Color(hex: "#F59E0B")
         static let manufacturingHeroEnd = Color(hex: "#B45309")
+        static let manufacturingLabel = Color(hex: "#E4E4E7")
+        static let manufacturingHint = Color(hex: "#A1A1AA")
+        static let madeToOrderCanvas = Color(hex: "#101818")
+        static let madeToOrderCanvasTop = Color(hex: "#584038")
+        static let madeToOrderCanvasDeep = Color(hex: "#0A0E0E")
+        static let madeToOrderSurface = Color(hex: "#1C1818")
+        static let madeToOrderInset = Color(hex: "#141010")
+        static let madeToOrderAccent = Color(hex: "#EA580C")
+        static let madeToOrderAccentSoft = Color(hex: "#FB923C")
+        static let madeToOrderAccentDeep = Color(hex: "#C2410C")
+        static let madeToOrderOnAccent = Color(hex: "#FFFFFF")
+        static let madeToOrderHeroStart = Color(hex: "#EA580C")
+        static let madeToOrderHeroEnd = Color(hex: "#9A3412")
+        static let madeToOrderLabel = Color(hex: "#E7E5E4")
+        static let madeToOrderHint = Color(hex: "#A8A29E")
         static let retailCanvas = Color(hex: "#0B0A1F")
         static let retailCanvasTop = Color(hex: "#4C0519")
         static let retailCanvasDeep = Color(hex: "#050414")
@@ -96,10 +114,10 @@ enum BusinessTokens {
         static let retailOnAccent = Color(hex: "#FFFFFF")
         static let retailHeroStart = Color(hex: "#F43F5E")
         static let retailHeroEnd = Color(hex: "#F43F5E")
-        /// Soft rose wash (`#FFE4E6`) — Retail Why body / soft note fill.
         static let retailWhyBody = Color(hex: "#FFE4E6")
-        /// Sheet / tile / chip slate (`#1E293B`) — Retail POS chrome.
         static let retailSheet = Color(hex: "#1E293B")
+        static let retailLabel = Color(hex: "#FFE4E6")
+        static let retailHint = Color(hex: "#FDA4AF")
         static let servicesCanvas = Color(hex: "#042F2E")
         static let servicesCanvasTop = Color(hex: "#115E59")
         static let servicesCanvasDeep = Color(hex: "#022C22")
@@ -111,6 +129,8 @@ enum BusinessTokens {
         static let servicesOnAccent = Color(hex: "#FFFFFF")
         static let servicesHeroStart = Color(hex: "#0D9488")
         static let servicesHeroEnd = Color(hex: "#84CC16")
+        static let servicesLabel = Color(hex: "#CCFBF1")
+        static let servicesHint = Color(hex: "#99F6E4")
         static let restaurantCanvas = Color(hex: "#1C1917")
         static let restaurantCanvasTop = Color(hex: "#44403C")
         static let restaurantCanvasDeep = Color(hex: "#0C0A09")
@@ -122,10 +142,8 @@ enum BusinessTokens {
         static let restaurantOnAccent = Color(hex: "#FFFFFF")
         static let restaurantHeroStart = Color(hex: "#881337")
         static let restaurantHeroEnd = Color(hex: "#EA580C")
-        /// Why-note body cream (`#FEF3C7`) — Restaurant Ember sheets.
-        static let restaurantWhyBody = Color(hex: "#FEF3C7")
-        /// Inactive chip / field hairline (`#57534E`).
-        static let restaurantHairline = Color(hex: "#57534E")
+        static let restaurantLabel = Color(hex: "#E7E5E4")
+        static let restaurantHint = Color(hex: "#A8A29E")
         static let distributionCanvas = Color(hex: "#0F172A")
         static let distributionCanvasTop = Color(hex: "#0B1226")
         static let distributionCanvasDeep = Color(hex: "#050A18")
@@ -137,6 +155,8 @@ enum BusinessTokens {
         static let distributionOnAccent = Color(hex: "#0F172A")
         static let distributionHeroStart = Color(hex: "#FFB598")
         static let distributionHeroEnd = Color(hex: "#EA580C")
+        static let distributionLabel = Color(hex: "#C7D1E0")
+        static let distributionHint = Color(hex: "#94A4B8")
         static let marketingCanvas = Color(hex: "#0F172A")
         static let marketingCanvasTop = Color(hex: "#1E1B4B")
         static let marketingCanvasDeep = Color(hex: "#0B0F1F")
@@ -148,6 +168,8 @@ enum BusinessTokens {
         static let marketingOnAccent = Color(hex: "#FFFFFF")
         static let marketingHeroStart = Color(hex: "#6366F1")
         static let marketingHeroEnd = Color(hex: "#8B5CF6")
+        static let marketingLabel = Color(hex: "#E0E7FF")
+        static let marketingHint = Color(hex: "#A5B4FC")
         static let marketingOwnCanvas = Color(hex: "#0F172A")
         static let marketingOwnCanvasTop = Color(hex: "#1E1B4B")
         static let marketingOwnCanvasDeep = Color(hex: "#150618")
@@ -160,12 +182,15 @@ enum BusinessTokens {
         static let marketingOwnOnAccent = Color(hex: "#FFFFFF")
         static let marketingOwnHeroStart = Color(hex: "#D946EF")
         static let marketingOwnHeroEnd = Color(hex: "#F59E0B")
+        static let marketingOwnLabel = Color(hex: "#FAE8FF")
+        static let marketingOwnHint = Color(hex: "#F0ABFC")
 
         static func accent(for domain: BusinessDomain) -> Color {
             switch domain {
             case .corporate: return corporateAccent
             case .trading: return tradingAccent
             case .manufacturing: return manufacturingAccent
+            case .madeToOrder: return madeToOrderAccent
             case .retail: return retailAccent
             case .services: return servicesAccent
             case .restaurant: return restaurantAccent
@@ -188,6 +213,8 @@ enum BusinessTokens {
             colors["corporate.onAccent"] = corporateOnAccent
             colors["corporate.heroStart"] = corporateHeroStart
             colors["corporate.heroEnd"] = corporateHeroEnd
+            colors["corporate.label"] = corporateLabel
+            colors["corporate.hint"] = corporateHint
             colors["trading.canvas"] = tradingCanvas
             colors["trading.canvasTop"] = tradingCanvasTop
             colors["trading.canvasDeep"] = tradingCanvasDeep
@@ -215,6 +242,21 @@ enum BusinessTokens {
             colors["manufacturing.onAccent"] = manufacturingOnAccent
             colors["manufacturing.heroStart"] = manufacturingHeroStart
             colors["manufacturing.heroEnd"] = manufacturingHeroEnd
+            colors["manufacturing.label"] = manufacturingLabel
+            colors["manufacturing.hint"] = manufacturingHint
+            colors["madeToOrder.canvas"] = madeToOrderCanvas
+            colors["madeToOrder.canvasTop"] = madeToOrderCanvasTop
+            colors["madeToOrder.canvasDeep"] = madeToOrderCanvasDeep
+            colors["madeToOrder.surface"] = madeToOrderSurface
+            colors["madeToOrder.inset"] = madeToOrderInset
+            colors["madeToOrder.accent"] = madeToOrderAccent
+            colors["madeToOrder.accentSoft"] = madeToOrderAccentSoft
+            colors["madeToOrder.accentDeep"] = madeToOrderAccentDeep
+            colors["madeToOrder.onAccent"] = madeToOrderOnAccent
+            colors["madeToOrder.heroStart"] = madeToOrderHeroStart
+            colors["madeToOrder.heroEnd"] = madeToOrderHeroEnd
+            colors["madeToOrder.label"] = madeToOrderLabel
+            colors["madeToOrder.hint"] = madeToOrderHint
             colors["retail.canvas"] = retailCanvas
             colors["retail.canvasTop"] = retailCanvasTop
             colors["retail.canvasDeep"] = retailCanvasDeep
@@ -228,6 +270,8 @@ enum BusinessTokens {
             colors["retail.heroEnd"] = retailHeroEnd
             colors["retail.whyBody"] = retailWhyBody
             colors["retail.sheet"] = retailSheet
+            colors["retail.label"] = retailLabel
+            colors["retail.hint"] = retailHint
             colors["services.canvas"] = servicesCanvas
             colors["services.canvasTop"] = servicesCanvasTop
             colors["services.canvasDeep"] = servicesCanvasDeep
@@ -239,6 +283,8 @@ enum BusinessTokens {
             colors["services.onAccent"] = servicesOnAccent
             colors["services.heroStart"] = servicesHeroStart
             colors["services.heroEnd"] = servicesHeroEnd
+            colors["services.label"] = servicesLabel
+            colors["services.hint"] = servicesHint
             colors["restaurant.canvas"] = restaurantCanvas
             colors["restaurant.canvasTop"] = restaurantCanvasTop
             colors["restaurant.canvasDeep"] = restaurantCanvasDeep
@@ -250,8 +296,8 @@ enum BusinessTokens {
             colors["restaurant.onAccent"] = restaurantOnAccent
             colors["restaurant.heroStart"] = restaurantHeroStart
             colors["restaurant.heroEnd"] = restaurantHeroEnd
-            colors["restaurant.whyBody"] = restaurantWhyBody
-            colors["restaurant.hairline"] = restaurantHairline
+            colors["restaurant.label"] = restaurantLabel
+            colors["restaurant.hint"] = restaurantHint
             colors["distribution.canvas"] = distributionCanvas
             colors["distribution.canvasTop"] = distributionCanvasTop
             colors["distribution.canvasDeep"] = distributionCanvasDeep
@@ -263,6 +309,8 @@ enum BusinessTokens {
             colors["distribution.onAccent"] = distributionOnAccent
             colors["distribution.heroStart"] = distributionHeroStart
             colors["distribution.heroEnd"] = distributionHeroEnd
+            colors["distribution.label"] = distributionLabel
+            colors["distribution.hint"] = distributionHint
             colors["marketing.canvas"] = marketingCanvas
             colors["marketing.canvasTop"] = marketingCanvasTop
             colors["marketing.canvasDeep"] = marketingCanvasDeep
@@ -274,6 +322,8 @@ enum BusinessTokens {
             colors["marketing.onAccent"] = marketingOnAccent
             colors["marketing.heroStart"] = marketingHeroStart
             colors["marketing.heroEnd"] = marketingHeroEnd
+            colors["marketing.label"] = marketingLabel
+            colors["marketing.hint"] = marketingHint
             colors["marketingOwn.canvas"] = marketingOwnCanvas
             colors["marketingOwn.canvasTop"] = marketingOwnCanvasTop
             colors["marketingOwn.canvasDeep"] = marketingOwnCanvasDeep
@@ -286,6 +336,8 @@ enum BusinessTokens {
             colors["marketingOwn.onAccent"] = marketingOwnOnAccent
             colors["marketingOwn.heroStart"] = marketingOwnHeroStart
             colors["marketingOwn.heroEnd"] = marketingOwnHeroEnd
+            colors["marketingOwn.label"] = marketingOwnLabel
+            colors["marketingOwn.hint"] = marketingOwnHint
             return colors
         }
     }

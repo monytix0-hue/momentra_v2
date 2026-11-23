@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="shortcut_personal"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_personal_short"
+        android:shortcutLongLabel="@string/shortcut_personal_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example.momentra"
+            android:targetClass="com.example.momentra.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="shortcut_business"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_business_short"
+        android:shortcutLongLabel="@string/shortcut_business_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example.momentra"
+            android:targetClass="com.example.momentra.MainActivity" />
+    </shortcut>
+</shortcuts>

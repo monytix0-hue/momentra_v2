@@ -1,13 +1,22 @@
 # Launch decisions (Momentra)
 
-Updated: 2026-10-06 (Asia/Calcutta)
+Updated: 2026-11-13 (Asia/Calcutta)
+
+## DPDP Act (engineering track)
+
+- Gap audit: [DPDP_GAP_AUDIT.md](./DPDP_GAP_AUDIT.md) (maps to [DPDP Act, 2023 MeitY PDF](https://www.meity.gov.in/static/uploads/2024/06/2bf1f0e9f04e6fb4f8fef35e82c42aa5.pdf)).
+- What shipped: [DPDP_COMPLIANCE_NOTE.md](./DPDP_COMPLIANCE_NOTE.md).
+- Ops erasure + breach stub: [DPDP_ERASURE_RUNBOOK.md](./DPDP_ERASURE_RUNBOOK.md).
+- **Age gate:** product requires **18+** (`momentra_age_gate_accepted_18plus`).
+- **Account deletion:** principal-owned erasure via `DELETE /v1/me` (`eraseMe`) + preflight; shared graphs retained for others.
+- **Still locked:** no DROP/TRUNCATE of shared tables or other users’ data; no aggressive hard wipe of Group/Business content.
+- **Counsel:** Privacy/Terms remain DRAFT until lawyer review; do not market “fully compliant” without counsel.
 
 ## Data deletion policy (locked)
 
-- **No hard-wipe of user, media, or domain data.** Operators and product must not DROP/TRUNCATE/destroy production user data for â€œcleanupâ€ or account-deletion automation.
-- **Account deletion = soft-delete only** (`DELETE /v1/me` marks the account deleted / disables Firebase sign-in). Historical moments, media, and related records are **retained**.
-- Shared group/business history may remain visible to other participants after a member soft-deletes.
-- Access / correction / retention questions: `hello@momentra.app` (matches live momentra.tech Privacy/Terms).
+- **No DROP/TRUNCATE** of production shared graphs or other principals’ data for “cleanup.”
+- **Account deletion = principal-owned erasure** (`DELETE /v1/me`): anonymize profile tombstone, revoke devices, erase personal-only moments / USER media / consents / notifications; leave shared Group/Business membership content for others (organizer/owner transfer required when others remain).
+- Access / correction / residual erasure / grievance: `hello@momentra.app` (matches live momentra.tech Privacy/Terms).
 
 ## Legal documents
 
@@ -40,18 +49,15 @@ Updated: 2026-10-06 (Asia/Calcutta)
 - Android `applicationId` -> `resolvingpoint.momentra` (namespace kept); see `docs/legal/ANDROID_PACKAGE_RENAME.md` for Firebase console steps.
 - Admin dashboard: document `VITE_ADMIN_API_KEY` client-bundle risk; ignore env key in production builds.
 - iOS `PrivacyInfo.xcprivacy` (UserDefaults CA92.1).
-- **Still locked:** no hard-wipe / no user-data deletes; `DELETE /v1/me` soft-delete unchanged.
-
-
+- **Superseded (DPDP full track):** principal-owned `eraseMe` + 18+ gate; shared DROP still forbidden.
 
 ## Sprint S3 scope (age, disclaimer, honesty)
 
-- Age gate (13+) on consent gate for Android + iOS; Continue disabled until confirmed; local flag `momentra_age_gate_accepted_13plus`.
+- Originally shipped 13+ gate (`momentra_age_gate_accepted_13plus`); **superseded** by 18+ (`momentra_age_gate_accepted_18plus`).
 - Consent gate copy lists purposes briefly (account/moments, analytics, AI, memory) aligned with Privacy Policy; `/v1/me/consents` API unchanged.
 - Finance disclaimer on Business Money/Runway Pulse and Personal Master Expense: "Not financial, legal, or tax advice."
-- Delete-account copy clarifies soft-delete only (devices revoked; moment/domain history may be retained; no hard wipe).
-- **Still locked:** no hard-wipe / no user-data deletes; `DELETE /v1/me` soft-delete unchanged; no export endpoint in S3.
-- Live policy pages on momentra.tech remain source of truth; in-repo drafts stay DRAFT.
+- Delete-account copy originally soft-delete; **superseded** by principal-owned erasure + preflight UX.
+- Live policy pages on momentra.tech remain source of truth; in-repo drafts stay DRAFT until counsel.
 
 ## Sprint S4 scope (ops polish)
 
@@ -60,7 +66,7 @@ Updated: 2026-10-06 (Asia/Calcutta)
 - Subprocessors register: `docs/legal/SUBPROCESSORS.md` (Firebase, Google, Apple, FCM, Supabase, optional Sentry).
 - Invite polish: `web/invite` favicon.svg, Open Graph tags on `join.html`, robots.txt + sitemap.xml. Privacy/Terms links remain `https://momentra.tech/privacy` and `/terms`.
 - **Sentry DSN:** still an ops responsibility — set only in production when ready; not required for this sprint to pass.
-- **Still locked:** no hard-wipe / no user-data deletes; soft-delete unchanged.
+- **Superseded (DPDP full track):** soft-delete lock relaxed for principal-owned erasure only.
 
 ## Sprint S5 scope (parity, accessibility, Apple on Android)
 
@@ -68,4 +74,12 @@ Updated: 2026-10-06 (Asia/Calcutta)
 - **Accessibility pass (both platforms):** headings + live status on Account hub; labelled switches; Privacy/Terms links announce "opens in browser/Safari"; delete-confirm explains soft-delete; device Revoke names the device; consent gate age checkbox is a single labelled toggle target (Android) and Continue explains why it is disabled; finance disclaimers read as "Disclaimer: …" with `finance.disclaimer` test tag on both; decorative lock/bullet glyphs hidden; Personal expense Save draft / Confirm are announced as buttons; login error is a polite live region.
 - **Sign in with Apple on Android:** client implemented (Firebase `OAuthProvider("apple.com")`) and wired on Login behind `BuildConfig.APPLE_SIGNIN_ENABLED` (default **false**) until the Apple Services ID + key are configured in Firebase. Checklist: `docs/legal/APPLE_SIGNIN_ANDROID.md`.
 - **Still open (not S5):** phone auth on iOS; full TalkBack/VoiceOver audit of every shell screen; contrast audit of Business/money tokens; Apple/Google account linking.
-- **Still locked:** no hard-wipe / no user-data deletes; `DELETE /v1/me` soft-delete unchanged; no new delete endpoints or client delete calls added.
+- **Superseded (DPDP full track):** `DELETE /v1/me` is principal-owned erasure; shared graphs retained.
+
+## DPDP full compliance track (2026-11-13)
+
+- Age gate raised to **18+**; Privacy/Terms minimum age 18; product not directed at under-18.
+- `GET /v1/me/erasure-preflight` + `DELETE /v1/me` (`eraseMe`): leave shared, erase personal, anonymize profile, revoke devices.
+- Clients: Account delete preflight UI, confirm copy, local wipe after success.
+- Grievance internal target: acknowledge 72h / resolve 14d until Board prescribes.
+- **Still locked:** no DROP/TRUNCATE of shared tables or other users’ data; no “fully compliant” marketing until counsel clears DRAFT.

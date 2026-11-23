@@ -798,7 +798,8 @@ struct GroupExperienceSetupView: View {
         return CreateMomentRequest.GroupSetupBlock(
             budgetAmount: primaryAmount,
             budgetCurrencyCode: primaryAmount != nil ? currency : nil,
-            destinationText: resolvedPlaces?.first?.label ?? destination.nilIfBlank,
+            destinationText: resolvedPlaces?.first?.label
+                ?? destination.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
             places: resolvedPlaces ?? [],
             budgets: budgetBlocks.isEmpty ? nil : budgetBlocks,
             multiCurrencyEnabled: multiCurrency.lowercased() == "enabled",
@@ -860,4 +861,8 @@ struct GroupExperienceSetupView: View {
             }
         )
     }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

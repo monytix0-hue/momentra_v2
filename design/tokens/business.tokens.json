@@ -3,16 +3,17 @@
   "$extensions": {
     "momentra": {
       "name": "momentra.business",
-      "version": "3.0.0",
+      "version": "4.1.0",
       "scope": "business",
-      "figmaFile": "TzLvwVwlPbeVB8ug1zB3GM",
-      "figmaPage": "2348:29188",
-      "figmaPaletteTable": "2358:29308",
+      "figmaFile": "rknfN9EikSCdqmqXogR29o",
+      "figmaPage": "2:67",
+      "figmaPaletteTable": "2:67",
       "fontFamily": "Plus Jakarta Sans",
       "domains": {
         "corporate": { "label": "Corporate services", "swift": "corporate", "kotlin": "CORPORATE" },
         "trading": { "label": "Business Trading", "swift": "trading", "kotlin": "TRADING" },
         "manufacturing": { "label": "Manufacturing", "swift": "manufacturing", "kotlin": "MANUFACTURING" },
+        "madeToOrder": { "label": "Made to order", "swift": "madeToOrder", "kotlin": "MADE_TO_ORDER" },
         "retail": { "label": "Retail", "swift": "retail", "kotlin": "RETAIL" },
         "services": { "label": "Services", "swift": "services", "kotlin": "SERVICES" },
         "restaurant": { "label": "Restaurant", "swift": "restaurant", "kotlin": "RESTAURANT" },
@@ -25,40 +26,40 @@
   "color": {
     "$description": "Neutral Business ramp shared by every vertical, plus one palette per domain.",
     "bg": {
-      "canvas": { "$type": "color", "$value": "#090D16", "$extensions": { "figma": "raw: Trading canvas 2566:29337" } },
-      "canvasElevated": { "$type": "color", "$value": "#0F172A", "$extensions": { "figma": "raw: Retail chrome / app-state sheet 2498:32657" } },
-      "canvasDeep": { "$type": "color", "$value": "#05070C", "$extensions": { "figma": "raw: canvas gradient end (Retail 2399:29655)" } }
+      "canvas": { "$type": "color", "$value": "#05070B", "$extensions": { "figma": "Obsidian canvas rknf 2:67 / 2:221" } },
+      "canvasElevated": { "$type": "color", "$value": "#0F1623", "$extensions": { "figma": "Obsidian elevated / glass card fill base" } },
+      "canvasDeep": { "$type": "color", "$value": "#05070B", "$extensions": { "figma": "Obsidian canvas deep (same as canvas)" } }
     },
     "surface": {
-      "sheet": { "$type": "color", "$value": "#0F1623", "$extensions": { "figma": "App States sheet" } },
-      "card": { "$type": "color", "$value": "#151D2E", "$extensions": { "figma": "raw: raised surface / setup panel" } },
+      "sheet": { "$type": "color", "$value": "#0F1623", "$extensions": { "figma": "Obsidian sheet" } },
+      "card": { "$type": "color", "$value": "#101623", "$extensions": { "figma": "Refraction glass card rgba(16,22,35,0.72) solid approx" } },
       "inset": { "$type": "color", "$value": "#101828", "$extensions": { "figma": "raw: metric chip inside a section card" } },
       "raised": { "$type": "color", "$value": "#1E293B", "$extensions": { "figma": "raw: neutral chip, field, emblem well" } },
-      "glass": { "$type": "color", "$value": "rgba(255,255,255,0.08)", "$extensions": { "figma": "App States glassFill" } }
+      "glass": { "$type": "color", "$value": "rgba(16,22,35,0.72)", "$extensions": { "figma": "Obsidian refraction glass fill 2:236" } }
     },
     "border": {
       "default": { "$type": "color", "$value": "#1E293B", "$extensions": { "figma": "color/border" } },
-      "hairline": { "$type": "color", "$value": "rgba(255,255,255,0.10)", "$extensions": { "figma": "raw: section card hairline" } },
-      "strong": { "$type": "color", "$value": "#334155", "$extensions": { "figma": "raw: owner row, selected field" } }
+      "hairline": { "$type": "color", "$value": "rgba(16,185,129,0.18)", "$extensions": { "figma": "Obsidian secondary button / glass border" } },
+      "strong": { "$type": "color", "$value": "rgba(16,185,129,0.35)", "$extensions": { "figma": "Obsidian glass card border 2:236" } }
     },
     "text": {
       "primary": { "$type": "color", "$value": "#FFFFFF", "$extensions": { "figma": "color/text" } },
-      "secondary": { "$type": "color", "$value": "#CBD5E1", "$extensions": { "figma": "raw: chip label" } },
-      "muted": { "$type": "color", "$value": "#94A3B8", "$extensions": { "figma": "color/text-muted" } },
+      "secondary": { "$type": "color", "$value": "#C7D1E0", "$extensions": { "figma": "Obsidian row labels 2:239" } },
+      "muted": { "$type": "color", "$value": "#94A4B8", "$extensions": { "figma": "Obsidian body muted 2:235" } },
       "subtle": { "$type": "color", "$value": "#64748B", "$extensions": { "figma": "color/text-subtle" } },
-      "inverse": { "$type": "color", "$value": "#0B0A1F", "$extensions": { "figma": "raw: label on a light accent fill" } }
+      "inverse": { "$type": "color", "$value": "#080A0F", "$extensions": { "figma": "Obsidian on-badge glyph 2:233" } }
     },
     "signal": {
-      "positive": { "$type": "color", "$value": "#22C55E", "$extensions": { "figma": "raw: settled / on track" } },
-      "warning": { "$type": "color", "$value": "#FBBF24", "$extensions": { "figma": "raw: needs attention accent" } },
-      "danger": { "$type": "color", "$value": "#EF4444", "$extensions": { "figma": "raw: overdue / blocked" } },
-      "info": { "$type": "color", "$value": "#06B6D4", "$extensions": { "figma": "raw: neutral insight" } },
-      "neutral": { "$type": "color", "$value": "#94A3B8", "$extensions": { "figma": "raw: offline / no data" } }
+      "positive": { "$type": "color", "$value": "#10B981", "$extensions": { "figma": "Obsidian emerald teal" } },
+      "warning": { "$type": "color", "$value": "#F5A624", "$extensions": { "figma": "Obsidian Not recorded amber 2:240" } },
+      "danger": { "$type": "color", "$value": "#FF5C38", "$extensions": { "figma": "Obsidian error coral 2:920" } },
+      "info": { "$type": "color", "$value": "#06B6D4", "$extensions": { "figma": "ViewAll neon cyan family" } },
+      "neutral": { "$type": "color", "$value": "#94A4B8", "$extensions": { "figma": "Obsidian muted" } }
     },
     "cta": {
-      "start": { "$type": "color", "$value": "#E8621A", "$extensions": { "figma": "App States primary CTA ramp start" } },
-      "end": { "$type": "color", "$value": "#F5A623", "$extensions": { "figma": "App States primary CTA ramp end" } },
-      "text": { "$type": "color", "$value": "#140B06", "$extensions": { "figma": "raw: label on the CTA ramp" } }
+      "start": { "$type": "color", "$value": "#059669", "$extensions": { "figma": "Obsidian CTA gradient start 2:248" } },
+      "end": { "$type": "color", "$value": "#34D399", "$extensions": { "figma": "Obsidian CTA gradient end 2:248" } },
+      "text": { "$type": "color", "$value": "#FFFFFF", "$extensions": { "figma": "Obsidian CTA label white" } }
     },
     "domain": {
       "$description": "One palette per business vertical. Retail/Restaurant/Services/Manufacturing/Marketing read from their v12 Pulse frame; Trading/Distribution from their v12 Pulse frame; Corporate has no frame yet and uses the palette-table values.",
@@ -73,27 +74,29 @@
         "accentDeep": { "$type": "color", "$value": "#1D4ED8" },
         "onAccent": { "$type": "color", "$value": "#FFFFFF" },
         "heroStart": { "$type": "color", "$value": "#60A5FA" },
-        "heroEnd": { "$type": "color", "$value": "#3B82F6" }
+        "heroEnd": { "$type": "color", "$value": "#3B82F6" },
+        "label": { "$type": "color", "$value": "#C7D1E0" },
+        "hint": { "$type": "color", "$value": "#94A4B8" }
       },
       "trading": {
-        "canvas": { "$type": "color", "$value": "#090D16", "$extensions": { "figma": "TRD-PULSE-v12 2566:29337 root" } },
+        "canvas": { "$type": "color", "$value": "#05070B", "$extensions": { "figma": "Obsidian Pulse Empty Trading 2:221" } },
         "canvasTop": { "$type": "color", "$value": "#0F1623" },
-        "canvasDeep": { "$type": "color", "$value": "#05070C" },
-        "surface": { "$type": "color", "$value": "#0F1623", "$extensions": { "figma": "TRD pulse / board cards" } },
-        "inset": { "$type": "color", "$value": "#090D16" },
-        "accent": { "$type": "color", "$value": "#10B981", "$extensions": { "figma": "Domain Color System 2 FinTech / Trading · S" } },
-        "accentSoft": { "$type": "color", "$value": "#6EE7B7", "$extensions": { "figma": "TRD-PULSE-v12 Hero Header gradient start" } },
-        "accentDeep": { "$type": "color", "$value": "#047857" },
-        "onAccent": { "$type": "color", "$value": "#090D16" },
-        "heroStart": { "$type": "color", "$value": "#6EE7B7", "$extensions": { "figma": "TRD-PULSE-v12 Hero Header 2565:29452" } },
-        "heroEnd": { "$type": "color", "$value": "#10B981", "$extensions": { "figma": "TRD-PULSE-v12 Hero Header" } },
-        "sheetSurface": { "$type": "color", "$value": "#151D2E", "$extensions": { "figma": "TRD-QA-01…12 capture sheet fill 2566:31426" } },
-        "label": { "$type": "color", "$value": "#8B97AD", "$extensions": { "figma": "TRD-QA field labels" } },
-        "hint": { "$type": "color", "$value": "#6B7790", "$extensions": { "figma": "TRD-QA hints / sticky meta" } },
+        "canvasDeep": { "$type": "color", "$value": "#05070B" },
+        "surface": { "$type": "color", "$value": "#0F1623", "$extensions": { "figma": "Obsidian glass / board cards" } },
+        "inset": { "$type": "color", "$value": "#05070B" },
+        "accent": { "$type": "color", "$value": "#10B981", "$extensions": { "figma": "Obsidian emerald teal" } },
+        "accentSoft": { "$type": "color", "$value": "#34D399", "$extensions": { "figma": "Obsidian CTA end / soft teal" } },
+        "accentDeep": { "$type": "color", "$value": "#059669" },
+        "onAccent": { "$type": "color", "$value": "#FFFFFF" },
+        "heroStart": { "$type": "color", "$value": "#34D399", "$extensions": { "figma": "Obsidian hero soft" } },
+        "heroEnd": { "$type": "color", "$value": "#10B981", "$extensions": { "figma": "Obsidian hero accent" } },
+        "sheetSurface": { "$type": "color", "$value": "#101623", "$extensions": { "figma": "Obsidian glass card" } },
+        "label": { "$type": "color", "$value": "#C7D1E0", "$extensions": { "figma": "Obsidian row label" } },
+        "hint": { "$type": "color", "$value": "#94A4B8", "$extensions": { "figma": "Obsidian muted" } },
         "value": { "$type": "color", "$value": "#F1F5F9", "$extensions": { "figma": "TRD-QA input values" } },
         "whyBody": { "$type": "color", "$value": "#CFEFF6", "$extensions": { "figma": "TRD-QA WHY body" } }
       },
-      "manufacturing": {
+        "manufacturing": {
         "canvas": { "$type": "color", "$value": "#18181B", "$extensions": { "figma": "MFG-PULSE-v12 2396:29655 canvas gradient end" } },
         "canvasTop": { "$type": "color", "$value": "#3F3F46", "$extensions": { "figma": "MFG-PULSE-v12 canvas gradient start" } },
         "canvasDeep": { "$type": "color", "$value": "#09090B" },
@@ -104,9 +107,26 @@
         "accentDeep": { "$type": "color", "$value": "#B45309", "$extensions": { "figma": "MFG-PULSE-v12 Hero Header gradient end" } },
         "onAccent": { "$type": "color", "$value": "#1C1917" },
         "heroStart": { "$type": "color", "$value": "#F59E0B", "$extensions": { "figma": "MFG-PULSE-v12 Hero Header" } },
-        "heroEnd": { "$type": "color", "$value": "#B45309", "$extensions": { "figma": "MFG-PULSE-v12 Hero Header" } }
+        "heroEnd": { "$type": "color", "$value": "#B45309", "$extensions": { "figma": "MFG-PULSE-v12 Hero Header" } },
+        "label": { "$type": "color", "$value": "#E4E4E7" },
+        "hint": { "$type": "color", "$value": "#A1A1AA" }
       },
-      "retail": {
+      "madeToOrder": {
+        "canvas": { "$type": "color", "$value": "#101818", "$extensions": { "figma": "MTO-SETUP-v6 5:55863 canvas" } },
+        "canvasTop": { "$type": "color", "$value": "#584038", "$extensions": { "figma": "MTO-SETUP-v6 hero wash" } },
+        "canvasDeep": { "$type": "color", "$value": "#0A0E0E" },
+        "surface": { "$type": "color", "$value": "#1C1818", "$extensions": { "figma": "MTO-SETUP-v6 section card" } },
+        "inset": { "$type": "color", "$value": "#141010" },
+        "accent": { "$type": "color", "$value": "#EA580C", "$extensions": { "figma": "MTO-SETUP-v6 job-order orange 5:55863" } },
+        "accentSoft": { "$type": "color", "$value": "#FB923C" },
+        "accentDeep": { "$type": "color", "$value": "#C2410C" },
+        "onAccent": { "$type": "color", "$value": "#FFFFFF" },
+        "heroStart": { "$type": "color", "$value": "#EA580C", "$extensions": { "figma": "MTO-SETUP-v6 hero" } },
+        "heroEnd": { "$type": "color", "$value": "#9A3412", "$extensions": { "figma": "MTO-SETUP-v6 hero" } },
+        "label": { "$type": "color", "$value": "#E7E5E4" },
+        "hint": { "$type": "color", "$value": "#A8A29E" }
+      },
+        "retail": {
         "canvas": { "$type": "color", "$value": "#0B0A1F", "$extensions": { "figma": "RTL-PULSE-v12 2399:29655 canvas gradient mid" } },
         "canvasTop": { "$type": "color", "$value": "#4C0519", "$extensions": { "figma": "RTL-PULSE-v12 canvas gradient start" } },
         "canvasDeep": { "$type": "color", "$value": "#050414", "$extensions": { "figma": "RTL-PULSE-v12 canvas gradient end" } },
@@ -119,7 +139,9 @@
         "heroStart": { "$type": "color", "$value": "#F43F5E", "$extensions": { "figma": "RTL-PULSE-v12 hero (solid)" } },
         "heroEnd": { "$type": "color", "$value": "#F43F5E", "$extensions": { "figma": "RTL-PULSE-v12 hero (solid)" } },
         "whyBody": { "$type": "color", "$value": "#FFE4E6", "$extensions": { "figma": "RTL Why body soft rose wash" } },
-        "sheet": { "$type": "color", "$value": "#1E293B", "$extensions": { "figma": "RTL POS sheet / tile slate" } }
+        "sheet": { "$type": "color", "$value": "#1E293B", "$extensions": { "figma": "RTL POS sheet / tile slate" } },
+        "label": { "$type": "color", "$value": "#FFE4E6" },
+        "hint": { "$type": "color", "$value": "#FDA4AF" }
       },
       "services": {
         "canvas": { "$type": "color", "$value": "#042F2E", "$extensions": { "figma": "SVC-PULSE-v12 2401:29655 canvas gradient mid" } },
@@ -132,7 +154,9 @@
         "accentDeep": { "$type": "color", "$value": "#115E59" },
         "onAccent": { "$type": "color", "$value": "#FFFFFF" },
         "heroStart": { "$type": "color", "$value": "#0D9488", "$extensions": { "figma": "SVC-PULSE-v12 hero" } },
-        "heroEnd": { "$type": "color", "$value": "#84CC16", "$extensions": { "figma": "SVC-PULSE-v12 hero" } }
+        "heroEnd": { "$type": "color", "$value": "#84CC16", "$extensions": { "figma": "SVC-PULSE-v12 hero" } },
+        "label": { "$type": "color", "$value": "#CCFBF1" },
+        "hint": { "$type": "color", "$value": "#99F6E4" }
       },
       "restaurant": {
         "canvas": { "$type": "color", "$value": "#1C1917", "$extensions": { "figma": "RST-PULSE-v12 2400:29655 canvas gradient mid" } },
@@ -145,7 +169,9 @@
         "accentDeep": { "$type": "color", "$value": "#881337", "$extensions": { "figma": "Domain Color System 6 Restaurant · P" } },
         "onAccent": { "$type": "color", "$value": "#FFFFFF" },
         "heroStart": { "$type": "color", "$value": "#881337", "$extensions": { "figma": "RST-PULSE-v12 hero" } },
-        "heroEnd": { "$type": "color", "$value": "#EA580C", "$extensions": { "figma": "RST-PULSE-v12 hero" } }
+        "heroEnd": { "$type": "color", "$value": "#EA580C", "$extensions": { "figma": "RST-PULSE-v12 hero" } },
+        "label": { "$type": "color", "$value": "#E7E5E4" },
+        "hint": { "$type": "color", "$value": "#A8A29E" }
       },
       "distribution": {
         "canvas": { "$type": "color", "$value": "#0F172A", "$extensions": { "figma": "DST-PULSE-v12 2365:29452 root" } },
@@ -158,7 +184,9 @@
         "accentDeep": { "$type": "color", "$value": "#C2410C" },
         "onAccent": { "$type": "color", "$value": "#0F172A" },
         "heroStart": { "$type": "color", "$value": "#FFB598", "$extensions": { "figma": "DST-PULSE-v12 hero" } },
-        "heroEnd": { "$type": "color", "$value": "#EA580C", "$extensions": { "figma": "DST-PULSE-v12 hero" } }
+        "heroEnd": { "$type": "color", "$value": "#EA580C", "$extensions": { "figma": "DST-PULSE-v12 hero" } },
+        "label": { "$type": "color", "$value": "#C7D1E0" },
+        "hint": { "$type": "color", "$value": "#94A4B8" }
       },
       "marketing": {
         "canvas": { "$type": "color", "$value": "#0F172A", "$extensions": { "figma": "MKT-PULSE-v12 2389:29619 canvas gradient mid" } },
@@ -171,7 +199,9 @@
         "accentDeep": { "$type": "color", "$value": "#4338CA" },
         "onAccent": { "$type": "color", "$value": "#FFFFFF" },
         "heroStart": { "$type": "color", "$value": "#6366F1", "$extensions": { "figma": "MKT-PULSE-v12 hero" } },
-        "heroEnd": { "$type": "color", "$value": "#8B5CF6", "$extensions": { "figma": "MKT-PULSE-v12 hero" } }
+        "heroEnd": { "$type": "color", "$value": "#8B5CF6", "$extensions": { "figma": "MKT-PULSE-v12 hero" } },
+        "label": { "$type": "color", "$value": "#E0E7FF" },
+        "hint": { "$type": "color", "$value": "#A5B4FC" }
       },
       "marketingOwn": {
         "canvas": { "$type": "color", "$value": "#0F172A", "$extensions": { "figma": "MKT-OWN-PULSE-v12 2582:29187" } },
@@ -185,7 +215,9 @@
         "accentDeep": { "$type": "color", "$value": "#A21CAF" },
         "onAccent": { "$type": "color", "$value": "#FFFFFF" },
         "heroStart": { "$type": "color", "$value": "#D946EF", "$extensions": { "figma": "MKT-OWN-PULSE-v12 hero" } },
-        "heroEnd": { "$type": "color", "$value": "#F59E0B", "$extensions": { "figma": "MKT-OWN-PULSE-v12 hero" } }
+        "heroEnd": { "$type": "color", "$value": "#F59E0B", "$extensions": { "figma": "MKT-OWN-PULSE-v12 hero" } },
+        "label": { "$type": "color", "$value": "#FAE8FF" },
+        "hint": { "$type": "color", "$value": "#F0ABFC" }
       }
     }
   },

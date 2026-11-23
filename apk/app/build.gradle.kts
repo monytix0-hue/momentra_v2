@@ -1,4 +1,6 @@
 import java.util.Properties
+import org.gradle.api.tasks.compile.JavaCompile
+import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 plugins {
     alias(libs.plugins.android.application)
@@ -77,6 +79,17 @@ android {
         compose = true
         buildConfig = true
     }
+
+}
+
+// Syncthing conflict copies can land beside real sources locally; .gitignore does not
+// remove them from compilation (see iOS EXCLUDED_SOURCE_FILE_NAMES). AGP 9 new DSL source
+// sets no longer expose PatternFilterable excludes, so filter at compile tasks instead.
+tasks.withType<KotlinJvmCompile>().configureEach {
+    exclude("**/*.sync-conflict*")
+}
+tasks.withType<JavaCompile>().configureEach {
+    exclude("**/*.sync-conflict*")
 }
 
 tasks.configureEach {
@@ -133,6 +146,9 @@ dependencies {
 
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.glance:glance-appwidget:1.2.0")
+    implementation("androidx.glance:glance-material3:1.2.0")
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

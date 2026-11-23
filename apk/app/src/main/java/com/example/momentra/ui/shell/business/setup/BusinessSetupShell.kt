@@ -251,31 +251,49 @@ fun BusinessSetupShell(
                                     },
                                     helper = field.helper,
                                     error = fieldErrors[field.key],
+                                    forceUppercase = field.key == "gstin",
                                 )
                             }
                             is BusinessSetupFieldSpec.Kind.Choice -> {
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(
-                                        text = field.label,
-                                        color = theme.label,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                    BusinessSetupDocumentKit.ChoiceChips(
+                                if (field.key == "currency") {
+                                    BusinessSetupDocumentKit.CurrencyDropdown(
                                         theme = theme,
+                                        label = field.label,
                                         options = kind.options,
-                                        selected = values[field.key].orEmpty(),
+                                        selected = values[field.key].orEmpty().ifEmpty {
+                                            kind.options.firstOrNull().orEmpty()
+                                        },
                                         onSelect = {
                                             values[field.key] = it
                                             fieldErrors.remove(field.key)
                                         },
+                                        helper = field.helper,
+                                        error = fieldErrors[field.key],
                                     )
-                                    if (field.helper.isNotBlank() && fieldErrors[field.key].isNullOrBlank()) {
+                                } else {
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Text(
-                                            text = field.helper,
-                                            color = theme.hint,
-                                            fontSize = 11.sp,
+                                            text = field.label,
+                                            color = theme.label,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
                                         )
+                                        BusinessSetupDocumentKit.ChoiceChips(
+                                            theme = theme,
+                                            options = kind.options,
+                                            selected = values[field.key].orEmpty(),
+                                            onSelect = {
+                                                values[field.key] = it
+                                                fieldErrors.remove(field.key)
+                                            },
+                                        )
+                                        if (field.helper.isNotBlank() && fieldErrors[field.key].isNullOrBlank()) {
+                                            Text(
+                                                text = field.helper,
+                                                color = theme.hint,
+                                                fontSize = 11.sp,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -320,6 +338,7 @@ fun BusinessSetupShell(
                                     },
                                     helper = field.helper,
                                     error = fieldErrors[field.key],
+                                    fieldKey = field.key,
                                 )
                             }
                             is BusinessSetupFieldSpec.Kind.RowAction -> {

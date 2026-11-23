@@ -90,7 +90,7 @@ enum GroupSetupTheme {
         }
         switch context {
         case .group: return Color(hex: "#E8621A")
-        case .business: return Color(hex: "#818CF8")
+        case .business: return ContextTheme.of(.business).contextAccent
         case .personal: return Color(hex: "#7C5CFC")
         case .circle: return Color(hex: "#FC6A8B")
         }

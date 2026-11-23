@@ -7,7 +7,7 @@ import { randomBytes } from 'crypto';
 import { z } from 'zod';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
-import { assertCompanyMomentAccess } from './membership';
+import { assertCompanyMomentAccess, assertFinanceVisible } from './membership';
 
 /* ------------------------------------------------------------------ */
 /*  GET capacity                                                      */
@@ -100,6 +100,7 @@ export async function getMomDeltas(
   momentId: string
 ): Promise<{ revenueMomPct: number | null; expenseMomPct: number | null; note: string }> {
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
+  assertFinanceVisible(scope);
 
   const revenueQ = await client
     .query<{ cur: string; prev: string }>(
@@ -155,14 +156,16 @@ export async function getProgressSnapshot(
 ): Promise<{ collections: unknown[]; health: string | null; note: string }> {
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
 
-  const forecasts = await client
-    .query<{ forecast_scenario_id: string; name: string; status: string }>(
-      `SELECT forecast_scenario_id, name, status FROM finance.forecast_scenario
-       WHERE company_id = $1 AND moment_id = $2 AND status = 'ACTIVE'
-       ORDER BY created_at DESC LIMIT 5`,
-      [scope.companyId, momentId]
-    )
-    .catch(() => ({ rows: [] as Array<{ forecast_scenario_id: string; name: string; status: string }> }));
+  const forecasts = scope.financeVisible
+    ? await client
+        .query<{ forecast_scenario_id: string; name: string; status: string }>(
+          `SELECT forecast_scenario_id, name, status FROM finance.forecast_scenario
+           WHERE company_id = $1 AND moment_id = $2 AND status = 'ACTIVE'
+           ORDER BY created_at DESC LIMIT 5`,
+          [scope.companyId, momentId]
+        )
+        .catch(() => ({ rows: [] as Array<{ forecast_scenario_id: string; name: string; status: string }> }))
+    : { rows: [] as Array<{ forecast_scenario_id: string; name: string; status: string }> };
 
   const reviews = await client
     .query<{ business_review_id: string; title: string; review_type: string }>(
@@ -325,22 +328,24 @@ export async function getWeeklyReport(
     });
   }
 
-  const spend = await client
-    .query<{ total: string }>(
-      `SELECT COALESCE(SUM(e.amount),0)::text AS total
-       FROM finance.expense e
-       JOIN finance.business_expense_context bec ON bec.expense_id = e.expense_id
-       WHERE bec.company_id = $1 AND bec.moment_id = $2
-         AND e.status IN ('POSTED','DRAFT') AND e.effective_at >= $3`,
-      [scope.companyId, momentId, since]
-    )
-    .catch(() => ({ rows: [{ total: '0' }] }));
-  const spendTotal = parseFloat(spend.rows[0]?.total ?? '0');
-  if (spendTotal > 0) {
-    sections.push({
-      heading: 'Spend',
-      items: [`Total spend in period: ${spendTotal.toFixed(2)}`],
-    });
+  if (scope.financeVisible) {
+    const spend = await client
+      .query<{ total: string }>(
+        `SELECT COALESCE(SUM(e.amount),0)::text AS total
+         FROM finance.expense e
+         JOIN finance.business_expense_context bec ON bec.expense_id = e.expense_id
+         WHERE bec.company_id = $1 AND bec.moment_id = $2
+           AND e.status IN ('POSTED','DRAFT') AND e.effective_at >= $3`,
+        [scope.companyId, momentId, since]
+      )
+      .catch(() => ({ rows: [{ total: '0' }] }));
+    const spendTotal = parseFloat(spend.rows[0]?.total ?? '0');
+    if (spendTotal > 0) {
+      sections.push({
+        heading: 'Spend',
+        items: [`Total spend in period: ${spendTotal.toFixed(2)}`],
+      });
+    }
   }
 
   return {
@@ -412,6 +417,9 @@ export async function createShareLink(
   momentId: string
 ): Promise<{ shareUrl: string; shareToken: string; expiresAt: string; note: string }> {
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
+  if (scope.membershipType !== 'OWNER' && scope.membershipType !== 'ADMIN') {
+    throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Only OWNER or ADMIN may create share links.', 403);
+  }
   const token = randomBytes(24).toString('base64url');
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 

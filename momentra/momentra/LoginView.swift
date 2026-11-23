@@ -1,5 +1,6 @@
 import AuthenticationServices
 import SwiftUI
+import UIKit
 
 struct LoginView: View {
     @ObservedObject var viewModel: AuthViewModel
@@ -54,7 +55,7 @@ struct LoginView: View {
             #if os(iOS)
             Section {
                 SignInWithAppleButton(.continue) { request in
-                    trackWidget(screenName: AnalyticsScreens.login, widgetName: AnalyticsWidgets.loginBtnApple)
+                    trackWidget(screenName: loginScreen, widgetName: AnalyticsWidgets.loginBtnApple)
                     viewModel.prepareAppleSignInRequest(request)
                 } onCompletion: { result in
                     viewModel.handleAppleSignInCompletion(result)
@@ -67,7 +68,7 @@ struct LoginView: View {
                 .accessibilityIdentifier("login.apple")
 
                 Button {
-                    trackWidget(screenName: AnalyticsScreens.login, widgetName: AnalyticsWidgets.loginBtnGoogle)
+                    trackWidget(screenName: loginScreen, widgetName: AnalyticsWidgets.loginBtnGoogle)
                     viewModel.signInWithGoogle()
                 } label: {
                     Label("Continue with Google", systemImage: "g.circle.fill")
@@ -90,15 +91,39 @@ struct LoginView: View {
                         .accessibilityIdentifier("login.error")
                 }
             }
+
+            Section {
+                HStack {
+                    Button("Privacy Policy") {
+                        if let url = URL(string: "https://momentra.tech/privacy") {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    .accessibilityHint("Opens in Safari")
+                    Button("Terms") {
+                        if let url = URL(string: "https://momentra.tech/terms") {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    .accessibilityHint("Opens in Safari")
+                }
+                .font(.system(size: 12))
+                .listRowBackground(Color.clear)
+            }
         }
         .scrollContentBackground(.hidden)
-        .id(loginScreen)
+        // No `.id(loginScreen)` here. Changing the id rebuilt the whole form and reset every
+        // `@State`, so switching Sign in → Register → Sign in silently discarded the credentials
+        // the person had already typed. Screen attribution lives in `.trackScreen` and the mode
+        // change below, neither of which needs the view to be recreated.
         .trackScreen(loginScreen)
         .brandAuthScreen()
         .accessibilityIdentifier("login.screen")
         .onChange(of: mode) { _, newMode in
             if newMode != .phone { viewModel.resetPhoneFlow() }
             smsCode = ""
+            password = ""
+            confirmPassword = ""
             let widget: String
             switch newMode {
             case .signIn: widget = AnalyticsWidgets.loginTabSignIn
@@ -255,30 +280,5 @@ struct LoginView: View {
         } else {
             viewModel.signInWithEmailPassword(email: trimmed, password: password)
         }
-    }
-
-    @ViewBuilder
-    private func labeledField<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(MomentraBrandTokens.textOnDark.opacity(0.7))
-            content()
-        }
-    }
-
-    private var orDivider: some View {
-        ZStack {
-            Rectangle()
-                .fill(Color.white.opacity(0.15))
-                .frame(height: 1)
-                .padding(.horizontal, 24)
-            Text("or")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(MomentraBrandTokens.textOnDark.opacity(0.55))
-                .padding(.horizontal, 8)
-                .background(MomentraBrandTokens.brand)
-        }
-        .padding(.horizontal, BrandSpacing.screenHorizontal)
     }
 }

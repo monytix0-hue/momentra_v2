@@ -35,6 +35,13 @@ import { gstStateCodeOf } from './operating-gst-states';
 import { buildGstrSummary, type GstrSummary } from './operating-gstr';
 import { isMarketingSubtype, marketingTaxSnapshot, observationDelta, parseMarketingFacts, validateMarketingWrite } from './operating-marketing';
 import { isManufacturingSubtype, validateManufacturingWrite } from './operating-manufacturing';
+import { syncFinancialEffectsFromOperatingEvent } from './finance-bridge';
+import { syncInventoryFromOperatingEvent } from './inventory-bridge';
+import {
+  appendCorrectionForOperatingEvent,
+  eventHasLedgerEffects,
+  financialFieldsChanged,
+} from './ledger-corrections';
 
 const amountSchema = z.string().regex(/^\d+(\.\d{1,4})?$/);
 
@@ -388,6 +395,7 @@ async function loadEvents(
       marketing: parseMarketingFacts(payload, metric),
       rejectedQuantity: rejected == null || rejected === '' ? null : String(rejected),
       idempotencyKey: payload.idempotencyKey == null ? null : String(payload.idempotencyKey),
+      ledgerStatus: payload.ledgerStatus === 'SUPERSEDED' ? 'SUPERSEDED' : null,
     };
   });
 }
@@ -414,20 +422,26 @@ export async function viewerRole(
   _momentId: string,
   companyId: string | null,
   prefs: OperatingPreferences,
-  knownMembership?: string | null
+  knownMembership?: string | null,
+  knownOperatingRole?: string | null
 ): Promise<OperatingRole> {
   if (!companyId) {
     return resolveRole(prefs.participants ?? [], userId, 'MEMBER');
   }
   if (knownMembership) {
-    return resolveRole(prefs.participants ?? [], userId, knownMembership);
+    return resolveRole(prefs.participants ?? [], userId, knownMembership, knownOperatingRole);
   }
-  const membership = await client.query<{ membership_type: string }>(
-    `SELECT membership_type FROM business.company_membership
+  const membership = await client.query<{ membership_type: string; operating_role: string | null }>(
+    `SELECT membership_type, operating_role FROM business.company_membership
      WHERE company_id = $1 AND user_id = $2 AND status = 'ACTIVE'`,
     [companyId, userId]
   );
-  return resolveRole(prefs.participants ?? [], userId, membership.rows[0]?.membership_type ?? 'MEMBER');
+  return resolveRole(
+    prefs.participants ?? [],
+    userId,
+    membership.rows[0]?.membership_type ?? 'MEMBER',
+    membership.rows[0]?.operating_role ?? null
+  );
 }
 
 export async function getOperatingProjection(
@@ -453,7 +467,15 @@ export async function getOperatingProjection(
   if (!prefs?.subtype) {
     return { retired: true, familyCode: scope.businessFamily, title: 'Business moment' };
   }
-  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs, scope.membershipType);
+  const role = await viewerRole(
+    client,
+    ctx.userId,
+    momentId,
+    scope.companyId,
+    prefs,
+    scope.membershipType,
+    scope.operatingRole
+  );
   const events = await loadEvents(client, momentId, query);
   // Table masters are the authority; event-derived masters remain a read fallback.
   const masterRows = scope.companyId
@@ -591,14 +613,16 @@ export async function recordOperatingEvent(
   const prefs = prefsOf(setup.preferences);
   const postedType = body.eventType.toUpperCase() === 'SALE' && prefs.subtype === 'CLIENT_CAMPAIGN' ? 'INVOICE' : body.eventType;
   const def = quickAddDef(postedType);
+  const subtypeAdds = familyForSubtype(prefs.subtype)?.subtypes.find((s) => s.code === prefs.subtype)?.quickAdds ?? [];
   const allowed = def && (
-    familyForSubtype(prefs.subtype)?.subtypes.find((s) => s.code === prefs.subtype)?.quickAdds.includes(def.code)
+    subtypeAdds.includes(def.code)
+    || (def.code === 'ISSUE' && subtypeAdds.includes('UPDATE'))
     || (prefs.subtype === 'CLIENT_CAMPAIGN' && body.eventType.toUpperCase() === 'SALE')
   );
   if (!def || !allowed) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, `This moment does not include ${body.eventType}.`, 400);
   }
-  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs, scope.membershipType);
+  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs, scope.membershipType, scope.operatingRole);
   if (!canSubmit(role, def)) {
     throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Your role cannot add this.', 403);
   }
@@ -939,8 +963,31 @@ export async function recordOperatingEvent(
   const eventId = inserted.rows[0]!.operating_event_id;
   const companyId = scope.companyId;
   if (companyId) {
+    await syncFinancialEffectsFromOperatingEvent(client, {
+      companyId,
+      momentId,
+      eventId,
+      eventType: def.code,
+      amount,
+      currencyCode: prefs.currency,
+      paymentStatus,
+      approvalStatus,
+      parentEventId,
+      dueAt: body.dueAt ?? null,
+      allocations: body.contract?.allocations?.map((a) => ({ sourceId: a.sourceId, amount: a.amount })) ?? null,
+    });
+    await syncInventoryFromOperatingEvent(client, {
+      companyId,
+      momentId,
+      eventId,
+      eventType: def.code,
+      quantity,
+      unit: body.unit ?? null,
+      occurredAt: body.occurredAt ?? null,
+      payload,
+    });
     if (settleChild && approvalStatus !== 'PENDING') {
-      await ensureSettlement(client, ctx, momentId, companyId, prefs.currency, {
+      const childId = await ensureSettlement(client, ctx, momentId, companyId, prefs.currency, {
         eventId,
         eventType: def.code,
         title,
@@ -950,8 +997,21 @@ export async function recordOperatingEvent(
         counterpartyName: body.counterpartyName ?? null,
         occurredAt: body.occurredAt ?? null,
       });
+      if (childId) {
+        await syncFinancialEffectsFromOperatingEvent(client, {
+          companyId,
+          momentId,
+          eventId: childId,
+          eventType: settleChild.type,
+          amount: settleChild.amount,
+          currencyCode: prefs.currency,
+          paymentStatus: settleChild.type === 'COLLECTION' ? 'COLLECTED' : 'PAID',
+          approvalStatus,
+          parentEventId: eventId,
+        });
+      }
     }
-    await ensureSettlement(client, ctx, momentId, companyId, prefs.currency, {
+    const childId = await ensureSettlement(client, ctx, momentId, companyId, prefs.currency, {
       eventId,
       eventType: def.code,
       title,
@@ -961,6 +1021,28 @@ export async function recordOperatingEvent(
       counterpartyName: body.counterpartyName ?? null,
       occurredAt: body.occurredAt ?? null,
     });
+    if (childId) {
+      const childType =
+        (def.code === 'SALE' || def.code === 'SERVICE') && paymentStatus === 'COLLECTED'
+          ? 'COLLECTION'
+          : (def.code === 'PURCHASE' || def.code === 'SPEND' || def.code === 'VENDOR_COST') &&
+              paymentStatus === 'PAID'
+            ? 'PAYMENT'
+            : null;
+      if (childType) {
+        await syncFinancialEffectsFromOperatingEvent(client, {
+          companyId,
+          momentId,
+          eventId: childId,
+          eventType: childType,
+          amount,
+          currencyCode: prefs.currency,
+          paymentStatus: childType === 'COLLECTION' ? 'COLLECTED' : 'PAID',
+          approvalStatus,
+          parentEventId: eventId,
+        });
+      }
+    }
   }
   if (approvalStatus !== 'PENDING' && (def.code === 'BUDGET' || def.code === 'TARGET') && body.amount) {
     await applyPlanRevision(client, momentId, def.code, body.amount);
@@ -1016,7 +1098,7 @@ export async function decideOperatingEvent(
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Operating setup was not found.', 400);
   }
   const prefs = prefsOf(setup.preferences);
-  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs, scope.membershipType);
+  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs, scope.membershipType, scope.operatingRole);
   if (!canApprove(role)) {
     throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Your role cannot approve this.', 403);
   }
@@ -1025,8 +1107,14 @@ export async function decideOperatingEvent(
     approval_status: string;
     event_type: string;
     amount: string | null;
+    payment_status: string;
+    parent_event_id: string | null;
+    quantity: string | null;
+    payload: Record<string, unknown> | null;
+    occurred_at: Date;
   }>(
-    `SELECT submitted_by_user_id, approval_status, event_type, amount::text
+    `SELECT submitted_by_user_id, approval_status, event_type, amount::text,
+            payment_status, parent_event_id, quantity::text, payload, occurred_at
      FROM business.operating_event
      WHERE operating_event_id = $1 AND moment_id = $2`,
     [eventId, momentId]
@@ -1047,6 +1135,28 @@ export async function decideOperatingEvent(
   );
   if (body.decision === 'APPROVED' && (row.event_type === 'BUDGET' || row.event_type === 'TARGET') && row.amount) {
     await applyPlanRevision(client, momentId, row.event_type, row.amount);
+  }
+  if (body.decision === 'APPROVED' && scope.companyId) {
+    await syncFinancialEffectsFromOperatingEvent(client, {
+      companyId: scope.companyId,
+      momentId,
+      eventId,
+      eventType: row.event_type,
+      amount: row.amount,
+      currencyCode: prefs.currency,
+      paymentStatus: row.payment_status,
+      approvalStatus: 'APPROVED',
+      parentEventId: row.parent_event_id,
+    });
+    await syncInventoryFromOperatingEvent(client, {
+      companyId: scope.companyId,
+      momentId,
+      eventId,
+      eventType: row.event_type,
+      quantity: row.quantity,
+      occurredAt: row.occurred_at.toISOString(),
+      payload: row.payload,
+    });
   }
   const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
     eventName: 'OperatingEventDecided',
@@ -1223,22 +1333,25 @@ export async function reviseOperatingEvent(
   momentId: string,
   eventId: string,
   body: RecordOperatingEventInput
-): Promise<{ eventId: string; projection: OperatingProjection }> {
+): Promise<{ eventId: string; projection: OperatingProjection; correctionEventId?: string; reversalEventId?: string }> {
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
   const setup = await loadSetup(client, momentId);
   if (!setup || !isOperatingFamily(scope.businessFamily)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Operating setup was not found.', 400);
   }
   const prefs = prefsOf(setup.preferences);
-  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs, scope.membershipType);
+  const role = await viewerRole(client, ctx.userId, momentId, scope.companyId, prefs, scope.membershipType, scope.operatingRole);
   const existing = await loadEvents(client, momentId);
   const current = existing.find((row) => row.operatingEventId === eventId);
   if (!current) throw new AppError(ErrorCode.VALIDATION_FAILED, 'Event was not found.', 404);
-  const def = quickAddDef(current.eventType);
+  if (current.eventType === 'REVERSAL') {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Reversal events are append-only.', 400);
+  }
+  const def = quickAddDef(current.eventType) ?? quickAddDef(body.eventType);
   if (!def || !canSubmit(role, def)) {
     throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Your role cannot edit this.', 403);
   }
-  const payload: Record<string, unknown> = {};
+  const payload: Record<string, unknown> = { ...(current.contract ? { contract: current.contract } : {}) };
   if (body.lines?.length) payload.lines = body.lines;
   if (body.unit) payload.unit = body.unit;
   if (body.dueAt) payload.dueAt = body.dueAt;
@@ -1247,9 +1360,12 @@ export async function reviseOperatingEvent(
   if (body.reportingMode) payload.reportingMode = body.reportingMode;
   if (body.revisionKind) payload.revisionKind = body.revisionKind;
   if (body.activityStatus) payload.activityStatus = body.activityStatus;
-  let revisedAmount = body.amount ?? null;
-  let revisedStatus: 'NONE' | 'PENDING' | 'READY' | 'PAID' | 'COLLECTED' | null = body.paymentStatus ?? null;
-  let revisedQuantity = body.quantity ?? null;
+  let revisedAmount = body.amount ?? current.amount;
+  let revisedStatus: 'NONE' | 'PENDING' | 'READY' | 'PAID' | 'COLLECTED' =
+    body.paymentStatus ?? (current.paymentStatus as 'NONE' | 'PENDING' | 'READY' | 'PAID' | 'COLLECTED');
+  let revisedQuantity = body.quantity ?? current.quantity;
+  let revisedParent = body.parentEventId ?? current.parentEventId;
+
   if (
     isRetailSubtype(prefs.subtype) &&
     (body.contract || current.contract) &&
@@ -1311,7 +1427,9 @@ export async function reviseOperatingEvent(
     payload.contract = checked.contract;
   } else if (
     isManufacturingSubtype(prefs.subtype) &&
-    ['PRODUCTION', 'PURCHASE', 'SPEND', 'SALE', 'CUSTOMER_ORDER', 'DELIVERY', 'PAYMENT', 'COLLECTION', 'STOCK'].includes(current.eventType)
+    ['PRODUCTION', 'PURCHASE', 'SPEND', 'SALE', 'CUSTOMER_ORDER', 'DELIVERY', 'PAYMENT', 'COLLECTION', 'STOCK'].includes(
+      current.eventType
+    )
   ) {
     const checked = validateManufacturingWrite(
       {
@@ -1340,36 +1458,135 @@ export async function reviseOperatingEvent(
     payload.contract = checked.contract;
     if (body.rejectedQuantity) payload.rejectedQuantity = body.rejectedQuantity;
   }
-  const lineQuantity = body.lines?.reduce((total, line) => total + Number(line.quantity ?? 0), 0) ?? 0;
-  await client.query(
-    `UPDATE business.operating_event
-     SET title = $3,
-         note = $4,
-         amount = $5,
-         counterparty_name = $6,
-         channel_name = $7,
-         payment_status = COALESCE($8, payment_status),
-         quantity = $9,
-         payload = COALESCE(payload, '{}'::jsonb) || $10::jsonb,
-         occurred_at = COALESCE($11::timestamptz, occurred_at),
-         parent_event_id = COALESCE($12, parent_event_id),
-         version = version + 1
-     WHERE operating_event_id = $1 AND moment_id = $2`,
-    [
-      eventId,
-      momentId,
-      body.title,
-      body.note ?? null,
-      revisedAmount,
-      body.counterpartyName ?? null,
-      body.channelName ?? null,
-      revisedStatus,
-      revisedQuantity ?? (lineQuantity > 0 ? lineQuantity.toFixed(4) : null),
-      JSON.stringify(payload),
-      body.occurredAt ?? null,
-      body.parentEventId ?? null,
-    ]
+
+  const moneyChanged = financialFieldsChanged(
+    {
+      amount: current.amount,
+      quantity: current.quantity ?? null,
+      paymentStatus: current.paymentStatus,
+      parentEventId: current.parentEventId ?? null,
+      eventType: current.eventType,
+    },
+    {
+      amount: revisedAmount ?? null,
+      quantity: revisedQuantity ?? null,
+      paymentStatus: revisedStatus,
+      parentEventId: revisedParent ?? null,
+    }
   );
+  const hasEffects = await eventHasLedgerEffects(client, eventId);
+
+  // Append-only when financial fields change on a posted ledger event.
+  if (moneyChanged && hasEffects) {
+    if (!scope.companyId) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, 'Company-bound moment required for ledger corrections.', 409);
+    }
+    const { reversalEventId, correctionEventId } = await appendCorrectionForOperatingEvent(client, ctx, {
+      companyId: scope.companyId,
+      momentId,
+      currencyCode: prefs.currency,
+      original: {
+        eventId,
+        eventType: current.eventType,
+        title: current.title,
+        amount: current.amount,
+        quantity: current.quantity ?? null,
+        paymentStatus: current.paymentStatus,
+        approvalStatus: current.approvalStatus,
+        parentEventId: current.parentEventId ?? null,
+        counterpartyName: current.counterpartyName,
+        channelName: current.channelName,
+        payload: (current.contract ? { contract: current.contract } : {}) as Record<string, unknown>,
+        occurredAt: current.occurredAt,
+      },
+      correction: {
+        title: body.title,
+        note: body.note ?? null,
+        amount: revisedAmount ?? null,
+        quantity: revisedQuantity ?? null,
+        paymentStatus: revisedStatus,
+        parentEventId: revisedParent ?? null,
+        counterpartyName: body.counterpartyName ?? current.counterpartyName,
+        channelName: body.channelName ?? current.channelName,
+        dueAt: body.dueAt ?? current.dueAt ?? null,
+        payload,
+        occurredAt: body.occurredAt ?? null,
+      },
+    });
+    const projection = await getOperatingProjection(client, ctx, momentId);
+    if ('retired' in projection && projection.retired) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, 'Operating projection unavailable.', 400);
+    }
+    return {
+      eventId, // original id preserved for clients
+      correctionEventId,
+      reversalEventId,
+      projection: projection as OperatingProjection,
+    };
+  }
+
+  if (moneyChanged && !hasEffects) {
+    // Pre-ledger or non-effecting event: still refuse mutating posted amount columns when
+    // a future effect path exists; allow update only for non-ledger metadata.
+    // Here no effects yet — allow in-place update for draft-like rows.
+  } else if (moneyChanged === false) {
+    // title/note-only updates stay in place
+  }
+
+  // Non-financial metadata update (or unposted event): may update title/note/channel only when
+  // financial fields are unchanged; when unchanged financially, update metadata on original.
+  if (moneyChanged) {
+    await client.query(
+      `UPDATE business.operating_event
+       SET title = $3,
+           note = $4,
+           amount = $5,
+           counterparty_name = $6,
+           channel_name = $7,
+           payment_status = COALESCE($8, payment_status),
+           quantity = $9,
+           payload = COALESCE(payload, '{}'::jsonb) || $10::jsonb,
+           occurred_at = COALESCE($11::timestamptz, occurred_at),
+           parent_event_id = COALESCE($12, parent_event_id),
+           version = version + 1
+       WHERE operating_event_id = $1 AND moment_id = $2`,
+      [
+        eventId,
+        momentId,
+        body.title,
+        body.note ?? null,
+        revisedAmount,
+        body.counterpartyName ?? null,
+        body.channelName ?? null,
+        revisedStatus,
+        revisedQuantity,
+        JSON.stringify(payload),
+        body.occurredAt ?? null,
+        revisedParent ?? null,
+      ]
+    );
+  } else {
+    await client.query(
+      `UPDATE business.operating_event
+       SET title = $3,
+           note = COALESCE($4, note),
+           counterparty_name = COALESCE($5, counterparty_name),
+           channel_name = COALESCE($6, channel_name),
+           payload = COALESCE(payload, '{}'::jsonb) || $7::jsonb,
+           version = version + 1
+       WHERE operating_event_id = $1 AND moment_id = $2`,
+      [
+        eventId,
+        momentId,
+        body.title,
+        body.note ?? null,
+        body.counterpartyName ?? null,
+        body.channelName ?? null,
+        JSON.stringify(payload),
+      ]
+    );
+  }
+
   const { domainEventId } = await insertDomainEventAndOutbox(client, ctx, {
     eventName: 'OperatingEventRevised',
     domainCode: 'BUSINESS',
@@ -1377,22 +1594,35 @@ export async function reviseOperatingEvent(
     aggregateId: eventId,
     scopeType: 'MOMENT',
     scopeId: momentId,
-    payload: { eventId, momentId },
+    payload: { eventId, momentId, moneyChanged },
   });
   await insertAudit(client, ctx, 'OPERATING_EVENT_REVISE', 'OPERATING_EVENT', eventId, domainEventId, {
     momentId,
     eventType: current.eventType,
+    moneyChanged,
   });
-  if (scope.companyId) {
-    await ensureSettlement(client, ctx, momentId, scope.companyId, prefs.currency, {
+  if (scope.companyId && moneyChanged) {
+    await syncFinancialEffectsFromOperatingEvent(client, {
+      companyId: scope.companyId,
+      momentId,
       eventId,
       eventType: current.eventType,
-      title: body.title,
-      amount: revisedAmount ?? current.amount,
-      paymentStatus: revisedStatus ?? current.paymentStatus,
+      amount: revisedAmount ?? null,
+      currencyCode: prefs.currency,
+      paymentStatus: revisedStatus,
       approvalStatus: current.approvalStatus,
-      counterpartyName: body.counterpartyName ?? current.counterpartyName,
+      parentEventId: revisedParent ?? null,
+      dueAt: body.dueAt ?? current.dueAt ?? null,
+    });
+    await syncInventoryFromOperatingEvent(client, {
+      companyId: scope.companyId,
+      momentId,
+      eventId,
+      eventType: current.eventType,
+      quantity: revisedQuantity ?? null,
+      unit: body.unit ?? current.unit ?? null,
       occurredAt: body.occurredAt ?? current.occurredAt,
+      payload,
     });
   }
   const projection = await getOperatingProjection(client, ctx, momentId);
@@ -1401,6 +1631,7 @@ export async function reviseOperatingEvent(
   }
   return { eventId, projection: projection as OperatingProjection };
 }
+
 
 async function ensureSettlement(
   client: PoolClient,
@@ -1418,8 +1649,8 @@ async function ensureSettlement(
     counterpartyName: string | null;
     occurredAt: string | null;
   }
-): Promise<void> {
-  if (source.approvalStatus === 'PENDING' || source.approvalStatus === 'REJECTED' || !source.amount) return;
+): Promise<string | null> {
+  if (source.approvalStatus === 'PENDING' || source.approvalStatus === 'REJECTED' || !source.amount) return null;
   const childType =
     (source.eventType === 'SALE' || source.eventType === 'SERVICE') && source.paymentStatus === 'COLLECTED'
       ? 'COLLECTION'
@@ -1427,15 +1658,15 @@ async function ensureSettlement(
           source.paymentStatus === 'PAID'
         ? 'PAYMENT'
         : null;
-  if (!childType) return;
-  const found = await client.query(
-    `SELECT 1 FROM business.operating_event
+  if (!childType) return null;
+  const found = await client.query<{ operating_event_id: string }>(
+    `SELECT operating_event_id FROM business.operating_event
      WHERE moment_id = $1 AND parent_event_id = $2 AND event_type = $3
      LIMIT 1`,
     [momentId, source.eventId, childType]
   );
-  if (found.rowCount) return;
-  await client.query(
+  if (found.rows[0]) return found.rows[0].operating_event_id;
+  const inserted = await client.query<{ operating_event_id: string }>(
     `INSERT INTO business.operating_event (
        moment_id, company_id, actor_user_id, event_type, title, note, amount, currency_code,
        counterparty_name, channel_name, payment_relevance, payment_status, approval_status,
@@ -1443,7 +1674,8 @@ async function ensureSettlement(
      ) VALUES (
        $1,$2,$3,$4,$5,NULL,$6,$7,$8,NULL,$9,$10,'NONE',$3,
        COALESCE($11::timestamptz, now()), $12, NULL, '{}'::jsonb
-     )`,
+     )
+     RETURNING operating_event_id`,
     [
       momentId,
       companyId,
@@ -1459,6 +1691,7 @@ async function ensureSettlement(
       source.eventId,
     ]
   );
+  return inserted.rows[0]?.operating_event_id ?? null;
 }
 
 export function assertOperatingActivate(familyCode: string): void {

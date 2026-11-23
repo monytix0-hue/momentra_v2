@@ -70,6 +70,10 @@ function num(value: string | null | undefined): number {
 }
 
 function effective(row: OperatingEventRow): boolean {
+  // Callers: tradingPulseMetrics / applyTradingBoardMetrics. Align with catalog effective().
+  // User: "Exclude SUPERSEDED and REVERSAL events from effective financial totals."
+  if (row.ledgerStatus === 'SUPERSEDED') return false;
+  if (row.eventType === 'REVERSAL') return false;
   return row.approvalStatus !== 'PENDING' && row.approvalStatus !== 'REJECTED' && row.paymentStatus !== 'CANCELLED';
 }
 

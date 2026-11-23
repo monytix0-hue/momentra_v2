@@ -510,6 +510,7 @@ export async function buildMomentStorySnapshot(
     throw new Error('Moment not found for story snapshot');
   }
 
+  // Phase 1A: Business V4 tear-down — operating story builders return empty stubs.
   const setup = await client.query<{ family_code: string; preferences: Record<string, unknown>; title: string }>(
     `SELECT family_code, preferences, title
      FROM business.business_system_setup
@@ -518,309 +519,30 @@ export async function buildMomentStorySnapshot(
      LIMIT 1`,
     [momentId]
   ).catch(() => ({ rows: [] as Array<{ family_code: string; preferences: Record<string, unknown>; title: string }> }));
-  if (setup.rows[0]?.family_code === 'MARKETING_CAMPAIGNS') {
-    const { composeMarketingStory } = await import('./marketing-story');
-    const { parseMarketingFacts } = await import('../business/operating-marketing');
-    const prefs = setup.rows[0].preferences ?? {};
-    const events = await client.query<{
-      operating_event_id: string;
-      event_type: string;
-      title: string;
-      amount: string | null;
-      quantity: string | null;
-      channel_name: string | null;
-      counterparty_name: string | null;
-      payment_status: string;
-      approval_status: string;
-      occurred_at: Date;
-      parent_event_id: string | null;
-      payload: Record<string, unknown> | null;
-    }>(
-      `SELECT operating_event_id, event_type, title, amount::text, quantity::text, channel_name,
-              counterparty_name, payment_status, approval_status, occurred_at, parent_event_id, payload
-       FROM business.operating_event
-       WHERE moment_id = $1
-       ORDER BY occurred_at ASC
-       LIMIT 200`,
-      [momentId]
-    );
-    const mapped = events.rows.map((event) => {
-      const payload = event.payload ?? {};
-      const metric = payload.metric === 'LEADS' || payload.metric === 'CONVERSIONS' ? payload.metric : null;
-      return {
-        operatingEventId: event.operating_event_id,
-        eventType: event.event_type,
-        title: event.title,
-        amount: event.amount,
-        quantity: event.quantity,
-        channelName: event.channel_name,
-        counterpartyName: event.counterparty_name,
-        paymentStatus: event.payment_status,
-        approvalStatus: event.approval_status,
-        occurredAt: event.occurred_at.toISOString(),
-        parentEventId: event.parent_event_id,
-        metric,
-        marketing: parseMarketingFacts(payload, metric),
-      };
-    });
-    const participants = Array.isArray(prefs.participants)
-      ? prefs.participants.flatMap((person) => {
-          if (!person || typeof person !== 'object') return [];
-          const name = String((person as { displayName?: string }).displayName ?? '').trim();
-          return name ? [name] : [];
-        })
-      : [];
-    const channels = Array.isArray(prefs.channels) ? prefs.channels.map((channel) => String(channel)) : [];
-    return {
-      snapshot: composeMarketingStory({
-        momentId,
-        title: String(prefs.identityName ?? setup.rows[0].title ?? row.title),
-        subtype: String(prefs.subtype ?? ''),
-        currency: String(prefs.currency ?? 'INR'),
-        startAt: prefs.startDate ? String(prefs.startDate) : row.start_at?.toISOString() ?? null,
-        endAt: prefs.endDate ? String(prefs.endDate) : row.end_at?.toISOString() ?? null,
-        targetMetric: String(prefs.targetMetric ?? ''),
-        budget: Number(prefs.monthlyBudget ?? 0) || null,
-        target: Number(prefs.monthlyTarget ?? 0) || null,
-        channels,
-        participants,
-        events: mapped,
-      }),
-      sourceManifest: { operatingEvents: mapped.length },
-    };
-  }
-  if (setup.rows[0]?.family_code === 'RETAIL_CONSUMER') {
+  const businessFamily = setup.rows[0]?.family_code;
+  if (
+    businessFamily === 'MARKETING_CAMPAIGNS' ||
+    businessFamily === 'RETAIL_CONSUMER' ||
+    businessFamily === 'MANUFACTURING_PRODUCTION' ||
+    businessFamily === 'TRADING_DISTRIBUTION'
+  ) {
+    const prefs = setup.rows[0]?.preferences ?? {};
+    const title = String(prefs.identityName ?? setup.rows[0]?.title ?? row.title);
+    if (businessFamily === 'MARKETING_CAMPAIGNS') {
+      const { composeMarketingStory } = await import('./marketing-story');
+      return { snapshot: composeMarketingStory({ momentId, title }), sourceManifest: { operatingEvents: 0 } };
+    }
+    if (businessFamily === 'RETAIL_CONSUMER') {
+      const { composeRetailStory } = await import('./retail-story');
+      return { snapshot: composeRetailStory({ momentId, title }), sourceManifest: { operatingEvents: 0 } };
+    }
+    if (businessFamily === 'MANUFACTURING_PRODUCTION') {
+      const { composeManufacturingStory } = await import('./manufacturing-story');
+      return { snapshot: composeManufacturingStory({ momentId, title }), sourceManifest: { operatingEvents: 0 } };
+    }
+    // TRADING_DISTRIBUTION — empty generic business snapshot via retail stub
     const { composeRetailStory } = await import('./retail-story');
-    const { parseOperatingContract } = await import('../business/operating-retail-contract');
-    const prefs = setup.rows[0].preferences ?? {};
-    const events = await client.query<{
-      operating_event_id: string;
-      event_type: string;
-      title: string;
-      amount: string | null;
-      quantity: string | null;
-      channel_name: string | null;
-      counterparty_name: string | null;
-      payment_status: string;
-      approval_status: string;
-      occurred_at: Date;
-      parent_event_id: string | null;
-      payload: Record<string, unknown> | null;
-    }>(
-      `SELECT operating_event_id, event_type, title, amount::text, quantity::text,
-              channel_name, counterparty_name, payment_status, approval_status, occurred_at, parent_event_id, payload
-       FROM business.operating_event
-       WHERE moment_id = $1
-       ORDER BY occurred_at ASC
-       LIMIT 200`,
-      [momentId]
-    );
-    const mapped = events.rows.map((event) => {
-      const payload = event.payload ?? {};
-      const lines = Array.isArray(payload.lines) ? payload.lines : [];
-      return {
-        operatingEventId: event.operating_event_id,
-        eventType: event.event_type,
-        title: event.title,
-        amount: event.amount,
-        quantity: event.quantity,
-        unit: payload.unit == null ? null : String(payload.unit),
-        channelName: event.channel_name,
-        counterpartyName: event.counterparty_name,
-        paymentStatus: event.payment_status,
-        approvalStatus: event.approval_status,
-        occurredAt: event.occurred_at.toISOString(),
-        parentEventId: event.parent_event_id,
-        contract: parseOperatingContract(payload.contract),
-        lines: lines.flatMap((line) => {
-          if (!line || typeof line !== 'object') return [];
-          const row = line as { itemName?: string; quantity?: string; unit?: string; unitPrice?: string };
-          if (!row.itemName) return [];
-          return [{ itemName: String(row.itemName), quantity: String(row.quantity ?? ''), unit: row.unit ?? null, unitPrice: String(row.unitPrice ?? '') }];
-        }),
-      };
-    });
-    const participants = Array.isArray(prefs.participants)
-      ? prefs.participants.flatMap((person) => {
-          if (!person || typeof person !== 'object') return [];
-          const name = String((person as { displayName?: string }).displayName ?? '').trim();
-          return name ? [name] : [];
-        })
-      : [];
-    const channels = Array.isArray(prefs.channels) ? prefs.channels.map((channel) => String(channel)) : [];
-    return {
-      snapshot: composeRetailStory({
-        momentId,
-        title: String(prefs.identityName ?? setup.rows[0].title ?? row.title),
-        subtype: String(prefs.subtype ?? ''),
-        currency: String(prefs.currency ?? 'INR'),
-        startAt: prefs.startDate ? String(prefs.startDate) : row.start_at?.toISOString() ?? null,
-        endAt: prefs.endDate ? String(prefs.endDate) : row.end_at?.toISOString() ?? null,
-        channels,
-        participants,
-        events: mapped,
-      }),
-      sourceManifest: { operatingEvents: mapped.length },
-    };
-  }
-  if (setup.rows[0]?.family_code === 'MANUFACTURING_PRODUCTION') {
-    const { composeManufacturingStory } = await import('./manufacturing-story');
-    const { parseOperatingContract } = await import('../business/operating-retail-contract');
-    const prefs = setup.rows[0].preferences ?? {};
-    const events = await client.query<{
-      operating_event_id: string;
-      event_type: string;
-      title: string;
-      amount: string | null;
-      quantity: string | null;
-      counterparty_name: string | null;
-      payment_status: string;
-      approval_status: string;
-      occurred_at: Date;
-      parent_event_id: string | null;
-      payload: Record<string, unknown> | null;
-    }>(
-      `SELECT operating_event_id, event_type, title, amount::text, quantity::text,
-              counterparty_name, payment_status, approval_status, occurred_at, parent_event_id, payload
-       FROM business.operating_event
-       WHERE moment_id = $1
-       ORDER BY occurred_at ASC
-       LIMIT 200`,
-      [momentId]
-    );
-    const mapped = events.rows.map((event) => {
-      const payload = event.payload ?? {};
-      const lines = Array.isArray(payload.lines) ? payload.lines : [];
-      return {
-        operatingEventId: event.operating_event_id,
-        eventType: event.event_type,
-        title: event.title,
-        amount: event.amount,
-        quantity: event.quantity,
-        unit: payload.unit == null ? null : String(payload.unit),
-        counterpartyName: event.counterparty_name,
-        paymentStatus: event.payment_status,
-        approvalStatus: event.approval_status,
-        occurredAt: event.occurred_at.toISOString(),
-        parentEventId: event.parent_event_id,
-        rejectedQuantity: payload.rejectedQuantity == null ? null : String(payload.rejectedQuantity),
-        contract: parseOperatingContract(payload.contract),
-        lines: lines.flatMap((line) => {
-          if (!line || typeof line !== 'object') return [];
-          const row = line as { itemName?: string; quantity?: string; unit?: string; unitPrice?: string };
-          if (!row.itemName) return [];
-          return [{ itemName: String(row.itemName), quantity: String(row.quantity ?? ''), unit: row.unit ?? null, unitPrice: String(row.unitPrice ?? '') }];
-        }),
-      };
-    });
-    const participants = Array.isArray(prefs.participants)
-      ? prefs.participants.flatMap((person) => {
-          if (!person || typeof person !== 'object') return [];
-          const name = String((person as { displayName?: string }).displayName ?? '').trim();
-          return name ? [name] : [];
-        })
-      : [];
-    const channels = Array.isArray(prefs.channels) ? prefs.channels.map((channel) => String(channel)) : [];
-    return {
-      snapshot: composeManufacturingStory({
-        momentId,
-        title: String(prefs.identityName ?? setup.rows[0].title ?? row.title),
-        subtype: String(prefs.subtype ?? ''),
-        currency: String(prefs.currency ?? 'INR'),
-        startAt: prefs.startDate ? String(prefs.startDate) : row.start_at?.toISOString() ?? null,
-        endAt: prefs.endDate ? String(prefs.endDate) : row.end_at?.toISOString() ?? null,
-        channels,
-        participants,
-        events: mapped,
-      }),
-      sourceManifest: { operatingEvents: mapped.length },
-    };
-  }
-
-  if (setup.rows[0]?.family_code === 'TRADING_DISTRIBUTION') {
-    const { parseOperatingContract } = await import('../business/operating-retail-contract');
-    const prefs = setup.rows[0].preferences ?? {};
-    const subtype = String(prefs.subtype ?? '').toUpperCase();
-    const events = await client.query<{
-      operating_event_id: string;
-      event_type: string;
-      title: string;
-      amount: string | null;
-      quantity: string | null;
-      channel_name: string | null;
-      counterparty_name: string | null;
-      payment_status: string;
-      approval_status: string;
-      occurred_at: Date;
-      parent_event_id: string | null;
-      payload: Record<string, unknown> | null;
-    }>(
-      `SELECT operating_event_id, event_type, title, amount::text, quantity::text,
-              channel_name, counterparty_name, payment_status, approval_status, occurred_at, parent_event_id, payload
-       FROM business.operating_event
-       WHERE moment_id = $1
-       ORDER BY occurred_at ASC
-       LIMIT 200`,
-      [momentId]
-    );
-    const mapped = events.rows.map((event) => {
-      const payload = event.payload ?? {};
-      const lines = Array.isArray(payload.lines) ? payload.lines : [];
-      return {
-        operatingEventId: event.operating_event_id,
-        eventType: event.event_type,
-        title: event.title,
-        amount: event.amount,
-        quantity: event.quantity,
-        unit: payload.unit == null ? null : String(payload.unit),
-        channelName: event.channel_name,
-        counterpartyName: event.counterparty_name,
-        paymentStatus: event.payment_status,
-        approvalStatus: event.approval_status,
-        occurredAt: event.occurred_at.toISOString(),
-        parentEventId: event.parent_event_id,
-        contract: parseOperatingContract(payload.contract),
-        lines: lines.flatMap((line) => {
-          if (!line || typeof line !== 'object') return [];
-          const row = line as { itemName?: string; quantity?: string; unit?: string; unitPrice?: string };
-          if (!row.itemName) return [];
-          return [{
-            itemName: String(row.itemName),
-            quantity: String(row.quantity ?? ''),
-            unit: row.unit ?? null,
-            unitPrice: String(row.unitPrice ?? ''),
-          }];
-        }),
-      };
-    });
-    const participants = Array.isArray(prefs.participants)
-      ? prefs.participants.flatMap((person) => {
-          if (!person || typeof person !== 'object') return [];
-          const name = String((person as { displayName?: string }).displayName ?? '').trim();
-          return name ? [name] : [];
-        })
-      : [];
-    const channels = Array.isArray(prefs.channels) ? prefs.channels.map((channel) => String(channel)) : [];
-    const input = {
-      momentId,
-      title: String(prefs.identityName ?? setup.rows[0].title ?? row.title),
-      subtype,
-      currency: String(prefs.currency ?? 'INR'),
-      startAt: prefs.startDate ? String(prefs.startDate) : row.start_at?.toISOString() ?? null,
-      endAt: prefs.endDate ? String(prefs.endDate) : row.end_at?.toISOString() ?? null,
-      channels,
-      participants,
-      events: mapped,
-    };
-    const { composeTradingStory } = await import('./trading-story');
-    const { composeDistributionStory } = await import('./distribution-story');
-    return {
-      snapshot:
-        subtype === 'DISTRIBUTION_DEALERSHIP'
-          ? composeDistributionStory(input)
-          : composeTradingStory(input),
-      sourceManifest: { operatingEvents: mapped.length },
-    };
+    return { snapshot: composeRetailStory({ momentId, title }), sourceManifest: { operatingEvents: 0 } };
   }
 
   const familyProfile = resolveStoryFamilyProfile({

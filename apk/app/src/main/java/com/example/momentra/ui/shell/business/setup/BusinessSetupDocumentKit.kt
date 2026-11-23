@@ -20,6 +20,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import java.time.LocalDate
+import com.example.momentra.ui.setup.SetupDateTimeUtils
+import com.example.momentra.ui.shell.business.appstate.BusinessGlassModalBottomSheet
+import com.example.momentra.ui.shell.business.appstate.BusinessGlassSheetChrome
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DatePicker
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -244,6 +257,7 @@ object BusinessSetupDocumentKit {
         modifier: Modifier = Modifier,
         helper: String = "",
         error: String? = null,
+        forceUppercase: Boolean = false,
     ) {
         val showError = BusinessSetupFieldChrome.hasError(error)
         Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -273,8 +287,19 @@ object BusinessSetupDocumentKit {
                 }
                 BasicTextField(
                     value = value,
-                    onValueChange = onValueChange,
+                    onValueChange = { raw ->
+                        onValueChange(
+                            if (forceUppercase) BusinessSetupDateFormatting.forceUppercaseInput(raw) else raw,
+                        )
+                    },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = if (forceUppercase) {
+                            KeyboardCapitalization.Characters
+                        } else {
+                            KeyboardCapitalization.None
+                        },
+                    ),
                     textStyle = TextStyle(
                         color = BusinessTokens.Colors.TextPrimary,
                         fontSize = 15.sp,
@@ -461,6 +486,7 @@ object BusinessSetupDocumentKit {
         }
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun DateRow(
         theme: BusinessSetupTheme,
@@ -471,17 +497,208 @@ object BusinessSetupDocumentKit {
         modifier: Modifier = Modifier,
         helper: String = "",
         error: String? = null,
+        fieldKey: String = "",
     ) {
-        FieldRow(
-            theme = theme,
-            label = label,
-            placeholder = placeholder,
-            value = value,
-            onValueChange = onValueChange,
-            modifier = modifier,
-            helper = helper,
-            error = error,
-        )
+        val mode = BusinessSetupDateFormatting.modeForKey(fieldKey)
+        val allowClear = BusinessSetupDateFormatting.allowClearForKey(fieldKey)
+        val showError = BusinessSetupFieldChrome.hasError(error)
+        var showPicker by remember { mutableStateOf(false) }
+        val display = BusinessSetupDateFormatting.formatDisplay(value, mode, placeholder)
+
+        Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = label,
+                color = theme.label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(theme.inset)
+                    .border(
+                        1.dp,
+                        if (showError) BusinessTokens.Colors.SignalDanger else theme.accent.copy(alpha = 0.12f),
+                        RoundedCornerShape(12.dp),
+                    )
+                    .clickable { showPicker = true }
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = display,
+                    color = if (value.isBlank()) theme.hint else BusinessTokens.Colors.TextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier.weight(1f),
+                )
+                Text("▼", color = theme.hint, fontSize = 12.sp)
+            }
+            if (showError) {
+                Text(
+                    text = error.orEmpty(),
+                    color = BusinessTokens.Colors.SignalDanger,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = PlusJakartaSans,
+                )
+            } else if (helper.isNotBlank()) {
+                Text(
+                    text = helper,
+                    color = theme.hint,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Normal,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+        }
+
+        if (showPicker) {
+            val initial = BusinessSetupDateFormatting.parseToLocalDate(value) ?: LocalDate.now()
+            val state = rememberDatePickerState(
+                initialSelectedDateMillis = SetupDateTimeUtils.localDateToMillis(initial),
+            )
+            BusinessGlassModalBottomSheet(onDismissRequest = { showPicker = false }) {
+                Text(
+                    text = label,
+                    color = theme.label,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+                DatePicker(
+                    state = state,
+                    colors = androidx.compose.material3.DatePickerDefaults.colors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = theme.label,
+                        headlineContentColor = BusinessTokens.Colors.TextPrimary,
+                        weekdayContentColor = theme.hint,
+                        subheadContentColor = theme.hint,
+                        yearContentColor = BusinessTokens.Colors.TextPrimary,
+                        currentYearContentColor = theme.accent,
+                        selectedYearContentColor = Color.White,
+                        selectedYearContainerColor = theme.accent.copy(alpha = 0.55f),
+                        dayContentColor = BusinessTokens.Colors.TextPrimary,
+                        selectedDayContentColor = Color.White,
+                        selectedDayContainerColor = theme.accent.copy(alpha = 0.70f),
+                        // Callers: DatePicker in this sheet (~L575). No alternate date kit.
+                        // Reads/writes: none — UI colors only. Unblocks :app:compileDebugKotlin.
+                        // User: "OpenAPI and platform builds remain green."
+                        todayContentColor = theme.accent,
+                        todayDateBorderColor = theme.accent.copy(alpha = 0.70f),
+                        disabledDayContentColor = theme.hint.copy(alpha = 0.40f),
+                    ),
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    if (allowClear) {
+                        TextButton(onClick = {
+                            onValueChange("")
+                            showPicker = false
+                        }) { Text("Clear") }
+                    }
+                    TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+                    TextButton(onClick = {
+                        state.selectedDateMillis?.let { millis ->
+                            val picked = SetupDateTimeUtils.millisToLocalDate(millis)
+                            onValueChange(BusinessSetupDateFormatting.toStorage(picked, mode))
+                        }
+                        showPicker = false
+                    }) { Text("OK") }
+                }
+            }
+        }
+    }
+
+    @Composable
+    fun CurrencyDropdown(
+        theme: BusinessSetupTheme,
+        label: String,
+        options: List<String>,
+        selected: String,
+        onSelect: (String) -> Unit,
+        modifier: Modifier = Modifier,
+        helper: String = "",
+        error: String? = null,
+    ) {
+        val showError = BusinessSetupFieldChrome.hasError(error)
+        var expanded by remember { mutableStateOf(false) }
+        val shown = selected.ifBlank { options.firstOrNull().orEmpty() }
+        Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = label,
+                color = theme.label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+            )
+            Box {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(theme.inset)
+                        .border(
+                            1.dp,
+                            if (showError) BusinessTokens.Colors.SignalDanger else theme.accent.copy(alpha = 0.12f),
+                            RoundedCornerShape(12.dp),
+                        )
+                        .clickable { expanded = true }
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = shown.ifBlank { "Select currency" },
+                        color = if (shown.isBlank()) theme.hint else BusinessTokens.Colors.TextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text("▼", color = theme.hint, fontSize = 12.sp)
+                }
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    options.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option, fontFamily = PlusJakartaSans) },
+                            onClick = {
+                                onSelect(option)
+                                expanded = false
+                            },
+                        )
+                    }
+                }
+            }
+            if (showError) {
+                Text(
+                    text = error.orEmpty(),
+                    color = BusinessTokens.Colors.SignalDanger,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = PlusJakartaSans,
+                )
+            } else if (helper.isNotBlank()) {
+                Text(
+                    text = helper,
+                    color = theme.hint,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Normal,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+        }
     }
 
     @Composable
@@ -575,64 +792,71 @@ object BusinessSetupDocumentKit {
         theme: BusinessSetupTheme,
         modules: List<BusinessSetupModuleRow>,
         modifier: Modifier = Modifier,
+        helper: String = "",
     ) {
-        var expanded by remember { mutableStateOf(setOf<String>()) }
         Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             modules.forEach { module ->
-                val isOpen = module.title in expanded
-                Column {
-                    Row(
+                val isAction = module.title.trimStart().startsWith("+")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(theme.inset)
+                        .border(1.dp, theme.accent.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(theme.inset)
-                            .border(1.dp, theme.accent.copy(alpha = 0.16f), RoundedCornerShape(12.dp))
-                            .clickable {
-                                expanded = if (isOpen) {
-                                    expanded - module.title
-                                } else {
-                                    expanded + module.title
-                                }
-                            }
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(theme.accent.copy(alpha = 0.28f)),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = if (isAction) "+" else "▣",
+                            color = theme.accent,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = module.title,
+                            color = if (isAction) theme.accent else BusinessTokens.Colors.TextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = PlusJakartaSans,
+                        )
+                        if (module.subtitle.isNotBlank()) {
                             Text(
-                                text = module.title,
-                                color = BusinessTokens.Colors.TextPrimary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                text = module.subtitle,
+                                color = theme.hint,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Normal,
                                 fontFamily = PlusJakartaSans,
                             )
-                            if (module.subtitle.isNotBlank()) {
-                                Text(
-                                    text = module.subtitle,
-                                    color = theme.hint,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    fontFamily = PlusJakartaSans,
-                                )
-                            }
                         }
-                        Text(
-                            text = if (isOpen) "▴" else "▾",
-                            color = theme.accent,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
                     }
-                    if (isOpen) {
-                        Text(
-                            text = module.subtitle.ifBlank { "Available after you start this business." },
-                            color = theme.hint,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            fontFamily = PlusJakartaSans,
-                            modifier = Modifier.padding(start = 8.dp, top = 4.dp),
-                        )
-                    }
+                    Text(
+                        text = "›",
+                        color = theme.accentSoft,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = PlusJakartaSans,
+                    )
                 }
+            }
+            if (helper.isNotBlank()) {
+                Text(
+                    text = helper,
+                    color = theme.hint,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                    fontFamily = PlusJakartaSans,
+                )
             }
         }
     }

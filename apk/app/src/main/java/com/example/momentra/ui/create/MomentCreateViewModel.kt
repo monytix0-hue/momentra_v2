@@ -154,6 +154,7 @@ class MomentCreateViewModel(
                 )
                 return@launch
             }
+            val draftKey = "business:$momentTypeCode:${resolvedCompanyId ?: "moment"}:$resolvedTitle"
             repository.createBusinessMoment(
                 companyId = resolvedCompanyId,
                 familyCode = familyCode,
@@ -161,6 +162,7 @@ class MomentCreateViewModel(
                 title = resolvedTitle,
                 preferences = prefsForApi,
                 status = status,
+                idempotencyKey = draftKey,
             ).fold(
                 onSuccess = { dto ->
                     if (activating) {

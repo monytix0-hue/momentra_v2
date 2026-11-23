@@ -95,19 +95,19 @@ struct MomentSwitcherSpecsTests {
     }
 
     @Test func emptyAndCompletedEmptyPickTheirOwnCopy() {
-        #expect(business.emptyTitle.contains("live business"))
+        #expect(business.emptyTitle.contains("Business V4"))
         #expect(business.completedEmptyTitle.contains("completed"))
         #expect(business.completedEmptyBody.contains("Northwind Traders"))
         #expect(group.emptyBody.contains("group"))
         #expect(group.completedEmptyBody.contains("group"))
-        #expect(business.emptyCta == "Create first moment")
-        #expect(business.completedEmptyCta == "Create another moment")
+        #expect(business.emptyCta == "Close")
+        #expect(business.completedEmptyCta == "Close")
     }
 
     @Test func footerCopyDiffersByContext() {
-        #expect(business.footerBody.contains("business"))
+        #expect(business.footerBody.contains("Operating moments"))
         #expect(group.footerBody.contains("shared experience"))
-        #expect(business.footerCta == "Create another moment")
+        #expect(business.footerCta == "Close")
         // Home mode must not offer a close affordance.
         #expect(group.allowDismiss == false)
         #expect(business.allowDismiss)
@@ -130,17 +130,17 @@ struct MomentSwitcherSpecsTests {
         #expect(business.classify("SOMETHING_NEW").id == "trading")
     }
 
-    @Test func businessBucketsKeepTheVerticalAndUnifiedAccent() {
-        #expect(business.classify("RETAIL_STORE").vertical == BusinessAppStateVertical.retail)
-        #expect(business.classify("RESTAURANT_FOOD").vertical == BusinessAppStateVertical.rst)
-        #expect(business.classify("CONSUMER_SERVICE").vertical == BusinessAppStateVertical.services)
-        #expect(business.classify("OWN_BUSINESS_CAMPAIGN").vertical == BusinessAppStateVertical.marketing)
-        #expect(business.classify("DISTRIBUTION_DEALERSHIP").vertical == BusinessAppStateVertical.distribution)
-        #expect(business.classify("MADE_TO_ORDER").vertical == BusinessAppStateVertical.mfg)
-        #expect(business.classify("TRADING_WHOLESALE").vertical == BusinessAppStateVertical.trading)
+    @Test func businessBucketsKeepTheVerticalIdAndUnifiedAccent() {
+        #expect(business.classify("RETAIL_STORE").verticalId == "retail")
+        #expect(business.classify("RESTAURANT_FOOD").verticalId == "food")
+        #expect(business.classify("CONSUMER_SERVICE").verticalId == "service")
+        #expect(business.classify("OWN_BUSINESS_CAMPAIGN").verticalId == "marketing")
+        #expect(business.classify("DISTRIBUTION_DEALERSHIP").verticalId == "distribution")
+        #expect(business.classify("MADE_TO_ORDER").verticalId == "manufacturing")
+        #expect(business.classify("TRADING_WHOLESALE").verticalId == "trading")
 
         for bucket in business.buckets {
-            #expect(bucket.accent == BusinessAppStateAccent.emerald, "\(bucket.id) must use the unified emerald accent")
+            #expect(bucket.accent == MomentSwitcherTokens.accent, "\(bucket.id) must use the unified emerald accent")
         }
     }
 

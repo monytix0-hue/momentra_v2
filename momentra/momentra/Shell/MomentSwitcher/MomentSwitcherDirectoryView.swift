@@ -525,6 +525,19 @@ struct MomentSwitcherDirectoryView: View {
         return VStack(alignment: .leading, spacing: 14) {
             HStack {
                 statusChip(completed: completedMoment)
+                if isOwnBusinessMoment(moment) {
+                    Text("OWN")
+                        .font(.plusJakarta(size: 10, weight: .heavy))
+                        .foregroundStyle(Color(hex: "#F8FAFC"))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: "#D946EF"), in: Capsule())
+                }
+                if moment.momentId == selectedMomentId {
+                    Text("Current")
+                        .font(.plusJakarta(size: 10, weight: .semibold))
+                        .foregroundStyle(MomentSwitcherTokens.warm)
+                }
                 Spacer(minLength: 8)
                 storyPill(for: moment)
             }
@@ -558,6 +571,10 @@ struct MomentSwitcherDirectoryView: View {
         )
         .contentShape(shape)
         .onTapGesture { openMoment(moment) }
+    }
+
+    private func isOwnBusinessMoment(_ moment: MomentSummary) -> Bool {
+        (moment.momentTypeCode ?? "").uppercased().contains("OWN_BUSINESS")
     }
 
     private func liveCardGradient(_ bucket: MomentSwitcherBucket) -> LinearGradient {

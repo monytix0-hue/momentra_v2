@@ -37,7 +37,7 @@ Continue from guided create opens `BusinessSetupShell` with in-document chips. A
 | Retail | Restaurant | `RESTAURANT_FOOD` | `5:90612` | ☐ | ☐ |
 | Retail | Service | `CONSUMER_SERVICE` | `5:71162` | ☐ | ☐ |
 | Manufacturing | Manufacturing | `STANDARD_PRODUCTION` | `5:50728` | ☐ | ☐ |
-| Manufacturing | Made to order | `MADE_TO_ORDER` | `5:55863` | ☐ | ☐ |
+| Manufacturing | Job order | `MADE_TO_ORDER` | `5:55863` | ☐ | ☐ |
 
 Setup smoke (Figma v6 parity):
 
@@ -52,6 +52,20 @@ Setup smoke (Figma v6 parity):
 - [ ] Activate creates moment (implicit company when needed)
 - [ ] Edit / Manage moment opens same shell preselected to subtype
 - [ ] Personal / Group create & chrome unchanged
+- [ ] Date fields open calendar / month picker (not free-text only)
+- [ ] Currency is a dropdown with INR default across all 9 setups
+- [ ] GSTIN types in capitals (keyboard + paste)
+- [ ] Business bottom sheets on **iOS and APK** (DateRow, Manage when Business, View-all) show **frosted** glass panel (blur/material + translucent tint ~0.55) with soft scrim (~0.35) — setup/home UI faintly visible through panel edges, emerald stroke; **not** a solid black/opaque card
+- [ ] No double black wash on View-all or Manage (Business); Personal/Group Manage chrome unchanged
+- [ ] Setup fullscreen covers stay opaque gradient
+
+### Job order (`MADE_TO_ORDER` / `5:55863`)
+
+- [ ] Scroll Basics → People & Roles → Job order · Quotes & order approval → GST → Activate (no Plan · Monthly section)
+- [ ] Chip / eyebrow label is **Job order** (not Make to order)
+- [ ] CTA is **Activate Moment**; secondary **Save draft** works
+- [ ] Budget/target/channels live under Business Basics; invalid GSTIN highlights `gstin`
+- [ ] Discard draft removes DRAFT moment
 
 ### Retail Store (`5:80797`) — five sections (no Catalogue/Network)
 

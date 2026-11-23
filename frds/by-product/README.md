@@ -39,6 +39,8 @@ Phase 11.9 checksums cover baseline **V001–V030** only. Forward pack is V031+ 
 - `V052__company_invite.sql`
 - `V055__business_life_api_parity.sql`
 - `V075__business_expense_paid_by.sql`
+- … through `V102__business_authz_isolation.sql`
+- `V103__drop_business_v4_teardown.sql` (forward DROP of `business` schema — V4 Phase 1; apply only on confirmed V4/dev DBs)
 
 ### shared (`migrations/shared/`)
 

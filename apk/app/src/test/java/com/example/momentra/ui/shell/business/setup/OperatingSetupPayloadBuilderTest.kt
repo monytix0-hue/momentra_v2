@@ -354,4 +354,89 @@ class OperatingSetupPayloadBuilderTest {
         assertEquals("650000.0000", result.preferences["monthlyTarget"])
         assertEquals("TEAM_MEMBER", OperatingSetupPayloadBuilder.mapRole("Waiter"))
     }
+
+    @Test
+    fun mfgFieldErrorsForMissingBudgetTargetChannelsAndGstin() {
+        val missingChannels = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Forge & Form",
+                "companyName" to "Forge & Form",
+                "monthlyBudget" to "900000",
+                "monthlyTarget" to "1800000",
+            ),
+            momentTypeCode = "STANDARD_PRODUCTION",
+            title = "Forge",
+        )
+        assertEquals("Select at least one channel.", missingChannels.fieldErrors["channels"])
+
+        val missingGstin = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Forge & Form",
+                "companyName" to "Forge & Form",
+                "monthlyBudget" to "900000",
+                "monthlyTarget" to "1800000",
+                "channels" to "Direct B2B",
+                "gstTracking" to "Yes",
+            ),
+            momentTypeCode = "MADE_TO_ORDER",
+            title = "Forge",
+        )
+        assertEquals("GSTIN is required when GST tracking is on.", missingGstin.fieldErrors["gstin"])
+    }
+
+    @Test
+    fun mfgHappyPathMapsBudgetTargetAndCurrency() {
+        val built = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Forge & Form",
+                "companyName" to "Forge & Form Pvt",
+                "monthlyBudget" to "₹42,00,000",
+                "monthlyTarget" to "₹65,00,000",
+                "targetMetric" to "Revenue",
+                "channels" to "Direct B2B|OEM",
+                "currency" to "INR · Indian Rupee (₹)",
+                "salePriceIncludesGst" to "GST is added separately",
+                "gstTracking" to "Not now",
+                "startDate" to "12 October 2026",
+            ),
+            momentTypeCode = "STANDARD_PRODUCTION",
+            title = "Forge",
+        )
+        assertNull(built.validationError)
+        assertTrue(built.fieldErrors.isEmpty())
+        assertEquals("Forge & Form", built.preferences["identityName"])
+        assertEquals("4200000.0000", built.preferences["monthlyBudget"])
+        assertEquals("6500000.0000", built.preferences["monthlyTarget"])
+        assertEquals("NOT_NOW", built.preferences["gstTracking"])
+        assertEquals("NO", built.preferences["salePriceIncludesGst"])
+    }
+
+
+    @Test
+    fun jobOrderMapsInvoicedMetricAndPriceIncludesGst() {
+        val built = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Forge & Form",
+                "companyName" to "Forge & Form Pvt",
+                "monthlyBudget" to "₹9,00,000",
+                "monthlyTarget" to "₹18,00,000",
+                "targetMetric" to "Invoiced value (or accepted job units)",
+                "channels" to "Direct B2B|Job work",
+                "priceIncludesGst" to "Prices include GST",
+                "gstRegistered" to "Not now",
+                "quoteValidity" to "15 days · expired quotes revise, never invoice",
+                "jobOnConfirm" to "Open job manually after confirm",
+            ),
+            momentTypeCode = "MADE_TO_ORDER",
+            title = "Forge",
+        )
+        assertNull(built.validationError)
+        assertTrue(built.fieldErrors.isEmpty())
+        assertEquals("REVENUE", built.preferences["targetMetric"])
+        assertEquals("YES", built.preferences["salePriceIncludesGst"])
+        assertEquals("NOT_NOW", built.preferences["gstTracking"])
+        assertEquals("15 days · expired quotes revise, never invoice", built.preferences["quoteValidity"])
+    }
+
+
 }

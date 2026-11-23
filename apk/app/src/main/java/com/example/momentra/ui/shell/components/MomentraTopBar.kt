@@ -49,7 +49,7 @@ import com.example.momentra.ui.theme.shell.GlobalTheme
  * - Personal `763:12256` — no QR
  * - Group `772:11972` — QR
  * - Business setup `1522:12255` — QR, no company chip
- * - Business activated `692:34971` — QR + Moments label
+ * - Business activated — QR + New (unified with Group)
  */
 data class MomentraTopBarConfig(
     val context: AppContext,
@@ -76,10 +76,9 @@ fun MomentraTopBar(
     val window = rememberMomentraWindowSize()
     val showQr = config.qrScanAvailable &&
         (config.context == AppContext.GROUP || config.context == AppContext.BUSINESS)
-    // Business opens the Moments list; every other context creates a single new Moment.
-    val createLabel = if (config.context == AppContext.BUSINESS) "Moments" else "New"
-    val createContentDescription =
-        if (config.context == AppContext.BUSINESS) "Open moments" else "Create moment"
+    // Personal / Group / Business share the same create control chrome.
+    val createLabel = "New"
+    val createContentDescription = "Create moment"
     val actionBg = Color(0xFF1C233D)
     val labelMuted = Color(0xFFABA3BA)
 

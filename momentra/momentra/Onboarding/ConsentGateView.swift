@@ -5,7 +5,7 @@ import UIKit
 struct ConsentGateView: View {
     var onContinue: () -> Void
 
-    @State private var confirmedAge13Plus = OnboardingPrefs.isAgeGateAccepted
+    @State private var confirmedAge18Plus = OnboardingPrefs.isAgeGateAccepted
 
     var body: some View {
         Form {
@@ -16,7 +16,7 @@ struct ConsentGateView: View {
                     .listRowBackground(Color.clear)
                     .accessibilityAddTraits(.isHeader)
                 Text(
-                    "Momentra uses your account and moment data to run the product. You can manage these purposes anytime in Account → Privacy:"
+                    "Momentra uses your account and moment data to run the product. You can manage optional purposes, download a data summary, or raise a privacy request anytime in Account → Privacy:"
                 )
                 .font(.system(size: 14))
                 .foregroundStyle(Color.white.opacity(0.75))
@@ -27,6 +27,12 @@ struct ConsentGateView: View {
                     purposeBullet("AI insights — optional AI suggestions and recommendations")
                     purposeBullet("Memory patterns — optional pattern analysis on your memories")
                 }
+                .listRowBackground(Color.clear)
+                Text(
+                    "Momentra is not directed at anyone under 18. Privacy / grievance: hello@momentra.app."
+                )
+                .font(.system(size: 12))
+                .foregroundStyle(Color.white.opacity(0.65))
                 .listRowBackground(Color.clear)
                 Text("By continuing you agree to our Privacy Policy and Terms of Service.")
                     .font(.system(size: 13))
@@ -46,15 +52,15 @@ struct ConsentGateView: View {
                 }
                 .listRowBackground(Color.clear)
                 .accessibilityHint("Opens in Safari")
-                Toggle(isOn: $confirmedAge13Plus) {
-                    Text("I confirm I am 13 years of age or older")
+                Toggle(isOn: $confirmedAge18Plus) {
+                    Text("I confirm I am 18 years of age or older")
                         .font(.system(size: 14))
                         .foregroundStyle(Color.white)
                 }
                 .tint(Color.accentColor)
                 .listRowBackground(Color.clear)
                 .accessibilityIdentifier("consent.age_gate")
-                .accessibilityLabel("I confirm I am 13 years of age or older")
+                .accessibilityLabel("I confirm I am 18 years of age or older")
             }
         }
         .scrollContentBackground(.hidden)
@@ -64,12 +70,12 @@ struct ConsentGateView: View {
                 onContinue()
             }
             .buttonStyle(BrandPrimaryButtonStyle())
-            .disabled(!confirmedAge13Plus)
-            .opacity(confirmedAge13Plus ? 1 : 0.45)
+            .disabled(!confirmedAge18Plus)
+            .opacity(confirmedAge18Plus ? 1 : 0.45)
             .padding(.horizontal, 24)
             .padding(.bottom, 16)
             .accessibilityIdentifier("consent.continue")
-            .accessibilityHint(confirmedAge13Plus ? "Continues to sign in" : "Confirm you are 13 or older to continue")
+            .accessibilityHint(confirmedAge18Plus ? "Continues to sign in" : "Confirm you are 18 or older to continue")
         }
         .brandAuthScreen()
         .accessibilityIdentifier("consent.gate")

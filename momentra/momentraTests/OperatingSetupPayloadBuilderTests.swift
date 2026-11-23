@@ -47,8 +47,8 @@ struct OperatingSetupPayloadBuilderTests {
             ("RETAIL_STORE", "storeName", "R1"),
             ("RESTAURANT_FOOD", "outletName", "F1"),
             ("CONSUMER_SERVICE", "serviceName", "S1"),
-            ("STANDARD_PRODUCTION", "plantName", "P1"),
-            ("MADE_TO_ORDER", "shopName", "M1"),
+            ("STANDARD_PRODUCTION", "businessName", "P1"),
+            ("MADE_TO_ORDER", "businessName", "M1"),
         ]
         for (code, key, name) in cases {
             var prefs: [String: Any] = [
@@ -401,4 +401,72 @@ struct OperatingSetupPayloadBuilderTests {
         )
         #expect(built.fieldErrors["channels"] == "Select at least one channel.")
     }
+
+    @Test func mfgFieldErrorsForMissingBudgetTargetChannelsAndGstin() {
+        let missingChannels = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "businessName": "Forge & Form",
+                "companyName": "Forge & Form",
+                "monthlyBudget": "900000",
+                "monthlyTarget": "1800000",
+            ],
+            momentTypeCode: "STANDARD_PRODUCTION",
+            title: "Forge"
+        )
+        #expect(missingChannels.fieldErrors["channels"] == "Select at least one channel.")
+
+        let missingGstin = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "businessName": "Forge & Form",
+                "companyName": "Forge & Form",
+                "monthlyBudget": "900000",
+                "monthlyTarget": "1800000",
+                "channels": "Direct B2B",
+                "gstTracking": "Yes",
+            ],
+            momentTypeCode: "MADE_TO_ORDER",
+            title: "Forge"
+        )
+        #expect(missingGstin.fieldErrors["gstin"] == "GSTIN is required when GST tracking is on.")
+
+        let missingTarget = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "businessName": "Forge & Form",
+                "companyName": "Forge & Form",
+                "monthlyBudget": "900000",
+                "monthlyTarget": "0",
+                "channels": "Direct B2B",
+            ],
+            momentTypeCode: "STANDARD_PRODUCTION",
+            title: "Forge"
+        )
+        #expect(missingTarget.fieldErrors["monthlyTarget"] == "Monthly target must be a positive amount.")
+    }
+
+    @Test func mfgHappyPathMapsBudgetTargetAndCurrency() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "businessName": "Forge & Form",
+                "companyName": "Forge & Form Pvt",
+                "monthlyBudget": "₹42,00,000",
+                "monthlyTarget": "₹65,00,000",
+                "targetMetric": "Revenue",
+                "channels": "Direct B2B|OEM",
+                "currency": "INR · Indian Rupee (₹)",
+                "salePriceIncludesGst": "GST is added separately",
+                "gstTracking": "Not now",
+                "startDate": "12 October 2026",
+            ],
+            momentTypeCode: "STANDARD_PRODUCTION",
+            title: "Forge"
+        )
+        #expect(built.validationError == nil)
+        #expect(built.fieldErrors.isEmpty)
+        #expect(built.preferences["identityName"] as? String == "Forge & Form")
+        #expect(built.preferences["monthlyBudget"] as? String == "4200000.0000")
+        #expect(built.preferences["monthlyTarget"] as? String == "6500000.0000")
+        #expect(built.preferences["gstTracking"] as? String == "NOT_NOW")
+        #expect(built.preferences["salePriceIncludesGst"] as? String == "NO")
+    }
+
 }
