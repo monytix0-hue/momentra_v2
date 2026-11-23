@@ -205,7 +205,7 @@ private fun TradingDistributionSetupContent(
     LaunchedEffect(kind, editingMomentId) {
         if (draftId != null) return@LaunchedEffect
         createViewModel.submitBusinessSetup(
-            kind = kind,
+            familyCode = kind.familyCode,
             companyId = companyId.takeIf { it.isNotBlank() },
             preferences = state.preferences(ownerName),
             title = state.businessName.ifBlank { kind.title },
@@ -419,7 +419,7 @@ private fun TradingDistributionSetupContent(
                 if (starting || draft == null) return@TradingSetupDocument
                 starting = true
                 createViewModel.submitBusinessSetup(
-                    kind = kind,
+                    familyCode = kind.familyCode,
                     companyId = draftCompanyId,
                     preferences = state.preferences(ownerName),
                     title = state.businessName.trim().ifBlank { kind.title },
@@ -560,7 +560,7 @@ private fun MarketingCampaignsSetupContent(
     LaunchedEffect(kind, editingMomentId) {
         if (draftId != null) return@LaunchedEffect
         createViewModel.submitBusinessSetup(
-            kind = kind,
+            familyCode = kind.familyCode,
             companyId = companyId.takeIf { it.isNotBlank() },
             preferences = state.preferences(ownerName),
             title = state.campaignName.ifBlank { kind.title },
@@ -732,7 +732,7 @@ private fun MarketingCampaignsSetupContent(
                 if (starting || draft == null) return@MarketingSetupDocument
                 starting = true
                 createViewModel.submitBusinessSetup(
-                    kind = kind,
+                    familyCode = kind.familyCode,
                     companyId = draftCompanyId,
                     preferences = state.preferences(ownerName),
                     title = state.campaignName.trim().ifBlank { kind.title },
@@ -896,7 +896,7 @@ private fun LegacySetupWizardContent(
                     step += 1
                 } else {
                     createViewModel.submitBusinessSetup(
-                        kind = kind,
+                        familyCode = kind.familyCode,
                         companyId = companyId.takeIf { it.isNotBlank() },
                         preferences = buildPrefs(
                             subtype, identity, party, description, people, role, counterparties, channels, budget, target, metric,

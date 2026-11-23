@@ -8,6 +8,13 @@ import java.util.concurrent.ConcurrentHashMap
  * Callers: AppShellScreen → OperatingMomentPage CREATE tab.
  */
 object BusinessMomentFamilyConfig {
+    /** Legacy Ops/Runway/Team pulse family — kept for [BusinessTabLoad]. */
+    enum class Family {
+        MONEY,
+        DAILY,
+        TEAM,
+    }
+
     private val pendingQuickAddByMoment = ConcurrentHashMap<String, String>()
 
     fun setPendingQuickAdd(momentId: String, code: String) {

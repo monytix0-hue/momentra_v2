@@ -44,6 +44,13 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
 
+/** Chapter labels for industry story sheets (Figma Memory story builders). */
+val TRADING_STORY_PAGES: List<String> = listOf("Sales", "Purchases", "Stock", "People")
+val DISTRIBUTION_STORY_PAGES: List<String> = listOf("Dealers", "Routes", "Stock", "People")
+val MANUFACTURING_STORY_PAGES: List<String> = listOf("Orders", "Production", "Delivery", "People")
+val MTO_STORY_PAGES: List<String> = listOf("Orders", "Making", "Delivery", "People")
+val MARKETING_STORY_PAGES: List<String> = listOf("Campaign", "Spend", "Results", "People")
+
 /**
  * Create Business Story for Trading and Distribution — `TRD-MEMORY-v12` /
  * `DST-MEMORY-v12`. Same contract as the retail sheet: the endpoint regenerates the
