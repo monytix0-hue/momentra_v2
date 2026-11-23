@@ -1,6 +1,11 @@
 package com.example.momentra.ui.shell.business.appstate
 
+import com.example.momentra.ui.shell.business.create.BusinessGuidedCreateOption
+import com.example.momentra.ui.shell.business.create.BusinessGuidedCreateSpecs
+
 import androidx.compose.ui.graphics.toArgb
+import com.example.momentra.domain.BottomDestination
+import com.example.momentra.domain.ShellContentState
 import com.example.momentra.ui.shell.momentswitcher.businessDirectoryBucketFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -322,20 +327,63 @@ class BusinessAppStateSpecsTest {
     }
 
     @Test
-    fun accentMappingIsUnifiedAcrossEveryVertical() {
-        // The accent is unified across every Business vertical, so every code resolves to Emerald.
-        // Per-vertical *copy* is keyed on the vertical instead — see `verticalMappingIsStablePerVertical`.
+    fun setupActivateToastSubtitleBySubtype() {
+        assertEquals(
+            "Metro Distribution · Distribution is live · opening Pulse",
+            BusinessSetupActivateToastCopy.subtitle("Metro Distribution", "DISTRIBUTION_DEALERSHIP"),
+        )
+        assertEquals(
+            "Acme Wholesale · Trading is live · opening Pulse",
+            BusinessSetupActivateToastCopy.subtitle("Acme Wholesale", "TRADING_WHOLESALE"),
+        )
+        assertEquals(
+            "Corner Shop · is live · opening Pulse",
+            BusinessSetupActivateToastCopy.subtitle("Corner Shop", "RETAIL_STORE"),
+        )
+        assertEquals(
+            "Brightline · Campaign is live · opening Pulse",
+            BusinessSetupActivateToastCopy.subtitle("Brightline", "CLIENT_CAMPAIGN"),
+        )
+    }
+
+    @Test
+    fun accentMappingUsesVerticalOverrides() {
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("TRADING_WHOLESALE"))
-        assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("RETAIL_STORE"))
-        assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("RESTAURANT_FOOD"))
+        assertEquals(BusinessAppStateAccent.Rose, BusinessAppStateAccent.forTypeCode("RETAIL_STORE"))
+        assertEquals(BusinessAppStateAccent.Flame, BusinessAppStateAccent.forTypeCode("RESTAURANT_FOOD"))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("CONSUMER_SERVICE"))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("STANDARD_PRODUCTION"))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("MADE_TO_ORDER"))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("CLIENT_CAMPAIGN"))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("OWN_BUSINESS_CAMPAIGN"))
-        assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("DISTRIBUTION_DEALERSHIP"))
+        assertEquals(BusinessAppStateAccent.Flame, BusinessAppStateAccent.forTypeCode("DISTRIBUTION_DEALERSHIP"))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode(null))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("SOMETHING_NEW"))
+        assertEquals(0xFF06B6D4.toInt(), BusinessAppStateAccent.Cyan.color.toArgb())
+        assertEquals(0xFFF59E0B.toInt(), BusinessAppStateAccent.Amber.color.toArgb())
+    }
+
+    @Test
+    fun pulseEmptyCopyMatchesFigma() {
+        val s = BusinessAppStateSpecs.spec(BusinessAppStateScreen.Pulse, BusinessAppStatePhase.Empty)
+        assertEquals("No pulse yet", s.title)
+        assertTrue(s.rows.none { it.value == "0" })
+        assertEquals("Record first sale", s.primaryLabel)
+    }
+
+    @Test
+    fun hubEmptyDoesNotInventPrimaryCta() {
+        val hub = BusinessAppStateSpecs.spec(BusinessAppStateScreen.Hub, BusinessAppStatePhase.Empty)
+        assertNull(hub.primaryLabel)
+        assertNotNull(hub.footnote)
+    }
+
+    @Test
+    fun tokensAliasBusinessTokensObsidianPalette() {
+        assertEquals(0xFF05070B.toInt(), BusinessAppStateTokens.Page.toArgb())
+        assertEquals(0xFF10B981.toInt(), BusinessAppStateAccent.Emerald.color.toArgb())
+        assertEquals(0xFFF43F5E.toInt(), BusinessAppStateAccent.Rose.color.toArgb())
+        assertEquals(0xFFEA580C.toInt(), BusinessAppStateAccent.Flame.color.toArgb())
     }
 
     @Test
@@ -355,16 +403,28 @@ class BusinessAppStateSpecsTest {
 
     @Test
     fun figmaAccentValuesAreExact() {
-        // The kit's single accent variable — `appstate/accent` — is emerald 500.
-        assertEquals(listOf(BusinessAppStateAccent.Emerald), BusinessAppStateAccent.entries.toList())
+        assertEquals(
+            listOf(
+                BusinessAppStateAccent.Emerald,
+                BusinessAppStateAccent.Amber,
+                BusinessAppStateAccent.Rose,
+                BusinessAppStateAccent.Flame,
+                BusinessAppStateAccent.Cyan,
+            ),
+            BusinessAppStateAccent.entries.toList(),
+        )
         assertEquals(0xFF10B981.toInt(), BusinessAppStateAccent.Emerald.color.toArgb())
+        assertEquals(0xFFF59E0B.toInt(), BusinessAppStateAccent.Amber.color.toArgb())
+        assertEquals(0xFFF43F5E.toInt(), BusinessAppStateAccent.Rose.color.toArgb())
+        assertEquals(0xFFEA580C.toInt(), BusinessAppStateAccent.Flame.color.toArgb())
+        assertEquals(0xFF06B6D4.toInt(), BusinessAppStateAccent.Cyan.color.toArgb())
         BusinessAppStateAccent.entries.forEach { accent ->
             assertEquals("${accent.name} must be fully opaque", 1f, accent.color.alpha)
         }
     }
 
     @Test
-    fun directoryBucketsCarryTheVerticalAndTheUnifiedAccent() {
+    fun directoryBucketsCarryStableIdsAndVerticalKeys() {
         assertEquals("retail", businessDirectoryBucketFor("RETAIL_STORE").id)
         assertEquals("trading", businessDirectoryBucketFor("TRADING_WHOLESALE").id)
         assertEquals("food", businessDirectoryBucketFor("RESTAURANT_FOOD").id)
@@ -375,25 +435,13 @@ class BusinessAppStateSpecsTest {
         assertEquals("trading", businessDirectoryBucketFor(null).id)
         assertEquals("trading", businessDirectoryBucketFor("SOMETHING_NEW").id)
 
-        assertEquals(BusinessAppStateVertical.Retail, businessDirectoryBucketFor("RETAIL_STORE").vertical)
-        assertEquals(BusinessAppStateVertical.Services, businessDirectoryBucketFor("CONSUMER_SERVICE").vertical)
-        assertEquals(BusinessAppStateVertical.Marketing, businessDirectoryBucketFor("OWN_BUSINESS_CAMPAIGN").vertical)
-        assertEquals(BusinessAppStateVertical.Distribution, businessDirectoryBucketFor("DISTRIBUTION_DEALERSHIP").vertical)
-        assertEquals(BusinessAppStateVertical.Mfg, businessDirectoryBucketFor("MADE_TO_ORDER").vertical)
-        assertEquals(BusinessAppStateVertical.Rst, businessDirectoryBucketFor("RESTAURANT_FOOD").vertical)
-        assertEquals(BusinessAppStateVertical.Trading, businessDirectoryBucketFor("TRADING_WHOLESALE").vertical)
-
-        // Every bucket renders with the same emerald accent, regardless of vertical.
-        listOf(
-            "RETAIL_STORE", "TRADING_WHOLESALE", "RESTAURANT_FOOD", "CONSUMER_SERVICE",
-            "MADE_TO_ORDER", "OWN_BUSINESS_CAMPAIGN", "DISTRIBUTION_DEALERSHIP",
-        ).forEach { code ->
-            assertEquals(
-                "$code bucket must use the unified emerald accent",
-                BusinessAppStateAccent.Emerald,
-                businessDirectoryBucketFor(code).accent,
-            )
-        }
+        assertEquals("retail", businessDirectoryBucketFor("RETAIL_STORE").vertical)
+        assertEquals("services", businessDirectoryBucketFor("CONSUMER_SERVICE").vertical)
+        assertEquals("marketing", businessDirectoryBucketFor("OWN_BUSINESS_CAMPAIGN").vertical)
+        assertEquals("distribution", businessDirectoryBucketFor("DISTRIBUTION_DEALERSHIP").vertical)
+        assertEquals("mfg", businessDirectoryBucketFor("MADE_TO_ORDER").vertical)
+        assertEquals("rst", businessDirectoryBucketFor("RESTAURANT_FOOD").vertical)
+        assertEquals("trading", businessDirectoryBucketFor("TRADING_WHOLESALE").vertical)
     }
 
     // MARK: Directory switcher row (Figma 2871:39707)
@@ -407,4 +455,63 @@ class BusinessAppStateSpecsTest {
         assertEquals(0x2E10B981.toInt(), BusinessAppStateTokens.HairlineStroke.toArgb())
         assertEquals(0xFFC7D1E0.toInt(), BusinessAppStateTokens.RowLabelColor.toArgb())
     }
+
+    // MARK: Shell routing (Obsidian wire-up)
+
+    @Test
+    fun offlineBusinessPulseResolvesWaitingForConnection() {
+        assertEquals(
+            "Waiting for connection",
+            BusinessAppStateRouting.titleFor(
+                destination = BottomDestination.PULSE,
+                content = ShellContentState.Offline,
+                hasCompany = true,
+            ),
+        )
+        assertEquals(
+            BusinessAppStateScreen.Offline,
+            BusinessAppStateRouting.resolveScreen(
+                BottomDestination.PULSE,
+                ShellContentState.Offline,
+                hasCompany = true,
+            ),
+        )
+    }
+
+    @Test
+    fun createDestinationMapsToHubWhenCompanyExists() {
+        assertEquals(
+            BusinessAppStateScreen.Hub,
+            BusinessAppStateRouting.screenFor(BottomDestination.CREATE, hasCompany = true),
+        )
+        assertEquals(
+            BusinessAppStateScreen.NoCompany,
+            BusinessAppStateRouting.screenFor(BottomDestination.PULSE, hasCompany = false),
+        )
+    }
+
+    @Test
+    fun guidedCreateCatalogHasFourVerticals() {
+        assertEquals(4, BusinessGuidedCreateSpecs.options.size)
+        assertEquals("Manufacturing & Production", BusinessGuidedCreateOption.Manufacturing.title)
+        assertEquals("MANUFACTURING_PRODUCTION", BusinessGuidedCreateOption.Manufacturing.familyCode)
+        assertEquals("STANDARD_PRODUCTION", BusinessGuidedCreateOption.Manufacturing.momentTypeCode)
+        assertEquals(
+            "Built for the way you make.",
+            BusinessGuidedCreateOption.Manufacturing.previewHeadline,
+        )
+    }
+
+    @Test
+    fun createEmptyPhaseIsEmptyWhenCompanyExists() {
+        assertEquals(
+            BusinessAppStatePhase.Empty,
+            BusinessAppStateRouting.phaseFor(ShellContentState.Empty, hasCompany = true),
+        )
+        assertEquals(
+            BusinessAppStatePhase.Setup,
+            BusinessAppStateRouting.phaseFor(ShellContentState.Empty, hasCompany = false),
+        )
+    }
+
 }
