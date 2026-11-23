@@ -1017,14 +1017,34 @@ struct AppShellView: View {
 
     private var shellTopChromeContent: some View {
         VStack(spacing: 0) {
-            if let notice = model.offlineNotice {
-                Text(notice)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color(hex: "#3A2A12"))
+            if let activateToast = model.businessSuccessToast, model.selectedContext == .business {
+                BusinessAppStateToastHost(
+                    toast: .setupActivated(title: activateToast.title, subtitle: activateToast.subtitle),
+                    onDismiss: { model.clearBusinessSuccessToast() }
+                )
+                .task(id: activateToast) {
+                    try? await Task.sleep(nanoseconds: 2_750_000_000)
+                    model.clearBusinessSuccessToast()
+                }
+            } else if let notice = model.offlineNotice {
+                let pending = OfflineOutbox.shared.pendingCount()
+                let failed = OfflineOutbox.shared.failedMessage()
+                if model.selectedContext == .business, failed != nil || pending > 0 {
+                    BusinessAppStateToastHost(
+                        toast: failed != nil
+                            ? .error(code: "SYNC_TIMEOUT_504")
+                            : .offlineQueue(queuedCount: pending),
+                        onRetry: { model.selectContext(model.selectedContext) }
+                    )
+                } else {
+                    Text(notice)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color(hex: "#3A2A12"))
+                }
             }
 
             MomentraTopBar(

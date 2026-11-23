@@ -26,6 +26,8 @@ final class AppShellModel: ObservableObject {
     @Published private(set) var capabilities: [String] = []
     @Published private(set) var ttcsMs: Int64?
     @Published private(set) var offlineNotice: String?
+    /// Business activate Operating toaster (Figma Setup activated).
+    @Published private(set) var businessSuccessToast: BusinessSetupActivatedToast?
     /// Group inventory empty of ACTIVE/DRAFT but user has COMPLETED membership.
     @Published private(set) var groupHasCompletedHistory = false
 
@@ -748,6 +750,18 @@ final class AppShellModel: ObservableObject {
         lastNonCreateDestination = .pulse
         tabByContext[selectedContext] = .pulse
         selectedMomentByContext[selectedContext] = momentId
+        let resolvedType = (momentTypeCode ?? selectedMomentTypeCode)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+        if selectedContext == .business, status.uppercased() == "ACTIVE" {
+            businessSuccessToast = BusinessSetupActivatedToast(
+                title: BusinessSetupActivateToastCopy.defaultTitle,
+                subtitle: BusinessSetupActivateToastCopy.subtitle(
+                    momentTitle: title,
+                    momentTypeCode: resolvedType
+                )
+            )
+        }
         if selectedContext == .group {
             refreshVisibleGroupTab()
         }
@@ -755,6 +769,10 @@ final class AppShellModel: ObservableObject {
             refreshVisibleBusinessTab()
         }
         reloadCurrentContext(preserveMomentId: momentId)
+    }
+
+    func clearBusinessSuccessToast() {
+        businessSuccessToast = nil
     }
 
     func flushOfflineQueue() {

@@ -55,6 +55,7 @@ import kotlinx.coroutines.delay
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
 import com.example.momentra.data.local.AppPreferences
+import com.example.momentra.data.local.OfflineOutbox
 import com.example.momentra.data.local.PendingCompanyJoinInvite
 import com.example.momentra.data.local.PendingJoinInvite
 import com.example.momentra.data.local.PendingDeepLink
@@ -98,6 +99,8 @@ import com.example.momentra.ui.shell.momentswitcher.MomentSwitcherDirectory
 import com.example.momentra.ui.shell.momentswitcher.businessMomentSwitcherSpec
 import com.example.momentra.ui.shell.momentswitcher.groupMomentSwitcherSpec
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateToast
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateToastHost
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateBody
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateLoadingBody
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStatePhase
@@ -528,17 +531,49 @@ fun AppShellScreen(
             .fillMaxSize()
             .background(if (businessCreateVisible) Color(0xFF111113) else ShellTokens.SurfaceContent),
     ) {
-        state.offlineNotice?.let { notice ->
-            Text(
-                text = notice,
-                color = Color.White,
-                fontSize = 12.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF3A2A12))
-                    .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+        val activateToast = state.businessSuccessToast
+        LaunchedEffect(activateToast) {
+            if (activateToast != null) {
+                delay(2_750)
+                shellViewModel.clearBusinessSuccessToast()
+            }
+        }
+        val businessToast: BusinessAppStateToast? = when {
+            activateToast != null && state.selectedContext == AppContext.BUSINESS ->
+                BusinessAppStateToast.SetupActivated(
+                    title = activateToast.title,
+                    subtitle = activateToast.subtitle,
+                )
+            state.selectedContext == AppContext.BUSINESS && state.offlineNotice != null -> {
+                val failed = OfflineOutbox.failedMessage()
+                val pending = OfflineOutbox.pendingCount()
+                when {
+                    failed != null -> BusinessAppStateToast.Error(code = "SYNC_TIMEOUT_504")
+                    pending > 0 -> BusinessAppStateToast.OfflineQueue(queuedCount = pending)
+                    else -> null
+                }
+            }
+            else -> null
+        }
+        if (businessToast != null) {
+            BusinessAppStateToastHost(
+                toast = businessToast,
+                onRetry = { shellViewModel.selectContext(state.selectedContext) },
+                onDismiss = { shellViewModel.clearBusinessSuccessToast() },
             )
+        } else {
+            state.offlineNotice?.let { notice ->
+                Text(
+                    text = notice,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF3A2A12))
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
         }
         val groupDirectoryHome = state.groupMomentDirectoryHome &&
             state.selectedContext == AppContext.GROUP

@@ -62,15 +62,15 @@ struct AppStateGlow: View {
                     midAlpha: 0,
                     size: BusinessAppStateTokens.glowWarmSize
                 )
-                .offset(x: size * 0.24, y: size * 0.20)
+                .offset(x: size * 0.10, y: size * 0.10)
             }
         }
-        .frame(width: size, height: size)
+        .blendMode(.screen)
         .allowsHitTesting(false)
     }
 }
 
-/// One soft radial orb in the mesh.
+/// One soft radial orb in the mesh — lockstep multi-stop falloff with Android GlowOrb.
 private struct Orb: View {
     let color: Color
     let coreAlpha: Double
@@ -83,7 +83,15 @@ private struct Orb: View {
                 RadialGradient(
                     stops: [
                         .init(color: color.opacity(coreAlpha), location: 0),
-                        .init(color: color.opacity(max(midAlpha, 0)), location: BusinessAppStateTokens.glowAccentMidStop),
+                        .init(
+                            color: color.opacity(max(midAlpha, coreAlpha * 0.55)),
+                            location: 0.35
+                        ),
+                        .init(
+                            color: color.opacity(midAlpha),
+                            location: BusinessAppStateTokens.glowAccentMidStop
+                        ),
+                        .init(color: color.opacity(midAlpha * 0.35), location: 0.82),
                         .init(color: color.opacity(0), location: 1),
                     ],
                     center: .center,
@@ -92,7 +100,7 @@ private struct Orb: View {
                 )
             )
             .frame(width: size, height: size)
-            .blur(radius: size * 0.06)
+            .blur(radius: BusinessAppStateTokens.glowBlur * 0.75) // 48 → 36
     }
 }
 
@@ -110,6 +118,8 @@ struct AppStateMarkRing: View {
     let icon: AppStateIcon
     var size: CGFloat = BusinessAppStateTokens.heroSize
     var tone: AppStateTone = .normal
+    /// Status-dot glyph from the spec (`+`, `✦`, `⚡`, `✓`). Error tone forces `!`.
+    var dotGlyph: String = "✓"
 
     private var scale: CGFloat { size / BusinessAppStateTokens.heroSize }
 
@@ -118,12 +128,25 @@ struct AppStateMarkRing: View {
         tone == .error ? BusinessAppStateTokens.errorRing : accent
     }
 
-    private var dotGlyph: String {
-        tone == .error ? "exclamationmark" : "checkmark"
+    private var resolvedDotGlyph: String {
+        tone == .error ? "!" : dotGlyph
     }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
+            // Soft outer bloom — Figma layer blur over ~8% fill.
+            Circle()
+                .fill(BusinessAppStateTokens.emerald.opacity(BusinessAppStateTokens.heroRingFillAlpha * 1.4))
+                .frame(
+                    width: BusinessAppStateTokens.heroRingSize * scale * 1.12,
+                    height: BusinessAppStateTokens.heroRingSize * scale * 1.12
+                )
+                .blur(radius: BusinessAppStateTokens.heroBloomBlur)
+                .offset(
+                    x: BusinessAppStateTokens.heroRingInset * scale - BusinessAppStateTokens.heroRingSize * scale * 0.06,
+                    y: BusinessAppStateTokens.heroRingInset * scale - BusinessAppStateTokens.heroRingSize * scale * 0.06
+                )
+
             // Outer halo ring.
             Circle()
                 .fill(BusinessAppStateTokens.emerald.opacity(BusinessAppStateTokens.heroRingFillAlpha))
@@ -165,7 +188,7 @@ struct AppStateMarkRing: View {
                     y: BusinessAppStateTokens.heroCoreInset * scale
                 )
 
-            // Floating status dot.
+            // Floating status dot — Text glyph lockstep with Android (not hardcoded checkmark).
             Circle()
                 .fill(dotFill)
                 .overlay(
@@ -175,8 +198,11 @@ struct AppStateMarkRing: View {
                     )
                 )
                 .overlay(
-                    Image(systemName: dotGlyph)
-                        .font(.system(size: BusinessAppStateTokens.heroDotGlyphSize * scale, weight: .heavy))
+                    Text(resolvedDotGlyph)
+                        .font(.plusJakarta(
+                            size: BusinessAppStateTokens.heroDotGlyphSize * scale,
+                            weight: .heavy
+                        ))
                         .foregroundStyle(BusinessAppStateTokens.heroDotGlyphColor)
                 )
                 .frame(
@@ -275,8 +301,6 @@ struct AppStateGlassCard<Content: View>: View {
         .padding(.vertical, BusinessAppStateTokens.cardPaddingVertical)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            // Figma `backdrop-blur-[12px]`: the material blurs the glow behind the card, then the
-            // translucent `rgba(16,22,35,0.72)` fill sits on top of it.
             RoundedRectangle(cornerRadius: BusinessAppStateTokens.cardRadius)
                 .fill(.ultraThinMaterial)
                 .overlay(
@@ -345,6 +369,7 @@ struct AppStatePrimaryButton: View {
                     y: BusinessAppStateTokens.ctaShadowY
                 )
         }
+        .padding(.vertical, BusinessAppStateTokens.ctaShadowPad / 2)
         .buttonStyle(.plain)
         .accessibilityLabel(label)
     }
@@ -365,7 +390,13 @@ struct AppStateSecondaryButton: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: BusinessAppStateTokens.secondaryButtonHeight)
                 .background(
-                    Capsule().fill(filled ? Color.white.opacity(0.06) : Color.clear)
+                    Capsule().fill(
+                        filled
+                            ? Color.white.opacity(0.06)
+                            : BusinessAppStateTokens.glassCardFill.opacity(
+                                BusinessAppStateTokens.secondaryButtonFrostAlpha
+                            )
+                    )
                 )
                 .overlay(
                     Capsule().stroke(BusinessAppStateTokens.secondaryButtonStroke, lineWidth: 1)
@@ -503,5 +534,169 @@ struct AppStateIconButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+/// Figma Operating toaster — Setup activated after business moment activate (`5:63174` / `2:1375`).
+struct AppStateSetupActivatedToast: View {
+    var title: String = BusinessSetupActivateToastCopy.defaultTitle
+    var subtitle: String
+    var onDismiss: () -> Void = {}
+    @State private var pulse = false
+    @State private var progress: CGFloat = 1
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(BusinessAppStateTokens.setupActivatedCheck.opacity(0.22))
+                    Circle()
+                        .stroke(BusinessAppStateTokens.setupActivatedCheck, lineWidth: 1.5)
+                    Text("✓")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(BusinessAppStateTokens.setupActivatedCheck)
+                }
+                .frame(width: pulse ? 24 : 22, height: pulse ? 24 : 22)
+                .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: pulse)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: BusinessAppStateTokens.toastTitleSize, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text(subtitle)
+                        .font(.system(size: BusinessAppStateTokens.toastSubtitleSize, weight: .medium))
+                        .foregroundStyle(BusinessAppStateTokens.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Button(action: onDismiss) {
+                    Text("Pulse ›")
+                        .font(.system(size: BusinessAppStateTokens.toastSubtitleSize, weight: .semibold))
+                        .foregroundStyle(BusinessAppStateTokens.setupActivatedCheck)
+                }
+                .buttonStyle(.plain)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.08))
+                    Capsule()
+                        .fill(BusinessAppStateTokens.setupActivatedCheck)
+                        .frame(width: geo.size.width * progress)
+                }
+            }
+            .frame(height: 2)
+        }
+        .padding(.horizontal, BusinessAppStateTokens.toastPadHorizontal)
+        .padding(.vertical, BusinessAppStateTokens.toastPadVertical)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: BusinessAppStateTokens.toastRadius, style: .continuous)
+                .fill(BusinessAppStateTokens.setupActivatedFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: BusinessAppStateTokens.toastRadius, style: .continuous)
+                .stroke(BusinessAppStateTokens.setupActivatedStroke, lineWidth: 1)
+        )
+        .onAppear {
+            pulse = true
+            progress = 1
+            withAnimation(.linear(duration: 2.75)) {
+                progress = 0
+            }
+        }
+    }
+}
+
+/// Figma Toaster & Banner system (2:1375) — success capture / Moment activated.
+struct AppStateSuccessToast: View {
+    var text: String = "Moment activated"
+    var showCheck: Bool = true
+    @State private var pulse = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if showCheck {
+                ZStack {
+                    Circle()
+                        .fill(BusinessAppStateTokens.successToastCheck.opacity(0.22))
+                    Circle()
+                        .stroke(BusinessAppStateTokens.successToastCheck, lineWidth: 1.5)
+                    Text("✓")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(BusinessAppStateTokens.successToastCheck)
+                }
+                .frame(width: pulse ? 24 : 22, height: pulse ? 24 : 22)
+                .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: pulse)
+                .onAppear { pulse = true }
+            }
+            Text(text)
+                .font(.system(size: BusinessAppStateTokens.toastLabelSize, weight: .semibold))
+                .foregroundStyle(.white)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, BusinessAppStateTokens.toastPadHorizontal)
+        .padding(.vertical, BusinessAppStateTokens.toastPadVertical)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: BusinessAppStateTokens.toastRadius, style: .continuous)
+                .fill(BusinessAppStateTokens.successToastFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: BusinessAppStateTokens.toastRadius, style: .continuous)
+                .stroke(BusinessAppStateTokens.successToastStroke, lineWidth: 1)
+        )
+    }
+}
+
+/// Offline queue banner from the toaster system.
+struct AppStateOfflineQueueToast: View {
+    var queuedCount: Int = 2
+
+    var body: some View {
+        AppStateSystemToast(
+            text: "Offline queue active (\(queuedCount) items)",
+            fill: BusinessAppStateTokens.queueToastFill,
+            stroke: BusinessAppStateTokens.queueToastStroke
+        )
+    }
+}
+
+/// Error code toast — tap to retry.
+struct AppStateErrorToast: View {
+    var code: String = "SYNC_TIMEOUT_504"
+    var onRetry: () -> Void = {}
+
+    var body: some View {
+        AppStateSystemToast(
+            text: "Error CODE: \(code) · Tap to retry",
+            fill: BusinessAppStateTokens.errorToastFill,
+            stroke: BusinessAppStateTokens.errorToastStroke
+        )
+        .onTapGesture(perform: onRetry)
+    }
+}
+
+private struct AppStateSystemToast: View {
+    let text: String
+    let fill: Color
+    let stroke: Color
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: BusinessAppStateTokens.toastLabelSize, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, BusinessAppStateTokens.toastPadHorizontal)
+            .padding(.vertical, BusinessAppStateTokens.toastPadVertical)
+            .background(
+                RoundedRectangle(cornerRadius: BusinessAppStateTokens.toastRadius, style: .continuous)
+                    .fill(fill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: BusinessAppStateTokens.toastRadius, style: .continuous)
+                    .stroke(stroke, lineWidth: 1)
+            )
     }
 }

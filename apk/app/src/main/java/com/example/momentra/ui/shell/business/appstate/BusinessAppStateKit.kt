@@ -6,10 +6,12 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +28,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -585,6 +589,225 @@ fun AppStateIconButton(
             contentDescription = contentDescription,
             tint = Color.White,
             modifier = Modifier.size(size * 0.4f),
+        )
+    }
+}
+
+/** Figma Operating toaster — Setup activated after business moment activate (`5:63174` / `2:1375`). */
+@Composable
+fun AppStateSetupActivatedToast(
+    title: String = BusinessSetupActivateToastCopy.DEFAULT_TITLE,
+    subtitle: String,
+    onDismiss: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    val checkProgress = rememberInfiniteTransition(label = "setup-activated-check")
+    val pulse by checkProgress.animateFloat(
+        initialValue = 0.88f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(700, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "setup-check-pulse",
+    )
+    val dismissProgress = remember { Animatable(1f) }
+    LaunchedEffect(title, subtitle) {
+        dismissProgress.snapTo(1f)
+        dismissProgress.animateTo(0f, animationSpec = tween(2750, easing = LinearEasing))
+    }
+    val shape = RoundedCornerShape(BusinessAppStateTokens.ToastRadius)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(BusinessAppStateTokens.SetupActivatedFill)
+            .border(1.dp, BusinessAppStateTokens.SetupActivatedStroke, shape)
+            .padding(
+                horizontal = BusinessAppStateTokens.ToastPadHorizontal,
+                vertical = BusinessAppStateTokens.ToastPadVertical,
+            ),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size((22 * pulse).dp)
+                    .clip(CircleShape)
+                    .background(BusinessAppStateTokens.SetupActivatedCheck.copy(alpha = 0.22f))
+                    .border(1.5.dp, BusinessAppStateTokens.SetupActivatedCheck, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "✓",
+                    color = BusinessAppStateTokens.SetupActivatedCheck,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = BusinessAppStateTokens.ToastTitleSize.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PlusJakartaSans,
+                )
+                Text(
+                    text = subtitle,
+                    color = BusinessAppStateTokens.TextMuted,
+                    fontSize = BusinessAppStateTokens.ToastSubtitleSize.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+            Text(
+                text = "Pulse ›",
+                color = BusinessAppStateTokens.SetupActivatedCheck,
+                fontSize = BusinessAppStateTokens.ToastSubtitleSize.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+                modifier = Modifier.clickable(role = Role.Button, onClick = onDismiss),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.08f)),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(dismissProgress.value)
+                    .background(BusinessAppStateTokens.SetupActivatedCheck),
+            )
+        }
+    }
+}
+
+/** Figma Toaster & Banner system (2:1375) — success capture / Moment activated. */
+@Composable
+fun AppStateSuccessToast(
+    text: String = "Moment activated",
+    showCheck: Boolean = true,
+    modifier: Modifier = Modifier,
+) {
+    val checkProgress = rememberInfiniteTransition(label = "activate-check")
+    val pulse by checkProgress.animateFloat(
+        initialValue = 0.88f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(700, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "check-pulse",
+    )
+    val shape = RoundedCornerShape(BusinessAppStateTokens.ToastRadius)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(BusinessAppStateTokens.SuccessToastFill)
+            .border(1.dp, BusinessAppStateTokens.SuccessToastStroke, shape)
+            .padding(
+                horizontal = BusinessAppStateTokens.ToastPadHorizontal,
+                vertical = BusinessAppStateTokens.ToastPadVertical,
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (showCheck) {
+            Box(
+                modifier = Modifier
+                    .size((22 * pulse).dp)
+                    .clip(CircleShape)
+                    .background(BusinessAppStateTokens.SuccessToastCheck.copy(alpha = 0.22f))
+                    .border(1.5.dp, BusinessAppStateTokens.SuccessToastCheck, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "✓",
+                    color = BusinessAppStateTokens.SuccessToastCheck,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PlusJakartaSans,
+                )
+            }
+        }
+        Text(
+            text = text,
+            color = Color.White,
+            fontSize = BusinessAppStateTokens.ToastLabelSize.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSans,
+        )
+    }
+}
+
+/** Offline queue banner from the toaster system. */
+@Composable
+fun AppStateOfflineQueueToast(
+    queuedCount: Int = 2,
+    modifier: Modifier = Modifier,
+) {
+    AppStateSystemToast(
+        text = "Offline queue active ($queuedCount items)",
+        fill = BusinessAppStateTokens.QueueToastFill,
+        stroke = BusinessAppStateTokens.QueueToastStroke,
+        modifier = modifier,
+    )
+}
+
+/** Error code toast — tap to retry. */
+@Composable
+fun AppStateErrorToast(
+    code: String = "SYNC_TIMEOUT_504",
+    onRetry: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    AppStateSystemToast(
+        text = "Error CODE: $code · Tap to retry",
+        fill = BusinessAppStateTokens.ErrorToastFill,
+        stroke = BusinessAppStateTokens.ErrorToastStroke,
+        modifier = modifier.clickable(role = Role.Button, onClick = onRetry),
+    )
+}
+
+@Composable
+private fun AppStateSystemToast(
+    text: String,
+    fill: Color,
+    stroke: Color,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(BusinessAppStateTokens.ToastRadius)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(fill)
+            .border(1.dp, stroke, shape)
+            .padding(
+                horizontal = BusinessAppStateTokens.ToastPadHorizontal,
+                vertical = BusinessAppStateTokens.ToastPadVertical,
+            ),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(
+            text = text,
+            color = Color.White,
+            fontSize = BusinessAppStateTokens.ToastLabelSize.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSans,
         )
     }
 }
