@@ -510,6 +510,15 @@ export async function createMoment(
       { userId: ctx.userId, displayName: 'Owner' },
       { draft: momentStatus === 'DRAFT' }
     );
+    result.setupId = await insertBusinessSetupRow(
+      client,
+      ctx,
+      momentId,
+      body.companyId ?? null,
+      body.businessSetup.familyCode,
+      body.title,
+      preferences,
+      momentStatus
     );
     if (
       momentStatus === 'ACTIVE' &&
