@@ -29,45 +29,46 @@ export async function acquireIdempotency<T>(
   const k1 = parseInt(lockKey.slice(0, 8), 16) & 0x7fffffff;
   const k2 = parseInt(lockKey.slice(8, 16), 16) & 0x7fffffff;
 
-  const row = await client.query<{
+  // The advisory lock must be taken in its own statement. A CTE inside the insert
+  // statement would keep the pre-lock snapshot, so a concurrent duplicate would
+  // still see "no row" after the winner committed and blow up on the unique index.
+  await client.query('SELECT pg_advisory_xact_lock($1::int, $2::int)', [k1, k2]);
+
+  const existing = await client.query<{
     status: string;
     request_hash: string;
     response_payload: T | null;
     resource_id: string | null;
-    inserted: boolean;
   }>(
-    `WITH lock AS (
-       SELECT pg_advisory_xact_lock($1::int, $2::int)
-     ),
-     ins AS (
-       INSERT INTO platform.idempotency_record (operation_code, idempotency_key, request_hash, status)
-       SELECT $3, $4, $5, 'PROCESSING'
-       WHERE NOT EXISTS (
-         SELECT 1 FROM platform.idempotency_record
-         WHERE operation_code = $3 AND idempotency_key = $4
-       )
-       RETURNING status, request_hash, response_payload, resource_id
-     ),
-     sel AS (
-       SELECT status, request_hash, response_payload, resource_id, false AS inserted
-       FROM platform.idempotency_record
-       WHERE operation_code = $3 AND idempotency_key = $4
-       FOR UPDATE
-     )
-     SELECT status, request_hash, response_payload, resource_id, true AS inserted FROM ins
-     UNION ALL
-     SELECT status, request_hash, response_payload, resource_id, inserted FROM sel
-     WHERE NOT EXISTS (SELECT 1 FROM ins)
-     LIMIT 1`,
-    [k1, k2, operationCode, idempotencyKey, requestHash]
+    `SELECT status, request_hash, response_payload, resource_id
+     FROM platform.idempotency_record
+     WHERE operation_code = $1 AND idempotency_key = $2
+     FOR UPDATE`,
+    [operationCode, idempotencyKey]
   );
 
-  const current = row.rows[0];
+  const current =
+    existing.rows[0] ??
+    (
+      await client.query<{
+        status: string;
+        request_hash: string;
+        response_payload: T | null;
+        resource_id: string | null;
+      }>(
+        `INSERT INTO platform.idempotency_record
+           (operation_code, idempotency_key, request_hash, status)
+         VALUES ($1, $2, $3, 'PROCESSING')
+         RETURNING status, request_hash, response_payload, resource_id`,
+        [operationCode, idempotencyKey, requestHash]
+      )
+    ).rows[0];
+
   if (!current) {
     throw new AppError(ErrorCode.INFRASTRUCTURE_UNAVAILABLE, 'Idempotency acquire failed.', 500);
   }
 
-  if (current.inserted) {
+  if (existing.rowCount === 0) {
     return { replay: false };
   }
 
