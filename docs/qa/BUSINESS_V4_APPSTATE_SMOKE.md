@@ -37,7 +37,7 @@ Continue from guided create opens `BusinessSetupShell` with in-document chips. A
 | Retail | Restaurant | `RESTAURANT_FOOD` | `5:90612` | ☐ | ☐ |
 | Retail | Service | `CONSUMER_SERVICE` | `5:71162` | ☐ | ☐ |
 | Manufacturing | Manufacturing | `STANDARD_PRODUCTION` | `5:50728` | ☐ | ☐ |
-| Manufacturing | Made to order | `MADE_TO_ORDER` | `5:55863` | ☐ | ☐ |
+| Manufacturing | Job order | `MADE_TO_ORDER` | `5:55863` | ☐ | ☐ |
 
 Setup smoke (Figma v6 parity):
 
@@ -52,6 +52,18 @@ Setup smoke (Figma v6 parity):
 - [ ] Activate creates moment (implicit company when needed)
 - [ ] Edit / Manage moment opens same shell preselected to subtype
 - [ ] Personal / Group create & chrome unchanged
+- [ ] Date fields open calendar / month picker (not free-text only)
+- [ ] Currency is a dropdown with INR default across all 9 setups
+- [ ] GSTIN types in capitals (keyboard + paste)
+- [ ] Business bottom sheets on **iOS and APK** (DateRow, Manage when Business, View-all) show glass + dim scrim; setup fullscreen covers stay opaque gradient
+
+### Job order (`MADE_TO_ORDER` / `5:55863`)
+
+- [ ] Scroll Basics → People & Roles → Job order · Quotes & order approval → GST → Activate (no Plan · Monthly section)
+- [ ] Chip / eyebrow label is **Job order** (not Make to order)
+- [ ] CTA is **Activate Moment**; secondary **Save draft** works
+- [ ] Budget/target/channels live under Business Basics; invalid GSTIN highlights `gstin`
+- [ ] Discard draft removes DRAFT moment
 
 ### Retail Store (`5:80797`) — five sections (no Catalogue/Network)
 
@@ -77,6 +89,10 @@ Setup smoke (Figma v6 parity):
 
 ### Trading Wholesale (`5:18833`) — five sections (no Catalogue/Network)
 
+- [ ] After **Start this business**: animated ✓ toast **Moment activated** (~2.5s) then Pulse (`5:15203`)
+- [ ] Trading hub uses TRD-v12 amber `#F59E0B` / flame `#EA580C` on canvas `#090D16` (Pulse / Moments / Life / Memory / Quick Adds)
+- [ ] Pulse shows Target & budget from setup prefs; other groups honest (`Not recorded` / zeros) until Quick Adds
+- [ ] Moments / Life / Memory boards render section cards; Quick Adds shows catalog tile grid (≥12)
 - [ ] Hero **Northstar Trading Setup**; CTA **Start this business**
 - [ ] Sections: Basics → People & Roles → Channels & Plan → GST → Review only
 - [ ] Basics: business name, company, GSTIN, currency, start/end, description, location
@@ -96,6 +112,14 @@ Setup smoke (Figma v6 parity):
 - [ ] **Save draft** creates or patches DRAFT; reopen restores prefs
 - [ ] **Discard draft** in header when status is DRAFT
 - [ ] Activate missing budget/target highlights those fields; invalid GSTIN with tracking Yes highlights GSTIN; Save draft still succeeds
+- [ ] Activate → toast **Distribution is live** (~2.5s) then Pulse (DST-PULSE-v12)
+- [ ] Pulse hero: eyebrow DISTRIBUTION, moment title, entity pills, FY chip, **Books open** when applicable; flame canvas `#0F172A` / accent `#EA580C`
+- [ ] Pulse quick strip: Sale · Purchase · Collection · Payment → CREATE with code selected
+- [ ] Pulse cards: `pulseMetrics` groups + `DD-ATTENTION` / `DD-GST`; **View all ›** on Attention; missing ≠ `0` / `₹0` (Not recorded / Unavailable)
+- [ ] Moments: Routes live / People chips; `DD-COMMITMENTS`, `DD-ORDERS`, `DD-STOCK`, `DD-PEOPLE` + board sections
+- [ ] Life: Today header; L01–L04; due/overdue chips only from `paymentReadiness`
+- [ ] Memory: closed-period chips; sticky **Generate Business Story** (stub toast, no second ledger)
+- [ ] Hub CREATE: **Source. Move. Settle.** search, Core / Support / Utilities groups; Dispatch / Record Sale CTAs
 
 ### Client Campaign (`5:33148`) — five sections (no Network)
 
