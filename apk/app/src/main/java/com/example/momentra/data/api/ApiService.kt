@@ -4,6 +4,7 @@ import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.HTTP
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -28,6 +29,12 @@ interface ApiService {
 
     @GET("v1/me/consents")
     suspend fun listConsents(): SuccessEnvelope<ConsentListDto>
+
+    @GET("v1/me/export")
+    suspend fun exportMe(): SuccessEnvelope<MeExportDto>
+
+    @GET("v1/me/erasure-preflight")
+    suspend fun erasurePreflight(): SuccessEnvelope<ErasurePreflightDto>
 
     @POST("v1/me/consents/grant")
     suspend fun grantConsent(
@@ -987,6 +994,26 @@ interface ApiService {
         @Query("kind") kind: String,
     ): SuccessEnvelope<OperatingDocumentDto>
 
+    /** Callers: BusinessSliceRepository.getWidgets — P4 OpenAPI getBusinessMomentWidgets. */
+    @GET("v1/business/moments/{momentId}/widgets")
+    suspend fun getBusinessMomentWidgets(
+        @Path("momentId") momentId: String,
+        @Query("period") period: String? = null,
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null,
+    ): SuccessEnvelope<WidgetsProjectionDto>
+
+    @GET("v1/business/moments/{momentId}/widgets/{widgetId}/sources")
+    suspend fun getBusinessMomentWidgetSources(
+        @Path("momentId") momentId: String,
+        @Path("widgetId") widgetId: String,
+    ): SuccessEnvelope<WidgetSourcesDto>
+
+    @GET("v1/business/moments/{momentId}/ledger")
+    suspend fun getBusinessMomentLedger(
+        @Path("momentId") momentId: String,
+    ): SuccessEnvelope<Map<String, Any?>>
+
     @GET("v1/companies/{companyId}/operating-masters")
     suspend fun listOperatingMasters(
         @Path("companyId") companyId: String,
@@ -1011,7 +1038,8 @@ interface ApiService {
         @Body body: OperatingMasterUpdateBody,
     ): SuccessEnvelope<OperatingMasterDto>
 
-    @DELETE("v1/companies/{companyId}/operating-masters/{masterId}")
+    // Retrofit forbids @Body on @DELETE — use @HTTP(hasBody = true) for archive + expectedVersion.
+    @HTTP(method = "DELETE", path = "v1/companies/{companyId}/operating-masters/{masterId}", hasBody = true)
     suspend fun archiveOperatingMaster(
         @Path("companyId") companyId: String,
         @Path("masterId") masterId: String,

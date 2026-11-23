@@ -5,6 +5,8 @@ import com.example.momentra.data.api.ApiService
 import com.example.momentra.data.api.ConsentPurposeBody
 import com.example.momentra.data.api.ConsentPurposeDto
 import com.example.momentra.data.api.DeviceItemDto
+import com.example.momentra.data.api.ErasurePreflightDto
+import com.example.momentra.data.api.MeExportDto
 import com.example.momentra.data.api.GlobalNotificationPrefsDto
 import com.example.momentra.data.api.MarkNotificationsReadBody
 import com.example.momentra.data.api.MomentNotificationPrefsDto
@@ -45,6 +47,14 @@ class AccountRepository(
 
     suspend fun listConsents(): Result<List<ConsentPurposeDto>> = runCatching {
         api.listConsents().data.purposes
+    }.recoverCatching { e -> throw mapThrowable(e) }
+
+    suspend fun exportMe(): Result<MeExportDto> = runCatching {
+        api.exportMe().data
+    }.recoverCatching { e -> throw mapThrowable(e) }
+
+    suspend fun erasurePreflight(): Result<ErasurePreflightDto> = runCatching {
+        api.erasurePreflight().data
     }.recoverCatching { e -> throw mapThrowable(e) }
 
     suspend fun grantConsent(purposeCode: String): Result<Unit> = runCatching {

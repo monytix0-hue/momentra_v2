@@ -1,0 +1,1200 @@
+package com.example.momentra.ui.shell.business.setup
+
+/** Expandable module row title + optional Figma subtitle. */
+data class BusinessSetupModuleRow(
+    val title: String,
+    val subtitle: String = "",
+)
+
+/** Field / section copy for the nine Figma setup-v6 documents. Lockstep with iOS. */
+data class BusinessSetupFieldSpec(
+    val key: String,
+    val label: String,
+    val placeholder: String = "",
+    val kind: Kind,
+    val helper: String = "",
+) {
+    sealed class Kind {
+        data object Text : Kind()
+        data class Choice(val options: List<String>) : Kind()
+        data class MultiChoice(val options: List<String>) : Kind()
+        data object Toggle : Kind()
+        data object Date : Kind()
+        data class RowAction(val action: String) : Kind()
+        data class MemberList(val members: List<String>) : Kind()
+        data class ModuleList(val modules: List<BusinessSetupModuleRow>) : Kind()
+        data class ReviewSummary(val keys: List<String>) : Kind()
+        data class PanelHeader(val title: String) : Kind()
+    }
+}
+
+/** Pure chrome helpers for field error highlighting (unit-testable). */
+object BusinessSetupFieldChrome {
+    fun hasError(error: String?): Boolean = !error.isNullOrBlank()
+}
+
+data class BusinessSetupSectionSpec(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val fields: List<BusinessSetupFieldSpec>,
+)
+
+data class BusinessSetupDocumentSpec(
+    val typeCode: String,
+    val familyTitle: String,
+    val eyebrow: String,
+    val heroTitle: String,
+    val heroSubtitle: String,
+    val activateLabel: String,
+    val defaultTitleKey: String,
+    val sections: List<BusinessSetupSectionSpec>,
+) {
+    val sectionTitles: List<String> get() = sections.map { it.title }
+
+    fun defaultPreferences(): MutableMap<String, String> {
+        val prefs = mutableMapOf<String, String>()
+        sections.forEach { section ->
+            section.fields.forEach { field ->
+                prefs[field.key] = when (val kind = field.kind) {
+                    is BusinessSetupFieldSpec.Kind.Text,
+                    is BusinessSetupFieldSpec.Kind.Date,
+                    is BusinessSetupFieldSpec.Kind.RowAction,
+                    -> ""
+                    is BusinessSetupFieldSpec.Kind.Choice -> kind.options.firstOrNull().orEmpty()
+                    is BusinessSetupFieldSpec.Kind.MultiChoice -> kind.options.firstOrNull().orEmpty()
+                    is BusinessSetupFieldSpec.Kind.Toggle -> "Yes"
+                    is BusinessSetupFieldSpec.Kind.MemberList -> kind.members.joinToString("|")
+                    is BusinessSetupFieldSpec.Kind.ModuleList,
+                    is BusinessSetupFieldSpec.Kind.ReviewSummary,
+                    is BusinessSetupFieldSpec.Kind.PanelHeader,
+                    -> ""
+                }
+            }
+        }
+        return prefs
+    }
+}
+
+object BusinessSetupDocuments {
+    val CURRENCY_OPTIONS = listOf(
+        "INR · Indian Rupee (₹)",
+        "USD · US Dollar ($)",
+        "EUR · Euro (€)",
+        "GBP · British Pound (£)",
+        "AED · UAE Dirham (د.إ)",
+    )
+
+    fun spec(forTypeCode: String): BusinessSetupDocumentSpec =
+        when (forTypeCode.uppercase()) {
+            "OWN_BUSINESS_CAMPAIGN" -> ownMarketing
+            "TRADING_WHOLESALE" -> trading
+            "DISTRIBUTION_DEALERSHIP" -> distribution
+            "RETAIL_STORE" -> retail
+            "RESTAURANT_FOOD" -> restaurant
+            "CONSUMER_SERVICE" -> service
+            "STANDARD_PRODUCTION" -> manufacturing
+            "MADE_TO_ORDER" -> madeToOrder
+            else -> clientMarketing
+        }
+
+    private fun section(
+        id: String,
+        title: String,
+        subtitle: String,
+        fields: List<BusinessSetupFieldSpec>,
+    ) = BusinessSetupSectionSpec(id, title, subtitle, fields)
+
+    private fun text(key: String, label: String, placeholder: String, helper: String = "") =
+        BusinessSetupFieldSpec(key, label, placeholder, BusinessSetupFieldSpec.Kind.Text, helper)
+
+    private fun choice(key: String, label: String, options: List<String>, helper: String = "") =
+        BusinessSetupFieldSpec(key, label, kind = BusinessSetupFieldSpec.Kind.Choice(options), helper = helper)
+
+    private fun multiChoice(key: String, label: String, options: List<String>, helper: String = "") =
+        BusinessSetupFieldSpec(key, label, kind = BusinessSetupFieldSpec.Kind.MultiChoice(options), helper = helper)
+
+    private fun toggle(key: String, label: String, helper: String = "") =
+        BusinessSetupFieldSpec(key, label, kind = BusinessSetupFieldSpec.Kind.Toggle, helper = helper)
+
+    private fun date(key: String, label: String, placeholder: String, helper: String = "") =
+        BusinessSetupFieldSpec(key, label, placeholder, BusinessSetupFieldSpec.Kind.Date, helper)
+
+    private fun rowAction(key: String, label: String, action: String) =
+        BusinessSetupFieldSpec(key, label, action, BusinessSetupFieldSpec.Kind.RowAction(action))
+
+    private fun memberList(key: String, label: String, members: List<String>) =
+        BusinessSetupFieldSpec(key, label, kind = BusinessSetupFieldSpec.Kind.MemberList(members))
+
+    private fun moduleList(key: String, label: String, modules: List<String>) =
+        BusinessSetupFieldSpec(
+            key,
+            label,
+            kind = BusinessSetupFieldSpec.Kind.ModuleList(modules.map { BusinessSetupModuleRow(it) }),
+        )
+
+    private fun moduleListRows(
+        key: String,
+        label: String,
+        modules: List<BusinessSetupModuleRow>,
+        helper: String = "",
+    ) = BusinessSetupFieldSpec(
+        key,
+        label,
+        kind = BusinessSetupFieldSpec.Kind.ModuleList(modules),
+        helper = helper,
+    )
+
+    private fun panelHeader(key: String, title: String) =
+        BusinessSetupFieldSpec(key, title, kind = BusinessSetupFieldSpec.Kind.PanelHeader(title))
+
+    private fun reviewSummary(key: String, label: String, keys: List<String>) =
+        BusinessSetupFieldSpec(key, label, kind = BusinessSetupFieldSpec.Kind.ReviewSummary(keys))
+
+    /** Figma `5:33148` — five sections (Network/Catalogue omitted by product choice). */
+    val clientMarketing = BusinessSetupDocumentSpec(
+        typeCode = "CLIENT_CAMPAIGN",
+        familyTitle = "Marketing",
+        eyebrow = "Client campaign",
+        heroTitle = "Brightline Setup",
+        heroSubtitle = "Bring your business, people, and monthly plan together before you start.",
+        activateLabel = "Start this business",
+        defaultTitleKey = "campaignName",
+        sections = listOf(
+            section(
+                "basics", "Business Basics", "A home for this client campaign.",
+                listOf(
+                    panelHeader("panelCampaign", "Campaign"),
+                    text("campaignName", "Campaign name", "Brightline Creative for Northstar Residences"),
+                    text(
+                        "companyName", "Company", "Brightline Creative",
+                        helper = "Agency / firm name",
+                    ),
+                    text(
+                        "gstin", "GSTIN", "27AAKCM4321D1Z2",
+                        helper = "15-digit GSTIN, if you have one",
+                    ),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
+                    date("startDate", "Start date", "12 October 2026"),
+                    date("endDate", "End date", "Still open"),
+                    panelHeader("panelClient", "Client"),
+                    text("clientName", "Client", "Northstar Residences"),
+                    text("clientContact", "Client contact (optional)", "Optional"),
+                    panelHeader("panelPurpose", "Purpose & structure"),
+                    choice(
+                        "campaignPurpose", "Campaign purpose",
+                        listOf("Leads", "Launch", "Awareness", "Sales", "Event", "Traffic"),
+                    ),
+                    text("promotedBrand", "Promoted brand", "Optional"),
+                ),
+            ),
+            section(
+                "people", "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
+                listOf(
+                    memberList("teamMembers", "Team", listOf("You (Owner)")),
+                    multiChoice(
+                        "roles", "Roles on invite",
+                        listOf("Owner", "Admin", "Campaign Lead", "Finance", "Approver"),
+                        helper = "Default Campaign Lead · owns delivery & reporting. Role applies when they join.",
+                    ),
+                ),
+            ),
+            section(
+                "channels", "Channels & Monthly Plan",
+                "Channels, client commercials, budget and targets.",
+                listOf(
+                    panelHeader("panelChannels", "Channels"),
+                    multiChoice(
+                        "channels", "Where do you run it?",
+                        listOf("Paid social", "Search", "Print", "Influencer", "Events"),
+                        helper = "These are the places you run the campaign. They are not a different kind of business.",
+                    ),
+                    panelHeader("panelCommercials", "Client commercials"),
+                    text("clientFee", "Client fee", "₹1,50,000", helper = "Amount"),
+                    choice(
+                        "billingBasis", "Billing basis",
+                        listOf("Retainer", "Deliverable", "Pass-through"),
+                    ),
+                    panelHeader("panelBudget", "Budget"),
+                    date("planMonth", "Month", "October 2026"),
+                    text("monthlyBudget", "Monthly budget", "₹2,00,000", helper = "Amount"),
+                    text("campaignBudget", "Campaign budget", "₹6,00,000", helper = "Optional · aliases into monthly if empty"),
+                    text(
+                        "clientApprovedMediaBudget", "Client-approved media", "₹4,00,000",
+                        helper = "Optional",
+                    ),
+                    text(
+                        "agencyOperatingBudget", "Agency operating", "₹50,000",
+                        helper = "Optional",
+                    ),
+                    panelHeader("panelTargets", "Targets"),
+                    text("monthlyTarget", "Primary target", "120", helper = "Amount / count"),
+                    choice(
+                        "targetMetric", "Target unit",
+                        listOf("Leads", "Reach", "Clicks", "Sales"),
+                    ),
+                ),
+            ),
+            section(
+                "gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.",
+                listOf(
+                    panelHeader("panelTracking", "Tracking"),
+                    choice(
+                        "gstTracking", "Do you want to track GST in this Moment?",
+                        listOf("Yes", "Not now"),
+                        helper = "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.",
+                    ),
+                    panelHeader("panelRegistration", "Registration"),
+                    choice(
+                        "gstRegistration", "How is your business registered for GST?",
+                        listOf("Regular", "Composition", "Unregistered", "Not sure"),
+                    ),
+                    text(
+                        "gstState", "Which state is your business registered in?", "Maharashtra",
+                        helper = "State",
+                    ),
+                    panelHeader("panelPricing", "Pricing"),
+                    choice(
+                        "salePriceIncludesGst", "Do prices include GST?",
+                        listOf("Prices include GST", "GST is added separately"),
+                        helper = "Your GSTIN stays the one entered above. It is stored as a reference only.",
+                    ),
+                    date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
+                ),
+            ),
+            section(
+                "review", "Review your setup", "Confirm before you start.",
+                listOf(
+                    reviewSummary(
+                        "review", "Summary",
+                        listOf(
+                            "clientName",
+                            "gstin",
+                            "channels",
+                            "monthlyBudget",
+                            "clientFee",
+                            "monthlyTarget",
+                            "targetMetric",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    /** Figma `5:38325` MKT-OWN-SETUP-v6 — Network section omitted (five sections). */
+    val ownMarketing = BusinessSetupDocumentSpec(
+        typeCode = "OWN_BUSINESS_CAMPAIGN",
+        familyTitle = "Marketing",
+        eyebrow = "Own Business Campaign",
+        heroTitle = "Harbor & Loom Setup",
+        heroSubtitle = "Bring your business, people, and monthly plan together before you start.",
+        activateLabel = "Start this business",
+        defaultTitleKey = "campaignName",
+        sections = listOf(
+            section(
+                "basics", "Business Basics", "Name the campaign and what it promotes.",
+                listOf(
+                    panelHeader("panelIdentity", "Identity"),
+                    text("campaignName", "Campaign name", "Harbor & Loom launch"),
+                    text(
+                        "brandName", "Promoted brand", "Harbor & Loom",
+                        helper = "Your company — not a client",
+                    ),
+                    text(
+                        "gstin", "GSTIN", "29ABCDE4321T1Z5",
+                        helper = "15-digit GSTIN, if you have one",
+                    ),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
+                    date("startDate", "Start date", "12 October 2026"),
+                    date("endDate", "End date", "Still open"),
+                    panelHeader("panelPurpose", "Purpose & structure"),
+                    multiChoice(
+                        "campaignPurpose", "Campaign purpose",
+                        listOf("Awareness", "Leads", "Sales", "Traffic", "Retention"),
+                    ),
+                    choice("offerType", "Structure", listOf("One-time", "Ongoing")),
+                    text("promotedProducts", "Promoted products", "Seasonal collection, hero SKU"),
+                    panelHeader("panelMore", "More"),
+                    text("description", "Description", "Everyday notes about this campaign"),
+                    text("location", "Location", "Add a region or outlet"),
+                ),
+            ),
+            section(
+                "people", "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
+                listOf(
+                    memberList("teamMembers", "Team", listOf("You (Owner)")),
+                    multiChoice(
+                        "roles", "Roles on invite",
+                        listOf("Owner", "Admin", "Campaign Lead", "Finance", "Approver"),
+                        helper = "Default Campaign Lead · plan, launch, measure. Role applies when they join.",
+                    ),
+                ),
+            ),
+            section(
+                "channels", "Channels & Monthly Plan", "Where you run it, budget, and targets.",
+                listOf(
+                    panelHeader("panelChannels", "Channels"),
+                    multiChoice(
+                        "channels", "Channels",
+                        listOf("Paid social", "Search", "Print", "Influencer", "Events", "Store window"),
+                        helper = "These are where you run creative — not separate businesses.",
+                    ),
+                    text(
+                        "marketingBudget", "Own marketing budget", "₹2,00,000",
+                        helper = "Overall envelope for this campaign",
+                    ),
+                    date("planMonth", "Month", "October 2026"),
+                    text("monthlyBudget", "Monthly budget", "₹50,000", helper = "Amount"),
+                    text(
+                        "conversionGoal", "Primary target", "Store visits / sales",
+                        helper = "What success looks like",
+                    ),
+                    text("targetMetric", "Target unit", "Leads"),
+                    text("supportingTarget", "Supporting target", "Optional secondary metric"),
+                ),
+            ),
+            section(
+                "gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.",
+                listOf(
+                    panelHeader("panelTracking", "Tracking"),
+                    choice(
+                        "gstTracking", "Do you want to track GST in this Moment?",
+                        listOf("Yes", "Not now"),
+                        helper = "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.",
+                    ),
+                    panelHeader("panelRegistration", "Registration"),
+                    choice(
+                        "gstRegistration", "How is your business registered for GST?",
+                        listOf("Regular", "Composition", "Unregistered", "Not sure"),
+                    ),
+                    text(
+                        "gstState", "Which state is your business registered in?", "Maharashtra",
+                        helper = "State",
+                    ),
+                    panelHeader("panelPricing", "Pricing"),
+                    choice(
+                        "salePriceIncludesGst", "Do prices include GST?",
+                        listOf("Prices include GST", "GST is added separately"),
+                        helper = "Your GSTIN stays the one entered above. It is stored as a reference only.",
+                    ),
+                    date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
+                ),
+            ),
+            section(
+                "review", "Review your setup", "Confirm before you start.",
+                listOf(
+                    reviewSummary(
+                        "review", "Summary",
+                        listOf(
+                            "campaignName",
+                            "brandName",
+                            "gstin",
+                            "channels",
+                            "monthlyBudget",
+                            "conversionGoal",
+                            "targetMetric",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    /** Figma `5:18833` TRD-SETUP-v6 — Catalogue/Network section omitted (five sections). */
+    val trading = BusinessSetupDocumentSpec(
+        typeCode = "TRADING_WHOLESALE",
+        familyTitle = "Trading",
+        eyebrow = "Trading",
+        heroTitle = "Northstar Trading Setup",
+        heroSubtitle = "Bring your business, people, and monthly plan together before you start.",
+        activateLabel = "Start this business",
+        defaultTitleKey = "businessName",
+        sections = listOf(
+            section(
+                "basics", "Business Basics", "A home for this trading business.",
+                listOf(
+                    panelHeader("panelIdentity", "Identity"),
+                    text("businessName", "Business name", "Northstar Trading"),
+                    text(
+                        "companyName", "Company name", "Northstar Trading",
+                        helper = "Registered company name",
+                    ),
+                    text(
+                        "gstin", "GSTIN", "29ABCDE4321T1Z5",
+                        helper = "15-digit GSTIN, if you have one",
+                    ),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
+                    date("startDate", "Start date", "12 October 2026"),
+                    date("endDate", "End date", "Still open"),
+                    panelHeader("panelDates", "Dates & more"),
+                    text("description", "Description", "Everyday notes about this business"),
+                    text("location", "Location", "Add your DC location"),
+                ),
+            ),
+            section(
+                "people", "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
+                listOf(
+                    memberList("teamMembers", "Team", listOf("You (Owner)")),
+                    multiChoice(
+                        "roles", "Roles on invite",
+                        listOf("Owner", "Manager", "Sales exec", "Warehouse", "Sales rep"),
+                        helper = "Default Sales rep · own beat orders & collections. Role applies when they join.",
+                    ),
+                ),
+            ),
+            section(
+                "channels", "Channels & Monthly Plan", "Where do you sell? Choose at least one.",
+                listOf(
+                    panelHeader("panelChannels", "Channels"),
+                    multiChoice(
+                        "channels", "Channels",
+                        listOf("Retail buyers", "Wholesale", "Modern trade", "HoReCa", "Online"),
+                        helper = "These are the places you sell or serve. They are not a different kind of business.",
+                    ),
+                    date("planMonth", "Month", "October 2026"),
+                    text("monthlyBudget", "Monthly budget", "₹60,00,000", helper = "Amount"),
+                    text("monthlyTarget", "Monthly sales target", "₹90,00,000", helper = "Amount"),
+                    text("targetMetric", "How the target is measured", "Revenue"),
+                ),
+            ),
+            section(
+                "gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.",
+                listOf(
+                    panelHeader("panelTracking", "Tracking"),
+                    choice(
+                        "gstTracking", "Do you want to track GST in this Moment?",
+                        listOf("Yes", "Not now"),
+                        helper = "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.",
+                    ),
+                    panelHeader("panelRegistration", "Registration"),
+                    choice(
+                        "gstRegistration", "How is your business registered for GST?",
+                        listOf("Regular", "Composition", "Unregistered", "Not sure"),
+                    ),
+                    text(
+                        "gstState", "Which state is your business registered in?", "Maharashtra",
+                        helper = "State",
+                    ),
+                    panelHeader("panelPricing", "Pricing"),
+                    choice(
+                        "salePriceIncludesGst", "Do prices include GST?",
+                        listOf("Prices include GST", "GST is added separately"),
+                        helper = "Your GSTIN stays the one entered above. It is stored as a reference only.",
+                    ),
+                    date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
+                ),
+            ),
+            section(
+                "review", "Review your setup", "Confirm before you start.",
+                listOf(
+                    reviewSummary(
+                        "review", "Summary",
+                        listOf(
+                            "companyName",
+                            "gstin",
+                            "channels",
+                            "monthlyBudget",
+                            "monthlyTarget",
+                            "targetMetric",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    /** Figma `5:8637` — five sections (Catalogue/Network omitted by product choice). */
+    val distribution = BusinessSetupDocumentSpec(
+        typeCode = "DISTRIBUTION_DEALERSHIP",
+        familyTitle = "Trading",
+        eyebrow = "Distribution",
+        heroTitle = "Metro Distribution Setup",
+        heroSubtitle = "Bring your business, people, and monthly plan together before you start.",
+        activateLabel = "Start this business",
+        defaultTitleKey = "businessName",
+        sections = listOf(
+            section(
+                "basics", "Business Basics", "A home for this distribution business.",
+                listOf(
+                    panelHeader("panelIdentity", "Identity"),
+                    text("businessName", "Business name", "Metro Distribution"),
+                    text(
+                        "companyName", "Company name", "Metro Distribution",
+                        helper = "Registered company name",
+                    ),
+                    text(
+                        "gstin", "GSTIN", "27AAKCM4321D1Z2",
+                        helper = "15-digit GSTIN, if you have one",
+                    ),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
+                    date("startDate", "Start date", "12 October 2026"),
+                    date("endDate", "End date", "Still open"),
+                    panelHeader("panelDates", "Dates & more"),
+                    text("description", "Description", "Everyday notes about this business"),
+                    text("location", "Location", "Add your DC location"),
+                ),
+            ),
+            section(
+                "people", "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
+                listOf(
+                    memberList("teamMembers", "Team", listOf("You (Owner)")),
+                    multiChoice(
+                        "roles", "Roles on invite",
+                        listOf("Owner", "Manager", "Route lead", "Warehouse", "Salesman"),
+                        helper = "Default Salesman · own beat orders & collections. Role applies when they join.",
+                    ),
+                ),
+            ),
+            section(
+                "channels", "Channels & Monthly Plan", "Where do you sell? Choose at least one.",
+                listOf(
+                    panelHeader("panelChannels", "Channels"),
+                    multiChoice(
+                        "channels", "Channels",
+                        listOf("Retail dealers", "Wholesale", "Modern trade", "HoReCa", "Van sales"),
+                        helper = "These are the places you sell or serve. They are not a different kind of business.",
+                    ),
+                    date("planMonth", "Month", "October 2026"),
+                    text("monthlyBudget", "Monthly budget", "₹60,00,000", helper = "Amount"),
+                    text("monthlyTarget", "Monthly sales target", "₹90,00,000", helper = "Amount"),
+                    text("targetMetric", "How the target is measured", "Revenue"),
+                ),
+            ),
+            section(
+                "gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.",
+                listOf(
+                    panelHeader("panelTracking", "Tracking"),
+                    choice(
+                        "gstTracking", "Do you want to track GST in this Moment?",
+                        listOf("Yes", "Not now"),
+                        helper = "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.",
+                    ),
+                    panelHeader("panelRegistration", "Registration"),
+                    choice(
+                        "gstRegistration", "How is your business registered for GST?",
+                        listOf("Regular", "Composition", "Unregistered", "Not sure"),
+                    ),
+                    text(
+                        "gstState", "Which state is your business registered in?", "Maharashtra",
+                        helper = "State",
+                    ),
+                    panelHeader("panelPricing", "Pricing"),
+                    choice(
+                        "salePriceIncludesGst", "Do prices include GST?",
+                        listOf("Prices include GST", "GST is added separately"),
+                        helper = "Your GSTIN stays the one entered above. It is stored as a reference only.",
+                    ),
+                    date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
+                ),
+            ),
+            section(
+                "review", "Review your setup", "Confirm before you start.",
+                listOf(
+                    reviewSummary(
+                        "review", "Summary",
+                        listOf(
+                            "companyName",
+                            "gstin",
+                            "channels",
+                            "monthlyBudget",
+                            "monthlyTarget",
+                            "targetMetric",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    /** Figma `5:80797` — five sections (Catalogue/Network omitted by product choice). */
+    val retail = BusinessSetupDocumentSpec(
+        typeCode = "RETAIL_STORE",
+        familyTitle = "Retail",
+        eyebrow = "Retail store",
+        heroTitle = "Harbor Mart Setup",
+        heroSubtitle = "Bring your business, people, and monthly plan together before you start.",
+        activateLabel = "Start this store",
+        defaultTitleKey = "storeName",
+        sections = listOf(
+            section(
+                "basics", "Business Basics", "A home for this store.",
+                listOf(
+                    panelHeader("panelIdentity", "Identity"),
+                    text("storeName", "Store name", "Harbor Mart"),
+                    text(
+                        "companyName", "Company name", "Harbor Mart",
+                        helper = "Registered company name",
+                    ),
+                    text(
+                        "gstin", "GSTIN", "27AAHCH4321M1Z3",
+                        helper = "15-digit GSTIN, if you have one",
+                    ),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
+                    date("startDate", "Start date", "12 October 2026"),
+                    date("endDate", "End date", "Still open"),
+                    panelHeader("panelDates", "Dates & more"),
+                    text("description", "Description", "Everyday notes about this store"),
+                    text("location", "Location", "Add your store location"),
+                ),
+            ),
+            section(
+                "people", "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
+                listOf(
+                    memberList("teamMembers", "Team", listOf("You (Owner)")),
+                    multiChoice(
+                        "roles", "Roles on invite",
+                        listOf("Owner", "Manager", "Cashier", "Stock", "Floor"),
+                        helper = "Default Cashier · POS, bills & returns. Role applies when they join.",
+                    ),
+                ),
+            ),
+            section(
+                "channels", "Channels & Monthly Plan", "Where do you sell? Choose at least one.",
+                listOf(
+                    panelHeader("panelChannels", "Channels"),
+                    multiChoice(
+                        "channels", "Channels",
+                        listOf("Counter", "Home", "Online", "B2B", "Market"),
+                        helper = "These are the places you sell or serve. They are not a different kind of business.",
+                    ),
+                    date("planMonth", "Month", "October 2026"),
+                    text("monthlyBudget", "Monthly budget", "₹8,40,000", helper = "Amount"),
+                    text("monthlyTarget", "Monthly sales target", "₹12,00,000", helper = "Amount"),
+                    text("targetMetric", "How the target is measured", "Revenue"),
+                ),
+            ),
+            section(
+                "gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.",
+                listOf(
+                    panelHeader("panelTracking", "Tracking"),
+                    choice(
+                        "gstTracking", "Do you want to track GST in this Moment?",
+                        listOf("Yes", "Not now"),
+                        helper = "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.",
+                    ),
+                    panelHeader("panelRegistration", "Registration"),
+                    choice(
+                        "gstRegistration", "How is your business registered for GST?",
+                        listOf("Regular", "Composition", "Unregistered", "Not sure"),
+                    ),
+                    text(
+                        "gstState", "Which state is your business registered in?", "Maharashtra",
+                        helper = "State",
+                    ),
+                    panelHeader("panelPricing", "Pricing"),
+                    choice(
+                        "salePriceIncludesGst", "Do prices include GST?",
+                        listOf("Prices include GST", "GST is added separately"),
+                        helper = "Your GSTIN stays the one entered above. It is stored as a reference only.",
+                    ),
+                    date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
+                ),
+            ),
+            section(
+                "review", "Review your setup", "Confirm before you start.",
+                listOf(
+                    reviewSummary(
+                        "review", "Summary",
+                        listOf(
+                            "companyName",
+                            "gstin",
+                            "channels",
+                            "monthlyBudget",
+                            "monthlyTarget",
+                            "targetMetric",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    /** Figma `5:90612` RST-SETUP-v6 — §04 modules are display-only (no masters sheets). */
+    val restaurant = BusinessSetupDocumentSpec(
+        typeCode = "RESTAURANT_FOOD",
+        familyTitle = "Retail",
+        eyebrow = "Restaurant",
+        heroTitle = "Spice Route Setup",
+        heroSubtitle = "Bring your business, people, and monthly plan together before you start.",
+        activateLabel = "Start this restaurant",
+        defaultTitleKey = "outletName",
+        sections = listOf(
+            section(
+                "basics", "Business Basics", "A home for this restaurant.",
+                listOf(
+                    panelHeader("panelIdentity", "Identity"),
+                    text("outletName", "Restaurant name", "Spice Route Kitchen"),
+                    text(
+                        "companyName", "Company name", "Spice Route Kitchen",
+                        helper = "Registered company name",
+                    ),
+                    text(
+                        "gstin", "GSTIN", "27AASCS4821K1Z3",
+                        helper = "15-digit GSTIN, if you have one",
+                    ),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
+                    date("startDate", "Start date", "12 October 2026"),
+                    date("endDate", "End date", "Still open"),
+                    panelHeader("panelDates", "Dates & more"),
+                    text("description", "Description", "Everyday notes about this restaurant"),
+                    text("location", "Location", "Add your restaurant location"),
+                ),
+            ),
+            section(
+                "people", "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
+                listOf(
+                    memberList("teamMembers", "Team", listOf("You (Owner)")),
+                    multiChoice(
+                        "roles", "Roles on invite",
+                        listOf("Owner", "Manager", "Cashier", "Kitchen", "Waiter"),
+                        helper = "Default Cashier · POS, bills & KOT view. Role applies when they join.",
+                    ),
+                ),
+            ),
+            section(
+                "channels", "Channels & Monthly Plan", "Where do you sell? Choose at least one.",
+                listOf(
+                    panelHeader("panelChannels", "Channels"),
+                    multiChoice(
+                        "channels", "Channels",
+                        listOf("Dine-in", "Direct", "Zomato", "Takeaway", "Swiggy"),
+                        helper = "These are the places you sell or serve. They are not a different kind of business.",
+                    ),
+                    date("planMonth", "Month", "October 2026"),
+                    text("monthlyBudget", "Monthly budget", "₹5,20,000", helper = "Amount"),
+                    text("monthlyTarget", "Monthly sales target", "₹6,50,000", helper = "Amount"),
+                    text("targetMetric", "How the target is measured", "Revenue"),
+                ),
+            ),
+            section(
+                "network", "Kitchen, Menu & Network",
+                "Modules your POS, KOT and purchases will use after start.",
+                listOf(
+                    moduleListRows(
+                        "modules", "Modules",
+                        listOf(
+                            BusinessSetupModuleRow("Menu", "42 dishes · GST 5% restaurant"),
+                            BusinessSetupModuleRow("Stations", "Tandoor · Hot · Cold · Bar · Floor"),
+                            BusinessSetupModuleRow("Vendors", "3 suppliers · GSTIN on file"),
+                            BusinessSetupModuleRow(
+                                "Team invite & QR",
+                                "Owner · Manager · Cashier · Kitchen · Waiter",
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            section(
+                "gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.",
+                listOf(
+                    panelHeader("panelTracking", "Tracking"),
+                    choice(
+                        "gstTracking", "Do you want to track GST in this Moment?",
+                        listOf("Yes", "Not now"),
+                        helper = "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.",
+                    ),
+                    panelHeader("panelRegistration", "Registration"),
+                    choice(
+                        "gstRegistration", "How is your business registered for GST?",
+                        listOf("Regular", "Composition", "Unregistered", "Not sure"),
+                    ),
+                    text(
+                        "gstState", "Which state is your business registered in?", "Maharashtra",
+                        helper = "State",
+                    ),
+                    panelHeader("panelPricing", "Pricing"),
+                    choice(
+                        "salePriceIncludesGst", "Do prices include GST?",
+                        listOf("Prices include GST", "GST is added separately"),
+                        helper = "Your GSTIN stays the one entered above. It is stored as a reference only.",
+                    ),
+                    date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
+                ),
+            ),
+            section(
+                "review", "Review your setup", "Confirm before you start.",
+                listOf(
+                    reviewSummary(
+                        "review", "Summary",
+                        listOf(
+                            "companyName",
+                            "gstin",
+                            "channels",
+                            "monthlyBudget",
+                            "monthlyTarget",
+                            "targetMetric",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    val service = BusinessSetupDocumentSpec(
+        typeCode = "CONSUMER_SERVICE",
+        familyTitle = "Retail",
+        eyebrow = "Services",
+        heroTitle = "BrightCare Setup",
+        heroSubtitle = "Bring your business, people, and monthly plan together before you start.",
+        activateLabel = "Start this business",
+        defaultTitleKey = "serviceName",
+        sections = listOf(
+            section(
+                "basics", "Business Basics", "A home for this salon & spa.",
+                listOf(
+                    panelHeader("panelIdentity", "Identity"),
+                    text("serviceName", "Business name", "BrightCare"),
+                    text(
+                        "companyName", "Company name", "BrightCare",
+                        helper = "Registered company name",
+                    ),
+                    text(
+                        "gstin", "GSTIN", "27AAHCB4321M1Z8",
+                        helper = "15-digit GSTIN, if you have one",
+                    ),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
+                    date("startDate", "Start date", "12 October 2026"),
+                    date("endDate", "End date", "Still open"),
+                    panelHeader("panelDates", "Dates & more"),
+                    text("description", "Description", "Everyday notes about this business"),
+                    text("location", "Location", "Add your studio location"),
+                ),
+            ),
+            section(
+                "people", "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
+                listOf(
+                    memberList("teamMembers", "Team", listOf("You (Owner)")),
+                    multiChoice(
+                        "roles", "Roles on invite",
+                        listOf("Owner", "Manager", "Stylist", "Front desk", "Therapist"),
+                        helper = "Default Stylist · own calendar, bookings & charge view. Role applies when they join.",
+                    ),
+                ),
+            ),
+            section(
+                "channels", "Channels & Monthly Plan", "Where do you serve? Choose at least one.",
+                listOf(
+                    panelHeader("panelChannels", "Channels"),
+                    multiChoice(
+                        "channels", "Channels",
+                        listOf("Studio", "Home", "Online", "Corporate", "Events"),
+                        helper = "These are the places you sell or serve. They are not a different kind of business.",
+                    ),
+                    date("planMonth", "Month", "October 2026"),
+                    text("monthlyBudget", "Monthly budget", "₹3,20,000", helper = "Amount"),
+                    text(
+                        "monthlyChargeTarget", "Monthly charge target", "₹6,50,000",
+                        helper = "Amount",
+                    ),
+                    text("targetMetric", "How the target is measured", "Revenue"),
+                ),
+            ),
+            section(
+                "gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.",
+                listOf(
+                    panelHeader("panelTracking", "Tracking"),
+                    choice(
+                        "gstTracking", "Do you want to track GST in this Moment?",
+                        listOf("Yes", "Not now"),
+                        helper = "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.",
+                    ),
+                    panelHeader("panelRegistration", "Registration"),
+                    choice(
+                        "gstRegistration", "How is your business registered for GST?",
+                        listOf("Regular", "Composition", "Unregistered", "Not sure"),
+                    ),
+                    text("gstState", "Which state is your business registered in?", "Maharashtra", helper = "State"),
+                    panelHeader("panelPricing", "Pricing"),
+                    choice(
+                        "salePriceIncludesGst", "Do prices include GST?",
+                        listOf("Prices include GST", "GST is added separately"),
+                        helper = "Your GSTIN stays the one entered above. It is stored as a reference only.",
+                    ),
+                    date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
+                ),
+            ),
+            section(
+                "review", "Review your setup", "Confirm before you start.",
+                listOf(
+                    reviewSummary(
+                        "review", "Summary",
+                        listOf(
+                            "companyName",
+                            "gstin",
+                            "channels",
+                            "monthlyBudget",
+                            "monthlyChargeTarget",
+                            "targetMetric",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    // Figma `5:50728` / `5:55863` — Products/BOM/Network omitted (same as Trading).
+    // Callers: BusinessSetupShell via BusinessSetupDocuments.spec.
+    // User: "continue and remove section 4 too"
+    val manufacturing = BusinessSetupDocumentSpec(
+        typeCode = "STANDARD_PRODUCTION",
+        familyTitle = "Manufacturing",
+        eyebrow = "Manufacturing",
+        heroTitle = "Forge & Form Setup",
+        heroSubtitle = "Bring your business, people, and monthly plan together before you start.",
+        activateLabel = "Start this business",
+        defaultTitleKey = "businessName",
+        sections = listOf(
+            section(
+                "basics", "Business Basics", "A home for this plant.",
+                listOf(
+                    panelHeader("panelIdentity", "Identity"),
+                    text("businessName", "Business name", "Forge & Form"),
+                    text("companyName", "Company name", "Forge & Form", helper = "Registered company name"),
+                    text("gstin", "GSTIN", "27AAFCF4321M1Z6", helper = "15-digit GSTIN, if you have one"),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
+                    date("startDate", "Start date", "12 October 2026"),
+                    date("endDate", "End date", "Still open"),
+                    panelHeader("panelDates", "Dates & more"),
+                    text("description", "Description", "Everyday notes about this plant"),
+                    text("location", "Location", "Add your plant location"),
+                ),
+            ),
+            section(
+                "people",
+                "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
+                listOf(
+                    memberList("teamMembers", "Team", listOf("You (Owner)")),
+                    multiChoice(
+                        "roles",
+                        "Roles on invite",
+                        listOf("Owner", "Manager", "Supervisor", "Storekeeper", "Operator"),
+                        helper = "Default Operator · own work orders & production entry. Role applies when they join.",
+                    ),
+                ),
+            ),
+            section(
+                "channels", "Channels & Monthly Plan", "Where do you sell or make? Choose at least one.",
+                listOf(
+                    panelHeader("panelChannels", "Channels"),
+                    multiChoice(
+                        "channels",
+                        "Channels",
+                        listOf("Direct B2B", "Dealers", "OEM", "Export", "Job work"),
+                        helper = "These are the places you sell or serve. They are not a different kind of business.",
+                    ),
+                    date("planMonth", "Month", "October 2026"),
+                    text("monthlyBudget", "Monthly budget", "₹42,00,000", helper = "Amount"),
+                    text("monthlyTarget", "Monthly sales target", "₹65,00,000", helper = "Amount"),
+                    text("targetMetric", "How the target is measured", "Revenue"),
+                ),
+            ),
+            section(
+                "gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.",
+                listOf(
+                    panelHeader("panelTracking", "Tracking"),
+                    choice(
+                        "gstTracking",
+                        "Do you want to track GST in this Moment?",
+                        listOf("Yes", "Not now"),
+                        helper = "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.",
+                    ),
+                    panelHeader("panelRegistration", "Registration"),
+                    choice(
+                        "gstRegistration",
+                        "How is your business registered for GST?",
+                        listOf("Regular", "Composition", "Unregistered", "Not sure"),
+                    ),
+                    text(
+                        "gstState",
+                        "Which state is your business registered in?",
+                        "Maharashtra",
+                        helper = "State",
+                    ),
+                    panelHeader("panelPricing", "Pricing"),
+                    choice(
+                        "salePriceIncludesGst",
+                        "Do prices include GST?",
+                        listOf("Prices include GST", "GST is added separately"),
+                        helper = "Your GSTIN stays the one entered above. It is stored as a reference only.",
+                    ),
+                    date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
+                ),
+            ),
+            section(
+                "review", "Review your setup", "Confirm before you start.",
+                listOf(
+                    reviewSummary(
+                        "review", "Summary",
+                        listOf(
+                            "businessName", "companyName", "gstin", "channels",
+                            "monthlyBudget", "monthlyTarget", "targetMetric",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    // Figma `5:55863` — Quotes/Jobs/Network omitted. No Plan · Monthly section.
+    // Channels/budget/target fold into Basics; CTA Activate Moment; eyebrow Job order.
+    val madeToOrder = BusinessSetupDocumentSpec(
+        typeCode = "MADE_TO_ORDER",
+        familyTitle = "Manufacturing",
+        eyebrow = "Job order",
+        heroTitle = "Forge & Form Setup",
+        heroSubtitle = "Bring your business, people, and monthly plan together before you start.",
+        activateLabel = "Activate Moment",
+        defaultTitleKey = "businessName",
+        sections = listOf(
+            section(
+                "basics", "Business Basics", "A home for this job-order shop.",
+                listOf(
+                    text("businessName", "Business name", "Forge & Form"),
+                    text("companyName", "Company name", "Forge & Form", helper = "Registered company name"),
+                    text("gstin", "GSTIN", "27AAFCF4321M1Z6", helper = "15-digit GSTIN, if you have one"),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
+                    date("startDate", "Start date", "12 October 2026"),
+                    date("endDate", "End date", "Still open"),
+                    panelHeader("panelDates", "Dates & more"),
+                    text("description", "Description", "Everyday notes about this plant"),
+                    multiChoice(
+                        "channels",
+                        "Channels",
+                        listOf("Direct B2B", "Dealers", "OEM", "Export", "Job work"),
+                        helper = "Channels are where you sell. They never change the Job order mode.",
+                    ),
+                    text("monthlyBudget", "Monthly budget", "₹9,00,000", helper = "Amount"),
+                    text("monthlyTarget", "Monthly target", "₹18,00,000", helper = "Amount"),
+                    choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf(
+                            "Invoiced value (or accepted job units)",
+                            "Production output",
+                            "Delivery count",
+                            "Orders",
+                        ),
+                        helper = "Posted invoices count toward the target. Quotes, confirmed orders and advances never do.",
+                    ),
+                ),
+            ),
+            section(
+                "people",
+                "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
+                listOf(
+                    memberList("teamMembers", "Team", listOf("You (Owner)")),
+                    multiChoice(
+                        "roles",
+                        "Roles on invite",
+                        listOf("Owner", "Manager", "Supervisor", "Storekeeper", "Operator"),
+                        helper = "Default Operator · own work orders & production entry. Role applies when they join.",
+                    ),
+                    rowAction("addPeople", "+ Invite & QR · pick role", "Invite"),
+                ),
+            ),
+            section(
+                "quotes",
+                "Job order · Quotes & order approval",
+                "Job order only. The customer-order picker activates when a quote is accepted.",
+                listOf(
+                    choice(
+                        "quoteValidity",
+                        "Quote validity",
+                        listOf(
+                            "15 days · expired quotes revise, never invoice",
+                            "30 days · expired quotes revise, never invoice",
+                            "7 days · expired quotes revise, never invoice",
+                        ),
+                    ),
+                    choice(
+                        "specificationTemplate",
+                        "+ Specification template",
+                        listOf(
+                            "Drawing · material · tolerance · finish",
+                            "Create / upload / link from library",
+                        ),
+                    ),
+                    choice(
+                        "orderApproval",
+                        "Order approval",
+                        listOf(
+                            "Discount >5% or value >₹5L → Owner approves",
+                            "All confirmed orders → Owner approves",
+                            "No approval required",
+                        ),
+                    ),
+                    choice(
+                        "jobOnConfirm",
+                        "Job per confirmed order",
+                        listOf(
+                            "Accepted order opens a job with target qty",
+                            "Open job manually after confirm",
+                        ),
+                    ),
+                    choice(
+                        "productsBomNote",
+                        "Products & BOM (optional)",
+                        listOf(
+                            "Fully detailed · BOM with cost and lead time",
+                            "Skip for now · never forced",
+                        ),
+                    ),
+                ),
+            ),
+            section(
+                "gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.",
+                listOf(
+                    panelHeader("panelTracking", "Tracking"),
+                    choice(
+                        "gstRegistered",
+                        "Do you want to track GST in this Moment?",
+                        listOf("Yes", "Not now"),
+                        helper = "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.",
+                    ),
+                    panelHeader("panelRegistration", "Registration"),
+                    choice(
+                        "gstType",
+                        "How is your business registered for GST?",
+                        listOf("Regular", "Composition", "Unregistered", "Not sure"),
+                    ),
+                    text(
+                        "gstState",
+                        "Which state is your business registered in?",
+                        "Maharashtra",
+                        helper = "State",
+                    ),
+                    panelHeader("panelPricing", "Pricing"),
+                    choice(
+                        "priceIncludesGst",
+                        "Do prices include GST?",
+                        listOf("Prices include GST", "GST is added separately"),
+                        helper = "Your GSTIN stays the one entered above. It is stored as a reference only.",
+                    ),
+                    date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
+                ),
+            ),
+            section(
+                "review", "Activate", "Confirm before you start.",
+                listOf(
+                    reviewSummary(
+                        "review", "Summary",
+                        listOf(
+                            "businessName", "companyName", "gstin", "monthlyBudget", "monthlyTarget",
+                            "targetMetric", "quoteValidity",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+}

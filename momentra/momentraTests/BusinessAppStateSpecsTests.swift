@@ -67,12 +67,10 @@ struct BusinessAppStateSpecsTests {
 
     // MARK: Unified emerald accent
 
-    @Test func everyMomentTypeCodeResolvesToEmerald() {
-        // The accent is unified across every Business vertical, so emerald is the only accent the
-        // kit knows about. Per-vertical *copy* is keyed on the vertical instead.
+    @Test func accentMappingUsesVerticalOverrides() {
         #expect(BusinessAppStateAccent.forTypeCode("TRADING_WHOLESALE") == .emerald)
-        #expect(BusinessAppStateAccent.forTypeCode("RETAIL_STORE") == .emerald)
-        #expect(BusinessAppStateAccent.forTypeCode("RESTAURANT_FOOD") == .emerald)
+        #expect(BusinessAppStateAccent.forTypeCode("RETAIL_STORE") == .rose)
+        #expect(BusinessAppStateAccent.forTypeCode("RESTAURANT_FOOD") == .flame)
         #expect(BusinessAppStateAccent.forTypeCode("CONSUMER_SERVICE") == .emerald)
         #expect(BusinessAppStateAccent.forTypeCode("STANDARD_PRODUCTION") == .emerald)
         #expect(BusinessAppStateAccent.forTypeCode("MADE_TO_ORDER") == .emerald)
@@ -80,12 +78,21 @@ struct BusinessAppStateSpecsTests {
         #expect(BusinessAppStateAccent.forTypeCode("OWN_BUSINESS_CAMPAIGN") == .emerald)
         #expect(BusinessAppStateAccent.forTypeCode("DISTRIBUTION_DEALERSHIP") == .emerald)
         #expect(BusinessAppStateAccent.forTypeCode(nil) == .emerald)
-        #expect(BusinessAppStateAccent.forTypeCode("  retail_store  ") == .emerald)
+        #expect(BusinessAppStateAccent.forTypeCode("  retail_store  ") == .rose)
     }
 
-    @Test func accentIsTheUnifiedEmeraldValue() {
-        #expect(BusinessAppStateAccent.allCases == [.emerald])
+    @Test func accentPaletteIncludesVerticalAndViewAll() {
+        #expect(BusinessAppStateAccent.allCases == [.emerald, .rose, .flame, .cyan])
         #expect(BusinessAppStateAccent.emerald.color == Color(hex: "#10B981"))
+        #expect(BusinessAppStateAccent.rose.color == Color(hex: "#F43F5E"))
+        #expect(BusinessAppStateAccent.flame.color == Color(hex: "#EA580C"))
+        #expect(BusinessAppStateAccent.cyan.color == Color(hex: "#06B6D4"))
+    }
+
+    @Test func hubEmptyDoesNotInventPrimaryCta() {
+        let hub = BusinessAppStateSpecs.spec(.hub, .empty)
+        #expect(hub.primaryLabel == nil)
+        #expect(hub.footnote != nil)
     }
 
     @Test func verticalStillResolvesPerMomentTypeCode() {
@@ -333,4 +340,43 @@ struct BusinessAppStateSpecsTests {
         #expect(BusinessAppStateTokens.hairlineStroke == BusinessAppStateTokens.emerald.opacity(0.18))
         #expect(BusinessAppStateTokens.rowLabelColor == Color(hex: "#C7D1E0"))
     }
+
+    // MARK: Shell routing (Obsidian wire-up)
+
+    @Test func offlineBusinessPulseResolvesWaitingForConnection() {
+        #expect(
+            BusinessAppStateRouting.title(
+                destination: .pulse,
+                content: .offline,
+                hasCompany: true
+            ) == "Waiting for connection"
+        )
+        #expect(
+            BusinessAppStateRouting.resolveScreen(
+                destination: .pulse,
+                content: .offline,
+                hasCompany: true
+            ) == .offline
+        )
+    }
+
+    @Test func createDestinationMapsToHubWhenCompanyExists() {
+        #expect(BusinessAppStateRouting.screen(for: .create, hasCompany: true) == .hub)
+        #expect(BusinessAppStateRouting.screen(for: .pulse, hasCompany: false) == .noCompany)
+    }
+
+    @Test func guidedCreateCatalogHasFourVerticals() {
+        #expect(BusinessGuidedCreateSpecs.options.count == 4)
+        let mfg = BusinessGuidedCreateSpecs.option(id: "manufacturing")
+        #expect(mfg.title == "Manufacturing & Production")
+        #expect(mfg.familyCode == "MANUFACTURING_PRODUCTION")
+        #expect(mfg.momentTypeCode == "STANDARD_PRODUCTION")
+        #expect(mfg.previewHeadline == "Built for the way you make.")
+    }
+
+    @Test func createEmptyPhaseIsEmptyWhenCompanyExists() {
+        #expect(BusinessAppStateRouting.phase(for: .empty, hasCompany: true) == .empty)
+        #expect(BusinessAppStateRouting.phase(for: .empty, hasCompany: false) == .setup)
+    }
+
 }

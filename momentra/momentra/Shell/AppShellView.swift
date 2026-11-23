@@ -1,5 +1,18 @@
 import SwiftUI
 
+/// Clear presentation for Business Manage Moment fullScreenCover (glass panel shows through).
+private struct ManageMomentCoverChrome: ViewModifier {
+    let isBusiness: Bool
+
+    func body(content: Content) -> some View {
+        if isBusiness {
+            content.businessGlassFullScreenCover()
+        } else {
+            content
+        }
+    }
+}
+
 struct AppShellView: View {
     let identity: ShellIdentity
     @ObservedObject var model: AppShellModel
@@ -46,19 +59,19 @@ struct AppShellView: View {
     @State private var groupRecentActivityOpen = false
     @State private var teamRecentActivityOpen = false
     @State private var businessRecentActivityOpen = false
-    @State private var businessRecentActivityAccent = Color(hex: "#818CF8")
+    @State private var businessRecentActivityAccent = Color(hex: "#10B981")
     @State private var businessRecentActivitySubtitle = "Updates, spend, memories, and other events."
     @State private var newMomentOpen = false
     @State private var groupCreatePhase: GroupCreatePhase = .chooser
+    // Callers: openNewMoment + businessDestinationContent. Separates Create vs Quick Add.
+    // User: "Separate Create New Business Moment from Add Operating Event."
+    @State private var preferBusinessCreateFlow = false
     @State private var showManageMoment = false
     @State private var storyMomentId: String? = nil
     @State private var editSetupTarget: EditMomentSetupTarget? = nil
     @State private var showJoinQrScanner = false
     @State private var showReferComingSoon = false
     @State private var pendingGroupJoin: PendingGroupJoin?
-    @State private var pendingCompanyJoin: PendingCompanyJoin?
-    @State private var businessSetupOpen = false
-    @State private var businessJoinOpen = false
     @State private var joinFeedbackMessage: String?
     @State private var habitRewardMessage: String?
     @State private var inboxOpen = false
@@ -124,9 +137,8 @@ struct AppShellView: View {
         if let pending = JoinInviteStore.shared.consume() {
             pendingGroupJoin = PendingGroupJoin(id: pending)
         }
-        if let companyCode = JoinCompanyInviteStore.shared.consume() {
-            pendingCompanyJoin = PendingCompanyJoin(id: companyCode)
-        }
+        // Business V4: ignore pending company join invites (setup/join sheets removed).
+        _ = JoinCompanyInviteStore.shared.consume()
         handlePendingPushDeepLink()
         Task { await inboxBadge.refresh() }
     }
@@ -140,11 +152,10 @@ struct AppShellView: View {
     }
 
     private func handleCompanyPendingCode(_ code: String?) {
+        // Business V4: company join sheet removed — drop pending codes.
         guard let code, !code.isEmpty else { return }
-        guard pendingCompanyJoin == nil else { return }
-        if let pending = JoinCompanyInviteStore.shared.consume() {
-            pendingCompanyJoin = PendingCompanyJoin(id: pending)
-        }
+        _ = JoinCompanyInviteStore.shared.consume()
+        _ = code
     }
 
     private func handlePushDeepLink(_ link: String?) {
@@ -201,44 +212,15 @@ struct AppShellView: View {
             selection: bottomTabSelection,
             accent: momentAccent,
             context: model.selectedContext,
-            businessMomentTypeCode: model.selectedContext == .business
-                ? model.selectedMomentTypeCode
-                : nil,
             content: { tabNavigationRoot }
         )
         .background(Color(hex: "#14121B").ignoresSafeArea())
 
-        let b0 = base.fullScreenCover(isPresented: businessCreatePresented) {
-            BusinessCreateFlowView(
-                createModel: createModel,
-                companyId: model.selectedCompany?.companyId,
-                ownerName: model.identity?.displayName ?? "",
-                onBack: { newMomentOpen = false },
-                onCreated: { outcome in
-                    newMomentOpen = false
-                    model.onMomentCreated(
-                        momentId: outcome.momentId,
-                        title: outcome.title,
-                        momentTypeCode: outcome.momentTypeCode,
-                        status: outcome.status
-                    )
-                }
-            )
-            .preferredColorScheme(.dark)
-        }
-
-        let b1 = attachSetupAndPersonalCovers(to: b0)
+        // Business create stays in-shell (CREATE tab + V4 placeholder) — same chrome as Personal/Group.
+        let b1 = attachSetupAndPersonalCovers(to: base)
         let b2 = attachGroupPrimarySheets(to: b1)
         let b3 = attachGapAndFinanceSheets(to: b2)
         return attachBusinessAndSystemSheets(to: b3)
-    }
-
-    /// The Business "+" opens the Figma guided selection as a full-screen page (no tab bar, no shell bar).
-    private var businessCreatePresented: Binding<Bool> {
-        Binding(
-            get: { newMomentOpen && model.selectedContext == .business },
-            set: { newMomentOpen = $0 }
-        )
     }
 
     @ViewBuilder
@@ -279,6 +261,7 @@ struct AppShellView: View {
                     }
                 )
                 .preferredColorScheme(.dark)
+                .modifier(ManageMomentCoverChrome(isBusiness: model.selectedContext == .business))
             }
         }
         .fullScreenCover(item: $personalSetupSystem) { system in
@@ -330,7 +313,7 @@ struct AppShellView: View {
                 operatingChrome.previewStoryId = nil
             }
         }
-        .sheet(item: $editSetupTarget) { target in
+        .fullScreenCover(item: $editSetupTarget) { target in
             if let momentId = model.selectedMomentId {
                 EditMomentSetupHost(
                     target: target,
@@ -349,9 +332,6 @@ struct AppShellView: View {
                         model.reloadCurrentContext()
                     }
                 )
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(24)
                 .preferredColorScheme(.dark)
             }
         }
@@ -603,47 +583,16 @@ struct AppShellView: View {
     @ViewBuilder
     private func attachBusinessAndSystemSheets<V: View>(to content: V) -> some View {
         content
-            .sheet(isPresented: $businessSetupOpen) {
-                CompanySetupFlowView(
-                    onClose: { businessSetupOpen = false },
-                    onActivated: { company in
-                        businessSetupOpen = false
-                        model.onCompanyCreated(company)
-                        if model.selectedContext != .business {
-                            model.selectContext(.business)
-                        }
-                    }
-                )
-            }
-            .sheet(isPresented: $businessJoinOpen) {
-                NavigationStack {
-                    VStack(spacing: 16) {
-                        Text("Join Business")
-                            .font(.headline)
-                        Text("Enter an invite link or join code to join a business.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding()
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") { businessJoinOpen = false }
-                        }
-                    }
-                }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-            }
+            // Business V4: company setup / join sheets removed — CTAs are no-ops.
             .fullScreenCover(isPresented: $showJoinQrScanner) {
                 GroupJoinQrScanner(
                     onCode: { code in
                         showJoinQrScanner = false
                         redeemJoinCode(code)
                     },
-                    onCompanyCode: { code in
+                    onCompanyCode: { _ in
+                        // Business V4: company join sheet removed.
                         showJoinQrScanner = false
-                        pendingCompanyJoin = PendingCompanyJoin(id: code)
                     },
                     onDismiss: { showJoinQrScanner = false }
                 )
@@ -702,17 +651,13 @@ struct AppShellView: View {
             }
             .sheet(isPresented: $businessAttentionViewAllOpen) {
                 BusinessAppStateViewAllSheet(
-                    accent: BusinessAppStateAccent.forTypeCode(model.selectedMomentTypeCode),
+                    accent: .cyan,
                     selectedFilter: $businessAttentionFilter,
                     onClose: { businessAttentionViewAllOpen = false },
-                    onShowAll: {
-                        businessAttentionViewAllOpen = false
-                        businessAttentionFilter = "All"
-                    }
+                    onShowAll: { businessAttentionViewAllOpen = false }
                 )
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(BusinessAppStateTokens.sheet)
+                .businessGlassBottomSheet(detents: [.medium, .large])
+                .preferredColorScheme(.dark)
             }
             .sheet(isPresented: isProfilePresented) {
                 AccountHubView(
@@ -746,7 +691,9 @@ struct AppShellView: View {
                 model.selectBottomDestination(.create)
             }
         case .business:
-            newMomentOpen = true
+            // Create New Moment — never Quick Add, even when a Moment is already selected.
+            preferBusinessCreateFlow = true
+            model.selectBottomDestination(.create)
         default:
             model.selectBottomDestination(.create)
         }
@@ -814,16 +761,28 @@ struct AppShellView: View {
         case .group:
             return Color(hex: "#E8621A")
         case .business:
-            return Color(hex: "#818CF8")
+            return ContextTheme.of(.business).contextAccent
         }
     }
 
     /// Moment-type accent (Wedding pink, Trip peach). Used for tab bar + moment chrome.
+    /// Business with no type uses teal via `MomentThemes.business(nil)`.
     private var momentAccent: Color {
         MomentThemes.resolve(
             context: model.selectedContext,
             momentTypeCode: model.selectedMomentTypeCode
         ).primary
+    }
+
+    /// Moment switcher strip accent — business empty/no-type uses MomentSwitcherTokens teal.
+    private var momentSwitcherAccent: Color {
+        if model.selectedContext == .business {
+            let code = model.selectedMomentTypeCode?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if code.isEmpty {
+                return MomentSwitcherTokens.accent
+            }
+        }
+        return momentAccent
     }
 
     /// The switcher is open for whichever context owns it — Group and Business used to run separate
@@ -853,11 +812,11 @@ struct AppShellView: View {
     private var shouldShowMomentSwitcher: Bool {
         if model.bottomDestination == .create { return false }
         switch model.selectedContext {
-        case .circle:
+        case .circle, .personal:
+            // Personal has no multi-moment strip (structural gate).
             return false
-        case .personal, .group, .business:
-            if model.contextContent == .empty { return false }
-            if model.contextContent == .loading || model.contextContent == .idle { return false }
+        case .group, .business:
+            // Group + Business share the same host visibility rules.
             return model.showMomentSwitcher
         }
     }
@@ -871,6 +830,13 @@ struct AppShellView: View {
                 businessMomentDirectoryOpen = false
                 if next == .create, model.selectedContext == .group, model.bottomDestination != .create {
                     groupCreatePhase = .chooser
+                }
+                // Bottom CREATE with a selected Moment = Quick Add, not guided create.
+                if next == .create, model.selectedContext == .business {
+                    preferBusinessCreateFlow = false
+                }
+                if next != .create {
+                    preferBusinessCreateFlow = false
                 }
                 model.selectBottomDestination(next)
             }
@@ -1018,13 +984,24 @@ struct AppShellView: View {
     private var shellTopChromeContent: some View {
         VStack(spacing: 0) {
             if let notice = model.offlineNotice {
-                Text(notice)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color(hex: "#3A2A12"))
+                let pending = OfflineOutbox.shared.pendingCount()
+                let failed = OfflineOutbox.shared.failedMessage()
+                if model.selectedContext == .business, failed != nil || pending > 0 {
+                    BusinessAppStateToastHost(
+                        toast: failed != nil
+                            ? .error(code: "SYNC_TIMEOUT_504")
+                            : .offlineQueue(queuedCount: pending),
+                        onRetry: { model.selectContext(model.selectedContext) }
+                    )
+                } else {
+                    Text(notice)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color(hex: "#3A2A12"))
+                }
             }
 
             MomentraTopBar(
@@ -1065,13 +1042,18 @@ struct AppShellView: View {
                         activeMoments: activeMomentPairs,
                         isEmpty: momentSwitcherIsEmpty,
                         isLoading: momentSwitcherIsLoading,
-                        accent: momentAccent,
+                        accent: momentSwitcherAccent,
                         onSelectMoment: model.selectMoment,
                         onSettings: {
                             guard model.selectedMomentId != nil else { return }
                             showManageMoment = true
                         },
-                        onInvite: model.selectedContext == .group ? { groupInviteSheetPresented = true } : nil,
+                        onInvite: {
+                            if model.selectedContext == .group {
+                                groupInviteSheetPresented = true
+                            }
+                            // Business: same invite control as Group; V4 no-op until rebuild.
+                        },
                         useDirectorySelector: model.selectedContext == .group || model.selectedContext == .business,
                         onOpenDirectory: {
                             if model.selectedContext == .business {
@@ -1123,50 +1105,104 @@ struct AppShellView: View {
 
     @ViewBuilder
     private var destinationContent: some View {
+        if model.selectedContext == .business {
+            businessDestinationContent
+        } else {
+            nonBusinessDestinationContent
+        }
+    }
+
+    @ViewBuilder
+    private var businessDestinationContent: some View {
+        let hasCompany = model.selectedCompany != nil
+        // P4 completion: Create New Moment (preferBusinessCreateFlow) vs Quick Add (CREATE tab).
+        // User: "Separate Create New Business Moment from Add Operating Event."
+        let creatingNewMoment = preferBusinessCreateFlow && model.bottomDestination == .create
+        let useOperatingHub: Bool = {
+            if case .ready = model.contextContent, hasCompany,
+               let mid = model.selectedMomentId, !mid.isEmpty, !creatingNewMoment {
+                return true
+            }
+            return false
+        }()
+        if useOperatingHub, let momentId = model.selectedMomentId {
+            OperatingMomentHubView(
+                momentId: momentId,
+                momentTitle: model.selectedMomentTitle,
+                tab: OperatingHubTab.from(model.bottomDestination),
+                refreshToken: Int(truncatingIfNeeded: model.businessTabRefreshToken),
+                onCreateMoment: openNewMoment,
+                onOpenQuickAdd: {
+                    preferBusinessCreateFlow = false
+                    model.selectBottomDestination(.create)
+                }
+            )
+        } else {
+            BusinessAppStateHost(
+                destination: model.bottomDestination,
+                content: model.contextContent,
+                hasCompany: hasCompany,
+                momentTypeCode: model.selectedMomentTypeCode,
+                onRetry: { model.selectContext(model.selectedContext) },
+                onPrimary: openNewMoment,
+                onSecondary: {
+                    preferBusinessCreateFlow = false
+                    model.selectBottomDestination(.create)
+                },
+                onCreateBusiness: openNewMoment,
+                onJoinCompany: { model.selectBottomDestination(.create) },
+                onOpenQuickAdds: {
+                    preferBusinessCreateFlow = false
+                    model.selectBottomDestination(.create)
+                },
+                onBackToPulse: {
+                    preferBusinessCreateFlow = false
+                    model.selectBottomDestination(.pulse)
+                },
+                onCreateBack: {
+                    preferBusinessCreateFlow = false
+                    model.exitCreateDestination()
+                },
+                companyId: model.selectedCompany?.companyId,
+                onMomentCreated: { outcome in
+                    preferBusinessCreateFlow = false
+                    model.onMomentCreated(
+                        momentId: outcome.momentId,
+                        title: outcome.title,
+                        momentTypeCode: outcome.momentTypeCode,
+                        status: outcome.status
+                    )
+                },
+                createModel: createModel
+            )
+            .onAppear {
+                if case .error(let code, _) = model.contextContent, code == "UNAUTHORIZED" {
+                    onSessionExpired()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var nonBusinessDestinationContent: some View {
         switch model.contextContent {
         case .idle, .loading:
-            if model.selectedContext == .business {
-                BusinessAppStateLoadingBody(
-                    label: "\(model.bottomDestination.label) · loading",
-                    accent: BusinessAppStateAccent.forTypeCode(model.selectedMomentTypeCode)
-                )
-            } else {
-                ProgressView()
-                    .tint(MomentraBrandTokens.cta)
-            }
+            ProgressView()
+                .tint(MomentraBrandTokens.cta)
         case .offline:
-            if model.selectedContext == .business {
-                BusinessAppStateBody(
-                    spec: BusinessAppStateSpecs.spec(.offline, .error),
-                    accent: BusinessAppStateAccent.forTypeCode(model.selectedMomentTypeCode),
-                    onPrimary: { model.selectContext(model.selectedContext) },
-                    onSecondary: { model.selectBottomDestination(.create) }
-                )
-            } else {
-                emptyPanel(
-                    title: "You're offline",
-                    body: "Check your connection and try again.",
-                    action: "Retry"
-                ) {
-                    model.selectContext(model.selectedContext)
-                }
+            emptyPanel(
+                title: "You're offline",
+                body: "Check your connection and try again.",
+                action: "Retry"
+            ) {
+                model.selectContext(model.selectedContext)
             }
         case .error(let code, let message):
             if code == "UNAUTHORIZED" {
                 Color.clear.onAppear(perform: onSessionExpired)
             }
-            if model.selectedContext == .business {
-                let accent = BusinessAppStateAccent.forTypeCode(model.selectedMomentTypeCode)
-                BusinessAppStateBody(
-                    spec: BusinessAppStateSpecs.spec(errorScreen(for: model.bottomDestination), .error),
-                    accent: accent,
-                    onPrimary: { model.selectContext(model.selectedContext) },
-                    onSecondary: { model.selectBottomDestination(.create) }
-                )
-            } else {
-                emptyPanel(title: "We couldn't load your moments", body: message, action: "Retry") {
-                    model.selectContext(model.selectedContext)
-                }
+            emptyPanel(title: "We couldn't load your moments", body: message, action: "Retry") {
+                model.selectContext(model.selectedContext)
             }
         case .forbidden:
             emptyPanel(
@@ -1233,8 +1269,8 @@ struct AppShellView: View {
                     groupMomentDirectoryOpen = true
                 }
             },
-            onCreateBusiness: { businessSetupOpen = true },
-            onJoinCompany: { businessJoinOpen = true }
+            onCreateBusiness: { model.selectBottomDestination(.create) },
+            onJoinCompany: { model.selectBottomDestination(.create) }
         )
     }
 
@@ -1264,61 +1300,12 @@ struct AppShellView: View {
                 onLifeOpsQuickAdd: openLifeOpsQa,
                 onMoneyQuickAdd: openMoneyQa
             )
-        } else if model.selectedContext == .business,
-                  let momentId = model.selectedMomentId,
-                  BusinessOperatingVertical.forSubtype(
-                      model.selectedMomentTypeCode
-                          ?? model.moments.first(where: { $0.momentId == momentId })?.momentTypeCode
-                  ) != nil,
-                  [.pulse, .moments, .life, .memory, .create].contains(model.bottomDestination) {
-            OperatingExperienceHost(
-                momentId: momentId,
-                companyId: model.selectedCompany?.companyId
-                    ?? model.moments.first(where: { $0.momentId == momentId })?.companyId,
-                subtype: model.selectedMomentTypeCode
-                    ?? model.moments.first(where: { $0.momentId == momentId })?.momentTypeCode,
-                destination: model.bottomDestination,
-                refreshToken: model.businessTabRefreshToken,
-                onStoryReady: { id in storyMomentId = id }
-            )
-            .id(momentId)
-        } else if model.selectedContext == .business,
-                  [.pulse, .moments, .life, .memory, .create].contains(model.bottomDestination),
-                  model.selectedMomentId == nil {
-            businessEmptyExperience
         } else {
             emptyPanel(
                 title: "\(model.selectedContext.label) · \(model.bottomDestination.label)",
                 body: detail ?? "Active Moment ready. Product features arrive in later phases."
             )
         }
-    }
-
-    @ViewBuilder
-    private var businessEmptyExperience: some View {
-        ContextEmptyExperienceView(
-            createModel: createModel,
-            context: model.selectedContext,
-            destination: model.bottomDestination,
-            experience: model.momentExperience,
-            moments: model.moments,
-            hasCompany: model.selectedCompany != nil,
-            selectedCompanyId: model.selectedCompany?.companyId,
-            momentTypeCode: model.selectedMomentTypeCode,
-            onCreateMoment: { model.selectBottomDestination(.create) },
-            onCreateBack: { model.exitCreateDestination() },
-            onCompanyActivated: { model.onCompanyCreated($0) },
-            onMomentCreated: { outcome in
-                model.onMomentCreated(
-                    momentId: outcome.momentId,
-                    title: outcome.title,
-                    momentTypeCode: outcome.momentTypeCode,
-                    status: outcome.status
-                )
-            },
-            onCreateBusiness: { businessSetupOpen = true },
-            onJoinCompany: { businessJoinOpen = true }
-        )
     }
 
     @ViewBuilder
@@ -1864,17 +1851,6 @@ struct AppShellView: View {
             .presentationCornerRadius(24)
             .presentationBackground(GroupSetupTheme.card)
             .presentationDragIndicator(.visible)
-        }
-    }
-
-    /// Which kit screen the current bottom destination maps to, for error and loading bodies.
-    private func errorScreen(for destination: BottomDestination) -> BusinessAppStateScreen {
-        switch destination {
-        case .pulse: return .pulse
-        case .moments: return .moments
-        case .life: return .life
-        case .memory: return .memory
-        case .create: return .hub
         }
     }
 

@@ -1,4 +1,3 @@
-import Photos
 import SwiftUI
 import UIKit
 
@@ -18,7 +17,6 @@ struct GroupAddPeopleSheet: View {
     @State private var contacts: [SheetContact] = []
     @State private var permissionDenied = false
     @State private var copied = false
-    @State private var saved = false
     @State private var shareItems: [Any] = []
     @State private var showShare = false
     @State private var pendingPhone: String?
@@ -344,7 +342,10 @@ struct GroupAddPeopleSheet: View {
                     .truncationMode(.tail)
                 Spacer(minLength: 8)
                 Button {
-                    UIPasteboard.general.string = copyText
+                    // Local-only, two-minute paste: a join code on the Universal Clipboard would
+                    // otherwise reach every device the owner signs into.
+                    guard let copyText else { return }
+                    InviteClipboard.copy(copyText)
                     copied = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { copied = false }
                 } label: {
@@ -403,6 +404,11 @@ struct GroupAddPeopleSheet: View {
                 .font(.plusJakarta(size: 11))
                 .foregroundStyle(GroupSetupTheme.textSecondary)
                 .multilineTextAlignment(.center)
+            Text("Anyone who scans this can join. Saved images never expire — share the link instead when you can.")
+                .font(.plusJakarta(size: 10))
+                .foregroundStyle(GroupSetupTheme.textSecondary.opacity(0.85))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
     }
@@ -415,7 +421,7 @@ struct GroupAddPeopleSheet: View {
                     showShare = true
                 }
             }
-            outlineButton(icon: "ges_icon_download", title: saved ? "Saved" : "Save to Photos", enabled: qrPayload != nil) {
+            outlineButton(icon: "ges_icon_download", title: "Save image", enabled: qrPayload != nil) {
                 saveQR()
             }
         }
@@ -452,16 +458,13 @@ struct GroupAddPeopleSheet: View {
         .buttonStyle(.plain)
     }
 
+    /// A join code written straight into Photos is permanent, iCloud-synced and indexed. Handing
+    /// the image to the share sheet instead means the operator picks Save Image, AirDrop or
+    /// Messages knowingly, and nothing lands in the library behind their back.
     private func saveQR() {
-        guard let qrPayload, let qr = GroupQRCode.image(from: qrPayload, size: 1024) else { return }
-        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
-            guard status == .authorized || status == .limited else { return }
-            UIImageWriteToSavedPhotosAlbum(qr, nil, nil, nil)
-            DispatchQueue.main.async {
-                saved = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { saved = false }
-            }
-        }
+        guard let qrPayload, let qr = GroupQRCode.image(from: qrPayload, size: 512) else { return }
+        shareItems = [qr, copyText as Any].compactMap { $0 }
+        showShare = true
     }
 
     private func loadContacts() async {

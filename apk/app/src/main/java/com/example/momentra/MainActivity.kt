@@ -3,6 +3,7 @@ package com.example.momentra
 import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
@@ -28,6 +29,15 @@ import com.example.momentra.ui.theme.MomentraTheme
 class MainActivity : FragmentActivity() {
     private val lockStore by lazy { AppLockStore(this) }
     private var coldLaunchMark: ShellPerf.Mark? = null
+
+    override fun onResume() {
+        super.onResume()
+        if (lockStore.secureScreenEnabled()) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
 
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {

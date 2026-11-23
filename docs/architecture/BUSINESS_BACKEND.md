@@ -1,5 +1,8 @@
 # Business backend architecture
 
+> **V4 rebuild status (2026-11-21):** Business modules and `/v1` routes restored on `feat/business-v4-greenfield`. Delivery order: Trading → Distribution → Marketing → Retail → Manufacturing (see `docs/superpowers/plans/2026-11-19-business-v4-contract-freeze.md`). Canonical events remain `business.operating_event`; V104 adds obligations/settlements/inventory movements. Company invites use Group-parity `/j/{code}` URLs.
+
+
 Current-state map of how the Business domain works on the server. Screen-by-screen status lives in [BUSINESS_CURRENT_IMPLEMENTATION_AUDIT.md](../implementation/BUSINESS_CURRENT_IMPLEMENTATION_AUDIT.md). This file explains the model, the request path, and where logic sits.
 
 Live HTTP surface: [`backend/typescript/src/api/v1/router.ts`](../../backend/typescript/src/api/v1/router.ts), mounted from [`backend/typescript/src/app.ts`](../../backend/typescript/src/app.ts). [`router-product.ts`](../../backend/typescript/src/api/v1/router-product.ts) is not mounted. Do not treat it as a second API.
@@ -100,20 +103,23 @@ Writes that change business state also call `insertDomainEventAndOutbox` and `in
 `assertCompanyMomentAccess` loads the context only when all of the following hold:
 
 - `core.moment.domain_code = 'BUSINESS'`
-- context status is `ACTIVE`
-- the caller is an active company member of `company_id`, or the moment has no company and the caller is the creator or an active participant
+- context status is `ACTIVE` (or `DRAFT` for the creator)
+- when `company_id` is set: the caller has an **active** `company_membership` (creator and bare `moment_participant` do not bypass)
+- when `company_id` is null: the caller is the creator or an active `moment_participant`
 
-Company routes use `assertActiveCompanyMember`, which also requires governance action `COMPANY_ACCESS`.
+Company-bound writers (revenue, invoice, business update, share-link, and the expense gate) use `assertActiveCompanyMemberForMoment`. Company routes use `assertActiveCompanyMember`, which also requires governance action `COMPANY_ACCESS`. `authorize()` uses the same company-bound / company-less split for BUSINESS moments.
 
 Observers are not one switch.
 
-- `assertNotCompanyObserver` blocks company observers from posting expenses, revenue, and invoices.
-- `OBSERVER_DENIED_ACTIONS` in [`resolver.ts`](../../backend/typescript/src/modules/governance/resolver.ts) blocks a fixed set (`EXPENSE_CREATE`, `MEMORY_CREATE`, `POLL_CREATE`, and several group codes). It does not include `COMPANY_UPDATE`, `LOCATION_CREATE`, `ISSUE_CREATE`, `VENDOR_MANAGE`, `SLA_MANAGE`, `REVIEW_CREATE`, `DECISION_RECORD`, `MEETING_CREATE`, `RECOGNITION_CREATE`, or `MILESTONE_CREATE`.
-- `POST /v1/moments/:momentId/business-updates` does not call governance. It only checks moment access and that the moment is company-bound (`createBusinessUpdate`).
+- `assertNotCompanyObserver` blocks company observers from posting expenses, revenue, invoices, and business updates.
+- `OBSERVER_DENIED_ACTIONS` in [`resolver.ts`](../../backend/typescript/src/modules/governance/resolver.ts) blocks Group/finance codes plus Business mutate codes (`ISSUE_CREATE`, `VENDOR_MANAGE`, `SLA_MANAGE`, `COMPANY_UPDATE`, `BUSINESS_UPDATE_CREATE`, decisions/meetings, and related ops writers).
+- `POST /v1/moments/:momentId/business-updates` calls `assertActiveCompanyMemberForMoment`, `assertNotCompanyObserver`, and governance `BUSINESS_UPDATE_CREATE`.
 
 Finance approval uses `assertCanApproveCompanyFinance`: active membership plus `COMPANY_UPDATE`.
 
-Row-level security on `business.*` lets an active company member select, and lets the backend app role write. Policies are in [V027](../../frds/migrations/business/V027__rls_business.sql), with a later policy on `operating_event` in V094. The API still checks membership in SQL. RLS is not a substitute for those checks.
+`leaveCompany` / `transferCompanyOwnership` lock company + ACTIVE memberships (`FOR UPDATE`). Leave also marks related company-moment participants `LEFT`.
+
+Row-level security on `business.*` lets an active company member select, and lets the backend app role write. Policies are in [V027](../../frds/migrations/business/V027__rls_business.sql), with company-less SELECT alignment in [V102](../../frds/migrations/business/V102__business_authz_isolation.sql). The API still checks membership in SQL. RLS is not a substitute for those checks.
 
 ## Modules
 

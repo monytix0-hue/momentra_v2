@@ -41,77 +41,18 @@ export const MARKETING_BUDGET_CATEGORIES = [
   'OTHER',
 ] as const;
 
-/** Corrections BS-03 — marketing KPI selector (18 primary metrics). */
-export const MARKETING_KPI_METRICS = [
-  'LEADS',
-  'QUALIFIED_LEADS',
-  'ENQUIRIES',
-  'REACH',
-  'IMPRESSIONS',
-  'ENGAGEMENTS',
-  'ENGAGEMENT_RATE',
-  'CLICKS',
-  'CTR',
-  'WEBSITE_VISITS',
-  'CONVERSIONS',
-  'CONVERSION_RATE',
-  'ORDERS',
-  'ATTRIBUTED_SALES',
-  'ROAS',
-  'REGISTRATIONS',
-  'ATTENDANCE',
-  'CUSTOM',
-] as const;
-
-/**
- * Full accepted metric vocabulary for marketing moments.
- * Legacy aliases (`REVENUE`, `ENGAGEMENT`, `CUSTOM_COUNT`) remain readable so older
- * setups keep projecting; new pickers offer MARKETING_KPI_METRICS (+ CLIENT_BILLING).
- */
 export const MARKETING_METRICS = [
-  ...MARKETING_KPI_METRICS,
-  'CLIENT_BILLING',
+  'LEADS',
+  'CONVERSIONS',
   'REVENUE',
+  'ORDERS',
+  'REACH',
   'ENGAGEMENT',
   'CUSTOM_COUNT',
+  'CLIENT_BILLING',
 ] as const;
 
-const COUNT_METRICS = new Set([
-  'LEADS',
-  'QUALIFIED_LEADS',
-  'ENQUIRIES',
-  'REACH',
-  'IMPRESSIONS',
-  'ENGAGEMENTS',
-  'ENGAGEMENT',
-  'CLICKS',
-  'WEBSITE_VISITS',
-  'CONVERSIONS',
-  'ORDERS',
-  'REGISTRATIONS',
-  'ATTENDANCE',
-  'CUSTOM',
-  'CUSTOM_COUNT',
-]);
-
-const CURRENCY_METRICS = new Set(['ATTRIBUTED_SALES', 'REVENUE', 'CLIENT_BILLING']);
-const RATE_METRICS = new Set(['ENGAGEMENT_RATE', 'CTR', 'CONVERSION_RATE', 'ROAS']);
-
-/** Normalize legacy marketing metric codes onto the BS-03 vocabulary. */
-export function normalizeMarketingMetric(metric: string | null | undefined): string {
-  const code = String(metric ?? '').toUpperCase();
-  if (code === 'REVENUE') return 'ATTRIBUTED_SALES';
-  if (code === 'ENGAGEMENT') return 'ENGAGEMENTS';
-  if (code === 'CUSTOM_COUNT') return 'CUSTOM';
-  return code;
-}
-
-export function marketingMetricUnit(metric: string | null | undefined): string {
-  const code = normalizeMarketingMetric(metric);
-  if (CURRENCY_METRICS.has(code)) return 'currency';
-  if (RATE_METRICS.has(code)) return code === 'ROAS' ? 'ratio' : 'percentage';
-  return 'count';
-}
+const COUNT_METRICS = new Set(['LEADS', 'CONVERSIONS', 'ORDERS', 'REACH', 'ENGAGEMENT', 'CUSTOM_COUNT']);
 
 export function isMarketingSubtype(subtype: string | null | undefined): boolean {
   const code = String(subtype ?? '').toUpperCase();
@@ -146,10 +87,6 @@ export interface MarketingFacts {
   effectiveFrom?: string | null;
   evidenceUrl?: string | null;
   idempotencyKey?: string | null;
-  /** Assigned activity owner (display name). Distinct from vendor/counterparty. */
-  ownerName?: string | null;
-  /** ISSUE severity: LOW | MEDIUM | HIGH. HIGH marks a blocking deliverable (ATT-10). */
-  issueSeverity?: 'LOW' | 'MEDIUM' | 'HIGH' | null;
 }
 
 export interface MarketingEvent {
@@ -243,15 +180,6 @@ export function parseMarketingFacts(raw: unknown, metric: string | null): Market
     effectiveFrom: rec.effectiveFrom == null ? null : String(rec.effectiveFrom).slice(0, 10),
     evidenceUrl: rec.evidenceUrl == null || rec.evidenceUrl === '' ? null : String(rec.evidenceUrl),
     idempotencyKey: rec.idempotencyKey == null || rec.idempotencyKey === '' ? null : String(rec.idempotencyKey),
-    ownerName: rec.ownerName == null || rec.ownerName === '' ? null : String(rec.ownerName).trim(),
-    issueSeverity:
-      String(rec.issueSeverity ?? '').toUpperCase() === 'HIGH'
-        ? 'HIGH'
-        : String(rec.issueSeverity ?? '').toUpperCase() === 'MEDIUM'
-          ? 'MEDIUM'
-          : String(rec.issueSeverity ?? '').toUpperCase() === 'LOW'
-            ? 'LOW'
-            : null,
   };
 }
 
@@ -274,14 +202,8 @@ function metricOf(row: MarketingEvent): string {
 }
 
 function measure(row: MarketingEvent): number {
-  const metric = normalizeMarketingMetric(metricOf(row));
-  if (
-    COUNT_METRICS.has(metric) ||
-    (row.quantity != null &&
-      row.quantity !== '' &&
-      !CURRENCY_METRICS.has(metric) &&
-      !RATE_METRICS.has(metric))
-  ) {
+  const metric = metricOf(row);
+  if (COUNT_METRICS.has(metric) || (row.quantity != null && row.quantity !== '' && metric !== 'REVENUE' && metric !== 'CLIENT_BILLING')) {
     return num(row.quantity ?? row.amount);
   }
   return num(row.amount);
@@ -355,15 +277,14 @@ export function observationDelta(prior: MarketingEvent[], row: MarketingEvent): 
 
 /** Compatible observations only. Empty coverage is N/A, never a fabricated zero result. */
 export function marketingProgress(events: MarketingEvent[], targetMetric: string): { progress: number; coverage: string } {
-  const metric = normalizeMarketingMetric(targetMetric);
+  const metric = targetMetric.toUpperCase();
   const rows = events.filter((row) => {
     if (!effective(row)) return false;
     if (row.eventType !== 'RESULT' && row.eventType !== 'PROGRESS') return false;
     if (!measuredProgress(row)) return false;
-    const code = normalizeMarketingMetric(metricOf(row));
-    // Legacy REVENUE / CLIENT_BILLING accepted any non-lead observation; keep that for attributed sales.
-    if (metric === 'ATTRIBUTED_SALES' || metric === 'CLIENT_BILLING') {
-      return !COUNT_METRICS.has(code) && !RATE_METRICS.has(code);
+    const code = metricOf(row);
+    if (metric === 'REVENUE' || metric === 'CLIENT_BILLING') {
+      return code !== 'LEADS' && code !== 'CONVERSIONS';
     }
     return code === metric;
   });
@@ -377,7 +298,7 @@ export function marketingProgress(events: MarketingEvent[], targetMetric: string
   }
   const groups = new Map<string, MarketingEvent[]>();
   for (const row of rows) {
-    const key = `${normalizeMarketingMetric(metricOf(row))}|${(row.unit ?? '').trim().toLowerCase()}|${row.channelName ?? ''}`;
+    const key = `${metricOf(row)}|${(row.unit ?? '').trim().toLowerCase()}|${row.channelName ?? ''}`;
     groups.set(key, [...(groups.get(key) ?? []), row]);
   }
   let total = 0;
@@ -487,10 +408,7 @@ function currentActivityStatus(row: MarketingEvent, events: MarketingEvent[]): M
   return latest ?? factsOf(row).activityStatus;
 }
 
-/**
- * Needs Attention ATT-01…ATT-12 aligned to Marketing Campaigns v5.1.
- * ATT-14 is a client-only extension (client report cadence) outside the 12-rule table.
- */
+/** ATT-01–ATT-09 from the v3 Needs Attention contract. ATT-10 and ATT-11 keep their shipped meanings. */
 export function marketingAttention(args: {
   events: MarketingEvent[];
   subtype: string;
@@ -535,29 +453,8 @@ export function marketingAttention(args: {
   }> = [];
   const client = args.subtype === 'CLIENT_CAMPAIGN';
   for (const row of args.events) {
-    // ATT-10 — Issue flagged blocking and unresolved (v5.1).
-    if (row.eventType === 'ISSUE' && effective(row)) {
-      const issueStatus = factsOf(row).activityStatus;
-      if (!activityClosed(issueStatus)) {
-        const blocking = factsOf(row).issueSeverity === 'HIGH' || String(row.title).toLowerCase().includes('block');
-        if (blocking) {
-          cards.push({
-            id: `issue-block-${row.operatingEventId}`,
-            title: `Blocked deliverable · ${row.title}`,
-            kind: 'ATT-10',
-            severity: 'HIGH',
-            amount: null,
-            dueAt: day(row.dueAt) || null,
-            counterpartyName: row.counterpartyName ?? null,
-            sourceEventId: row.operatingEventId,
-            cta: 'activity',
-          });
-        }
-      }
-    }
     const status = currentActivityStatus(row, args.events);
     if (row.eventType !== 'ACTIVITY' || !effective(row) || activityClosed(status)) continue;
-    // Blocked activity is also a blocked critical deliverable (ATT-10).
     if (status === 'BLOCKED') {
       cards.push({
         id: `blocked-${row.operatingEventId}`,
@@ -571,12 +468,11 @@ export function marketingAttention(args: {
         cta: 'activity',
       });
     }
-    // Client report cadence reminder — not v5.1 ATT-11 (that ID is result evidence).
     if (client && row.title.toLowerCase().startsWith('client report') && !activityClosed(status)) {
       cards.push({
         id: `report-${row.operatingEventId}`,
         title: `Client report due · ${row.title}`,
-        kind: 'ATT-14',
+        kind: 'ATT-11',
         severity: 'MEDIUM',
         amount: null,
         dueAt: day(row.dueAt) || null,
@@ -613,9 +509,7 @@ export function marketingAttention(args: {
         cta: 'activity',
       });
     }
-    // ATT-09 — Unassigned activity: due-dated open work with no ownerName.
-    const owner = (factsOf(row).ownerName ?? '').trim();
-    if (!owner) {
+    if (!row.counterpartyName) {
       cards.push({
         id: `owner-${row.operatingEventId}`,
         title: 'Assign an owner',
@@ -744,7 +638,6 @@ export function marketingAttention(args: {
       });
     }
   }
-  // ATT-11 — Result evidence incomplete (v5.1).
   for (const row of args.events) {
     if (row.eventType !== 'RESULT' || !effective(row)) continue;
     const facts = factsOf(row);
@@ -752,7 +645,7 @@ export function marketingAttention(args: {
     cards.push({
       id: `evidence-${row.operatingEventId}`,
       title: `Result evidence · ${row.title}`,
-      kind: 'ATT-11',
+      kind: 'ATT-13',
       severity: 'MEDIUM',
       amount: null,
       dueAt: null,

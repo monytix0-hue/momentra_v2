@@ -24,6 +24,87 @@ private enum ManageMomentTokens {
     static let border = Color(hex: "#1E293B")
 }
 
+private struct ManageMomentGlassChromeKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var manageMomentGlassChrome: Bool {
+        get { self[ManageMomentGlassChromeKey.self] }
+        set { self[ManageMomentGlassChromeKey.self] = newValue }
+    }
+}
+
+
+private struct ManageMomentSubsheetChrome: ViewModifier {
+    let isBusiness: Bool
+    let detents: Set<PresentationDetent>
+
+    func body(content: Content) -> some View {
+        if isBusiness {
+            content
+                .businessGlassBottomSheet(detents: detents)
+                .preferredColorScheme(.dark)
+        } else {
+            content
+                .presentationDetents(detents)
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(20)
+                .preferredColorScheme(.dark)
+        }
+    }
+}
+
+/// Nested Manage subsheet surface: material + tint when Business, opaque otherwise.
+private struct ManageMomentGlassSurface: ViewModifier {
+    @Environment(\.manageMomentGlassChrome) private var manageMomentGlassChrome
+
+    func body(content: Content) -> some View {
+        if manageMomentGlassChrome {
+            BusinessGlassSheetPanel { content }
+        } else {
+            content.background(ManageMomentTokens.sheetBg.ignoresSafeArea())
+        }
+    }
+}
+
+/// Main Manage panel: frost glass for Business, solid #161B26 otherwise.
+private struct ManageMainPanelChrome: ViewModifier {
+    let isBusiness: Bool
+
+    private var shape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: BusinessAppStateTokens.cardRadius,
+            topTrailingRadius: BusinessAppStateTokens.cardRadius
+        )
+    }
+
+    func body(content: Content) -> some View {
+        if isBusiness {
+            content
+                .background {
+                    ZStack {
+                        shape.fill(.ultraThinMaterial)
+                        shape.fill(Color.white.opacity(0.06))
+                        shape.fill(BusinessAppStateTokens.glassCardFill.opacity(0.76))
+                    }
+                }
+                .overlay {
+                    shape.stroke(
+                        BusinessAppStateTokens.glassCardStroke,
+                        lineWidth: BusinessAppStateTokens.glassCardStrokeWidth
+                    )
+                }
+                .clipShape(shape)
+        } else {
+            content
+                .background(ManageMomentTokens.sheetBg)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .shadow(color: .black.opacity(0.5), radius: 12, y: -4)
+        }
+    }
+}
+
 private struct LeaveCandidate: Identifiable {
     var id: String { userId }
     let userId: String
@@ -63,7 +144,8 @@ struct ManageMomentFlowSheet: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Color.black.opacity(0.5)
+            // Business: lighten custom scrim — system/cover dimming already applies; avoid double black wash.
+            Color.black.opacity(isBusiness ? 0.35 : 0.5)
                 .ignoresSafeArea()
                 .onTapGesture { isPresented = false }
 
@@ -269,9 +351,7 @@ struct ManageMomentFlowSheet: View {
                 Spacer().frame(height: 24)
             }
             .frame(maxWidth: .infinity)
-            .background(ManageMomentTokens.sheetBg)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .shadow(color: .black.opacity(0.5), radius: 12, y: -4)
+            .modifier(ManageMainPanelChrome(isBusiness: isBusiness))
         }
         .task {
             await loadLeaveContext()
@@ -281,79 +361,70 @@ struct ManageMomentFlowSheet: View {
             }
         }
         .sheet(item: $subsheet) { kind in
-            switch kind {
-            case .rename:
-                ManageMomentRenameSheet(
-                    momentId: momentId,
-                    momentTitle: momentTitle,
-                    isPresented: Binding(
-                        get: { subsheet != nil },
-                        set: { if !$0 { subsheet = nil } }
-                    ),
-                    onSaved: {
-                        subsheet = nil
-                        isPresented = false
-                        onLifecycleChanged()
-                    }
-                )
-                .presentationDetents([.height(320)])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(20)
-                .preferredColorScheme(.dark)
-            case .delete:
-                ManageMomentDeleteSheet(
-                    momentId: momentId,
-                    momentTitle: momentTitle,
-                    isPresented: Binding(
-                        get: { subsheet != nil },
-                        set: { if !$0 { subsheet = nil } }
-                    ),
-                    onDeleted: {
-                        subsheet = nil
-                        isPresented = false
-                        onLifecycleChanged()
-                    }
-                )
-                .presentationDetents([.height(360)])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(20)
-                .preferredColorScheme(.dark)
-            case .leaveTransfer:
-                LeaveTransferSheet(
-                    leaveNoun: leaveNoun,
-                    candidates: candidates,
-                    selectedUserId: $transferUserId,
-                    errorText: errorText,
-                    onContinue: {
-                        if transferUserId == nil {
-                            errorText = "Select a member to become the new \(domain == .business ? "admin" : "organizer")."
-                        } else {
-                            errorText = nil
-                            subsheet = .leaveConfirm
+            Group {
+                switch kind {
+                case .rename:
+                    ManageMomentRenameSheet(
+                        momentId: momentId,
+                        momentTitle: momentTitle,
+                        isPresented: Binding(
+                            get: { subsheet != nil },
+                            set: { if !$0 { subsheet = nil } }
+                        ),
+                        onSaved: {
+                            subsheet = nil
+                            isPresented = false
+                            onLifecycleChanged()
                         }
-                    },
-                    onClose: { subsheet = nil }
-                )
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(24)
-                .preferredColorScheme(.dark)
-            case .leaveConfirm:
-                LeaveConfirmSheet(
-                    momentTitle: momentTitle,
-                    leaveNoun: leaveNoun,
-                    busy: busy,
-                    errorText: errorText,
-                    onConfirm: { Task { await runLeave() } },
-                    onClose: {
-                        subsheet = viewerIsLeader ? .leaveTransfer : nil
-                    }
-                )
-                .presentationDetents([.height(420)])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(24)
-                .preferredColorScheme(.dark)
+                    )
+                    .modifier(ManageMomentSubsheetChrome(isBusiness: isBusiness, detents: [.height(320)]))
+                case .delete:
+                    ManageMomentDeleteSheet(
+                        momentId: momentId,
+                        momentTitle: momentTitle,
+                        isPresented: Binding(
+                            get: { subsheet != nil },
+                            set: { if !$0 { subsheet = nil } }
+                        ),
+                        onDeleted: {
+                            subsheet = nil
+                            isPresented = false
+                            onLifecycleChanged()
+                        }
+                    )
+                    .modifier(ManageMomentSubsheetChrome(isBusiness: isBusiness, detents: [.height(360)]))
+                case .leaveTransfer:
+                    LeaveTransferSheet(
+                        leaveNoun: leaveNoun,
+                        candidates: candidates,
+                        selectedUserId: $transferUserId,
+                        errorText: errorText,
+                        onContinue: {
+                            if transferUserId == nil {
+                                errorText = "Select a member to become the new \(domain == .business ? "admin" : "organizer")."
+                            } else {
+                                errorText = nil
+                                subsheet = .leaveConfirm
+                            }
+                        },
+                        onClose: { subsheet = nil }
+                    )
+                    .modifier(ManageMomentSubsheetChrome(isBusiness: isBusiness, detents: [.medium, .large]))
+                case .leaveConfirm:
+                    LeaveConfirmSheet(
+                        momentTitle: momentTitle,
+                        leaveNoun: leaveNoun,
+                        busy: busy,
+                        errorText: errorText,
+                        onConfirm: { Task { await runLeave() } },
+                        onClose: {
+                            subsheet = viewerIsLeader ? .leaveTransfer : nil
+                        }
+                    )
+                    .modifier(ManageMomentSubsheetChrome(isBusiness: isBusiness, detents: [.height(420)]))
+                }
             }
+            .environment(\.manageMomentGlassChrome, isBusiness)
         }
         .confirmationDialog(isBusiness ? "Pause this business?" : "Pause rhythm?", isPresented: $confirmPause, titleVisibility: .visible) {
             Button("Pause", role: .destructive) {
@@ -647,7 +718,7 @@ private struct LeaveTransferSheet: View {
                 .padding(.vertical, 8)
         }
         .padding(16)
-        .background(ManageMomentTokens.sheetBg.ignoresSafeArea())
+        .modifier(ManageMomentGlassSurface())
     }
 }
 
@@ -743,7 +814,7 @@ private struct LeaveConfirmSheet: View {
             Spacer(minLength: 0)
         }
         .padding(16)
-        .background(ManageMomentTokens.sheetBg.ignoresSafeArea())
+        .modifier(ManageMomentGlassSurface())
     }
 }
 
@@ -827,7 +898,7 @@ struct ManageMomentRenameSheet: View {
             Spacer(minLength: 0)
         }
         .padding(16)
-        .background(ManageMomentTokens.sheetBg.ignoresSafeArea())
+        .modifier(ManageMomentGlassSurface())
         .onAppear { name = momentTitle }
     }
 
@@ -926,7 +997,7 @@ struct ManageMomentDeleteSheet: View {
             Spacer(minLength: 0)
         }
         .padding(16)
-        .background(ManageMomentTokens.sheetBg.ignoresSafeArea())
+        .modifier(ManageMomentGlassSurface())
     }
 
     private func delete() async {

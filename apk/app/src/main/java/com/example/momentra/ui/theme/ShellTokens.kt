@@ -9,8 +9,8 @@ object ShellTokens {
     val TopBarBackground = Color(0xFF0C0F15)
     val ContextSelectedPersonal = Color(0xFF7C5CFC)
     val ContextSelectedGroup = Color(0xFFE8621A)
-    /** Business context switcher — DST/TRD vertical accent base (`#EA580C`). */
-    val ContextSelectedBusiness = Color(0xFFEA580C)
+    /** Business context switcher — Obsidian emerald chrome (`#10B981`). */
+    val ContextSelectedBusiness = Color(0xFF10B981)
     val ContextSelectedCircle = Color(0xFFFC6A8B)
     val ContextUnselected = Color(0xFFC9C4D9)
     val SurfaceContent = Color(0xFF14121B)

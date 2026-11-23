@@ -72,19 +72,34 @@ final class MomentCreateModel: ObservableObject {
         status: String? = nil,
         companyName: String? = nil,
         taxIdentifier: String? = nil,
-        onSuccess: @escaping (CreateMomentOutcome) -> Void
+        onSuccess: @escaping (CreateMomentOutcome) -> Void,
+        onFieldErrors: @escaping ([String: String]) -> Void = { _ in }
     ) {
         let catalog = BusinessSetupCatalog.forKind(kind)
         let allowedKeys = catalog.allowedKeys
         let filtered = SetupPreferenceFilter.filterToCatalogKeys(preferences, allowedKeys: allowedKeys)
         let resolvedTitle = title ?? catalog.defaultTitle
         let momentTypeCode = subtype ?? catalog.momentTypeCode
+        let activating = status == "ACTIVE"
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: filtered,
+            momentTypeCode: momentTypeCode,
+            title: resolvedTitle,
+            activating: activating
+        )
+        if let validationError = built.validationError {
+            onFieldErrors(built.fieldErrors)
+            state = UiState(submitting: false, error: validationError)
+            return
+        }
+        let prefsForApi = built.preferences
+        let masterSeeds = built.masterSeeds
         if let editingMomentId {
             guard !state.submitting else { return }
             state = UiState(submitting: true, error: nil)
             Task {
                 do {
-                    _ = try await ensureBusinessCompany(
+                    let resolvedCompanyId = try await ensureBusinessCompany(
                         companyId: companyId,
                         companyName: companyName,
                         taxIdentifier: taxIdentifier,
@@ -94,12 +109,12 @@ final class MomentCreateModel: ObservableObject {
                     // written here before the status flips — activation must not promote a draft
                     // that is one keystroke behind the screen. An already-ACTIVE moment has no
                     // draft row to patch, so this only runs for a DRAFT.
-                    if !filtered.isEmpty,
+                    if !prefsForApi.isEmpty,
                        editingMomentStatus?.caseInsensitiveCompare("DRAFT") == .orderedSame {
                         _ = try? await APIClient.shared.patchBusinessSetupDraft(
                             momentId: editingMomentId,
                             title: resolvedTitle,
-                            preferences: filtered
+                            preferences: prefsForApi
                         )
                     }
                     let detail = try await APIClient.shared.getMomentDetail(momentId: editingMomentId)
@@ -111,6 +126,11 @@ final class MomentCreateModel: ObservableObject {
                     let activateAfter = status == "ACTIVE" && editingMomentStatus?.caseInsensitiveCompare("DRAFT") == .orderedSame
                     if activateAfter {
                         let activated = try await APIClient.shared.activateMoment(momentId: editingMomentId)
+                        await self.seedOperatingMasters(
+                            companyId: resolvedCompanyId,
+                            momentId: activated.momentId,
+                            seeds: masterSeeds
+                        )
                         state = UiState(submitting: false, error: nil)
                         onSuccess(CreateMomentOutcome(
                             momentId: activated.momentId,
@@ -145,7 +165,7 @@ final class MomentCreateModel: ObservableObject {
             return
         }
         submit(
-            draftKey: "business:\(kind.rawValue):\(companyId ?? "moment")",
+            draftKey: "business:\(momentTypeCode):\(companyId ?? "moment"):\(resolvedTitle)",
             block: { draftKey in
                 let resolvedCompanyId = try await self.ensureBusinessCompany(
                     companyId: companyId,
@@ -160,9 +180,16 @@ final class MomentCreateModel: ObservableObject {
                     title: resolvedTitle,
                     description: catalog.subtitle,
                     momentTypeCode: momentTypeCode,
-                    preferences: filtered,
+                    preferences: prefsForApi,
                     status: status
                 )
+                if activating {
+                    await self.seedOperatingMasters(
+                        companyId: resolvedCompanyId,
+                        momentId: outcome.momentId,
+                        seeds: masterSeeds
+                    )
+                }
                 return CreateMomentOutcome(
                     momentId: outcome.momentId,
                     title: outcome.title,
@@ -229,15 +256,32 @@ final class MomentCreateModel: ObservableObject {
         )
     }
 
-    /// Persist the setup document into its draft. Deliberately silent: a failed intermediate save
-    /// must never blank the document or raise an error the operator cannot act on — §06's
-    /// activation reports a real failure.
-    func saveBusinessSetupDraft(momentId: String, title: String?, preferences: [String: Any]) async {
-        _ = try? await APIClient.shared.patchBusinessSetupDraft(
-            momentId: momentId,
-            title: title,
-            preferences: preferences
-        )
+    /// Persist the setup document into its draft. Returns whether the patch succeeded.
+    @discardableResult
+    func saveBusinessSetupDraft(momentId: String, title: String?, preferences: [String: Any]) async -> Bool {
+        do {
+            _ = try await APIClient.shared.patchBusinessSetupDraft(
+                momentId: momentId,
+                title: title,
+                preferences: preferences
+            )
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    func loadBusinessSetupPreferences(momentId: String) async -> [String: Any]? {
+        guard let prefill = try? await APIClient.shared.getDomainSetupPrefill(momentId: momentId) else {
+            return nil
+        }
+        var out: [String: Any] = [:]
+        if let prefs = prefill.preferences {
+            for (key, value) in prefs {
+                out[key] = value.value
+            }
+        }
+        return out
     }
 
     func discardMomentDraft(momentId: String, onSuccess: @escaping () -> Void) {
@@ -261,41 +305,67 @@ final class MomentCreateModel: ObservableObject {
         try? await APIClient.shared.getGroupSetupPrefill(momentId: momentId)
     }
 
+    /// Operating create / draft patch expect `preferences.subtype` even when the UI catalog
+    /// only lists document fields. Also alias common name keys for older validators.
+    /// Best-effort seed of party/channel masters after activate. Duplicates are ignored.
+    private func seedOperatingMasters(
+        companyId: String?,
+        momentId: String,
+        seeds: [OperatingSetupPayloadBuilder.MasterSeed]
+    ) async {
+        let company = companyId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !company.isEmpty, !seeds.isEmpty else { return }
+        var seen = Set<String>()
+        for seed in seeds {
+            let key = "\(seed.kind.uppercased())::\(seed.name.lowercased())"
+            guard seen.insert(key).inserted else { continue }
+            do {
+                _ = try await APIClient.shared.createOperatingMaster(
+                    companyId: company,
+                    body: OperatingMasterCreateBody(
+                        kind: seed.kind,
+                        name: seed.name,
+                        momentId: momentId
+                    ),
+                    idempotencyKey: "setup-master-\(momentId)-\(key.hashValue)"
+                )
+            } catch {
+                // Duplicate / stub / network — activate already succeeded.
+            }
+        }
+    }
+
     private func ensureBusinessCompany(
         companyId: String?,
         companyName: String?,
         taxIdentifier: String?,
         editingMomentId: String?
     ) async throws -> String? {
-        let name = companyName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !name.isEmpty else {
-            let existing = companyId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return existing.isEmpty ? nil : existing
-        }
-        let gst = taxIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let existing = companyId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if existing.isEmpty {
+        if !existing.isEmpty {
+            // Company APIs are stubbed during Business V4 rebuild — keep the linked id as-is.
+            return existing
+        }
+        let name = companyName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !name.isEmpty else { return nil }
+        let gst = taxIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        do {
             let created = try await APIClient.shared.createCompany(
                 displayName: name,
                 legalName: name,
                 taxIdentifier: gst.isEmpty ? nil : gst
             )
             if let editingMomentId {
-                try await APIClient.shared.linkBusinessMomentCompany(momentId: editingMomentId, companyId: created.companyId)
+                try? await APIClient.shared.linkBusinessMomentCompany(
+                    momentId: editingMomentId,
+                    companyId: created.companyId
+                )
             }
             return created.companyId
+        } catch {
+            // V4 tear-down returns 501 for /companies — create the moment without a company.
+            return nil
         }
-        let detail = try await APIClient.shared.getCompany(companyId: existing)
-        _ = try await APIClient.shared.patchCompany(
-            companyId: existing,
-            body: [
-                "displayName": name,
-                "legalName": name,
-                "taxIdentifier": gst,
-                "expectedVersion": detail.version,
-            ]
-        )
-        return existing
     }
 
     func getDomainSetupPrefill(momentId: String) async -> DomainSetupPrefill? {

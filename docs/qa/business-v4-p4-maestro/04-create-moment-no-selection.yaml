@@ -1,0 +1,39 @@
+# Process that reads this file: Maestro CLI (`maestro test`).
+# Effect of the change: asserts Create New Business Moment works with no selected Moment
+# (guided setup path), separate from CREATE-tab Quick Add.
+# No secrets are written in plain text.
+# User instruction: "No selected Moment is required to create a new Moment."
+# User instruction: "Separate Create New Business Moment from Add Operating Event."
+# Process: Maestro CLI. Effect: create Moment without selection. No secrets.
+# User: "Create a new Moment through guided setup."
+appId: resolvingpoint.momentra
+---
+- launchApp
+- tapOn: "Business"
+- extendedWaitUntil:
+    visible:
+      anyOf:
+        - "Create"
+        - "Pulse"
+        - "Business"
+    timeout: 45000
+- tapOn:
+    text: "New Moment"
+    optional: true
+- tapOn:
+    text: "Create Moment"
+    optional: true
+- tapOn:
+    text: "+"
+    optional: true
+- extendedWaitUntil:
+    visible:
+      anyOf:
+        - "Trading"
+        - "Marketing"
+        - "Retail"
+        - "Manufacturing"
+        - "Choose"
+        - "Activate"
+        - "Continue"
+    timeout: 60000

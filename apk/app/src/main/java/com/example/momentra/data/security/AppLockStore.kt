@@ -113,6 +113,12 @@ class AppLockStore(context: Context) {
         prefs.edit().putBoolean(KEY_BIOMETRICS, enabled).apply()
     }
 
+    fun secureScreenEnabled(): Boolean = prefs.getBoolean(KEY_SECURE_SCREEN, false)
+
+    fun setSecureScreenEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SECURE_SCREEN, enabled).apply()
+    }
+
     fun autoLockSeconds(): Int = prefs.getInt(KEY_AUTO_LOCK_SEC, 60)
 
     fun setAutoLockSeconds(seconds: Int) {
@@ -164,6 +170,7 @@ class AppLockStore(context: Context) {
         private const val KEY_SALT = "pin_salt"
         private const val KEY_BIOMETRICS = "biometrics_enabled"
         private const val KEY_AUTO_LOCK_SEC = "auto_lock_sec"
+        private const val KEY_SECURE_SCREEN = "secure_screen_enabled"
     }
 }
 

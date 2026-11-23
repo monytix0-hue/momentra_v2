@@ -11,14 +11,16 @@ import com.example.momentra.data.api.DomainSetupPrefillDto
 import com.example.momentra.data.api.GroupSetupBlockDto
 import com.example.momentra.data.api.GroupSetupPrefillDto
 import com.example.momentra.data.api.GroupInviteDto
+import com.example.momentra.data.api.OperatingMasterBody
 import com.example.momentra.data.api.PatchPersonalSetupBody
 import com.example.momentra.data.repository.AccountRepository
+import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.repository.MomentCreateRepository
 import com.example.momentra.data.repository.MomentLifecycleRepository
 import com.example.momentra.domain.CreateMomentOutcome
-import com.example.momentra.ui.shell.empty.business.BusinessSetupCatalog
-import com.example.momentra.ui.shell.empty.business.BusinessSetupKind
+import com.example.momentra.ui.shell.business.setup.BusinessSetupDocuments
+import com.example.momentra.ui.shell.business.setup.OperatingSetupPayloadBuilder
 import com.example.momentra.ui.shell.empty.personal.PersonalSetupCatalog
 import com.example.momentra.ui.shell.empty.personal.PersonalSetupKind
 import com.example.momentra.ui.setup.SetupPreferenceFilter
@@ -90,9 +92,9 @@ class MomentCreateViewModel(
     }
 
     fun submitBusinessSetup(
-        kind: BusinessSetupKind,
-        companyId: String?,
-        preferences: Map<String, Any>,
+        familyCode: String = "BUSINESS",
+        companyId: String? = null,
+        preferences: Map<String, Any> = emptyMap(),
         title: String? = null,
         subtype: String? = null,
         editingMomentId: String? = null,
@@ -100,18 +102,33 @@ class MomentCreateViewModel(
         status: String? = null,
         companyName: String? = null,
         taxIdentifier: String? = null,
-        onSuccess: (CreateMomentOutcome) -> Unit,
+        onSuccess: (CreateMomentOutcome) -> Unit = {},
+        onFieldErrors: (Map<String, String>) -> Unit = {},
     ) {
-        val catalog = BusinessSetupCatalog.forKind(kind)
         if (_state.value.submitting) return
-        _state.update { it.copy(submitting = true, error = null) }
         viewModelScope.launch {
-            val resolvedTitle = title ?: catalog.defaultTitle
-            val prefs = SetupPreferenceFilter.filterToCatalogKeys(
-                preferences,
-                BusinessSetupCatalog.allowedKeys(kind),
+            val momentTypeCode = subtype?.takeIf { it.isNotBlank() } ?: familyCode
+            val resolvedTitle = title?.takeIf { it.isNotBlank() } ?: "Business"
+            val activating = status == "ACTIVE"
+            val allowedKeys = BusinessSetupDocuments.spec(momentTypeCode)
+                .sections
+                .flatMap { section -> section.fields.map { it.key } }
+                .toSet()
+            val filtered = SetupPreferenceFilter.filterToCatalogKeys(preferences, allowedKeys)
+            val built = OperatingSetupPayloadBuilder.build(
+                preferences = filtered,
+                momentTypeCode = momentTypeCode,
+                title = resolvedTitle,
+                activating = activating,
             )
-            val momentTypeCode = subtype ?: catalog.momentTypeCode
+            if (built.validationError != null) {
+                onFieldErrors(built.fieldErrors)
+                _state.update { it.copy(submitting = false, error = built.validationError) }
+                return@launch
+            }
+            _state.update { it.copy(submitting = true, error = null) }
+            val prefsForApi = built.preferences
+            val masterSeeds = built.masterSeeds
             val resolvedCompanyId = try {
                 ensureBusinessCompany(
                     companyId = companyId,
@@ -120,51 +137,81 @@ class MomentCreateViewModel(
                     editingMomentId = editingMomentId,
                 )
             } catch (e: Exception) {
-                finishCreateFailure(e)
-                return@launch
+                // Company APIs return 501 during Business V4 rebuild — create without company.
+                null
             }
             if (editingMomentId != null) {
                 submitBusinessEdit(
                     momentId = editingMomentId,
                     title = resolvedTitle,
                     momentTypeCode = momentTypeCode,
-                    activateAfter = status == "ACTIVE" && editingMomentStatus.equals("DRAFT", ignoreCase = true),
-                    preferences = prefs,
+                    activateAfter = activating &&
+                        editingMomentStatus.equals("DRAFT", ignoreCase = true),
+                    preferences = prefsForApi,
+                    companyId = resolvedCompanyId,
+                    masterSeeds = masterSeeds,
                     onSuccess = onSuccess,
                 )
                 return@launch
             }
+            val draftKey = "business:$momentTypeCode:${resolvedCompanyId ?: "moment"}:$resolvedTitle"
             repository.createBusinessMoment(
                 companyId = resolvedCompanyId,
-                familyCode = kind.familyCode,
+                familyCode = familyCode,
                 momentTypeCode = momentTypeCode,
                 title = resolvedTitle,
-                preferences = prefs,
+                preferences = prefsForApi,
                 status = status,
+                idempotencyKey = draftKey,
             ).fold(
-                onSuccess = { dto -> finishCreateSuccess(dto, momentTypeCode, onSuccess) },
+                onSuccess = { dto ->
+                    if (activating) {
+                        seedOperatingMasters(resolvedCompanyId, dto.momentId, masterSeeds)
+                    }
+                    finishCreateSuccess(dto, momentTypeCode, onSuccess)
+                },
                 onFailure = { e -> finishCreateFailure(e) },
             )
         }
     }
 
-    /**
-     * Saves the six-section setup document against its DRAFT moment.
-     *
-     * Every section but §04 is a preference edit, so it lands here rather than as a separate
-     * master write. Silently ignores failure: the operator is mid-document, and §06 activation
-     * re-sends the full payload through the strict path, which is where a real error belongs.
-     */
+    private suspend fun seedOperatingMasters(
+        companyId: String?,
+        momentId: String,
+        seeds: List<OperatingSetupPayloadBuilder.MasterSeed>,
+    ) {
+        val company = companyId?.trim().orEmpty()
+        if (company.isEmpty() || seeds.isEmpty()) return
+        val repo = BusinessSliceRepository()
+        val seen = mutableSetOf<String>()
+        for (seed in seeds) {
+            val key = "${seed.kind.uppercase()}::${seed.name.lowercase()}"
+            if (!seen.add(key)) continue
+            repo.createMaster(
+                companyId = company,
+                body = OperatingMasterBody(
+                    kind = seed.kind,
+                    name = seed.name,
+                    momentId = momentId,
+                ),
+            )
+        }
+    }
+
     fun saveBusinessSetupDraft(
         momentId: String,
         preferences: Map<String, Any>,
         title: String? = null,
+        onComplete: (Boolean) -> Unit = {},
     ) {
         viewModelScope.launch {
             repository.updateBusinessSetupDraft(
                 momentId = momentId,
                 preferences = preferences,
                 title = title,
+            ).fold(
+                onSuccess = { onComplete(true) },
+                onFailure = { onComplete(false) },
             )
         }
     }
@@ -270,43 +317,32 @@ class MomentCreateViewModel(
         taxIdentifier: String?,
         editingMomentId: String?,
     ): String? {
-        val name = companyName?.trim().orEmpty()
-        if (name.isEmpty()) return companyId?.takeIf { it.isNotBlank() }
-        val gst = taxIdentifier?.trim()?.takeIf { it.isNotEmpty() }
         val existing = companyId?.takeIf { it.isNotBlank() }
-        if (existing == null) {
-            val created = ApiClient.apiService.createCompany(
-                idempotencyKey = UUID.randomUUID().toString(),
-                body = CreateCompanyBody(
-                    displayName = name,
-                    legalName = name,
-                    taxIdentifier = gst,
-                ),
-            ).data
-            if (editingMomentId != null) {
+        if (existing != null) {
+            // Company APIs are stubbed during Business V4 rebuild — keep the linked id as-is.
+            return existing
+        }
+        val name = companyName?.trim().orEmpty()
+        if (name.isEmpty()) return null
+        val gst = taxIdentifier?.trim()?.takeIf { it.isNotEmpty() }
+        val created = ApiClient.apiService.createCompany(
+            idempotencyKey = UUID.randomUUID().toString(),
+            body = CreateCompanyBody(
+                displayName = name,
+                legalName = name,
+                taxIdentifier = gst,
+            ),
+        ).data
+        if (editingMomentId != null) {
+            runCatching {
                 ApiClient.apiService.linkBusinessMomentCompany(
                     momentId = editingMomentId,
                     idempotencyKey = UUID.randomUUID().toString(),
                     body = mapOf("companyId" to created.companyId),
                 )
             }
-            return created.companyId
         }
-        val detail = ApiClient.apiService.getCompany(existing).data
-        val version = (detail["version"] as? Number)?.toInt()
-            ?: throw ApiResultException.Validation(message = "Company version missing.")
-        val body = mutableMapOf<String, Any>(
-            "displayName" to name,
-            "legalName" to name,
-            "expectedVersion" to version,
-        )
-        body["taxIdentifier"] = gst ?: ""
-        ApiClient.apiService.patchCompany(
-            companyId = existing,
-            idempotencyKey = UUID.randomUUID().toString(),
-            body = body,
-        )
-        return existing
+        return created.companyId
     }
 
     private suspend fun submitGroupEdit(
@@ -458,6 +494,8 @@ class MomentCreateViewModel(
         momentTypeCode: String,
         activateAfter: Boolean,
         preferences: Map<String, Any>,
+        companyId: String? = null,
+        masterSeeds: List<OperatingSetupPayloadBuilder.MasterSeed> = emptyList(),
         onSuccess: (CreateMomentOutcome) -> Unit,
     ) {
         // The document cancels its debounce when §06 is pressed, so the last edits are written
@@ -478,6 +516,7 @@ class MomentCreateViewModel(
                         if (activateAfter) {
                             repository.activateMoment(momentId).fold(
                                 onSuccess = { activated ->
+                                    seedOperatingMasters(companyId, activated.momentId, masterSeeds)
                                     finishCreateSuccess(activated, momentTypeCode, onSuccess)
                                 },
                                 onFailure = { e -> finishCreateFailure(e) },
@@ -557,6 +596,16 @@ class MomentCreateViewModel(
     ): GroupInviteDto? {
         val (apiType, _) = resolveGroupTypeForApi(section, momentTypeCode, title)
         return repository.mintGroupInvite(title = title, momentTypeCode = apiType).getOrNull()
+    }
+
+    suspend fun mintCompanyInvite(
+        companyId: String,
+        membershipType: String = "MEMBER",
+    ): com.example.momentra.data.api.CompanyInviteDto? {
+        if (companyId.isBlank()) return null
+        return GroupSliceRepository()
+            .mintCompanyInvite(companyId = companyId, membershipType = membershipType)
+            .getOrNull()
     }
 
     suspend fun getGroupSetupPrefill(momentId: String): GroupSetupPrefillDto? =

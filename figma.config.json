@@ -1,0 +1,13 @@
+{
+  "codeConnect": {
+    "include": ["design/code-connect/**/*.figma.ts"],
+    "includes": ["design/code-connect/**/*.figma.ts"],
+    "exclude": ["**/node_modules/**", "**/.build/**"],
+    "parser": "swift",
+    "language": "swift",
+    "label": "Momentra iOS · SwiftUI",
+    "documentUrlSubstitutions": {
+      "<MOMENTRA>": "https://www.figma.com/design/rknfN9EikSCdqmqXogR29o/momentra"
+    }
+  }
+}

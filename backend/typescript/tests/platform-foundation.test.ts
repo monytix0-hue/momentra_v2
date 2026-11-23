@@ -341,6 +341,44 @@ describe('Phase 3 platform foundation', () => {
         assert.equal(allowed.allowed, true);
       });
     });
+
+    it('Business: OBSERVER cannot ISSUE_CREATE / VENDOR_MANAGE / BUSINESS_UPDATE_CREATE', async () => {
+      const observer = ctxFor(`biz-obs2-${randomUUID().slice(0, 8)}`);
+      const member = ctxFor(`biz-mem2-${randomUUID().slice(0, 8)}`);
+      await ensureUser(observer.userId, `${observer.userId}@phase3.local`);
+      await ensureUser(member.userId, `${member.userId}@phase3.local`);
+
+      const companyId = randomUUID();
+      await getPool().query(
+        `INSERT INTO business.company (company_id, legal_name, display_name, status, version, created_by_user_id)
+         VALUES ($1, 'Observer Ops Co', 'Observer Ops', 'ACTIVE', 1, $2)`,
+        [companyId, member.userId]
+      );
+      await getPool().query(
+        `INSERT INTO business.company_membership (company_id, user_id, membership_type, status)
+         VALUES ($1, $2, 'OBSERVER', 'ACTIVE'), ($1, $3, 'MEMBER', 'ACTIVE')`,
+        [companyId, observer.userId, member.userId]
+      );
+
+      const actions = ['ISSUE_CREATE', 'VENDOR_MANAGE', 'BUSINESS_UPDATE_CREATE'] as const;
+      await withTransaction(async (client) => {
+        for (const actionCode of actions) {
+          const denied = await authorize(client, observer, {
+            actionCode,
+            resourceType: 'COMPANY',
+            companyId,
+          });
+          assert.equal(denied.allowed, false, actionCode);
+
+          const allowed = await authorize(client, member, {
+            actionCode,
+            resourceType: 'COMPANY',
+            companyId,
+          });
+          assert.equal(allowed.allowed, true, actionCode);
+        }
+      });
+    });
   });
 
   describe('transaction + audit/event/outbox + idempotency', () => {

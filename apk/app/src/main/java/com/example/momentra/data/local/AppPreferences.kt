@@ -22,11 +22,22 @@ class AppPreferences(context: Context) {
         prefs.edit().putBoolean(KEY_CONSENT_GATE_SEEN, seen).apply()
     }
 
+    /** DPDP s.9: product gate is 18+. Legacy 13+ flag alone is insufficient. */
     fun isAgeGateAccepted(): Boolean =
-        prefs.getBoolean(KEY_AGE_GATE_ACCEPTED, false)
+        prefs.getBoolean(KEY_AGE_GATE_ACCEPTED_18, false)
 
     fun setAgeGateAccepted(accepted: Boolean) {
-        prefs.edit().putBoolean(KEY_AGE_GATE_ACCEPTED, accepted).apply()
+        prefs.edit()
+            .putBoolean(KEY_AGE_GATE_ACCEPTED_18, accepted)
+            .remove(KEY_AGE_GATE_ACCEPTED_LEGACY_13)
+            .apply()
+    }
+
+    fun clearAgeGateAccepted() {
+        prefs.edit()
+            .remove(KEY_AGE_GATE_ACCEPTED_18)
+            .remove(KEY_AGE_GATE_ACCEPTED_LEGACY_13)
+            .apply()
     }
 
     fun getOrCreateTelemetryAnonymousId(): String {
@@ -231,7 +242,8 @@ class AppPreferences(context: Context) {
         private const val PREFS_NAME = "momentra_app_prefs"
         private const val KEY_ONBOARDING_SEEN = "momentra_onboarding_seen"
         private const val KEY_CONSENT_GATE_SEEN = "momentra_consent_gate_seen"
-        private const val KEY_AGE_GATE_ACCEPTED = "momentra_age_gate_accepted_13plus"
+        private const val KEY_AGE_GATE_ACCEPTED_LEGACY_13 = "momentra_age_gate_accepted_13plus"
+        private const val KEY_AGE_GATE_ACCEPTED_18 = "momentra_age_gate_accepted_18plus"
         private const val KEY_TELEMETRY_ANON_ID = "telemetry_anonymous_id"
         private const val KEY_TELEMETRY_SESSION_ID = "telemetry_session_id"
         private const val KEY_PENDING_JOIN_CODE = "pending_join_code"

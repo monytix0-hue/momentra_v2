@@ -1,8 +1,6 @@
 package com.example.momentra.ui.shell.momentswitcher
 
 import com.example.momentra.domain.MomentSummary
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateVertical
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -191,18 +189,12 @@ class MomentSwitcherSpecsTest {
 
     @Test
     fun businessBucketsKeepTheVerticalAndUnifiedAccent() {
-        assertEquals(
-            BusinessAppStateVertical.Retail,
-            business.classify("RETAIL_STORE").vertical,
-        )
-        assertEquals(
-            BusinessAppStateVertical.Rst,
-            business.classify("RESTAURANT_FOOD").vertical,
-        )
+        assertEquals("retail", business.classify("RETAIL_STORE").vertical)
+        assertEquals("rst", business.classify("RESTAURANT_FOOD").vertical)
         business.buckets.forEach { bucket ->
             assertEquals(
                 "${bucket.id} must use the unified emerald accent",
-                BusinessAppStateAccent.Emerald,
+                MomentSwitcherTokens.Accent,
                 bucket.accent,
             )
         }

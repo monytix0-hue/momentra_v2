@@ -22,7 +22,6 @@ import {
   salesCoverage,
   serviceFlowSummary,
   stockPositions,
-  isConfirmedOrder,
   type OperatingContract,
 } from './operating-retail-contract';
 import {
@@ -45,12 +44,7 @@ import { accumulateGstPosition, type GstPosition } from './operating-gst';
 import { normalizeGstState, gstStateCodeOf } from './operating-gst-states';
 import { validateGstin } from './operating-gstin';
 import type { OperatingMasterRecord } from './operating-masters';
-import {
-  applyManufacturingBoardMetrics,
-  applyTradingBoardMetrics,
-  marketingPulseMetrics,
-  tradingPulseMetrics,
-} from './operating-board-metrics';
+import { applyTradingBoardMetrics, tradingPulseMetrics } from './operating-board-metrics';
 import {
   channelCoverage,
   isMarketingSubtype,
@@ -63,20 +57,7 @@ import {
   marketingProgress,
   marketingRoas,
   rollMarketingLedger,
-  MARKETING_KPI_METRICS,
   MARKETING_METRICS,
-  normalizeMarketingMetric,
-} from './operating-marketing';
-export {
-  defaultChannelsForSubtype,
-  UNIT_MASTER,
-  OPERATING_CHANNEL_DEFAULTS,
-} from './operating-channels';
-export {
-  MARKETING_KPI_METRICS,
-  MARKETING_METRICS,
-  normalizeMarketingMetric,
-  marketingMetricUnit,
 } from './operating-marketing';
 
 export const OPERATING_FAMILY_CODES = [
@@ -161,7 +142,7 @@ const QA = {
   COLLECTION: qa('COLLECTION', 'Add Collection', false, true, 'RECEIVABLE', true, true),
   BUDGET: qa('BUDGET', 'Revise Budget', false, false, 'NONE', true, true),
   TARGET: qa('TARGET', 'Revise Target', false, false, 'NONE', true, true),
-  UPDATE: qa('UPDATE', 'Team Update / Issue', false, false, 'NONE', false, false),
+  UPDATE: qa('UPDATE', 'Add Update', false, false, 'NONE', false, false),
   ISSUE: qa('ISSUE', 'Add Issue', false, false, 'NONE', false, false),
   APPROVAL: qa('APPROVAL', 'Request Approval', false, false, 'NONE', false, false),
   DELIVERABLE: qa('DELIVERABLE', 'Add Deliverable', false, false, 'NONE', false, false),
@@ -214,12 +195,8 @@ export interface OperatingFamily {
   subtypes: OperatingSubtype[];
 }
 
-/**
- * v5.1 AT-01 Quick Add surface: 8 shared + INVOICE/COLLECTION for Client (=10).
- * QA-09 is a single "Team Update / Issue" tile (`UPDATE`); ISSUE writes remain allowed
- * when UPDATE is permitted (see recordOperatingEvent).
- */
 const MARKETING_ADDS: QuickAddCode[] = [
+  // v5.1 AT-01: eight shared; ISSUE writes allowed when UPDATE is permitted (hub tile QA-09).
   'ACTIVITY', 'PROGRESS', 'SPEND', 'PAYMENT', 'REVISION', 'APPROVAL', 'UPDATE', 'RESULT',
 ];
 
@@ -236,7 +213,7 @@ export const OPERATING_FAMILIES: OperatingFamily[] = [
         label: 'Client Campaign',
         partyLabel: 'Client',
         quickAdds: [...MARKETING_ADDS, 'INVOICE', 'COLLECTION'],
-        targetMetrics: [...MARKETING_KPI_METRICS, 'CLIENT_BILLING'],
+        targetMetrics: [...MARKETING_METRICS],
         requiresChannel: false,
       },
       {
@@ -244,7 +221,7 @@ export const OPERATING_FAMILIES: OperatingFamily[] = [
         label: 'Own Business Campaign',
         partyLabel: 'Brand',
         quickAdds: [...MARKETING_ADDS],
-        targetMetrics: [...MARKETING_KPI_METRICS],
+        targetMetrics: MARKETING_METRICS.filter((metric) => metric !== 'CLIENT_BILLING'),
         requiresChannel: false,
       },
     ],
@@ -366,13 +343,7 @@ export function quickAddsForSubtype(subtype: string): QuickAddDef[] {
   const family = familyForSubtype(subtype);
   const sub = family?.subtypes.find((s) => s.code === subtype.toUpperCase());
   if (!sub) return [];
-  return sub.quickAdds.map((code) => {
-    const def = QA[code];
-    if (isMarketingSubtype(subtype) && code === 'UPDATE') {
-      return { ...def, label: 'Team Update / Issue' };
-    }
-    return def;
-  });
+  return sub.quickAdds.map((code) => QA[code]);
 }
 
 const FINANCE_VISIBLE = new Set<OperatingRole>(['OWNER_ADMIN', 'FINANCE', 'APPROVER']);
@@ -448,33 +419,447 @@ export interface OperatingPreferences {
   purchasePriceIncludesGst: string;
   gstEffectiveFrom: string;
   clientFee: string;
-  /** Client-approved media budget — commercial term; distinct from agency operating cost. */
+  /** Optional Figma client-approved media envelope (CLIENT_CAMPAIGN). */
   clientApprovedMediaBudget: string;
-  /** Agency operating budget — Client Campaign only; distinct from media spend. */
+  /** Optional Figma agency operating envelope (CLIENT_CAMPAIGN). */
   agencyOperatingBudget: string;
   offering: string;
-  /** Campaign purpose label (leads / sales / awareness / …). */
-  campaignPurpose: string;
   creativeApprovalRequired: string;
   reportingCadence: string;
   conversionNumerator: string;
   conversionDenominator: string;
   conversionDefinitionVersion: string;
   campaignStatus: string;
+  /** Job-order (MADE_TO_ORDER) setup policy — empty for other subtypes. */
+  quoteValidity: string;
+  specificationTemplate: string;
+  orderApproval: string;
+  jobOnConfirm: string;
+  productsBomNote: string;
+  planMonth: string;
+  /** COMPANY (default) = any active company member; RESTRICTED = grant/Moment membership required. */
+  momentAccess: 'COMPANY' | 'RESTRICTED';
 }
 
+const ROLE_LABEL_ALIASES: Record<string, OperatingRole> = {
+  owner: 'OWNER_ADMIN',
+  owners: 'OWNER_ADMIN',
+  admin: 'OWNER_ADMIN',
+  'owner / admin': 'OWNER_ADMIN',
+  'owner/admin': 'OWNER_ADMIN',
+  manager: 'OPERATIONS_LEAD',
+  'plant manager': 'OPERATIONS_LEAD',
+  'business manager': 'OPERATIONS_LEAD',
+  'operations lead': 'OPERATIONS_LEAD',
+  operations: 'OPERATIONS_LEAD',
+  'campaign lead': 'OPERATIONS_LEAD',
+  campaignlead: 'OPERATIONS_LEAD',
+  commercial: 'OPERATIONS_LEAD',
+  marketer: 'OPERATIONS_LEAD',
+  executive: 'OPERATIONS_LEAD',
+  delivery: 'OPERATIONS_LEAD',
+  'route lead': 'OPERATIONS_LEAD',
+  warehouse: 'OPERATIONS_LEAD',
+  'sales exec': 'OPERATIONS_LEAD',
+  'sales executive': 'OPERATIONS_LEAD',
+  cashier: 'TEAM_MEMBER',
+  floor: 'TEAM_MEMBER',
+  kitchen: 'TEAM_MEMBER',
+  waiter: 'TEAM_MEMBER',
+  service: 'TEAM_MEMBER',
+  specialist: 'TEAM_MEMBER',
+  stylist: 'TEAM_MEMBER',
+  therapist: 'TEAM_MEMBER',
+  'front desk': 'TEAM_MEMBER',
+  salesman: 'TEAM_MEMBER',
+  'sales rep': 'TEAM_MEMBER',
+  sales: 'TEAM_MEMBER',
+  supervisor: 'OPERATIONS_LEAD',
+  operator: 'TEAM_MEMBER',
+  estimator: 'CONTRIBUTOR',
+  'shop floor': 'TEAM_MEMBER',
+  accounts: 'FINANCE',
+  finance: 'FINANCE',
+  approver: 'APPROVER',
+  contributor: 'CONTRIBUTOR',
+  'team member': 'TEAM_MEMBER',
+  viewer: 'OBSERVER',
+  'viewer / auditor': 'OBSERVER',
+  observer: 'OBSERVER',
+  audit: 'OBSERVER',
+  auditor: 'OBSERVER',
+};
+
 function asRole(value: unknown): OperatingRole | undefined {
-  const code = String(value ?? '').toUpperCase() as OperatingRole;
-  return OPERATING_ROLES.some((r) => r.code === code) ? code : undefined;
+  const raw = String(value ?? '').trim();
+  if (!raw) return undefined;
+  const code = raw.toUpperCase().replace(/\s+/g, '_') as OperatingRole;
+  if (OPERATING_ROLES.some((r) => r.code === code)) return code;
+  const byLabel = OPERATING_ROLES.find((r) => r.label.toLowerCase() === raw.toLowerCase());
+  if (byLabel) return byLabel.code;
+  return ROLE_LABEL_ALIASES[raw.toLowerCase()];
 }
 
 function positiveAmount(value: unknown): string | undefined {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value.toFixed(4);
-  const raw = String(value ?? '').replace(/[₹,\s]/g, '');
+  const raw = String(value ?? '')
+    .replace(/^(₹|rs\.?|inr)\s*/i, '')
+    .replace(/[₹,\s]/g, '');
   if (!/^\d+(\.\d{1,4})?$/.test(raw)) return undefined;
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return undefined;
   return n.toFixed(4);
+}
+
+function firstNonEmpty(...values: unknown[]): string {
+  for (const value of values) {
+    const text = String(value ?? '').trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+function splitList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  const raw = String(value ?? '').trim();
+  if (!raw) return [];
+  return raw.split(/[|,]/).map((part) => part.trim()).filter(Boolean);
+}
+
+const MONTH_INDEX: Record<string, number> = {
+  jan: 0, january: 0,
+  feb: 1, february: 1,
+  mar: 2, march: 2,
+  apr: 3, april: 3,
+  may: 4,
+  jun: 5, june: 5,
+  jul: 6, july: 6,
+  aug: 7, august: 7,
+  sep: 8, sept: 8, september: 8,
+  oct: 9, october: 9,
+  nov: 10, november: 10,
+  dec: 11, december: 11,
+};
+
+/** Coerce Figma date strings (`01 Nov 2024`, `12 October 2023`, ISO) to `YYYY-MM-DD`. */
+export function coerceSetupDate(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const mdy = raw.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if (mdy) {
+    const month = MONTH_INDEX[mdy[2].toLowerCase()];
+    if (month != null) {
+      const day = Number(mdy[1]);
+      const year = Number(mdy[3]);
+      if (day >= 1 && day <= 31) {
+        return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+    }
+  }
+  const parsed = Date.parse(raw);
+  if (!Number.isNaN(parsed)) {
+    const d = new Date(parsed);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  }
+  return '';
+}
+
+function mapGstTracking(value: unknown): string {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw) return '';
+  if (['yes', 'y', 'true', '1', 'registered'].includes(raw)) return 'YES';
+  if (['no', 'n', 'false', '0', 'not now', 'not_now', 'later'].includes(raw)) return 'NOT_NOW';
+  return gstChoice(value, ['YES', 'NOT_NOW']);
+}
+
+function mapGstRegistration(value: unknown): string {
+  const raw = String(value ?? '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (!raw) return '';
+  if (raw === 'regular') return 'REGULAR';
+  if (raw === 'composition' || raw === 'composition_scheme') return 'COMPOSITION';
+  if (raw === 'unregistered') return 'UNREGISTERED';
+  if (raw === 'not_sure' || raw === 'notsure' || raw === 'unsure') return 'NOT_SURE';
+  return gstChoice(value, ['REGULAR', 'COMPOSITION', 'UNREGISTERED', 'NOT_SURE']);
+}
+
+/**
+ * Expand Figma / reference UI keys into the closed OperatingPreferences shape
+ * before strict activation validation.
+ */
+/** Activation validation with field keys clients can highlight. */
+export class OperatingSetupFieldError extends Error {
+  readonly fields: Record<string, string>;
+
+  constructor(message: string, fields: Record<string, string>) {
+    super(message);
+    this.name = 'OperatingSetupFieldError';
+    this.fields = fields;
+  }
+}
+
+function fieldFail(message: string, fields: Record<string, string>): never {
+  throw new OperatingSetupFieldError(message, fields);
+}
+
+const RETAIL_SUBTYPES = new Set(['RETAIL_STORE', 'RESTAURANT_FOOD', 'CONSUMER_SERVICE']);
+
+function mapSalePriceIncludesGst(value: unknown): string {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw) return '';
+  if (
+    raw === 'yes'
+    || raw === 'y'
+    || raw === 'true'
+    || raw === 'prices include gst'
+    || raw === 'include'
+    || raw === 'included'
+  ) {
+    return 'YES';
+  }
+  if (
+    raw === 'no'
+    || raw === 'n'
+    || raw === 'false'
+    || raw === 'gst is added separately'
+    || raw === 'added separately'
+    || raw === 'exclude'
+    || raw === 'excluded'
+  ) {
+    return 'NO';
+  }
+  const upper = raw.toUpperCase();
+  return upper === 'YES' || upper === 'NO' ? upper : '';
+}
+
+/** Figma currency chips like `INR · Indian Rupee (₹)` → `INR`. */
+function normalizeCurrencyCode(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const token = raw.split(/[·•|\s]/)[0]?.trim().toUpperCase() ?? '';
+  return /^[A-Z]{3}$/.test(token) ? token : raw.toUpperCase();
+}
+
+export function applyOperatingSetupAliases(
+  input: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  const prefs: Record<string, unknown> = { ...(input ?? {}) };
+  const subtypeUpper = String(prefs.subtype ?? '').toUpperCase();
+  const isRetail = RETAIL_SUBTYPES.has(subtypeUpper);
+
+  if (!String(prefs.outletName ?? '').trim()) {
+    const restaurantName = firstNonEmpty(prefs.restaurantName);
+    if (restaurantName) prefs.outletName = restaurantName;
+  }
+
+  const identityName = firstNonEmpty(
+    prefs.identityName,
+    prefs.title,
+    prefs.campaignName,
+    prefs.businessName,
+    prefs.storeName,
+    prefs.outletName,
+    prefs.restaurantName,
+    prefs.serviceName,
+    prefs.plantName,
+    prefs.shopName
+  );
+  if (identityName) prefs.identityName = identityName;
+
+  // Retail Figma uses companyName for party; never fall back to format chips.
+  // Client campaigns need an explicit client — do not treat the campaign title as the party.
+  const partyName = isRetail
+    ? firstNonEmpty(prefs.partyName, prefs.companyName, identityName)
+    : subtypeUpper === 'CLIENT_CAMPAIGN'
+      ? // Agency companyName must not satisfy the Client party requirement.
+        firstNonEmpty(prefs.partyName, prefs.clientName)
+      : firstNonEmpty(
+          prefs.partyName,
+          prefs.clientName,
+          prefs.brandName,
+          prefs.principalBrand,
+          prefs.companyName,
+          prefs.customerName,
+          prefs.format,
+          prefs.serviceStyle,
+          prefs.bookingStyle,
+          identityName
+        );
+  if (partyName) prefs.partyName = partyName;
+
+  if (!String(prefs.location ?? '').trim()) {
+    const location = firstNonEmpty(prefs.location, prefs.locality);
+    if (location) prefs.location = location;
+  }
+
+  if (!prefs.startDate && prefs.planMonth) {
+    const month = String(prefs.planMonth).trim();
+    if (/^\d{4}-\d{2}$/.test(month)) {
+      prefs.startDate = `${month}-01`;
+    } else {
+      const coerced = coerceSetupDate(month);
+      if (coerced) prefs.startDate = coerced;
+    }
+  }
+
+  const saleIncludes = mapSalePriceIncludesGst(
+    prefs.salePriceIncludesGst ?? prefs.priceIncludesGst
+  );
+  if (saleIncludes) prefs.salePriceIncludesGst = saleIncludes;
+
+  if (prefs.currency != null && String(prefs.currency).trim()) {
+    prefs.currency = normalizeCurrencyCode(prefs.currency);
+  }
+
+  if (!String(prefs.marketingBudget ?? '').trim()) {
+    const ownMarketingBudget = firstNonEmpty(prefs.ownMarketingBudget);
+    if (ownMarketingBudget) prefs.marketingBudget = ownMarketingBudget;
+  }
+
+  if (!positiveAmount(prefs.monthlyBudget)) {
+    const budget = firstNonEmpty(
+      prefs.monthlyBudget,
+      prefs.campaignBudget,
+      prefs.monthlyExpense,
+      prefs.marketingBudget,
+      prefs.ownMarketingBudget,
+      prefs.targetSales,
+      prefs.coverTarget,
+      prefs.avgTicket
+    );
+    if (positiveAmount(budget)) prefs.monthlyBudget = budget;
+  }
+
+  if (!String(prefs.conversionGoal ?? '').trim()) {
+    const primaryTarget = firstNonEmpty(prefs.primaryTarget);
+    if (primaryTarget) prefs.conversionGoal = primaryTarget;
+  }
+
+  const purpose = firstNonEmpty(prefs.offering, prefs.campaignPurpose);
+  if (purpose) prefs.offering = purpose;
+
+  const metricLabel = String(prefs.targetMetric ?? '').trim().toLowerCase();
+  if (metricLabel === 'leads') prefs.targetMetric = 'LEADS';
+  else if (metricLabel === 'reach') prefs.targetMetric = 'REACH';
+  else if (metricLabel === 'clicks') prefs.targetMetric = 'ENGAGEMENT';
+  else if (metricLabel === 'sales' || metricLabel === 'revenue') prefs.targetMetric = 'REVENUE';
+  else if (/invoiced|accepted job/.test(metricLabel)) prefs.targetMetric = 'REVENUE';
+  else if (/production\s*output|finished goods/.test(metricLabel)) prefs.targetMetric = 'PRODUCTION_OUTPUT';
+  else if (/deliver/.test(metricLabel)) prefs.targetMetric = 'DELIVERY_COUNT';
+  else if (/^orders?$/.test(metricLabel) || metricLabel === 'orders') prefs.targetMetric = 'ORDERS';
+
+  if (!positiveAmount(prefs.monthlyTarget)) {
+    const target = firstNonEmpty(
+      prefs.monthlyTarget,
+      prefs.monthlySalesTarget,
+      prefs.monthlyChargeTarget,
+      prefs.targetSales,
+      prefs.leadGoal,
+      prefs.primaryTarget,
+      prefs.conversionGoal,
+      prefs.monthlyOutput,
+      prefs.monthlyJobs,
+      prefs.coverTarget
+    );
+    if (positiveAmount(target)) prefs.monthlyTarget = target;
+  }
+
+  // Trading/MFG often only collect a sales/output target — dual-write budget↔target when empty.
+  const dualWriteBudgetTarget = [
+    'TRADING_WHOLESALE',
+    'DISTRIBUTION_DEALERSHIP',
+    'STANDARD_PRODUCTION',
+    'MADE_TO_ORDER',
+  ].includes(subtypeUpper);
+  if (dualWriteBudgetTarget) {
+    if (!positiveAmount(prefs.monthlyBudget) && positiveAmount(prefs.monthlyTarget)) {
+      prefs.monthlyBudget = prefs.monthlyTarget;
+    }
+    if (!positiveAmount(prefs.monthlyTarget) && positiveAmount(prefs.monthlyBudget)) {
+      prefs.monthlyTarget = prefs.monthlyBudget;
+    }
+  }
+
+  if (!prefs.gstTracking) {
+    const tracking = mapGstTracking(prefs.gstRegistered);
+    if (tracking) prefs.gstTracking = tracking;
+  } else {
+    const tracking = mapGstTracking(prefs.gstTracking);
+    if (tracking) prefs.gstTracking = tracking;
+  }
+  if (!prefs.gstRegistration) {
+    const registration = mapGstRegistration(prefs.gstType);
+    if (registration) prefs.gstRegistration = registration;
+  } else {
+    const registration = mapGstRegistration(prefs.gstRegistration);
+    if (registration) prefs.gstRegistration = registration;
+  }
+
+  let channels = splitList(prefs.channels);
+  if (channels.length === 0) {
+    channels = splitList(
+      firstNonEmpty(prefs.posStyle, prefs.bookingStyle, prefs.orderChannels, prefs.territory, prefs.routeStyle)
+    );
+  }
+  if (channels.length > 0) prefs.channels = channels;
+
+  if (prefs.tradeReach != null && !Array.isArray(prefs.tradeReach)) {
+    prefs.tradeReach = splitList(prefs.tradeReach);
+  }
+
+  const startDate = coerceSetupDate(prefs.startDate) || coerceSetupDate(prefs.startedOn);
+  if (startDate) prefs.startDate = startDate;
+  const endDate = coerceSetupDate(prefs.endDate);
+  if (endDate) prefs.endDate = endDate;
+  const gstEffective = coerceSetupDate(prefs.gstEffectiveFrom);
+  if (gstEffective) prefs.gstEffectiveFrom = gstEffective;
+
+  if (prefs.currency != null) {
+    prefs.currency = normalizeCurrencyCode(prefs.currency) || 'INR';
+  }
+  if (prefs.gstin != null) {
+    prefs.gstin = String(prefs.gstin).trim().toUpperCase();
+  }
+
+  const existingParticipants = Array.isArray(prefs.participants) ? [...prefs.participants] : [];
+  if (existingParticipants.length === 0) {
+    const roles = splitList(prefs.roles);
+    const members = splitList(prefs.teamMembers);
+    const seeded: Array<{ displayName: string; role: OperatingRole }> = [];
+    const count = Math.max(roles.length, members.length);
+    for (let i = 0; i < count; i += 1) {
+      const role = asRole(roles[i] ?? roles[0] ?? 'TEAM_MEMBER') ?? 'TEAM_MEMBER';
+      const displayName = members[i] || roles[i] || `Member ${i + 1}`;
+      seeded.push({ displayName, role });
+    }
+    if (seeded.length > 0) prefs.participants = seeded;
+  }
+
+  const counterparties = Array.isArray(prefs.counterparties) ? [...prefs.counterparties] : [];
+  const networkSeeds: Array<{ key: string; kind: string }> = [
+    { key: 'supplierName', kind: 'SUPPLIER' },
+    { key: 'customerName', kind: 'CUSTOMER' },
+    { key: 'buyerName', kind: 'BUYER' },
+    { key: 'vendorName', kind: 'SUPPLIER' },
+    { key: 'principalBrand', kind: 'PRINCIPAL' },
+    { key: 'clientName', kind: 'CLIENT' },
+  ];
+  for (const seed of networkSeeds) {
+    const name = String(prefs[seed.key] ?? '').trim();
+    if (!name) continue;
+    const exists = counterparties.some(
+      (row) =>
+        row
+        && typeof row === 'object'
+        && String((row as Record<string, unknown>).name ?? '').trim().toLowerCase() === name.toLowerCase()
+    );
+    if (!exists) counterparties.push({ name, kind: seed.kind });
+  }
+  if (counterparties.length > 0) prefs.counterparties = counterparties;
+
+  return prefs;
 }
 
 /**
@@ -492,7 +877,7 @@ export function normalizeOperatingPreferences(
   options: { draft?: boolean } = {}
 ): OperatingPreferences {
   const draft = options.draft === true;
-  const prefs = input ?? {};
+  const prefs = applyOperatingSetupAliases(input);
   const subtype = String(prefs.subtype ?? '').toUpperCase();
   const sub = subtypeDef(familyCode, subtype);
   if (!sub) {
@@ -500,50 +885,83 @@ export function normalizeOperatingPreferences(
   }
   const identityName = String(prefs.identityName ?? prefs.title ?? '').trim();
   const partyName = String(prefs.partyName ?? '').trim();
+  const identityField = subtype === 'RETAIL_STORE'
+    ? 'storeName'
+    : subtype === 'RESTAURANT_FOOD'
+      ? 'outletName'
+      : subtype === 'CONSUMER_SERVICE'
+        ? 'serviceName'
+        : subtype === 'TRADING_WHOLESALE' || subtype === 'DISTRIBUTION_DEALERSHIP'
+          ? 'businessName'
+          : subtype === 'CLIENT_CAMPAIGN' || subtype === 'OWN_BUSINESS_CAMPAIGN'
+            ? 'campaignName'
+            : 'identityName';
+  const partyField =
+    subtype === 'CLIENT_CAMPAIGN'
+      ? 'clientName'
+      : subtype === 'OWN_BUSINESS_CAMPAIGN'
+        ? 'brandName'
+        : RETAIL_SUBTYPES.has(subtype)
+          || subtype === 'TRADING_WHOLESALE'
+          || subtype === 'DISTRIBUTION_DEALERSHIP'
+          ? 'companyName'
+          : 'partyName';
   if (!draft) {
-    if (!identityName) throw new Error('Moment name is required.');
-    if (!partyName) throw new Error(`${sub!.partyLabel} name is required.`);
+    if (!identityName) {
+      fieldFail('Moment name is required.', { [identityField]: 'Moment name is required.' });
+    }
+    if (!partyName) {
+      const msg = `${sub!.partyLabel} name is required.`;
+      fieldFail(msg, { [partyField]: msg });
+    }
   }
   const monthlyBudget = positiveAmount(prefs.monthlyBudget) ?? '';
   const monthlyTarget = positiveAmount(prefs.monthlyTarget) ?? '';
   if (!draft) {
     if (familyCode === 'MARKETING_CAMPAIGNS') {
-      if (!monthlyBudget) throw new Error('Monthly budget must be a positive amount.');
+      if (!monthlyBudget) {
+        fieldFail('Monthly budget must be a positive amount.', {
+          monthlyBudget: 'Monthly budget must be a positive amount.',
+        });
+      }
     } else if (familyCode !== 'RETAIL_CONSUMER') {
-      if (!monthlyBudget) throw new Error('Monthly budget must be a positive amount.');
-      if (!monthlyTarget) throw new Error('Monthly target must be a positive amount.');
+      if (!monthlyBudget) {
+        fieldFail('Monthly budget must be a positive amount.', {
+          monthlyBudget: 'Monthly budget must be a positive amount.',
+        });
+      }
+      if (!monthlyTarget) {
+        fieldFail('Monthly target must be a positive amount.', {
+          monthlyTarget: 'Monthly target must be a positive amount.',
+        });
+      }
     }
   }
-  const requestedRaw = String(prefs.targetMetric ?? '').toUpperCase();
-  const requestedMetric =
-    familyCode === 'MARKETING_CAMPAIGNS' ? normalizeMarketingMetric(requestedRaw) : requestedRaw;
+  const requestedMetricRaw = String(prefs.targetMetric ?? '').trim();
+  const requestedMetric = requestedMetricRaw.toUpperCase().replace(/\s+/g, '_');
+  const metricAlias = requestedMetricRaw.toLowerCase() === 'revenue' ? 'REVENUE' : requestedMetric;
   const fallbackMetrics = sub?.targetMetrics ?? ['REVENUE', 'ORDERS', 'CUSTOM_COUNT'];
-  // Marketing still accepts legacy aliases (REVENUE → ATTRIBUTED_SALES) via normalizeMarketingMetric.
-  const acceptedMetrics =
-    familyCode === 'MARKETING_CAMPAIGNS'
-      ? [...new Set([...fallbackMetrics, ...MARKETING_METRICS])]
-      : fallbackMetrics;
-  const targetMetric = acceptedMetrics.includes(requestedMetric)
-    ? requestedMetric
-    : fallbackMetrics[0];
+  const targetMetric = fallbackMetrics.includes(metricAlias) ? metricAlias : fallbackMetrics[0];
   const channels = Array.isArray(prefs.channels)
     ? prefs.channels.map((c) => String(c).trim()).filter(Boolean)
-    : [];
+    : splitList(prefs.channels);
   const reachAllowed = new Set(['Local', 'Domestic', 'International']);
   const tradeReach = Array.isArray(prefs.tradeReach)
     ? [...new Set(prefs.tradeReach.map((item) => String(item).trim()).filter((item) => reachAllowed.has(item)))]
     : [];
   if (!draft && sub?.requiresChannel && channels.length === 0) {
-    throw new Error('Select at least one channel.');
+    fieldFail('Select at least one channel.', { channels: 'Select at least one channel.' });
   }
-  const startDate = String(prefs.startDate ?? '').slice(0, 10);
-  const endDate = String(prefs.endDate ?? '').slice(0, 10);
+  const startDate = coerceSetupDate(prefs.startDate).slice(0, 10) || String(prefs.startDate ?? '').slice(0, 10);
+  const endDate = coerceSetupDate(prefs.endDate).slice(0, 10) || String(prefs.endDate ?? '').slice(0, 10);
   if (!draft && familyCode === 'MARKETING_CAMPAIGNS') {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
-      throw new Error('Campaign start date is required.');
+      fieldFail('Campaign start date is required.', { startDate: 'Campaign start date is required.' });
     }
     if (endDate && (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < startDate)) {
-      throw new Error('Campaign end date must be on or after the start date.');
+      fieldFail('Campaign end date must be on or after the start date.', {
+        endDate: 'Campaign end date must be on or after the start date.',
+      });
     }
   }
   const participants: OperatingParticipant[] = [];
@@ -599,6 +1017,49 @@ export function normalizeOperatingPreferences(
     targetMetric,
     ...normalizeGstPreferences(familyCode, prefs, draft),
     ...normalizeMarketingPreferences(familyCode, subtype, prefs),
+    ...normalizeMtoPreferences(subtype, prefs),
+    momentAccess: String(prefs.momentAccess ?? prefs.accessMode ?? '').toUpperCase() === 'RESTRICTED'
+      ? 'RESTRICTED'
+      : 'COMPANY',
+  };
+}
+
+function normalizeMtoPreferences(
+  subtype: string,
+  prefs: Record<string, unknown>
+): Pick<
+  OperatingPreferences,
+  | 'quoteValidity'
+  | 'specificationTemplate'
+  | 'orderApproval'
+  | 'jobOnConfirm'
+  | 'productsBomNote'
+  | 'planMonth'
+> {
+  const empty = {
+    quoteValidity: '',
+    specificationTemplate: '',
+    orderApproval: '',
+    jobOnConfirm: '',
+    productsBomNote: '',
+    planMonth: '',
+  };
+  if (subtype !== 'MADE_TO_ORDER') return empty;
+  const jobRaw = String(prefs.jobOnConfirm ?? '').trim().toUpperCase();
+  let jobOnConfirm = '';
+  if (jobRaw) {
+    jobOnConfirm =
+      jobRaw === 'NO' || jobRaw === 'N' || jobRaw === 'FALSE' || jobRaw.startsWith('OPEN JOB MANUALLY')
+        ? 'NO'
+        : 'YES';
+  }
+  return {
+    quoteValidity: String(prefs.quoteValidity ?? '').trim(),
+    specificationTemplate: String(prefs.specificationTemplate ?? '').trim(),
+    orderApproval: String(prefs.orderApproval ?? '').trim(),
+    jobOnConfirm,
+    productsBomNote: String(prefs.productsBomNote ?? '').trim(),
+    planMonth: String(prefs.planMonth ?? '').trim(),
   };
 }
 
@@ -612,7 +1073,6 @@ function normalizeMarketingPreferences(
   | 'clientApprovedMediaBudget'
   | 'agencyOperatingBudget'
   | 'offering'
-  | 'campaignPurpose'
   | 'creativeApprovalRequired'
   | 'reportingCadence'
   | 'conversionNumerator'
@@ -625,7 +1085,6 @@ function normalizeMarketingPreferences(
     clientApprovedMediaBudget: '',
     agencyOperatingBudget: '',
     offering: '',
-    campaignPurpose: '',
     creativeApprovalRequired: '',
     reportingCadence: '',
     conversionNumerator: '',
@@ -636,13 +1095,11 @@ function normalizeMarketingPreferences(
   if (familyCode !== 'MARKETING_CAMPAIGNS') return empty;
   const client = subtype === 'CLIENT_CAMPAIGN';
   const cadence = String(prefs.reportingCadence ?? '').trim().toUpperCase();
-  // Own marketing budget = monthlyBudget (Pulse budget). Client commercial buckets stay separate.
   return {
     clientFee: client ? positiveAmount(prefs.clientFee) ?? '' : '',
     clientApprovedMediaBudget: client ? positiveAmount(prefs.clientApprovedMediaBudget) ?? '' : '',
     agencyOperatingBudget: client ? positiveAmount(prefs.agencyOperatingBudget) ?? '' : '',
-    offering: String(prefs.offering ?? '').trim(),
-    campaignPurpose: String(prefs.campaignPurpose ?? prefs.purpose ?? '').trim(),
+    offering: String(prefs.offering ?? prefs.campaignPurpose ?? '').trim(),
     creativeApprovalRequired: String(prefs.creativeApprovalRequired ?? '').toUpperCase() === 'YES' ? 'YES' : '',
     reportingCadence: client && ['WEEKLY', 'MONTHLY', 'CUSTOM'].includes(cadence) ? cadence : '',
     conversionNumerator: String(prefs.conversionNumerator ?? '').trim(),
@@ -672,7 +1129,13 @@ function normalizeGstPreferences(
   | 'purchasePriceIncludesGst'
   | 'gstEffectiveFrom'
 > {
-  if (familyCode !== 'TRADING_DISTRIBUTION' && familyCode !== 'RETAIL_CONSUMER' && familyCode !== 'MANUFACTURING_PRODUCTION') {
+  // Marketing Figma v6 collects GST; keep it on prefs (was previously wiped).
+  if (
+    familyCode !== 'TRADING_DISTRIBUTION'
+    && familyCode !== 'RETAIL_CONSUMER'
+    && familyCode !== 'MANUFACTURING_PRODUCTION'
+    && familyCode !== 'MARKETING_CAMPAIGNS'
+  ) {
     return {
       gstTracking: '',
       gstRegistration: '',
@@ -691,9 +1154,8 @@ function normalizeGstPreferences(
   const requestedState = String(prefs.gstState ?? '').trim();
   const resolvedState = normalizeGstState(requestedState);
   if (requestedState && !resolvedState && !draft) {
-    throw new Error(
-      `"${requestedState}" is not an Indian state or union territory. Pick one from the list.`
-    );
+    const msg = `"${requestedState}" is not an Indian state or union territory. Pick one from the list.`;
+    fieldFail(msg, { gstState: msg });
   }
 
   // The GSTIN is validated strictly on activation. A draft keeps whatever has been typed so a
@@ -702,7 +1164,7 @@ function normalizeGstPreferences(
   let gstin = requestedGstin;
   if (requestedGstin && !draft) {
     const checked = validateGstin(requestedGstin, resolvedState?.code ?? null);
-    if (!checked.ok) throw new Error(checked.message);
+    if (!checked.ok) fieldFail(checked.message, { gstin: checked.message });
   }
 
   const effective = String(prefs.gstEffectiveFrom ?? '').trim();
@@ -744,6 +1206,8 @@ export interface OperatingEventRow {
   contract?: OperatingContract | null;
   marketing?: import('./operating-marketing').MarketingFacts | null;
   idempotencyKey?: string | null;
+  /** Append-only correction marker; SUPERSEDED originals stay in audit history but drop from finance. */
+  ledgerStatus?: 'SUPERSEDED' | null;
 }
 
 export interface OperatingLine {
@@ -824,10 +1288,6 @@ export interface OperatingProjection {
     parentMasterId?: string | null;
     status?: string | null;
     momentId?: string | null;
-    /** Retail catalogue taxonomy from operating_master.payload (not UOM dimension). */
-    category?: string | null;
-    subcategory?: string | null;
-    version?: number | null;
   }>;
   location: string;
   budget: { amount: string; spent: string; remaining: string; configured: boolean } | null;
@@ -874,18 +1334,6 @@ export interface OperatingProjection {
     status: string | null;
     orderSide: string | null;
     estimatedAmount: string | null;
-    tableNumber: string | null;
-    covers: string | null;
-    locationName: string | null;
-    clientKey: string | null;
-    /** ORDER / SALE line payload for Bill-from-KOT and Fire/Reprint fidelity. */
-    lines?: Array<{
-      itemName: string;
-      quantity: string | null;
-      unit: string | null;
-      unitPrice: string | null;
-      masterId: string | null;
-    }> | null;
   }>;
   life: { channels: string[]; openCommitments: number; resultProgress: string };
   memory: { revisions: Array<{ id: string; title: string; occurredAt: string }> };
@@ -900,8 +1348,6 @@ export interface OperatingProjection {
   gstState: string;
   /** The two-digit GST state code behind `gstState`; `''` when the saved name is unresolved. */
   gstStateCode: string;
-  /** Setup GSTIN (15-char) when registered — used on retail receipts. */
-  gstin: string;
   gstEffectiveFrom: string;
   salePriceIncludesGst: string;
   purchasePriceIncludesGst: string;
@@ -919,10 +1365,7 @@ export interface MarketingInsight {
   clientContribution: string | null;
   campaignStatus: string;
   clientFee: string;
-  clientApprovedMediaBudget: string;
-  agencyOperatingBudget: string;
   offering: string;
-  campaignPurpose: string;
   creativeApprovalRequired: string;
   reportingCadence: string;
   orderAchievement: string | null;
@@ -1026,6 +1469,9 @@ function money(value: number): string {
 }
 
 function effective(row: OperatingEventRow): boolean {
+  // P2/P3: SUPERSEDED + REVERSAL excluded from finance/analytics; retained in activity history.
+  if (row.ledgerStatus === 'SUPERSEDED') return false;
+  if (row.eventType === 'REVERSAL') return false;
   return row.approvalStatus !== 'PENDING' && row.approvalStatus !== 'REJECTED' && row.paymentStatus !== 'CANCELLED';
 }
 
@@ -1116,7 +1562,7 @@ export function operatingContinuity(
     }
   }
 
-  const orders = rows.filter((row) => isConfirmedOrder(row));
+  const orders = rows.filter((row) => row.eventType === 'ORDER' || row.eventType === 'CUSTOMER_ORDER');
   const ordered = orders.reduce((total, row) => total + num(row.quantity), 0);
   const dispatched = rows.filter((row) => row.eventType === 'SHIPMENT').reduce((total, row) => total + num(row.quantity), 0);
   const delivered = rows.filter((row) => row.eventType === 'DELIVERY').reduce((total, row) => total + num(row.quantity), 0);
@@ -1289,19 +1735,11 @@ function companyMasters(
   const mapped: OperatingProjection['masters'] = [];
   const seen = new Set<string>();
   const keyOf = (kind: string, name: string) => `${kind.toUpperCase()}::${name.trim().toLowerCase()}`;
-  const payloadText = (payload: Record<string, unknown> | undefined, key: string): string | null => {
-    const raw = payload?.[key];
-    if (typeof raw !== 'string') return null;
-    const trimmed = raw.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  };
-
   for (const row of masterRows ?? []) {
     if (row.status === 'ARCHIVED') continue;
     const key = keyOf(row.kind, row.name);
     if (seen.has(key)) continue;
     seen.add(key);
-    const payload = row.payload ?? {};
     mapped.push({
       id: row.id,
       source: 'MASTER',
@@ -1332,9 +1770,6 @@ function companyMasters(
       parentMasterId: row.parentMasterId,
       status: row.status,
       momentId: row.momentId,
-      category: payloadText(payload, 'category'),
-      subcategory: payloadText(payload, 'subcategory'),
-      version: row.version,
     });
   }
   for (const row of events) {
@@ -1494,6 +1929,7 @@ export function projectOperatingMoment(args: {
     ? pulseEvents
         .filter(
           (row) =>
+            effective(row) &&
             row.paymentRelevance !== 'NONE' &&
             (row.paymentStatus === 'PENDING' || row.paymentStatus === 'READY') &&
             row.approvalStatus !== 'REJECTED' &&
@@ -1555,10 +1991,7 @@ export function projectOperatingMoment(args: {
         clientContribution: clientCampaign && visible ? money(netPostedSales(pulseEvents) - spent) : null,
         campaignStatus: args.prefs.campaignStatus || 'OPEN',
         clientFee: args.prefs.clientFee,
-        clientApprovedMediaBudget: args.prefs.clientApprovedMediaBudget,
-        agencyOperatingBudget: args.prefs.agencyOperatingBudget,
         offering: args.prefs.offering,
-        campaignPurpose: args.prefs.campaignPurpose,
         creativeApprovalRequired: args.prefs.creativeApprovalRequired,
         reportingCadence: args.prefs.reportingCadence,
         orderAchievement: (() => {
@@ -1582,7 +2015,8 @@ export function projectOperatingMoment(args: {
         roas: visible ? marketingRoas(pulseEvents) : null,
       }
     : null;
-  const quickAdds = quickAddsForSubtype(args.prefs.subtype)
+  const quickAdds = (sub?.quickAdds ?? [])
+    .map((code) => QA[code])
     .filter((def) => canSubmit(args.role, def))
     .map((def) => ({ code: def.code, label: def.label, needsAmount: def.needsAmount }));
   return {
@@ -1642,17 +2076,6 @@ export function projectOperatingMoment(args: {
       status: row.contract?.appointmentStatus ?? row.contract?.orderStatus ?? null,
       orderSide: row.contract?.orderSide ?? null,
       estimatedAmount: row.eventType === 'ORDER' ? row.contract?.estimatedAmount ?? null : null,
-      tableNumber: row.contract?.tableNumber ?? null,
-      covers: row.contract?.covers ?? null,
-      locationName: row.contract?.locationName ?? null,
-      clientKey: row.contract?.clientKey ?? null,
-      lines: (row.lines ?? []).map((line) => ({
-        itemName: line.itemName,
-        quantity: line.quantity ?? null,
-        unit: line.unit ?? null,
-        unitPrice: line.unitPrice ?? null,
-        masterId: line.masterId ?? null,
-      })),
     })),
     life: {
       channels: args.prefs.channels,
@@ -1679,7 +2102,6 @@ export function projectOperatingMoment(args: {
     gstRegistration: args.prefs.gstRegistration,
     gstState: args.prefs.gstState,
     gstStateCode: args.prefs.gstStateCode || gstStateCodeOf(args.prefs.gstState),
-    gstin: args.prefs.gstin,
     gstEffectiveFrom: args.prefs.gstEffectiveFrom,
     salePriceIncludesGst: args.prefs.salePriceIncludesGst,
     purchasePriceIncludesGst: args.prefs.purchasePriceIncludesGst,
@@ -1701,7 +2123,10 @@ export function projectOperatingMoment(args: {
         : null,
     marketing: marketingInsight,
     pulseMetrics:
-      isTradingSubtype(args.prefs.subtype) || isRetailSubtype(args.prefs.subtype)
+      isTradingSubtype(args.prefs.subtype) ||
+      isRetailSubtype(args.prefs.subtype) ||
+      isMarketingSubtype(args.prefs.subtype) ||
+      isManufacturingSubtype(args.prefs.subtype)
         ? tradingPulseMetrics({
             events: args.events,
             visible,
@@ -1722,30 +2147,7 @@ export function projectOperatingMoment(args: {
               activity: pulseEvents.map((row) => ({ eventType: row.eventType })),
             },
           })
-        : isMarketingSubtype(args.prefs.subtype)
-          ? marketingPulseMetrics({
-              events: args.events,
-              visible,
-              currency: args.prefs.currency,
-              asOf,
-              prefs: args.prefs,
-              ownCampaign,
-              clientCampaign,
-              marketing: marketingInsight,
-              projection: {
-                budget: visible
-                  ? { amount: money(budget), spent: money(spent), remaining: money(budget - spent), configured: budgetConfigured }
-                  : null,
-                target: visible
-                  ? { metric: args.prefs.targetMetric, value: money(target), progress: money(progress), configured: targetConfigured }
-                  : null,
-                finance,
-                attention,
-                paymentReadiness: visibleReadiness,
-                activity: pulseEvents.map((row) => ({ eventType: row.eventType })),
-              },
-            })
-          : null,
+        : null,
   };
 }
 
@@ -2079,19 +2481,11 @@ function operatingBoards(args: {
     applyTradingBoardMetrics({ moments, life, memory }, args.events, visible, currency, args.asOf);
   }
   if (isMarketingSubtype(args.subtype)) decorateMarketingBoards(moments, life, memory, args.prefs, args.events);
-  if (isManufacturingSubtype(args.subtype)) {
-    decorateManufacturingBoards(moments, args.events, visible, currency);
-    applyManufacturingBoardMetrics({ moments, life, memory }, args.events, visible, currency, args.asOf);
-  }
+  if (isManufacturingSubtype(args.subtype)) decorateManufacturingBoards(moments, args.events);
   return { moments, life, memory };
 }
 
-function decorateManufacturingBoards(
-  moments: OperatingBoardSection[],
-  events: OperatingEventRow[],
-  visible: boolean,
-  currency: string
-): void {
+function decorateManufacturingBoards(moments: OperatingBoardSection[], events: OperatingEventRow[]): void {
   const stock = moments.find((section) => section.code === 'stock');
   const positions = manufacturingStock(events.map(toManufacturing));
   if (stock && positions.length > 0) {
@@ -2112,45 +2506,6 @@ function decorateManufacturingBoards(
     production.detail = rows.length
       ? `Recorded output ${Number(recorded.toFixed(2))}${acceptedKnown ? ` · accepted ${Number(accepted.toFixed(2))}` : ''}`
       : production.detail;
-  }
-  // Primary Open Commitments surface is M4 — clear the duplicate family board.
-  const duplicate = moments.find((section) => section.code === 'commitments');
-  if (duplicate) {
-    duplicate.detail = 'See Open Commitments above.';
-    duplicate.rows = [];
-  }
-  const commitments = moments.find((section) => section.code === 'M4');
-  if (commitments) {
-    const rows = events.flatMap((row) => {
-      if (!effective(row)) return [];
-      if (row.eventType === 'SALE' || row.eventType === 'INVOICE') {
-        const open = obligationRemaining(row, events, new Set(['COLLECTION']));
-        if (!(open > 0)) return [];
-        return [{ ...boardRow(row, visible), title: `To collect · ${row.counterpartyName || row.title}`, amount: visible ? money(open) : null }];
-      }
-      if (PAYABLE_TYPES.has(row.eventType)) {
-        const open = obligationRemaining(row, events, new Set(['PAYMENT']));
-        if (!(open > 0)) return [];
-        return [{ ...boardRow(row, visible), title: `To pay · ${row.counterpartyName || row.title}`, amount: visible ? money(open) : null }];
-      }
-      if (
-        (row.eventType === 'ORDER' || row.eventType === 'CUSTOMER_ORDER') &&
-        row.contract?.orderStatus !== 'COMPLETED' &&
-        row.contract?.orderStatus !== 'CANCELLED'
-      ) {
-        return [{ ...boardRow(row, visible), title: `Open order · ${displayTitle(row)}` }];
-      }
-      if (
-        (row.eventType === 'SHIPMENT' || row.eventType === 'DELIVERY') &&
-        row.contract?.shipmentStatus !== 'DELIVERED' &&
-        row.contract?.shipmentStatus !== 'CANCELLED'
-      ) {
-        return [{ ...boardRow(row, visible), title: `In transit · ${displayTitle(row)}` }];
-      }
-      return [];
-    });
-    commitments.detail = rows.length > 0 ? `${rows.length} open` : 'Nothing recorded yet.';
-    commitments.rows = rows;
   }
 }
 
@@ -2655,10 +3010,24 @@ function monthlyHistory(
 export function resolveRole(
   participants: OperatingParticipant[],
   userId: string,
-  membershipType: string
+  membershipType: string,
+  operatingRole?: string | null
 ): OperatingRole {
   const match = participants.find((p) => p.userId === userId);
   if (match) return match.role;
   if (membershipType === 'OWNER' || membershipType === 'ADMIN') return 'OWNER_ADMIN';
+  const grant = (operatingRole ?? '').toUpperCase() as OperatingRole;
+  if (
+    grant === 'FINANCE' ||
+    grant === 'APPROVER' ||
+    grant === 'OPERATIONS_LEAD' ||
+    grant === 'CONTRIBUTOR' ||
+    grant === 'TEAM_MEMBER' ||
+    grant === 'OBSERVER' ||
+    grant === 'OWNER_ADMIN'
+  ) {
+    return grant;
+  }
+  if (membershipType.toUpperCase() === 'OBSERVER') return 'OBSERVER';
   return 'TEAM_MEMBER';
 }

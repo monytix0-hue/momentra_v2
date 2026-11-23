@@ -201,11 +201,12 @@ const ktFloat = (n) => { const s = fmt(n, 3); return s.includes('.') ? s : `${s}
   }
 
   L.push('');
-  L.push('        // Domain accent colors');
+  L.push('        // Domain color palettes (full setup + pulse ramp)');
   for (const d of domains) {
-    const domainAccent = colors.find(c => c.sub.join('.') === `domain.${d.key}.accent`);
-    if (domainAccent) {
-      L.push(`        val ${d.kotlin}Accent = Color(${argbHex(domainAccent.c)})`);
+    const domainColors = colors.filter(c => c.sub[0] === 'domain' && c.sub[1] === d.key);
+    for (const c of domainColors) {
+      const constName = `${d.kotlin}${pascalCase(c.sub.slice(2))}`;
+      L.push(`        val ${constName} = Color(${argbHex(c.c)})`);
     }
   }
 
@@ -214,7 +215,6 @@ const ktFloat = (n) => { const s = fmt(n, 3); return s.includes('.') ? s : `${s}
   for (const d of domains) {
     L.push(`            BusinessDomain.${d.kotlin} -> ${d.kotlin}Accent`);
   }
-  L.push(`            else -> ${domains[0].kotlin}Accent`);
   L.push('        }');
   L.push('    }');
 

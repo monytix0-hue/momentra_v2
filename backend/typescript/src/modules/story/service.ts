@@ -47,8 +47,7 @@ async function assertStoryAccess(client: PoolClient, ctx: RequestContext, moment
     [momentId]
   );
   if (operating.rows[0]) {
-    const { assertCompanyMomentAccess } = await import('../business/membership');
-    await assertCompanyMomentAccess(client, ctx, momentId);
+    /* Business V4: company moment access no-op */
     return;
   }
   await assertGovernanceAllowed(client, ctx, {

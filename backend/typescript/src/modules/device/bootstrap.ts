@@ -3,7 +3,6 @@ import type { RequestContext } from '../../platform/request-context/context';
 import { getPool, getPoolStats, withTransaction } from '../../platform/database/pool';
 import { provisionUserProfile } from '../../platform/auth';
 import * as projectionService from '../projection/service';
-import * as businessService from '../business/service';
 import * as personalSetupService from '../personal/setup-service';
 
 export type AppContextCode = 'PERSONAL' | 'GROUP' | 'BUSINESS' | 'CIRCLE';
@@ -219,11 +218,8 @@ export async function getMeBootstrap(_client: PoolClient | null, ctx: RequestCon
           withPoolClient((client) =>
             projectionService.listGroupMoments(client, ctx, undefined, BOOTSTRAP_MOMENT_LIMIT)
           ),
-        () =>
-          withPoolClient((client) =>
-            projectionService.listBusinessMoments(client, ctx, undefined, BOOTSTRAP_MOMENT_LIMIT)
-          ),
-        () => withPoolClient((client) => businessService.listCompanies(client, ctx)),
+        () => Promise.resolve({ items: [] as Awaited<ReturnType<typeof projectionService.listBusinessMoments>>['items'], nextCursor: null }),
+        () => Promise.resolve([] as Array<{ companyId: string; displayName: string; profileJson?: Record<string, unknown> }>),
         () =>
           withPoolClient((client) => client.query<{ code: string }>(CAPABILITIES_SQL, [ctx.userId])),
       ] as Array<() => Promise<unknown>>,
@@ -243,7 +239,7 @@ export async function getMeBootstrap(_client: PoolClient | null, ctx: RequestCon
   const personalPage = wave[1] as Awaited<ReturnType<typeof projectionService.listPersonalMoments>>;
   const groupPage = wave[2] as Awaited<ReturnType<typeof projectionService.listGroupMoments>>;
   const businessPage = wave[3] as Awaited<ReturnType<typeof projectionService.listBusinessMoments>>;
-  const companies = wave[4] as Awaited<ReturnType<typeof businessService.listCompanies>>;
+  const companies = wave[4] as BootstrapCompanySummary[];
   const capabilities = wave[5] as { rows: Array<{ code: string }> };
 
   let p = profile.rows[0];
@@ -273,7 +269,7 @@ export async function getMeBootstrap(_client: PoolClient | null, ctx: RequestCon
 
   const currentlySelectedContext: AppContextCode = 'PERSONAL';
 
-  const companyItems = companies.items;
+  const companyItems = companies;
   const selectedCompany = companyItems[0] ?? null;
 
   // Baseline shell capabilities always present for authenticated users.

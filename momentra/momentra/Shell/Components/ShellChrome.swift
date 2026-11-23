@@ -17,14 +17,10 @@ struct MomentraTopBar: View {
         (context == .group || context == .business) && onQrScan != nil
     }
 
-    /// Business opens the Moments list; every other context creates a single new Moment.
-    private var createLabel: String {
-        context == .business ? "Moments" : "New"
-    }
+    /// Personal / Group / Business share the same create control chrome.
+    private var createLabel: String { "New" }
 
-    private var createAccessibilityLabel: String {
-        context == .business ? "Open moments" : "Create moment"
-    }
+    private var createAccessibilityLabel: String { "Create moment" }
 
     private let actionBg = Color(hex: "#1C233D")
     private let labelMuted = Color(hex: "#ABA3BA")
@@ -487,7 +483,7 @@ struct ShellToolbarContent: ToolbarContent {
                         .scaledToFit()
                         .frame(width: 16, height: 16)
                 }
-                .accessibilityLabel(context == .business ? "Open moments" : "Create moment")
+                .accessibilityLabel("Create moment")
                 .accessibilityIdentifier("topbar.new_moment")
             }
 
@@ -544,14 +540,11 @@ struct NativeShellTabView<Content: View>: View {
     @Binding var selection: BottomDestination
     let accent: Color
     var context: AppContextKind = .personal
-    /// When set in business context, the tab bar uses that moment's domain canvas.
-    var businessMomentTypeCode: String? = nil
     @ViewBuilder var content: () -> Content
 
+    /// Business uses Trading canvas under the tab bar; Personal/Group keep shell dark.
     private var barBackground: Color {
-        context == .business
-            ? GlobalTheme.businessBottomBarBackground(momentTypeCode: businessMomentTypeCode)
-            : GlobalTheme.bottomBarBackground
+        context == .business ? GlobalTheme.businessBottomBarBackground : GlobalTheme.bottomBarBackground
     }
 
     var body: some View {
@@ -567,14 +560,9 @@ struct NativeShellTabView<Content: View>: View {
         // toolbarBackground paints a full-width black slab behind/around the pill and
         // clips scroll content ("bottom cut off"). Pre-26 keeps the branded opaque bar.
         .modifier(ShellTabBarChromeModifier(barBackground: barBackground))
-        .onAppear { Self.configureTabBarAppearance(context: context, momentTypeCode: businessMomentTypeCode) }
+        .onAppear { Self.configureTabBarAppearance(context: context) }
         .onChange(of: context) { _, newContext in
-            Self.configureTabBarAppearance(context: newContext, momentTypeCode: businessMomentTypeCode)
-        }
-        .onChange(of: businessMomentTypeCode) { _, code in
-            if context == .business {
-                Self.configureTabBarAppearance(context: .business, momentTypeCode: code)
-            }
+            Self.configureTabBarAppearance(context: newContext)
         }
         .accessibilityIdentifier("bottom.nav")
     }
@@ -598,13 +586,11 @@ struct NativeShellTabView<Content: View>: View {
         }
     }
 
-    static func configureTabBarAppearance(context: AppContextKind, momentTypeCode: String? = nil) {
+    static func configureTabBarAppearance(context: AppContextKind = .personal) {
         let appearance = UITabBarAppearance()
         let isBusiness = context == .business
-        // TRD/DST idle slate `#64748B`; Personal/Group keep lavender idle.
-        let unselected = UIColor(
-            isBusiness ? GlobalTheme.businessBottomUnselected : GlobalTheme.bottomUnselected
-        )
+        let unselected = UIColor(isBusiness ? GlobalTheme.businessBottomUnselected : GlobalTheme.bottomUnselected)
+        let barFill = isBusiness ? GlobalTheme.businessBottomBarBackground : GlobalTheme.bottomBarBackground
 
         if #available(iOS 26, *) {
             // Liquid Glass owns the floating pill. Opaque/custom fills leave the black void.
@@ -612,18 +598,14 @@ struct NativeShellTabView<Content: View>: View {
             UITabBar.appearance().isTranslucent = true
         } else {
             appearance.configureWithOpaqueBackground()
-            appearance.backgroundColor = UIColor(
-                isBusiness
-                    ? GlobalTheme.businessBottomBarBackground(momentTypeCode: momentTypeCode)
-                    : GlobalTheme.bottomBarBackground
-            )
+            appearance.backgroundColor = UIColor(barFill)
             UITabBar.appearance().isTranslucent = false
         }
 
         let normal = appearance.stackedLayoutAppearance.normal
         normal.iconColor = unselected
         normal.titleTextAttributes = [.foregroundColor: unselected]
-        // Selected tint comes from SwiftUI `.tint(accent)` (Dist orange / Trading emerald / …).
+        // Selected tint comes from SwiftUI `.tint(accent)`.
         let selected = appearance.stackedLayoutAppearance.selected
         selected.iconColor = nil
         selected.titleTextAttributes = [:]

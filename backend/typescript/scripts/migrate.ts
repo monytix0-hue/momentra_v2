@@ -29,6 +29,22 @@ function isV030Blocked(file: string): boolean {
   return path.basename(file).startsWith('V030');
 }
 
+/**
+ * V103 drops the entire business schema. Never apply via the normal migrator.
+ * Opt-in only with ALLOW_DESTRUCTIVE_V103=1 on a confirmed throwaway V4/dev DB.
+ * Callers: runMigrationFile / main install filter in this file.
+ * User: "Do not execute the destructive V103 teardown."
+ */
+function isV103TeardownBlocked(file: string): boolean {
+  const name = path.basename(file);
+  if (!name.startsWith('V103__drop_business_v4_teardown')) return false;
+  return process.env.ALLOW_DESTRUCTIVE_V103 !== '1';
+}
+
+function isMigrationBlocked(file: string): boolean {
+  return isV030Blocked(file) || isV103TeardownBlocked(file);
+}
+
 /** Resolve migration basename to an absolute path under product buckets or flat root. */
 function resolveMigrationPath(basename: string): string {
   const name = path.basename(basename);
@@ -146,6 +162,13 @@ async function runMigrationFile(client: PoolClient, file: string, opts?: { skipL
     console.log('SKIP (V030 blocked — production validation gate only):', file);
     return 'skip';
   }
+  if (isV103TeardownBlocked(file)) {
+    console.log(
+      'SKIP (V103 destructive teardown blocked — set ALLOW_DESTRUCTIVE_V103=1 only on confirmed throwaway DBs):',
+      file
+    );
+    return 'skip';
+  }
 
   const isValidation = file.startsWith('V034');
   if (!isValidation && (await isApplied(client, file)) && (await verifyMigrationApplied(client, file))) {
@@ -196,13 +219,21 @@ async function main(): Promise<void> {
 
   console.log('Connecting for migrations...');
 
-  // V030 is never runnable via this tool. V034 forward validation remains optional.
-  const blocked = order.filter((f) => isV030Blocked(f));
+  // V030 and destructive V103 are never runnable via this tool unless explicitly opted in.
+  // V034 forward validation remains optional.
+  const blocked = order.filter((f) => isMigrationBlocked(f));
   for (const file of blocked) {
-    console.log('SKIP (V030 blocked — production validation gate only):', file);
+    if (isV030Blocked(file)) {
+      console.log('SKIP (V030 blocked — production validation gate only):', file);
+    } else if (isV103TeardownBlocked(file)) {
+      console.log(
+        'SKIP (V103 destructive teardown blocked — set ALLOW_DESTRUCTIVE_V103=1 only on confirmed throwaway DBs):',
+        file
+      );
+    }
   }
   const validation = order.filter((f) => f.startsWith('V034'));
-  const install = order.filter((f) => !isV030Blocked(f) && !validation.includes(f));
+  const install = order.filter((f) => !isMigrationBlocked(f) && !validation.includes(f));
   const forwardOnly = process.argv.includes('--forward-only');
 
   const pool = new Pool({ connectionString: dbUrl });

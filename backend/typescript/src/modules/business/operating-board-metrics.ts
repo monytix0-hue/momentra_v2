@@ -1,5 +1,5 @@
 /**
- * Structured board figures for Trading, Distribution, Manufacturing, and MTO.
+ * Structured board figures for the Trading and Distribution view-all surfaces.
  *
  * Before this module every board reported a single prose `detail` sentence, so a
  * client could only render tiles by parsing English. Each section now carries
@@ -18,11 +18,6 @@ import type {
   OperatingRole,
 } from './operating-catalog';
 import {
-  explicitAccepted,
-  manufacturingStock,
-  type ManufacturingEvent,
-} from './operating-manufacturing';
-import {
   fulfilmentCoverage,
   buyersChannelsCoverage,
   ordersCoverage,
@@ -30,7 +25,6 @@ import {
   tradingStockPositions,
   consignmentStockHint,
 } from './operating-trading-contract';
-import { isConfirmedOrder } from './operating-retail-contract';
 
 const NOT_RECORDED = 'Not recorded';
 
@@ -76,6 +70,10 @@ function num(value: string | null | undefined): number {
 }
 
 function effective(row: OperatingEventRow): boolean {
+  // Callers: tradingPulseMetrics / applyTradingBoardMetrics. Align with catalog effective().
+  // User: "Exclude SUPERSEDED and REVERSAL events from effective financial totals."
+  if (row.ledgerStatus === 'SUPERSEDED') return false;
+  if (row.eventType === 'REVERSAL') return false;
   return row.approvalStatus !== 'PENDING' && row.approvalStatus !== 'REJECTED' && row.paymentStatus !== 'CANCELLED';
 }
 
@@ -134,7 +132,7 @@ function buildFacts(
   const purchases = live.filter((row) => row.eventType === 'PURCHASE' || row.eventType === 'VENDOR_COST');
   const collections = live.filter((row) => row.eventType === 'COLLECTION');
   const payments = live.filter((row) => row.eventType === 'PAYMENT');
-  const orders = live.filter((row) => isConfirmedOrder(row));
+  const orders = live.filter((row) => row.eventType === 'ORDER' || row.eventType === 'CUSTOMER_ORDER');
   const openOrders = orders.filter(
     (row) => row.contract?.orderStatus !== 'CANCELLED' && row.contract?.orderStatus !== 'COMPLETED'
   );
@@ -466,8 +464,6 @@ function badgeFor(row: OperatingBoardRow, event: OperatingEventRow | undefined):
   if (event.approvalStatus === 'PENDING') return 'Approval';
   if (contract?.holdStatus === 'HELD') return 'On hold';
   if (event.eventType === 'ORDER' || event.eventType === 'CUSTOMER_ORDER') {
-    const quote = String(contract?.quotationStatus ?? '').toUpperCase();
-    if (quote && quote !== 'ACCEPTED') return quote === 'SENT' ? 'Quote' : 'Quotation';
     if (contract?.orderStatus === 'CANCELLED') return 'Cancelled';
     if (contract?.orderStatus === 'COMPLETED') return 'Done';
     return 'Open';
@@ -499,301 +495,18 @@ export function applyTradingBoardMetrics(
   asOf: Date
 ): void {
   const facts = buildFacts(events, visible, currency, asOf);
-  decorateBoardSections(boards, events, (code) => metricsFor(code, facts), (code) => whyFor(code, facts));
-}
-
-interface ManufacturingFacts extends TradingFacts {
-  productionRows: OperatingEventRow[];
-  recordedOutput: number;
-  acceptedOutput: number | null;
-  pendingProduction: number | null;
-  deliveries: OperatingEventRow[];
-  positions: ReturnType<typeof manufacturingStock>;
-}
-
-function toMfg(row: OperatingEventRow): ManufacturingEvent {
-  return {
-    operatingEventId: row.operatingEventId,
-    eventType: row.eventType,
-    title: row.title,
-    amount: row.amount,
-    paymentStatus: row.paymentStatus,
-    approvalStatus: row.approvalStatus,
-    occurredAt: row.occurredAt,
-    parentEventId: row.parentEventId,
-    quantity: row.quantity,
-    unit: row.unit,
-    counterpartyName: row.counterpartyName,
-    lines: row.lines,
-    contract: row.contract,
-    rejectedQuantity: row.rejectedQuantity,
-  };
-}
-
-function buildManufacturingFacts(
-  events: OperatingEventRow[],
-  visible: boolean,
-  currency: string,
-  asOf: Date
-): ManufacturingFacts {
-  const base = buildFacts(events, visible, currency, asOf);
-  const productionRows = base.live.filter((row) => row.eventType === 'PRODUCTION');
-  const recordedOutput = productionRows.reduce((total, row) => {
-    if (row.quantity != null && row.quantity !== '') return total + num(row.quantity);
-    return total + num(row.amount);
-  }, 0);
-  const acceptedKnown = productionRows.some((row) => explicitAccepted(toMfg(row)) != null);
-  const acceptedOutput = acceptedKnown
-    ? productionRows.reduce((total, row) => total + (explicitAccepted(toMfg(row)) ?? 0), 0)
-    : null;
-
-  // Pending production needs order quantities — omit when no orders are on the books.
-  let pendingProduction: number | null = null;
-  if (base.orders.length > 0) {
-    pendingProduction = 0;
-    for (const order of base.orders) {
-      if (order.contract?.orderStatus === 'CANCELLED') continue;
-      const linked = productionRows
-        .filter((row) => row.parentEventId === order.operatingEventId)
-        .reduce((total, row) => {
-          if (row.quantity != null && row.quantity !== '') return total + num(row.quantity);
-          return total + num(row.amount);
-        }, 0);
-      pendingProduction += Math.max(0, num(order.quantity) - linked);
-    }
-  }
-
-  const deliveries = base.live.filter((row) => row.eventType === 'DELIVERY' || row.eventType === 'SHIPMENT');
-  return {
-    ...base,
-    productionRows,
-    recordedOutput,
-    acceptedOutput,
-    pendingProduction,
-    deliveries,
-    positions: manufacturingStock(events.map(toMfg)),
-  };
-}
-
-function manufacturingWhy(code: string, facts: ManufacturingFacts): string | null {
-  switch (code) {
-    case 'production':
-      return facts.acceptedOutput == null && facts.productionRows.length > 0
-        ? 'Acceptance not recorded — recorded output is not sellable finished goods.'
-        : null;
-    case 'orders':
-    case 'M4':
-      return facts.openOrders.length > 0
-        ? 'Orders and jobs are commitments. Only a posted sale becomes revenue.'
-        : null;
-    case 'stock':
-      return facts.positions.length === 0 && facts.stockMoves.length === 0
-        ? 'No owned stock position recorded yet.'
-        : null;
-    case 'ME2':
-    case 'L3':
-      return facts.collected === 0 && facts.paid === 0
-        ? 'No settlement recorded yet, so cash movement is not measured.'
-        : null;
-    case 'fulfilment':
-      return facts.deliveries.length === 0 && facts.productionRows.length === 0
-        ? 'Fulfilment history needs deliveries or production against orders.'
-        : null;
-    default:
-      return null;
-  }
-}
-
-function manufacturingMetricsFor(code: string, facts: ManufacturingFacts): OperatingBoardMetric[] {
-  const unitCount = 'count';
-  const outputUnit = facts.productionRows.find((row) => row.unit)?.unit ?? null;
-  switch (code) {
-    case 'orders': {
-      return [
-        metric('openOrders', 'Open orders', facts.openOrders.length, unitCount, facts.openOrders.length > 0 ? 'WARNING' : 'NORMAL'),
-        metric('inTransit', 'In transit', facts.inTransit.length, unitCount),
-        metric('netSales', 'Net sales', moneyValue(facts, facts.netSales)),
-        metric('sales', 'Posted sales', facts.sales.length, unitCount),
-      ];
-    }
-    case 'production': {
-      return [
-        metric(
-          'recorded',
-          'Recorded',
-          facts.productionRows.length > 0 ? Number(facts.recordedOutput.toFixed(2)) : NOT_RECORDED,
-          facts.productionRows.length > 0 ? outputUnit : null
-        ),
-        metric(
-          'accepted',
-          'Accepted',
-          facts.acceptedOutput == null ? NOT_RECORDED : Number(facts.acceptedOutput.toFixed(2)),
-          facts.acceptedOutput == null ? null : outputUnit,
-          facts.acceptedOutput != null && facts.acceptedOutput > 0 ? 'POSITIVE' : 'NORMAL'
-        ),
-        metric(
-          'pending',
-          'Pending',
-          facts.pendingProduction == null ? NOT_RECORDED : Number(facts.pendingProduction.toFixed(2)),
-          facts.pendingProduction == null ? null : outputUnit,
-          facts.pendingProduction != null && facts.pendingProduction > 0 ? 'WARNING' : 'NORMAL'
-        ),
-        metric('runs', 'Production runs', facts.productionRows.length, unitCount),
-      ];
-    }
-    case 'stock': {
-      const onHand = facts.positions.reduce((total, position) => total + position.onHand, 0);
-      return [
-        metric('skus', 'Items tracked', facts.positions.length, unitCount),
-        metric(
-          'onHand',
-          'On hand',
-          facts.positions.length > 0 ? Number(onHand.toFixed(2)) : NOT_RECORDED,
-          facts.positions[0]?.unit ?? null
-        ),
-        // Reorder points are not on manufacturing stock positions — never invent a low-stock count.
-        metric('low', 'Low stock', NOT_RECORDED),
-        metric('stockMoves', 'Stock moves', facts.stockMoves.length, unitCount),
-      ];
-    }
-    case 'M4': {
-      return [
-        metric('toCollect', 'To collect', moneyValue(facts, facts.openToCollect), null, facts.openToCollect > 0 ? 'WARNING' : 'POSITIVE'),
-        metric('toPay', 'To pay', moneyValue(facts, facts.openToPay), null, facts.openToPay > 0 ? 'WARNING' : 'POSITIVE'),
-        metric('openOrders', 'Open orders', facts.openOrders.length, unitCount),
-        metric('inTransit', 'In transit', facts.inTransit.length, unitCount),
-      ];
-    }
-    case 'L1': {
-      return [
-        metric('sales', 'Sales', facts.sales.length, unitCount),
-        metric('stockMoves', 'Stock moves', facts.stockMoves.length, unitCount),
-        metric('issues', 'Issues', facts.live.filter((row) => row.eventType === 'ISSUE').length, unitCount),
-        metric('runs', 'Production runs', facts.productionRows.length, unitCount),
-      ];
-    }
-    case 'L2': {
-      return [
-        metric('channels', 'Channels', facts.channels.length, unitCount),
-        metric('buyers', 'Named buyers', facts.buyers.length, unitCount),
-        metric('sales', 'Attributed sales', moneyValue(facts, facts.netSales)),
-        metric('openOrders', 'Open orders', facts.openOrders.length, unitCount),
-      ];
-    }
-    case 'L3': {
-      return [
-        metric('collected', 'Collected', moneyValue(facts, facts.collected), null, facts.collected > 0 ? 'POSITIVE' : 'NORMAL'),
-        metric('paid', 'Paid', moneyValue(facts, facts.paid)),
-        metric(
-          'net',
-          'Net movement',
-          moneyValue(facts, facts.collected - facts.paid),
-          null,
-          facts.collected - facts.paid >= 0 ? 'POSITIVE' : 'WARNING'
-        ),
-      ];
-    }
-    case 'L4': {
-      return [
-        metric('stockMoves', 'Stock moves', facts.stockMoves.length, unitCount),
-        metric('issues', 'Issues', facts.live.filter((row) => row.eventType === 'ISSUE').length, unitCount),
-        metric('updates', 'Updates', facts.live.filter((row) => row.eventType === 'UPDATE').length, unitCount),
-        metric('runs', 'Production runs', facts.productionRows.length, unitCount),
-      ];
-    }
-    case 'L5':
-    case 'ME3': {
-      const today = facts.asOf.toISOString().slice(0, 10);
-      const todayCount = facts.live.filter((row) => row.occurredAt.slice(0, 10) === today).length;
-      return [
-        metric('records', 'Records', facts.live.length, unitCount),
-        metric('today', 'Today', todayCount, unitCount),
-        metric('people', 'People', new Set(facts.live.map((row) => row.submittedByUserId)).size, unitCount),
-      ];
-    }
-    case 'ME1': {
-      const months = new Set(
-        facts.live
-          .map((row) => row.occurredAt.slice(0, 7))
-          .filter((month) => /^\d{4}-\d{2}$/.test(month))
-      );
-      return [
-        metric('months', 'Months recorded', months.size, unitCount),
-        metric('records', 'Records', facts.live.length, unitCount),
-        metric('netSales', 'Net sales', moneyValue(facts, facts.netSales)),
-      ];
-    }
-    case 'ME2': {
-      return [
-        metric('collected', 'Collected', moneyValue(facts, facts.collected)),
-        metric('paid', 'Paid', moneyValue(facts, facts.paid)),
-        metric('credits', 'Credits', moneyValue(facts, facts.credits)),
-        metric('returns', 'Returns', facts.returns.length, unitCount, facts.returns.length > 0 ? 'WARNING' : 'NORMAL'),
-      ];
-    }
-    case 'ME4': {
-      const pending = facts.events.filter((row) => row.approvalStatus === 'PENDING').length;
-      return [
-        metric('issues', 'Issues', facts.live.filter((row) => row.eventType === 'ISSUE').length, unitCount),
-        metric('approvals', 'Waiting approval', pending, unitCount, pending > 0 ? 'WARNING' : 'POSITIVE'),
-      ];
-    }
-    case 'fulfilment': {
-      const deliveredPct =
-        facts.deliveries.length > 0
-          ? Math.round((facts.delivered.length / facts.deliveries.length) * 100)
-          : null;
-      return [
-        metric(
-          'delivered',
-          'Delivered',
-          deliveredPct == null ? NOT_RECORDED : `${deliveredPct}%`,
-          null,
-          deliveredPct != null && deliveredPct >= 80 ? 'POSITIVE' : 'NORMAL'
-        ),
-        metric(
-          'received',
-          'Received',
-          facts.receivedPct == null ? NOT_RECORDED : `${facts.receivedPct}%`,
-          null,
-          facts.receivedPct != null && facts.receivedPct >= 80 ? 'POSITIVE' : 'NORMAL'
-        ),
-        metric('returns', 'Returns', facts.returns.length, unitCount, facts.returns.length > 0 ? 'WARNING' : 'NORMAL'),
-        metric('runs', 'Production runs', facts.productionRows.length, unitCount),
-      ];
-    }
-    default: {
-      return [
-        metric('records', 'Records', facts.live.length, unitCount),
-        metric(
-          'toCollect',
-          'To collect',
-          moneyValue(facts, facts.openToCollect),
-          null,
-          facts.openToCollect > 0 ? 'WARNING' : 'NORMAL'
-        ),
-      ];
-    }
-  }
-}
-
-function decorateBoardSections(
-  boards: { moments: OperatingBoardSection[]; life: OperatingBoardSection[]; memory: OperatingBoardSection[] },
-  events: OperatingEventRow[],
-  metrics: (code: string) => OperatingBoardMetric[],
-  why: (code: string) => string | null
-): void {
   const byId = new Map(events.map((row) => [row.operatingEventId, row]));
   const sections = [...boards.moments, ...boards.life, ...boards.memory];
   for (const section of sections) {
-    section.metrics = metrics(section.code);
-    section.why = why(section.code);
+    section.metrics = metricsFor(section.code, facts);
+    section.why = whyFor(section.code, facts);
     for (const row of section.rows) {
       const event = byId.get(row.id);
       row.badge = badgeFor(row, event);
       row.subtitle = row.counterpartyName ?? row.channelName ?? row.note ?? null;
     }
   }
+  // A section with no tiles is a client bug waiting to happen; keep two facts minimum.
   for (const section of sections) {
     if (!section.metrics || section.metrics.length === 0) {
       section.metrics = [
@@ -802,23 +515,6 @@ function decorateBoardSections(
       ];
     }
   }
-}
-
-/** Fill `metrics`, `why`, and row badges on Manufacturing / MTO boards. */
-export function applyManufacturingBoardMetrics(
-  boards: { moments: OperatingBoardSection[]; life: OperatingBoardSection[]; memory: OperatingBoardSection[] },
-  events: OperatingEventRow[],
-  visible: boolean,
-  currency: string,
-  asOf: Date
-): void {
-  const facts = buildManufacturingFacts(events, visible, currency, asOf);
-  decorateBoardSections(
-    boards,
-    events,
-    (code) => manufacturingMetricsFor(code, facts),
-    (code) => manufacturingWhy(code, facts)
-  );
 }
 
 export interface OperatingPulseMetricGroup {
@@ -955,174 +651,6 @@ export function tradingPulseMetrics(args: {
       why: prefs.gstTracking === 'YES'
         ? null
         : 'GST tracking is off for this moment, so tax is not computed on new records.',
-    },
-  ];
-}
-
-/**
- * Marketing Pulse AN-P01…P05 (+ GST) as the same `pulseMetrics` contract used by trading/retail.
- * Own campaigns never surface client AR figures; attributed sales stay observational.
- */
-export function marketingPulseMetrics(args: {
-  events: OperatingEventRow[];
-  visible: boolean;
-  currency: string;
-  asOf: Date;
-  prefs: OperatingPreferences;
-  ownCampaign: boolean;
-  clientCampaign: boolean;
-  marketing: {
-    cpl: string | null;
-    coverage: string;
-  } | null;
-  projection: {
-    budget: { amount: string; spent: string; remaining: string; configured: boolean } | null;
-    target: { metric: string; value: string; progress: string; configured: boolean } | null;
-    finance: {
-      sales: string;
-      received: string;
-      outstanding: string;
-      payable: string;
-      eligibleCost: string;
-      cashPaid: string;
-    } | null;
-    attention: Array<{ severity?: string | null }>;
-    paymentReadiness: Array<{ relevance: string; status: string; amount: string; dueBucket?: string | null }>;
-    activity: Array<{ eventType: string }>;
-  };
-}): OperatingPulseMetricGroup[] {
-  const { prefs, projection, ownCampaign, clientCampaign } = args;
-  const overdue = projection.paymentReadiness.filter((row) => row.dueBucket === 'OVERDUE').length;
-  const dueSoon = projection.paymentReadiness.filter((row) => row.dueBucket === 'DUE_SOON').length;
-  const high = projection.attention.filter((row) => row.severity === 'HIGH').length;
-  const pendingApprovals = args.events.filter((row) => row.approvalStatus === 'PENDING').length;
-  const currency = args.currency || 'INR';
-  const fmt = (value: string | null | undefined) =>
-    args.visible && value != null && value !== ''
-      ? `${money(num(value))} ${currency}`
-      : args.visible
-        ? NOT_RECORDED
-        : 'Hidden';
-  const activities = args.events.filter((row) => row.eventType === 'ACTIVITY' && effective(row)).length;
-  const results = args.events.filter((row) => row.eventType === 'RESULT' && effective(row)).length;
-  const spends = args.events.filter(
-    (row) => (row.eventType === 'SPEND' || row.eventType === 'VENDOR_COST') && effective(row)
-  ).length;
-
-  return [
-    {
-      code: 'TARGET_BUDGET',
-      metrics: [
-        metric(
-          'target',
-          'Target',
-          projection.target?.configured
-            ? `${money(num(projection.target.value))} ${projection.target.metric}`
-            : NOT_RECORDED
-        ),
-        metric(
-          'progress',
-          'Achieved',
-          projection.target?.configured ? money(num(projection.target.progress)) : NOT_RECORDED,
-          null,
-          projection.target?.configured && num(projection.target.progress) >= num(projection.target.value)
-            ? 'POSITIVE'
-            : 'NORMAL'
-        ),
-        metric('budget', 'Budget', projection.budget?.configured ? fmt(projection.budget.amount) : NOT_RECORDED),
-        metric(
-          'remaining',
-          'Budget left',
-          projection.budget?.configured ? fmt(projection.budget.remaining) : NOT_RECORDED,
-          null,
-          projection.budget?.configured && num(projection.budget.remaining) < 0 ? 'WARNING' : 'NORMAL'
-        ),
-      ],
-      why:
-        projection.target?.configured || projection.budget?.configured
-          ? args.marketing?.coverage === 'N/A'
-            ? 'Comparable result coverage is unavailable — ratios stay Unavailable, not 0%.'
-            : null
-          : 'Set a target and budget to measure campaign progress.',
-    },
-    {
-      code: 'FINANCE',
-      metrics: clientCampaign
-        ? [
-            metric('sales', 'Invoiced', projection.finance ? fmt(projection.finance.sales) : 'Hidden'),
-            metric('received', 'Collected', projection.finance ? fmt(projection.finance.received) : 'Hidden'),
-            metric(
-              'outstanding',
-              'Receivable',
-              projection.finance ? fmt(projection.finance.outstanding) : 'Hidden',
-              null,
-              projection.finance && num(projection.finance.outstanding) > 0 ? 'WARNING' : 'NORMAL'
-            ),
-            metric('payable', 'Vendor payable', projection.finance ? fmt(projection.finance.payable) : 'Hidden'),
-          ]
-        : [
-            metric('sales', 'Attributed sales', NOT_RECORDED),
-            metric('cost', 'Eligible spend', projection.finance ? fmt(projection.finance.eligibleCost) : 'Hidden'),
-            metric('paid', 'Cash paid', projection.finance ? fmt(projection.finance.cashPaid) : 'Hidden'),
-            metric('payable', 'Open payable', projection.finance ? fmt(projection.finance.payable) : 'Hidden'),
-          ],
-      why: ownCampaign
-        ? 'Own-business attributed sales are observational and never booked as ledger revenue.'
-        : projection.finance
-          ? null
-          : 'Finance figures are visible to owner, finance, and approver roles.',
-    },
-    {
-      code: 'PAYMENT_READINESS',
-      metrics: [
-        metric('overdue', 'Overdue', overdue, 'count', overdue > 0 ? 'WARNING' : 'POSITIVE'),
-        metric('dueSoon', 'Due soon', dueSoon, 'count', dueSoon > 0 ? 'WARNING' : 'NORMAL'),
-        metric('open', 'Open', projection.paymentReadiness.length, 'count'),
-        metric(
-          'toCollect',
-          clientCampaign ? 'To collect' : 'To pay',
-          `${money(
-            projection.paymentReadiness
-              .filter((row) =>
-                clientCampaign ? row.relevance === 'RECEIVABLE' : row.relevance === 'PAYABLE'
-              )
-              .reduce((total, row) => total + num(row.amount), 0)
-          )} ${currency}`
-        ),
-      ],
-      why: projection.paymentReadiness.length === 0 ? 'Nothing is awaiting settlement.' : null,
-    },
-    {
-      code: 'ATTENTION',
-      metrics: [
-        metric('high', 'High priority', high, 'count', high > 0 ? 'WARNING' : 'POSITIVE'),
-        metric('open', 'Open items', projection.attention.length, 'count'),
-        metric('approvals', 'Waiting approval', pendingApprovals, 'count', pendingApprovals > 0 ? 'WARNING' : 'NORMAL'),
-        metric('overdue', 'Overdue', overdue, 'count', overdue > 0 ? 'WARNING' : 'NORMAL'),
-      ],
-      why: projection.attention.length === 0 ? 'Nothing needs attention right now.' : null,
-    },
-    {
-      code: 'ACTIVITY',
-      metrics: [
-        metric('records', 'Records', projection.activity.length, 'count'),
-        metric('activities', 'Activities', activities, 'count'),
-        metric('results', 'Results', results, 'count'),
-        metric('spends', 'Spend posts', spends, 'count'),
-      ],
-      why: null,
-    },
-    {
-      code: 'GST',
-      metrics: [
-        metric('registration', 'Registration', prefs.gstRegistration || NOT_RECORDED),
-        metric('state', 'Business state', prefs.gstState || NOT_RECORDED),
-        metric('tracking', 'GST tracking', prefs.gstTracking === 'YES' ? 'On' : 'Off'),
-        metric('cpl', 'CPL', args.marketing?.cpl ? `${args.marketing.cpl} ${currency}` : NOT_RECORDED),
-      ],
-      why: prefs.gstTracking === 'YES'
-        ? null
-        : 'GST follows the shared tax contract; marketing never invents a 0% rate.',
     },
   ];
 }

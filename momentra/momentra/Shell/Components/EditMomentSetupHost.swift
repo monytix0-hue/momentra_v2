@@ -32,7 +32,10 @@ enum EditMomentSetupTarget: Identifiable, Equatable {
             }
         case .business:
             let code = (momentTypeCode ?? "").uppercased()
-            if code == "CLIENT_CAMPAIGN" || code == "OWN_BUSINESS_CAMPAIGN" || code.contains("MARKETING") {
+            if code == "OWN_BUSINESS_CAMPAIGN" {
+                return .business(.marketingOwn)
+            }
+            if code == "CLIENT_CAMPAIGN" || code.contains("MARKETING") || code.contains("CAMPAIGN") {
                 return .business(.marketing)
             }
             if code == "TRADING_WHOLESALE" || code.contains("TRADING") {
@@ -51,7 +54,13 @@ enum EditMomentSetupTarget: Identifiable, Equatable {
                 || (code.contains("SERVICE") && !code.contains("CAMPAIGN")) {
                 return .business(.service)
             }
-            return nil
+            if code == "MADE_TO_ORDER" || code.contains("MADE") {
+                return .business(.madeToOrder)
+            }
+            if code == "STANDARD_PRODUCTION" || code.contains("MANUFACTUR") || code.contains("PRODUCTION") {
+                return .business(.manufacturing)
+            }
+            return .business(.manufacturing)
         case .group:
             let family = GroupExperienceFamily.forTypeCode(momentTypeCode)
             if family.isThemedPurchase { return .groupPurchase }
@@ -90,6 +99,7 @@ struct EditMomentSetupHost: View {
                 companyId: companyId,
                 editingMomentId: momentId,
                 initialTitle: momentTitle,
+                initialTypeCode: momentTypeCode ?? kind.subtype,
                 onClose: onClose,
                 onCreated: { _ in onSaved() }
             )

@@ -45,9 +45,9 @@ register, no receipt table and no purchase-order table anywhere under
 | | |
 |---|---|
 | Needs | `GET /v1/companies/:companyId/products` (list with price, HSN, GST rate, category, UoM) |
-| Today | Rows come from `operating.masters` filtered to `kind ∈ {PRODUCT, ITEM, SKU, MATERIAL, CONSUMABLE}`. That list is derived in `operating-catalog.ts:1343` from events that **already carried** a master payload, so a catalogue is empty until something has been sold, bought or stocked. |
+| Today | **Also** `GET|POST|PATCH /v1/companies/:companyId/products` (+ `.../stock?momentId=`) as aliases over `operating_master` for PRODUCT/SKU/MATERIAL/CONSUMABLE. Projection `masters` still merge table + event-derived rows; operating projection now exposes `companyId` so clients can call company routes without a second lookup. |
 | Behaviour | Tab lists real master rows with `UOM`, `GST n%`, `Scan` chip. Empty state says catalogue rows only appear on an explicit master record. `New product` opens the shared capture sheet in `MASTERS` mode, which posts an `UPDATE` event carrying the master payload — the documented way to introduce a product ahead of a transaction. |
-| Gap | No way to page, search or edit a catalogue independent of activity; no MRP, no category tree, no variant list, no aisle/bin. |
+| Gap | No dedicated paging/variants/aisle-bin resource; MRP/category live on master fields/payload when provided. |
 
 ### 1.2 Create Product / SKU — `2506:29782`
 
@@ -103,34 +103,25 @@ UI honesty says device-local until the endpoints above exist.
 
 ### 1.6 Stock transfer — `2508:29447`
 
-Needed: `POST .../stock-transfers` with `fromLocationId`, `toLocationId`, `lines[]`,
-`gstin`, and paired ledger movements.
+**Shipped (2026-11):** `STOCK` + `stockAction=TRANSFER` + from/to location fields posts
+through `validateRetailWrite` (paired ledger in `stockPositions`, same semantics as
+trading). Hold remains device-local chrome; appointment-style staff transfer still
+refuses writes.
 
-Present: `eventType = "STOCK"`, `quantity`, `unit`, `itemName`, `note`. That records a
-single-location count/damage adjustment. A transfer between locations has no `from`/`to`
-field in `recordOperatingEventSchema`, so a transfer would silently read as an adjustment
-at one place. Not offered.
+Still not a separate `stock-transfers` resource or GSTIN-checked inter-state transfer.
 
 ### 1.7 Reprint receipt — `2508:29537`
 
-Needed: `GET .../operating-events/:eventId/receipt.pdf` (or a stored bill number).
-
-Present: events carry `title`, `amount`, `lines[]`, `gstRate`, `occurredAt` — enough to
-render a tax invoice client-side, but there is no allocated bill number, no immutable
-posted snapshot, and no PDF. The `Print`/`Reprint` action is not present; the row opens
-the event's detail in the board sheet instead.
+**Shipped (2026-11):** Posted `SALE`/`SERVICE` allocate `contract.billNumber`
+(`RTL-0001`…) when omitted. `GET .../operating-events/:eventId/document` returns that as
+`documentNumber` (else `clientKey`, else id prefix). Still **no** server PDF — device
+renders/shares from the structured document.
 
 ### 1.8 Purchase Order — `2443:29784`
 
-Needed: `POST /v1/companies/:companyId/purchase-orders` with supplier, line items,
-expected date, status (`DRAFT → SENT → PARTIAL → RECEIVED`), and goods-receipt linkage.
-
-Present: `eventType = "ORDER"` (`parentEventId` links a child), `counterpartyName`,
-`dueAt`, `quantity`, `unit`, `lines[]`. The purchase tile posts an `ORDER` with
-`orderSide` semantics, which the projection treats as a **commitment**, never as a
-payable (see `PAYABLE_TYPES` in `operating-catalog.ts`). Status transitions use the
-`Status / Assignment` sheet on the parent order. There is no receive-against-PO step, so
-stock only changes on an explicit `PURCHASE`/`STOCK` event.
+**Partial (2026-11):** `PURCHASE` may set `parentEventId` to an `ORDER` with
+`orderSide=PURCHASE` (cap vs `estimatedAmount`). PO itself remains an `ORDER`
+commitment. No dedicated `purchase-orders` table or status machine beyond order status.
 
 ### 1.9 Masters forms — `2506:29612` (Supplier), `2506:29703` (Location)
 
@@ -188,27 +179,27 @@ numbers visible instead of a blank canvas.
 If the server grows these, the listed screens can stop degrading:
 
 ```
-GET    /v1/companies/:companyId/products                     list (price, HSN, GST, category, UoM)
-POST   /v1/companies/:companyId/products                     create ahead of any transaction
-PATCH  /v1/companies/:companyId/products/:productId           edit / archive
-GET    /v1/companies/:companyId/products/:productId/stock     on-hand by location
+GET    /v1/companies/:companyId/products                     ✅ alias of operating-masters (product kinds)
+POST   /v1/companies/:companyId/products                     ✅ create (default kind PRODUCT)
+PATCH  /v1/companies/:companyId/products/:productId           ✅ update / archive path via masters
+GET    /v1/companies/:companyId/products/:productId/stock     ✅ on-hand by location (?momentId=)
 
 POST   /v1/business/moments/:momentId/registers               open shift / register
 POST   .../registers/:registerId/holds                       park a cart (no revenue, no stock)
 GET    .../registers/:registerId/holds                       recall list
 DELETE .../registers/:registerId/holds/:holdId                discard a hold
 POST   .../sales                                             post a bill: lines + tender split
-GET    .../sales/:saleId/receipt.pdf                          reprint
+GET    .../sales/:saleId/receipt.pdf                          reprint PDF (document JSON ✅; PDF still missing)
 
-POST   /v1/companies/:companyId/stock-transfers               from/to location + lines
+POST   /v1/companies/:companyId/stock-transfers               ✅ use STOCK+TRANSFER operating-event instead
 GET    /v1/companies/:companyId/stock-ledger?itemId=          movements per item
 
-POST   /v1/companies/:companyId/purchase-orders               supplier + lines + expected date
-POST   .../purchase-orders/:poId/receive                       goods receipt → stock movement
-PATCH  .../purchase-orders/:poId                               status transition
+POST   /v1/companies/:companyId/purchase-orders               ✅ ORDER orderSide=PURCHASE + PURCHASE parentEventId
+POST   .../purchase-orders/:poId/receive                       ✅ PURCHASE with parentEventId = PO
+PATCH  .../purchase-orders/:poId                               order status revise
 
 GET    /v1/business/moments/:momentId/operating
-       → add `companyId`, `locationId`                         so masters tabs can use the company endpoints
+       → add `companyId` ✅ (`locationId` still prefs.location)
 POST   /v1/moments/:momentId/stories
        → accept `{ period, detail, includeGst }`              so the config sheet's controls stop being disabled
 GET    /v1/moments/:momentId/stories                           version history for the saved/share states

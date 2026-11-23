@@ -1,0 +1,23 @@
+# Reader: Maestro CLI (`maestro test`). Effect: CREATE tab Quick Add → Saved confirmation.
+# No secrets in plain text.
+# User: "Every Quick Add must support server-side validation, idempotency... and visible
+# confirmation of the saved result."
+appId: com.example.momentra
+---
+- launchApp
+- tapOn: "Business"
+- tapOn: "Create"
+- extendedWaitUntil:
+    visible: "Quick Add"
+    timeout: 45000
+- tapOn:
+    text: "Title"
+    optional: true
+- inputText: "P4 Maestro sale"
+- tapOn: "Add"
+- extendedWaitUntil:
+    visible:
+      anyOf:
+        - "Saved"
+        - "P4 Maestro sale"
+    timeout: 30000

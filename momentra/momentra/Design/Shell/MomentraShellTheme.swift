@@ -6,21 +6,9 @@ enum GlobalTheme {
     /// Trading / Distribution canvas under the business tab bar (TRD-PULSE-v12).
     static let businessBottomBarBackground = Color(hex: 0x090D16)
 
-    /// Tab bar fill tuned to the active business moment's domain canvas.
+    /// Tab bar fill for Business — V4 placeholder (domain canvases wiped with operating UI).
     static func businessBottomBarBackground(momentTypeCode: String?) -> Color {
-        guard let vertical = BusinessOperatingVertical.forSubtype(momentTypeCode) else {
-            return businessBottomBarBackground
-        }
-        switch vertical {
-        case .trading: return BusinessTokens.Colors.tradingCanvas
-        case .distribution: return BusinessTokens.Colors.distributionCanvas
-        case .standardProduction, .madeToOrder: return BusinessTokens.Colors.manufacturingCanvas
-        case .clientCampaign: return BusinessTokens.Colors.marketingCanvas
-        case .ownBusinessCampaign: return BusinessTokens.Colors.marketingOwnCanvas
-        case .retailStore: return BusinessTokens.Colors.retailCanvas
-        case .restaurantFood: return BusinessTokens.Colors.restaurantCanvas
-        case .consumerService: return BusinessTokens.Colors.servicesCanvas
-        }
+        businessBottomBarBackground
     }
     static let surfaceContent = Color(hex: 0x14121B)
     static let contextUnselected = Color(hex: 0xC9C4D9)
@@ -46,8 +34,9 @@ struct ContextTheme {
         case .group:
             return ContextTheme(context: .group, contextAccent: Color(hex: 0xE8621A), contextAccentSecondary: Color(hex: 0xFF8E63))
         case .business:
-            // Business context chrome — Figma vertical accent `#EA580C` / soft `#FFB598`.
-            return ContextTheme(context: .business, contextAccent: Color(hex: 0xEA580C), contextAccentSecondary: Color(hex: 0xFFB598))
+            // Business context chrome — emerald teal `#10B981` / soft `#6EE7B7` (Trading / App State).
+            // Callers: ContextSwitcherView (ShellChrome), ShellInvariantTests.businessContextChromeIsEmerald.
+            return ContextTheme(context: .business, contextAccent: Color(hex: 0x10B981), contextAccentSecondary: Color(hex: 0x6EE7B7))
         case .circle:
             return ContextTheme(context: .circle, contextAccent: Color(hex: 0xE86BA3), contextAccentSecondary: Color(hex: 0xFF6B8A))
         }
@@ -173,7 +162,8 @@ enum MomentThemes {
         if code.contains("MARKETING") || code == "CLIENT_CAMPAIGN" {
             return base("BUSINESS", code.isEmpty ? "CLIENT_CAMPAIGN" : code, Color(hex: 0x6366F1), Color(hex: 0x818CF8))
         }
-        return base("BUSINESS", "BUSINESS_OPERATIONS", Color(hex: 0x818CF8), Color(hex: 0xA5B4FC))
+        // Empty / unknown business — shell chrome teal (matches ContextTheme + ShellInvariantTests).
+        return base("BUSINESS", "BUSINESS_OPERATIONS", Color(hex: 0x10B981), Color(hex: 0x6EE7B7))
     }
 
     private static func base(_ family: String, _ type: String, _ primary: Color, _ secondary: Color) -> MomentTheme {

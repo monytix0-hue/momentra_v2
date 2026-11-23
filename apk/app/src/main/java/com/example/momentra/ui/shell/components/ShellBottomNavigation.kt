@@ -34,8 +34,8 @@ import com.example.momentra.ui.theme.ShellTokens
 /**
  * Native Material [NavigationBar] with Figma shell icons.
  *
- * Selected accent follows the active moment palette (Dist `#EA580C`, Trading emerald, …).
- * TRD/DST-PULSE-v12: 44 dp FAB + soft accent glow, 4 dp selected dot, slate idle `#64748B`.
+ * Selected accent follows moment palette for Personal/Group; Business chrome is Obsidian emerald `#10B981`.
+ * Business: slate idle `#64748B` + `businessBottomBarBackground`; FAB soft emerald glow.
  */
 @Composable
 fun ShellBottomNavigation(

@@ -42,9 +42,6 @@ struct BusinessAppStateBody: View {
             BusinessAppStateTokens.page
                 .ignoresSafeArea()
 
-            AppStateGlow(accent: accentColor, tone: tone)
-                .offset(y: 24)
-
             GeometryReader { geo in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: BusinessAppStateTokens.bodyGap) {
@@ -52,23 +49,35 @@ struct BusinessAppStateBody: View {
                             AppStateOfflineBanner(text: BusinessAppStateSpecs.offlineBanner)
                         }
 
-                        AppStateMarkRing(
-                            accent: accentColor,
-                            icon: spec.icon,
-                            size: heroSize,
-                            tone: tone
-                        )
-                        .padding(.vertical, 2)
+                        // Hero block: glow is anchored behind the icon only.
+                        VStack(spacing: BusinessAppStateTokens.bodyGap) {
+                            AppStateMarkRing(
+                                accent: accentColor,
+                                icon: spec.icon,
+                                size: heroSize,
+                                tone: tone,
+                                dotGlyph: spec.dotGlyph
+                            )
+                            .padding(.vertical, 2)
+                            .background(
+                                AppStateGlow(accent: accentColor, tone: tone)
+                                    .frame(width: 200, height: 200)
+                                    .blendMode(.screen)
+                                    .opacity(0.85)
+                                    .offset(y: -6)
+                            )
 
-                        AppStateTitle(text: spec.title)
+                            AppStateTitle(text: spec.title)
 
-                        if !spec.body.isEmpty {
-                            AppStateBodyText(text: spec.body)
+                            if !spec.body.isEmpty {
+                                AppStateBodyText(text: spec.body)
+                            }
+
+                            if let code = spec.errorCode {
+                                AppStateErrorCodePill(code: code, accent: BusinessAppStateTokens.errorRing)
+                            }
                         }
-
-                        if let code = spec.errorCode {
-                            AppStateErrorCodePill(code: code, accent: BusinessAppStateTokens.errorRing)
-                        }
+                        .frame(maxWidth: .infinity)
 
                         if !spec.rows.isEmpty, let eyebrow = spec.eyebrow {
                             AppStateGlassCard {
@@ -132,14 +141,18 @@ struct BusinessAppStateLoadingBody: View {
             BusinessAppStateTokens.page
                 .ignoresSafeArea()
 
-            AppStateGlow(accent: accentColor)
-                .offset(y: 24)
-
             GeometryReader { geo in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: BusinessAppStateTokens.bodyGap) {
                         AppStateMarkRing(accent: accentColor, icon: .sparkle)
                             .padding(.vertical, 2)
+                            .background(
+                                AppStateGlow(accent: accentColor)
+                                    .frame(width: 200, height: 200)
+                                    .blendMode(.screen)
+                                    .opacity(0.85)
+                                    .offset(y: -6)
+                            )
 
                         AppStateTitle(text: label)
 
@@ -173,6 +186,7 @@ struct BusinessAppStateHubBody: View {
     let vertical: BusinessAppStateVertical
     let onPrimary: () -> Void
     let onSecondary: () -> Void
+    var onTileTap: (HubTileSpec) -> Void = { _ in }
 
     private var spec: BusinessAppStateSpec {
         BusinessAppStateSpecs.spec(.hub, .empty)
@@ -197,17 +211,23 @@ struct BusinessAppStateHubBody: View {
             BusinessAppStateTokens.page
                 .ignoresSafeArea()
 
-            AppStateGlow(accent: accentColor)
-                .offset(y: 24)
-
             GeometryReader { geo in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: BusinessAppStateTokens.bodyGap) {
                         AppStateMarkRing(
                             accent: accentColor,
-                            icon: spec.icon
+                            icon: spec.icon,
+                            dotGlyph: spec.dotGlyph
                         )
                         .padding(.vertical, 2)
+                        .background(
+                            AppStateGlow(accent: accentColor)
+                                .frame(width: 200, height: 200)
+                                .blendMode(.screen)
+                                .opacity(0.85)
+                                .offset(y: -6)
+                        )
+
                         AppStateTitle(text: spec.title)
                         AppStateBodyText(text: spec.body)
 
@@ -216,7 +236,7 @@ struct BusinessAppStateHubBody: View {
                                 HubTile(
                                     icon: tile.icon,
                                     label: tile.label,
-                                    action: onPrimary
+                                    action: { onTileTap(tile) }
                                 )
                             }
                         }
@@ -261,15 +281,17 @@ private struct HubTile: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
-            // Figma: tile is `111x67` with 14pt vertical padding; the label is 15pt tall.
             .frame(
                 width: BusinessAppStateTokens.hubTileWidth,
                 height: BusinessAppStateTokens.hubTileHeight
             )
-            // Figma draws the tile as a flat `white 5%` wash — every tile is equal weight.
             .background(
                 RoundedRectangle(cornerRadius: BusinessAppStateTokens.hubTileRadius)
-                    .fill(BusinessAppStateTokens.hubTileFill)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: BusinessAppStateTokens.hubTileRadius)
+                            .fill(BusinessAppStateTokens.hubTileFill)
+                    )
             )
             .overlay(
                 RoundedRectangle(cornerRadius: BusinessAppStateTokens.hubTileRadius)
@@ -286,6 +308,7 @@ private struct HubTile: View {
 /// Sheet variant of the empty state, used by the Pulse "Needs Attention" view-all sheet.
 /// Figma: sheet fills from the bottom with a scrim behind it, radius 22, emerald stroke.
 struct BusinessAppStateViewAllSheet: View {
+    /// Call sites may pass a vertical accent; View All (2:1287) always paints cyan.
     let accent: BusinessAppStateAccent
     @Binding var selectedFilter: String
     let onClose: () -> Void
@@ -295,15 +318,12 @@ struct BusinessAppStateViewAllSheet: View {
         BusinessAppStateSpecs.spec(.viewAll, .empty)
     }
 
-    private var accentColor: Color { accent.color }
+    private var accentColor: Color { BusinessAppStateAccent.cyan.color }
     private let filters = ["All", "Open", "Due soon", "Closed"]
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.black.opacity(0.55)
-                .ignoresSafeArea()
-                .onTapGesture(perform: onClose)
-
+        // Host uses .businessGlassBottomSheet — no internal black scrim (avoids double wash).
+        BusinessGlassSheetPanel {
             VStack(spacing: 12) {
                 Capsule()
                     .fill(BusinessAppStateTokens.emerald.opacity(0.30))
@@ -361,7 +381,11 @@ struct BusinessAppStateViewAllSheet: View {
                 }
 
                 VStack(spacing: BusinessAppStateTokens.bodyGap) {
-                    AppStateMarkRing(accent: accentColor, icon: spec.icon)
+                    AppStateMarkRing(
+                        accent: accentColor,
+                        icon: spec.icon,
+                        dotGlyph: spec.dotGlyph
+                    )
                     AppStateTitle(text: spec.title)
                     AppStateBodyText(text: spec.body)
                     if let label = spec.secondaryLabel {
@@ -378,23 +402,6 @@ struct BusinessAppStateViewAllSheet: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity)
-            .background(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: BusinessAppStateTokens.cardRadius,
-                    topTrailingRadius: BusinessAppStateTokens.cardRadius
-                )
-                .fill(BusinessAppStateTokens.glassCardFill)
-            )
-            .overlay(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: BusinessAppStateTokens.cardRadius,
-                    topTrailingRadius: BusinessAppStateTokens.cardRadius
-                )
-                .stroke(
-                    BusinessAppStateTokens.glassCardStroke,
-                    lineWidth: BusinessAppStateTokens.glassCardStrokeWidth
-                )
-            )
         }
     }
 }

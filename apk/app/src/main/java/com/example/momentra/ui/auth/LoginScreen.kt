@@ -1,10 +1,13 @@
 package com.example.momentra.ui.auth
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,6 +20,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -345,6 +350,37 @@ fun LoginScreen(
                         .semantics { liveRegion = LiveRegionMode.Polite }
                         .testTag(MaestroIds.LOGIN_ERROR),
                 )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/privacy")),
+                            )
+                        }
+                    },
+                    modifier = Modifier.semantics { contentDescription = "Privacy Policy, opens in browser" },
+                ) {
+                    Text("Privacy Policy", color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp)
+                }
+                TextButton(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse("https://momentra.tech/terms")),
+                            )
+                        }
+                    },
+                    modifier = Modifier.semantics { contentDescription = "Terms of Service, opens in browser" },
+                ) {
+                    Text("Terms", color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp)
+                }
             }
         }
     }

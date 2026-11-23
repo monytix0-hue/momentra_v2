@@ -150,9 +150,10 @@ class MeRepository(
     )
 
     private fun rehydrateAudience(companies: List<CompanySummary>) {
-        val ctx = appContext ?: return
-        com.example.momentra.ui.shell.business.shared.BusinessAudience.rehydrateFromCompanies(ctx, companies)
-        com.example.momentra.ui.shell.business.shared.CompanyModules.rehydrateFromCompanies(ctx, companies)
+        // Business V4 wipe: audience/module caches lived in deleted Business UI packages.
+        // Keep the hook so bootstrap still compiles; no-op until V4 reintroduces them.
+        @Suppress("UNUSED_PARAMETER")
+        val ignored = companies
     }
 
     private fun mapThrowable(e: Throwable): Throwable = when (e) {

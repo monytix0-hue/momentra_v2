@@ -588,3 +588,76 @@ fun AppStateIconButton(
         )
     }
 }
+
+/** Figma Toaster & Banner system (2:1375) — success capture confirmation. */
+@Composable
+fun AppStateSuccessToast(
+    text: String = "₹12,450 added to today's sales",
+    modifier: Modifier = Modifier,
+) {
+    AppStateSystemToast(
+        text = text,
+        fill = BusinessAppStateTokens.SuccessToastFill,
+        stroke = BusinessAppStateTokens.SuccessToastStroke,
+        modifier = modifier,
+    )
+}
+
+/** Offline queue banner from the toaster system. */
+@Composable
+fun AppStateOfflineQueueToast(
+    queuedCount: Int = 2,
+    modifier: Modifier = Modifier,
+) {
+    AppStateSystemToast(
+        text = "Offline queue active ($queuedCount items)",
+        fill = BusinessAppStateTokens.QueueToastFill,
+        stroke = BusinessAppStateTokens.QueueToastStroke,
+        modifier = modifier,
+    )
+}
+
+/** Error code toast — tap to retry. */
+@Composable
+fun AppStateErrorToast(
+    code: String = "SYNC_TIMEOUT_504",
+    onRetry: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    AppStateSystemToast(
+        text = "Error CODE: $code · Tap to retry",
+        fill = BusinessAppStateTokens.ErrorToastFill,
+        stroke = BusinessAppStateTokens.ErrorToastStroke,
+        modifier = modifier.clickable(role = Role.Button, onClick = onRetry),
+    )
+}
+
+@Composable
+private fun AppStateSystemToast(
+    text: String,
+    fill: Color,
+    stroke: Color,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(BusinessAppStateTokens.ToastRadius)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(fill)
+            .border(1.dp, stroke, shape)
+            .padding(
+                horizontal = BusinessAppStateTokens.ToastPadHorizontal,
+                vertical = BusinessAppStateTokens.ToastPadVertical,
+            ),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(
+            text = text,
+            color = Color.White,
+            fontSize = BusinessAppStateTokens.ToastLabelSize.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSans,
+        )
+    }
+}

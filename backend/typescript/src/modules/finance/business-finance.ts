@@ -4,7 +4,7 @@ import { travelCurrencyCodeSchema, optionalTravelCurrencyCodeSchema } from './tr
 import Decimal from 'decimal.js';
 import type { RequestContext } from '../../platform/request-context/context';
 import { AppError, ErrorCode } from '../../platform/errors/errors';
-import { assertGovernanceAllowed } from '../governance/resolver';
+import { assertFailClosedPolicies, assertGovernanceAllowed } from '../governance/resolver';
 import { insertAudit, insertDomainEventAndOutbox, recordCommandSideEffects } from '../../platform/events/outbox';
 import { parseMoney } from './service';
 import { paymentMethodCodeSchema } from './financial-account';
@@ -173,47 +173,26 @@ async function prepareBusinessExpenseGate(
   required: boolean;
   threshold: Decimal | null;
 }> {
-  const row = await client.query<{
-    company_id: string;
-    business_family: string;
-    membership_id: string;
-    membership_type: string;
-    policy_n: string;
-    preferences: Record<string, unknown> | null;
-  }>(
-    `SELECT bmc.company_id, bmc.business_family,
-            cm.company_membership_id AS membership_id, cm.membership_type,
-            (SELECT COUNT(*)::text FROM governance.policy p
-             JOIN governance.policy_version pv ON pv.policy_id = p.policy_id
-             WHERE p.status = 'ACTIVE' AND pv.status = 'ACTIVE') AS policy_n,
-            (SELECT preferences FROM business.business_system_setup bss
-             WHERE bss.company_id = bmc.company_id AND bss.moment_id = bmc.moment_id
-               AND bss.status = 'ACTIVE'
-             ORDER BY bss.updated_at DESC LIMIT 1) AS preferences
-     FROM business.business_moment_context bmc
-     JOIN core.moment m ON m.moment_id = bmc.moment_id AND m.domain_code = 'BUSINESS'
-     JOIN business.company_membership cm
-       ON cm.company_id = bmc.company_id AND cm.user_id = $2 AND cm.status = 'ACTIVE'
-     WHERE bmc.moment_id = $1 AND bmc.status = 'ACTIVE'`,
-    [momentId, ctx.userId]
-  );
-  if (!row.rows[0]) {
+  // Canonical RESTRICTED/OPEN + membership policy before any expense write.
+  const scope = await assertCompanyMomentAccess(client, ctx, momentId);
+  requireCompanyBoundMoment(scope);
+  if (!scope.membershipId) {
     throw new AppError(
       ErrorCode.GOVERNANCE_DENIED,
       'Not an active company member for this business moment.',
       403
     );
   }
-  const r = row.rows[0];
-  assertNotCompanyObserver(r.membership_type);
-  if (!config.governanceFailOpen && parseInt(r.policy_n ?? '0', 10) === 0) {
-    throw new AppError(
-      ErrorCode.GOVERNANCE_DENIED,
-      'Governance policies are not active for EXPENSE_CREATE.',
-      403
-    );
-  }
-  const prefs = r.preferences ?? {};
+  assertNotCompanyObserver(scope.membershipType);
+  await assertFailClosedPolicies(client, 'EXPENSE_CREATE');
+
+  const prefsRow = await client.query<{ preferences: Record<string, unknown> | null }>(
+    `SELECT preferences FROM business.business_system_setup bss
+     WHERE bss.moment_id = $1 AND bss.status = 'ACTIVE'
+     ORDER BY bss.updated_at DESC LIMIT 1`,
+    [momentId]
+  );
+  const prefs = prefsRow.rows[0]?.preferences ?? {};
   const spending = String(prefs.spendingApproval ?? prefs.approvalModel ?? '').toLowerCase();
   const required =
     spending.includes('required') ||
@@ -222,10 +201,10 @@ async function prepareBusinessExpenseGate(
   const threshold =
     parseThreshold(prefs.approvalThreshold) ?? parseThreshold(prefs.approvalAlarm);
   return {
-    companyId: r.company_id,
-    businessFamily: r.business_family,
-    membershipType: r.membership_type,
-    membershipId: r.membership_id,
+    companyId: scope.companyId,
+    businessFamily: scope.businessFamily,
+    membershipType: scope.membershipType,
+    membershipId: scope.membershipId,
     required: required && threshold != null,
     threshold,
   };

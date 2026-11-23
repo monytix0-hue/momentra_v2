@@ -19,62 +19,89 @@
 </head>
 <body>
   <main>
-    <div class="banner"><strong>DRAFT — not legal advice.</strong> This page is a product draft pending lawyer review. Contact <a href="mailto:hello@momentra.app">hello@momentra.app</a> for privacy requests.</div>
+    <div class="banner"><strong>DRAFT — not legal advice.</strong> This page is a product draft pending lawyer review. Privacy / grievance requests: <a href="mailto:hello@momentra.app">hello@momentra.app</a>.</div>
     <h1>Privacy Policy</h1>
-    <p class="meta">Last updated: 5 October 2026 · Momentra · Contact: <a href="mailto:hello@momentra.app">hello@momentra.app</a></p>
+    <p class="meta">Last updated: 13 November 2026 · Momentra · Contact: <a href="mailto:hello@momentra.app">hello@momentra.app</a> · Grievance target: acknowledge within 72 hours; resolve within 14 days (or as Board may prescribe)</p>
+    <p>This notice describes how Momentra (the <strong>Data Fiduciary</strong> for personal data we determine the purpose and means of) handles <strong>digital personal data</strong> when you use Momentra mobile apps and related services. It is intended to align with India’s <em>Digital Personal Data Protection Act, 2023</em> (DPDP Act). Rules under the Act and Data Protection Board processes may still be prescribed.</p>
 
     <h2>Who we are</h2>
-    <p>Momentra is an app for Personal, Group, and Business moments (planning, memories, collaboration). This draft describes how we handle information when you use Momentra mobile apps and related services.</p>
+    <p>Momentra is an app for Personal, Group, and Business moments (planning, memories, collaboration). Momentra processes digital personal data in connection with offering these services to you.</p>
 
-    <h2>Information we collect</h2>
+    <h2>Personal data we process</h2>
     <ul>
-      <li><strong>Account &amp; profile:</strong> identifiers from sign-in (e.g. Firebase Auth email/phone/Apple/Google), display name, and profile fields you provide.</li>
+      <li><strong>Account &amp; profile:</strong> identifiers from sign-in (e.g. Firebase Auth email/phone/Apple/Google), display name, timezone, locale, and profile fields you provide.</li>
       <li><strong>Moment content:</strong> titles, notes, tasks, expenses/metadata, invites, and media you upload (photos/files).</li>
-      <li><strong>Device &amp; notifications:</strong> device identifiers used for push (FCM tokens), platform, and notification preferences.</li>
+      <li><strong>Device &amp; notifications:</strong> device identifiers used for push (FCM tokens), platform, app version, and notification preferences.</li>
       <li><strong>Consents:</strong> purpose-based consent grants/withdrawals (e.g. analytics, AI) stored with your account.</li>
       <li><strong>Usage / diagnostics:</strong> optional analytics and crash/diagnostic signals (e.g. Firebase Analytics / Crashlytics) when enabled and consented where required.</li>
       <li><strong>Technical logs:</strong> API request metadata and audit logs for security and abuse prevention.</li>
     </ul>
 
-    <h2>How we use information</h2>
+    <h2>Purposes of processing</h2>
     <ul>
-      <li>Provide and sync your moments across devices.</li>
-      <li>Authenticate you and protect accounts (including token revocation on sensitive changes).</li>
-      <li>Send push notifications you enable.</li>
-      <li>Run consented analytics and optional AI features.</li>
-      <li>Maintain security, rate limiting, and operational reliability.</li>
+      <li><strong>Core service (legitimate use / voluntary provision for the service):</strong> provide and sync your moments, authenticate you, protect accounts (including token revocation), and send push notifications you enable.</li>
+      <li><strong>Optional purposes (consent):</strong> product analytics, AI insights/recommendations/assistance, memory/pattern analysis, and related optional features you grant in <strong>Account → Privacy &amp; Consent</strong>.</li>
+      <li><strong>Security &amp; reliability:</strong> rate limiting, abuse prevention, and operational reliability.</li>
     </ul>
 
-    <h2>Service providers</h2>
+    <h2>Notice and consent</h2>
+    <p>Before or when we ask for consent for optional purposes, we inform you of the personal data and purpose, how you may withdraw consent and exercise other rights, and how to raise a grievance. Core account operation may still require basic processing to run the service you asked for even if you withdraw optional consents.</p>
+    <p>You can grant or withdraw optional purposes in <strong>Account → Privacy &amp; Consent</strong>. Withdrawal is as easy as granting (in-app toggles). Withdrawal does not affect the lawfulness of processing before withdrawal. We cease optional-purpose processing for withdrawn purposes within a reasonable time, including instructing processors where applicable.</p>
+
+    <h2>Data processors (service providers)</h2>
     <p>We use processors such as:</p>
     <ul>
-      <li><strong>Firebase</strong> — authentication, analytics (when enabled), Cloud Messaging (FCM).</li>
+      <li><strong>Firebase (Google)</strong> — authentication, analytics (when enabled), Cloud Messaging (FCM), Crashlytics / App Check where enabled.</li>
+      <li><strong>Google</strong> — Sign-In, Play services / FCM where used.</li>
+      <li><strong>Apple</strong> — Sign in with Apple where used.</li>
       <li><strong>Supabase / Postgres</strong> — application database and related storage for app data.</li>
-      <li><strong>Apple / Google</strong> — platform sign-in and store distribution services as applicable.</li>
+      <li><strong>Sentry</strong> (optional) — error monitoring when enabled by ops.</li>
+      <li><strong>Hosting / CDN</strong> — invite links and marketing site (<code>momentra.tech</code>).</li>
     </ul>
-    <p>These providers process data under their own terms and our configuration.</p>
+    <p>These providers process data under their own terms and our configuration. An internal register is maintained in product docs for alignment.</p>
 
-    <h2>Consents</h2>
-    <p>You can grant or withdraw certain purposes (for example analytics or AI) in <strong>Account → Privacy &amp; Consent</strong>. Core account operation may still require basic processing to run the service you asked for.</p>
+    <h2>Retention</h2>
+    <ul>
+      <li><strong>Active account:</strong> profile, devices, consents, and moment data while you use the service.</li>
+      <li><strong>After account deletion:</strong> profile anonymized (UUID tombstone); devices revoked; personal-only moments and USER media erased. Shared Group/Business content may remain for other participants.</li>
+      <li><strong>Security / audit logs:</strong> retained as needed for security, abuse prevention, and legal compliance.</li>
+      <li><strong>Optional consent purposes:</strong> processing stops after withdrawal; underlying service data may remain for the core service purpose.</li>
+    </ul>
 
-    <h2>Account deletion (soft-delete)</h2>
-    <p><strong>Important:</strong> When you delete your account in the app, Momentra <strong>soft-deletes</strong> the account (marks it deleted / disables sign-in) and does <strong>not</strong> hard-wipe moment history, media, or related domain records. Shared group/business history may remain for other participants. We do not run a hard-wipe of user or media data as part of account deletion.</p>
-    <p>If you need a specific access, correction, or retention discussion, email <a href="mailto:hello@momentra.app">hello@momentra.app</a>.</p>
+    <h2>Account deletion and erasure</h2>
+    <p>When you delete your account in the app, Momentra performs <strong>principal-owned erasure</strong>:</p>
+    <ul>
+      <li><strong>Erased:</strong> your profile identifiers (anonymized tombstone), devices/push tokens, optional consents, notification inbox, personal-only moments and USER-scoped media you own.</li>
+      <li><strong>Left for others:</strong> shared Group/Business moment content and company graphs remain available to other participants; your membership is ended (you may need to transfer organizer/ownership first).</li>
+      <li><strong>Retained:</strong> security/audit records as needed for legal and security purposes.</li>
+    </ul>
+    <p>For residual disputes after in-app erasure, email <a href="mailto:hello@momentra.app">hello@momentra.app</a> from the address associated with your account.</p>
 
-    <h2>Access and correction</h2>
-    <p>You can edit profile fields in the app. For a broader access or correction request, email <a href="mailto:hello@momentra.app">hello@momentra.app</a> from the address associated with your account. We will respond as reasonably practicable.</p>
+    <h2>Your rights (Data Principal)</h2>
+    <ul>
+      <li><strong>Access:</strong> download a summary of your profile, devices, and consents in <strong>Account → Privacy → Download my data</strong>, or email us.</li>
+      <li><strong>Correction / completion / update:</strong> edit profile fields in the app; for broader correction, email us.</li>
+      <li><strong>Withdraw consent:</strong> Account → Privacy &amp; Consent toggles for optional purposes.</li>
+      <li><strong>Erasure:</strong> Account → Delete account (principal-owned erasure); residual disputes via email as above.</li>
+      <li><strong>Grievance:</strong> email <a href="mailto:hello@momentra.app">hello@momentra.app</a> (Privacy / Grievance). Exhaust this channel before approaching the Data Protection Board of India; Board complaint process as prescribed under the Act.</li>
+      <li><strong>Nomination:</strong> manner to nominate another individual may be provided when prescribed under the Act.</li>
+    </ul>
 
     <h2>Children</h2>
-    <p>Momentra is not directed at children under 13 (or the higher age required in your region). Do not create an account if you are under the applicable age. A formal age gate may be added in a later release.</p>
+    <p>Under the DPDP Act, a <strong>child</strong> is an individual who has not completed the age of <strong>eighteen</strong> years. Momentra is <strong>not directed at anyone under 18</strong>. You must confirm you are <strong>18 years of age or older</strong> before continuing. Do not create an account if you are under 18.</p>
+    <p>We do not undertake tracking or behavioural monitoring of children or targeted advertising directed at children.</p>
 
-    <h2>International users</h2>
-    <p>Data may be processed in the regions where our providers operate. Exact hosting regions depend on Firebase/Supabase configuration.</p>
+    <h2>Security and personal data breaches</h2>
+    <p>We implement technical and organisational measures appropriate to our service. In the event of a personal data breach, we will intimate affected Data Principals and the Board in the form and manner as may be prescribed, following our internal incident process.</p>
+
+    <h2>International processing</h2>
+    <p>Data may be processed in the regions where our providers operate. Exact hosting regions depend on Firebase/Supabase configuration. If the Central Government notifies restrictions on transfer to a country or territory, we will not transfer personal data for processing to that country or territory in violation of such notification.</p>
 
     <h2>Changes</h2>
     <p>We may update this draft. Material changes will be reflected on this page and, where appropriate, in-app.</p>
 
-    <h2>Contact</h2>
-    <p>Privacy questions: <a href="mailto:hello@momentra.app">hello@momentra.app</a></p>
+    <h2>Contact (s.8(9) / grievance)</h2>
+    <p><strong>Privacy / Grievance requests:</strong> <a href="mailto:hello@momentra.app">hello@momentra.app</a> (interim contact able to answer questions about processing of your personal data until a named officer is appointed if required).</p>
     <p><a href="https://momentra.tech/terms">Terms of Service</a></p>
   </main>
 </body>
