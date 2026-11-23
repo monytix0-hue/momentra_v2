@@ -302,7 +302,7 @@ fun OperatingMomentPage(
                         OperatingTab.LIFE -> model?.boards?.life
                         else -> model?.boards?.memory
                     }
-                    BoardSections(sections, momentsHeading(model?.familyCode, tab), palette)
+                    BoardSections(sections, momentsHeading(model?.familyCode, tab, typeCode), palette)
                 }
             }
             OperatingTab.QUICK_ADD -> TypedOperatingQuickAddForm(
@@ -404,14 +404,24 @@ private fun familyKicker(family: String?): String = when (family) {
     else -> "RETAIL & CONSUMER"
 }
 
-private fun momentsHeading(family: String?, tab: OperatingTab): String = when (tab) {
-    OperatingTab.LIFE -> "How this moment connects"
-    OperatingTab.MEMORY -> "What stays"
-    else -> when (family) {
-        "TRADING_DISTRIBUTION" -> "Sales, purchases, and movement"
-        "MARKETING_CAMPAIGNS" -> "Spend, results, and delivery"
-        "MANUFACTURING_PRODUCTION" -> "Production, orders, and delivery"
-        else -> "Sales, stock, and service"
+private fun momentsHeading(family: String?, tab: OperatingTab, typeCode: String? = null): String {
+    if (ClientCampaignHubWidgets.isClientCampaign(typeCode)) {
+        return when (tab) {
+            OperatingTab.MOMENTS -> "Plan, people, and channels"
+            OperatingTab.LIFE -> "How this campaign connects"
+            OperatingTab.MEMORY -> "What stays on record"
+            else -> "Campaign structure"
+        }
+    }
+    return when (tab) {
+        OperatingTab.LIFE -> "How this moment connects"
+        OperatingTab.MEMORY -> "What stays"
+        else -> when (family) {
+            "TRADING_DISTRIBUTION" -> "Sales, purchases, and movement"
+            "MARKETING_CAMPAIGNS" -> "Spend, results, and delivery"
+            "MANUFACTURING_PRODUCTION" -> "Production, orders, and delivery"
+            else -> "Sales, stock, and service"
+        }
     }
 }
 

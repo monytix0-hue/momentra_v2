@@ -18,4 +18,11 @@ struct ClientCampaignHubWidgetsTests {
         #expect(ClientCampaignHubWidgets.displayTitle(widgetId: "P04", serverTitle: "Attention") == "Needs Attention")
         #expect(ClientCampaignHubWidgets.displayTitle(widgetId: "P01", serverTitle: "Target & Budget") == "Target & Budget")
     }
+
+    @Test func momentsSortOrderAndTitlesMatchFigma() {
+        let incoming = ["M04", "MKT-RESULTS", "M01", "M03", "M02"].map { widget($0, screen: "MOMENTS") }
+        let sorted = ClientCampaignHubWidgets.sortWidgets(screen: "MOMENTS", widgets: incoming)
+        #expect(sorted.map(\.widgetId) == ["M01", "M02", "M03", "M04", "MKT-RESULTS"])
+        #expect(ClientCampaignHubWidgets.displayTitle(widgetId: "MKT-RESULTS", serverTitle: "Campaign Results") == "Campaign Results")
+    }
 }

@@ -21,4 +21,17 @@ class ClientCampaignHubWidgetsTest {
         assertEquals("Finance", ClientCampaignHubWidgets.displayTitle("P02", "Finance"))
         assertEquals("Activity", ClientCampaignHubWidgets.displayTitle("P05", "Activity"))
     }
+
+    @Test
+    fun momentsSortOrderAndTitlesMatchFigma() {
+        val screen = "MOMENTS"
+        val incoming = listOf("M04", "MKT-RESULTS", "M01", "M03", "M02").map { widget(it, screen) }
+        val sorted = ClientCampaignHubWidgets.sortWidgets(screen, incoming)
+        assertEquals(listOf("M01", "M02", "M03", "M04", "MKT-RESULTS"), sorted.map { it.widgetId })
+        assertEquals("Campaign Overview", ClientCampaignHubWidgets.displayTitle("M01", "Moment Identity"))
+        assertEquals("People", ClientCampaignHubWidgets.displayTitle("M02", "People"))
+        assertEquals("Channels & Network", ClientCampaignHubWidgets.displayTitle("M03", "Network & Channels"))
+        assertEquals("Open Commitments", ClientCampaignHubWidgets.displayTitle("M04", "Open Commitments"))
+        assertEquals("Campaign Results", ClientCampaignHubWidgets.displayTitle("MKT-RESULTS", "Campaign Results"))
+    }
 }

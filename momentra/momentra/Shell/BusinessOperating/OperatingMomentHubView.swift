@@ -308,6 +308,14 @@ struct OperatingMomentHubView: View {
     }
 
     private var boardHeading: String {
+        if ClientCampaignHubWidgets.isClientCampaign(momentTypeCode ?? projection?.subtype) {
+            switch tab {
+            case .moments: return "Plan, people, and channels"
+            case .life: return "How this campaign connects"
+            case .memory: return "What stays on record"
+            default: return "Campaign structure"
+            }
+        }
         switch tab {
         case .life: return "How this moment connects"
         case .memory: return "What stays"
