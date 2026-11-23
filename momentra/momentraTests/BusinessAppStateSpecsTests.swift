@@ -73,7 +73,7 @@ struct BusinessAppStateSpecsTests {
         #expect(BusinessAppStateAccent.forTypeCode("CONSUMER_SERVICE") == .emerald)
         #expect(BusinessAppStateAccent.forTypeCode("STANDARD_PRODUCTION") == .emerald)
         #expect(BusinessAppStateAccent.forTypeCode("MADE_TO_ORDER") == .emerald)
-        #expect(BusinessAppStateAccent.forTypeCode("CLIENT_CAMPAIGN") == .emerald)
+        #expect(BusinessAppStateAccent.forTypeCode("CLIENT_CAMPAIGN") == .indigo)
         #expect(BusinessAppStateAccent.forTypeCode("OWN_BUSINESS_CAMPAIGN") == .emerald)
         #expect(BusinessAppStateAccent.forTypeCode("TRADING_WHOLESALE") == .emerald)
         #expect(BusinessAppStateAccent.forTypeCode("DISTRIBUTION_DEALERSHIP") == .flame)
@@ -109,12 +109,13 @@ struct BusinessAppStateSpecsTests {
     }
 
     @Test func accentPaletteIncludesVerticalAndViewAll() {
-        #expect(BusinessAppStateAccent.allCases == [.emerald, .amber, .rose, .flame, .cyan])
+        #expect(BusinessAppStateAccent.allCases == [.emerald, .amber, .rose, .flame, .cyan, .indigo])
         #expect(BusinessAppStateAccent.emerald.color == Color(hex: "#10B981"))
         #expect(BusinessAppStateAccent.amber.color == Color(hex: "#F59E0B"))
         #expect(BusinessAppStateAccent.rose.color == Color(hex: "#F43F5E"))
         #expect(BusinessAppStateAccent.flame.color == Color(hex: "#EA580C"))
         #expect(BusinessAppStateAccent.cyan.color == Color(hex: "#06B6D4"))
+        #expect(BusinessAppStateAccent.indigo.color == Color(hex: "#6366F1"))
     }
 
     @Test func hubEmptyDoesNotInventPrimaryCta() {

@@ -2,39 +2,51 @@ import SwiftUI
 
 /// Tokens for the Figma "App States · Shared (all Business verticals)" kit.
 ///
-/// Rebuilt against Figma "Business v3 · International Obsidian · Emerald Theme" (node 2852:39645).
-/// That frame replaces the flat dark grey surface with a deep `#05070B` obsidian canvas, a
-/// volumetric dual-orb glow mesh, high-refraction glass cards and floating neon indicator badges.
-///
-/// The kit collapses `appstate/accent` to one emerald value shared by every Business vertical, so
-/// the whole kit reads as a single accent system. These are the exact Figma values and are the
-/// source of truth for this layer — they intentionally do not follow `BusinessActiveTheme`.
+/// Obsidian Emerald (Figma rknf `2:67`). Palette primitives **alias** `BusinessTokens.Colors`
+/// so AppState stays in lockstep with regenerated Business design tokens.
 ///
 /// Keep in lockstep with `BusinessAppStateTokens.kt` on Android.
 enum BusinessAppStateAccent: String, CaseIterable {
-    /// App States · Accent / Emerald — #10B981 (unified across every Business vertical)
+    /// System emerald / success chrome `#10B981` (not trading amber).
     case emerald
+    /// Trading / Distribution — TRD-v12 amber `#F59E0B`.
+    case amber
+    /// Retail Empty (Rose) `#F43F5E`.
+    case rose
+    /// RST Food Empty (Flame) `#EA580C`.
+    case flame
+    /// View All (Cyan) `#06B6D4`.
+    case cyan
+    /// Client Campaign indigo `#6366F1`.
+    case indigo
 
     var color: Color {
-        Color(hex: "#10B981")
+        switch self {
+        case .emerald: return BusinessTokens.Colors.signalPositive
+        case .amber: return BusinessTokens.Colors.tradingAccent
+        case .rose: return BusinessTokens.Colors.retailAccent
+        case .flame: return BusinessTokens.Colors.restaurantAccent
+        case .cyan: return BusinessTokens.Colors.signalInfo
+        case .indigo: return BusinessTokens.Colors.marketingAccent
+        }
     }
 
-    /// Resolve the accent for an operating moment subtype code.
-    ///
-    /// The accent is unified, so every code resolves to emerald. The *vertical* still matters for
-    /// copy overrides — see `BusinessAppStateVertical`.
+    /// Trading → Emerald, Distribution → Flame, Retail → Rose, Restaurant → Flame;
+    /// Client Campaign → Indigo; else Emerald.
+    /// ViewAll screens pass `.cyan` explicitly at the call site.
     static func forTypeCode(_ momentTypeCode: String?) -> BusinessAppStateAccent {
-        .emerald
+        switch momentTypeCode?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "TRADING_WHOLESALE": return .emerald
+        case "DISTRIBUTION_DEALERSHIP": return .flame
+        case "RETAIL_STORE": return .rose
+        case "RESTAURANT_FOOD": return .flame
+        case "CLIENT_CAMPAIGN": return .indigo
+        default: return .emerald
+        }
     }
 }
 
 /// The business vertical a moment belongs to.
-///
-/// The accent is unified across verticals, but the kit still carries per-vertical *text* overrides
-/// (Figma "Hub label overrides"), so the vertical stays a first-class discriminator even though the
-/// colour no longer varies.
-///
-/// Keep in lockstep with `BusinessAppStateVertical.kt` on Android.
 enum BusinessAppStateVertical: String, CaseIterable {
     case trading
     case retail
@@ -44,10 +56,6 @@ enum BusinessAppStateVertical: String, CaseIterable {
     case marketing
     case distribution
 
-    /// Resolve the vertical for an operating moment subtype code.
-    ///
-    /// Mirrors the Figma mode set exactly, so the same moment is classified identically on every
-    /// platform.
     static func forTypeCode(_ momentTypeCode: String?) -> BusinessAppStateVertical {
         switch momentTypeCode?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
         case "TRADING_WHOLESALE": return .trading
@@ -62,120 +70,98 @@ enum BusinessAppStateVertical: String, CaseIterable {
     }
 }
 
-/// Surface ramp shared by every app-state variant.
-///
-/// Figma "Obsidian & Neon Refraction": a deep `#05070B` spatial canvas, a volumetric dual-orb glow
-/// mesh, `rgba(16,22,35,0.72)` refraction glass at a 1.25pt `rgba(16,185,129,0.35)` border, and the
-/// emerald `#059669 → #34D399` primary CTA ramp. Every value here is read from the frame nodes
-/// directly (node 2852:39645).
+/// Surface ramp shared by every app-state variant. Color values alias `BusinessTokens` where matched.
 enum BusinessAppStateTokens {
-    // MARK: Palette primitives
-    /// Figma emerald 500 — the kit's single accent.
-    static let emerald = Color(hex: "#10B981")
-    /// Figma emerald 600 — CTA start and the warm glow orb.
-    static let emeraldDeep = Color(hex: "#059669")
-    /// Figma emerald 400 — CTA end.
-    static let emeraldBright = Color(hex: "#34D399")
-    /// Figma error / diagnostic red.
-    static let errorRing = Color(hex: "#FF5C38")
-    /// Figma amber, used for "Not recorded" / "Hidden until online" values inline in the rows.
-    static let warning = Color(hex: "#F5A624")
+    // MARK: Palette primitives (alias BusinessTokens)
+    /// System emerald — success toast / positive signals (stays `#10B981`).
+    static let emerald = BusinessTokens.Colors.signalPositive
+    static let emeraldDeep = BusinessTokens.Colors.ctaStart
+    static let emeraldBright = BusinessTokens.Colors.ctaEnd
+    /// Trading moment amber (TRD-v12).
+    static let tradingAmber = BusinessTokens.Colors.tradingAccent
+    static let tradingFlame = BusinessTokens.Colors.tradingAccentDeep
+    static let errorRing = BusinessTokens.Colors.signalDanger
+    static let warning = BusinessTokens.Colors.signalWarning
 
     // MARK: Surfaces
-    /// Figma root background for every Business app-state frame (`#05070B`).
-    static let page = Color(hex: "#05070B")
-    /// Hero badge core fill (`#0F141F`).
+    static let page = BusinessTokens.Colors.bgCanvas
     static let sheet = Color(hex: "#0F141F")
     static let surfaceRaised = Color(hex: "#151D2E")
-    static let border = Color(hex: "#1E293B")
+    static let border = BusinessTokens.Colors.borderDefault
 
     // MARK: Text
-    static let text = Color.white
-    /// Body copy and muted subtitles (`#94A4B8`).
-    static let textMuted = Color(hex: "#94A4B8")
-    /// Footnoted microcopy (`#738099`).
+    static let text = BusinessTokens.Colors.textPrimary
+    static let textMuted = BusinessTokens.Colors.textMuted
     static let textSubtle = Color(hex: "#738099")
-    /// Glass-card row labels (`#C7D1E0`).
-    static let rowLabelColor = Color(hex: "#C7D1E0")
+    static let rowLabelColor = BusinessTokens.Colors.textSecondary
 
-    // MARK: Glass (backdrop-blurred chrome: icon buttons, dividers)
+    // MARK: Glass
     static let glassFill = Color.white.opacity(0.08)
     static let glassStroke = Color.white.opacity(0.22)
     static let glassStrokeSoft = Color.white.opacity(0.14)
-    /// Figma `backdrop-blur` on every glass surface.
     static let blurRadius: CGFloat = 24
 
-    /// Refraction glass card fill: `rgba(16,22,35,0.72)`.
-    static let glassCardFill = Color(red: 16 / 255, green: 22 / 255, blue: 35 / 255).opacity(0.72)
-    /// Refraction glass card stroke: emerald @35%.
+    // Lockstep APK GlassCardFill (SurfaceCard @ 0.72).
+    // Called from BusinessAppStateKit / BusinessGlassSheetChrome / ViewAll sheet.
+    static let glassCardFill = BusinessTokens.Colors.surfaceCard.opacity(0.72)
     static let glassCardStroke = emerald.opacity(0.35)
-    /// Figma draws the card border at `1.25px`.
     static let glassCardStrokeWidth: CGFloat = 1.25
-
-    /// Small emerald hairline used by chips and tab containers.
     static let hairlineStroke = emerald.opacity(0.18)
+    static let glassBackdropBlur: CGFloat = 12
 
-    // MARK: Primary CTA — the emerald gradient
-    static let ctaStart = Color(hex: "#059669")
-    static let ctaEnd = Color(hex: "#34D399")
-    /// Emerald glow borrowed from Figma's `quick-bubble` shadow so the CTA lifts off the canvas.
+    // MARK: Primary CTA — Figma `0 4px 12px rgba(16,185,129,0.35)`
+    static let ctaStart = BusinessTokens.Colors.ctaStart
+    static let ctaEnd = BusinessTokens.Colors.ctaEnd
     static let ctaShadow = emerald.opacity(0.35)
     static let ctaShadowRadius: CGFloat = 12
     static let ctaShadowY: CGFloat = 4
+    static let ctaShadowPad: CGFloat = 16
 
-    /// Secondary CTA: no fill on screen bodies, a 6% white wash inside the switcher sheet.
     static let secondaryButtonFill = Color.clear
     static let secondaryButtonStroke = emerald.opacity(0.18)
+    static let secondaryButtonFrostAlpha: Double = 0.40
 
-    // MARK: Ambient glow mesh
-    /// Atmospheric accent orb behind the state body (`#10B981`).
+    // MARK: Ambient glow mesh (Figma 2:221 dual-orb)
     static let glowAccent = emerald
     static let glowAccentSize: CGFloat = 360
-    /// Stop 0 alpha; the mesh fades to 8% at 60% and 0 at the rim.
     static let glowAccentAlpha: Double = 0.28
-    static let glowAccentMidAlpha: Double = 0.08
+    static let glowAccentMidAlpha: Double = 0.14
     static let glowAccentMidStop: CGFloat = 0.60
-    /// Warm secondary orb (`#059669`).
     static let glowWarm = emeraldDeep
     static let glowWarmSize: CGFloat = 280
-    static let glowWarmAlpha: Double = 0.15
-    /// Error states swap the accent orb for `#FF5C38`.
+    static let glowWarmAlpha: Double = 0.22
     static let glowError = errorRing
     static let glowErrorAlpha: Double = 0.25
+    static let glowBlur: CGFloat = 48
 
-    // MARK: Hero indicator badge (Figma "Hero Indicator Badge", 112pt)
+    // MARK: Hero indicator badge — Figma halo fill ~8% + layer blur
     static let heroSize: CGFloat = 112
-    /// Outer halo: 96 inset 8, emerald @8% fill, emerald @45% 2pt ring.
     static let heroRingSize: CGFloat = 96
     static let heroRingInset: CGFloat = 8
     static let heroRingStroke: CGFloat = 2
     static let heroRingFillAlpha: Double = 0.08
     static let heroRingStrokeAlpha: Double = 0.45
-    /// Inner core: 76 inset 18, `#0F141F` fill, emerald @18% 1.5pt ring.
+    static let heroBloomBlur: CGFloat = 10
     static let heroCoreSize: CGFloat = 76
     static let heroCoreInset: CGFloat = 18
     static let heroCoreStroke: CGFloat = 1.5
     static let heroCoreFill = Color(hex: "#0F141F")
     static let heroCoreStrokeAlpha: Double = 0.18
-    /// Floating status dot: 36 at (72,72), state-coloured fill, emerald 3.5pt ring.
     static let heroDotSize: CGFloat = 36
     static let heroDotInset: CGFloat = 72
     static let heroDotStroke: CGFloat = 3.5
-    /// Hero glyph inside the core, and the glyph inside the status dot.
     static let heroGlyphSize: CGFloat = 28
     static let heroDotGlyphSize: CGFloat = 17
-    static let heroDotGlyphColor = Color(hex: "#080A0F")
+    static let heroDotGlyphColor = BusinessTokens.Colors.textInverse
 
     // MARK: Semantic
     static let danger = Color(hex: "#EF4444")
-    /// Diagnostic pill: red @15% fill, emerald @45% stroke, `#FF5C38` label.
     static let errorPillFill = errorRing.opacity(0.15)
     static let errorPillStroke = emerald.opacity(0.45)
-    /// Offline status pill: `rgba(38,46,61,0.9)` fill, emerald @40% stroke.
     static let offlineBannerFill = Color(red: 38 / 255, green: 46 / 255, blue: 61 / 255).opacity(0.90)
     static let offlineBannerStroke = emerald.opacity(0.40)
     static let offlineBannerHeight: CGFloat = 34
-    static let offlineGrey = Color(hex: "#94A4B8")
+    static let offlineGrey = BusinessTokens.Colors.textMuted
 
     // MARK: Geometry
     static let screenHorizontalPadding: CGFloat = 24
@@ -189,8 +175,7 @@ enum BusinessAppStateTokens {
     static let primaryButtonHeight: CGFloat = 50
     static let secondaryButtonHeight: CGFloat = 46
 
-    // MARK: Hub capture grid (Figma "Quick Adds Glass Grid")
-    /// Six `111x67` tiles across the `354` body width: `3*111 + 2*10 = 353`.
+    // MARK: Hub capture grid
     static let hubTileWidth: CGFloat = 111
     static let hubTileHeight: CGFloat = 67
     static let hubColumnGap: CGFloat = 10
@@ -203,14 +188,13 @@ enum BusinessAppStateTokens {
     static let hubTileLabelGap: CGFloat = 6
     static let hubTileVerticalPadding: CGFloat = 14
 
-    // MARK: Loading skeleton (Figma "Loading Glass Skeleton Box")
+    // MARK: Loading skeleton
     static let skeletonBoxHeight: CGFloat = 150
     static let skeletonPadHorizontal: CGFloat = 20
     static let skeletonPadVertical: CGFloat = 22
     static let skeletonGap: CGFloat = 14
     static let skeletonBarHeight: CGFloat = 16
     static let skeletonBarRadius: CGFloat = 8
-    /// Shimmer ramp: base → 18% at 50% → base.
     static let skeletonBarBase = Color.white.opacity(0.04)
     static let skeletonBarHighlight = Color.white.opacity(0.18)
     static let skeletonTrailingSpace: CGFloat = 110
@@ -218,7 +202,6 @@ enum BusinessAppStateTokens {
     // MARK: Type scale
     static let titleSize: CGFloat = 24
     static let bodySize: CGFloat = 13.5
-    /// Figma body `leading-[1.35]`: SwiftUI spacing stacks on the font's intrinsic leading.
     static let bodyLineSpacing: CGFloat = 3
     static let eyebrowSize: CGFloat = 11
     static let rowLabelSize: CGFloat = 13
@@ -232,7 +215,23 @@ enum BusinessAppStateTokens {
     static let buttonTracking: CGFloat = 1
     static let errorCodeTracking: CGFloat = 1.5
 
-    // MARK: Alphas still referenced by shared chrome
-    /// Footnote alpha over `textSubtle` — the footnote is solid `#738099` on every screen.
     static let footnoteMutedOpacity: CGFloat = 1
+
+    // MARK: Toaster / banner system (Figma 2:1375)
+    static let toastRadius: CGFloat = 14
+    static let toastPadHorizontal: CGFloat = 14
+    static let toastPadVertical: CGFloat = 12
+    static let toastLabelSize: CGFloat = 12.5
+    static let toastTitleSize: CGFloat = 13.5
+    static let toastSubtitleSize: CGFloat = 11.5
+    static let setupActivatedFill = Color(hex: "#16120E").opacity(0.96)
+    static let setupActivatedStroke = BusinessTokens.Colors.restaurantAccent.opacity(0.45)
+    static let setupActivatedCheck = BusinessTokens.Colors.restaurantAccent
+    static let successToastFill = Color(hex: "#0B1F18").opacity(0.94)
+    static let successToastStroke = emerald.opacity(0.55)
+    static let successToastCheck = emerald
+    static let queueToastFill = Color(red: 38 / 255, green: 46 / 255, blue: 61 / 255).opacity(0.92)
+    static let queueToastStroke = emerald.opacity(0.35)
+    static let errorToastFill = errorRing.opacity(0.16)
+    static let errorToastStroke = errorRing.opacity(0.45)
 }

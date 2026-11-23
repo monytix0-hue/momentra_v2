@@ -1,22 +1,35 @@
 package com.example.momentra.ui.shell.business.shared
 
+/**
+ * Callers: AppShellScreen.kt ShellDestinationContent (Business Ready tabs).
+ * Prior industry Active* composables were removed; only an unusable sync-conflict copy remained.
+ * Consumes GET /operating + /widgets + /widgets/:id/sources; posts Quick Adds via
+ * recordOperatingEvent — no client-side finance totaling.
+ * Reads: OperatingProjectionDto, WidgetsProjectionDto, WidgetSourcesDto. Writes: none locally.
+ * User: "Wire Pulse, Moments, Life and Memory to real backend projections." +
+ * "Ensure every widget can navigate to its eligible source records."
+ */
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -24,7 +37,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,69 +48,71 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.OperatingBoardSectionDto
 import com.example.momentra.data.api.OperatingProjectionDto
+import com.example.momentra.data.api.OperatingPulseMetricGroupDto
+import com.example.momentra.data.api.OperatingWidgetDto
+import com.example.momentra.data.api.WidgetSourcesDto
+import com.example.momentra.data.api.WidgetsProjectionDto
 import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.domain.BottomDestination
-import com.example.momentra.ui.shell.business.distribution.DistributionActive
-import com.example.momentra.ui.shell.business.marketing.MarketingActive
-import com.example.momentra.ui.shell.business.manufacturing.ManufacturingActive
-import com.example.momentra.ui.shell.business.mto.MadeToOrderActive
-import com.example.momentra.ui.shell.business.mto.MtoToastAction
-import com.example.momentra.ui.shell.business.restaurant.RestaurantActive
-import com.example.momentra.ui.shell.business.trading.TradingActive
-import com.example.momentra.ui.shell.business.service.ConsumerServiceActive
-import com.example.momentra.ui.shell.business.retail.RetailStoreActive
-import com.example.momentra.ui.theme.PlusJakartaSans
 import com.example.momentra.ui.shell.business.appstate.AppStateErrorCodePill
 import com.example.momentra.ui.shell.business.appstate.AppStateEyebrow
 import com.example.momentra.ui.shell.business.appstate.AppStateGlassCard
 import com.example.momentra.ui.shell.business.appstate.AppStateSecondaryButton
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateTokens
+import com.example.momentra.ui.theme.PlusJakartaSans
+import com.example.momentra.ui.theme.generated.BusinessTokens
+import kotlinx.coroutines.launch
 
-private val Bg = Color(0xFF0C0F15)
-private val Card = Color(0xFF161B26)
-private val Border = Color(0xFF1E293B)
-private val Muted = Color(0xFF94A3B8)
-private val TextPrimary = Color(0xFFE5E0EE)
+private data class HubPalette(
+    val bg: Color,
+    val card: Color,
+    val border: Color,
+    val muted: Color,
+    val text: Color,
+    val accent: Color,
+    val onAccent: Color,
+)
 
-enum class OperatingTab { PULSE, MOMENTS, LIFE, MEMORY, QUICK_ADD }
-
-@Composable
-private fun OperatingMomentWithToast(
-    modifier: Modifier = Modifier,
-    onOpenQuickAdd: () -> Unit = {},
-    content: @Composable (Modifier) -> Unit,
-) {
-    DisposableEffect(onOpenQuickAdd) {
-        OperatingToastHost.onAction = { action ->
-            when (action) {
-                MtoToastAction.Dismiss,
-                MtoToastAction.OpenPulse,
-                MtoToastAction.GoBack,
-                -> Unit
-                MtoToastAction.ConfirmOrder -> {
-                    onOpenQuickAdd()
-                    OperatingChromeState.quickAddHint = "CONFIRM"
-                }
-                MtoToastAction.OpenCustomers -> {
-                    OperatingChromeState.mastersOpen = OperatingMasterTab.Principals.name
-                }
-                MtoToastAction.OpenLines -> {
-                    OperatingChromeState.partsBrowserOpen = "materials"
-                }
-                MtoToastAction.OpenProducts -> {
-                    OperatingChromeState.partsBrowserOpen = "parts"
-                }
-            }
-        }
-        onDispose { OperatingToastHost.onAction = null }
-    }
-    Box(modifier) {
-        content(Modifier.fillMaxSize())
-        OperatingToastOverlay(Modifier.align(Alignment.TopCenter))
+private fun hubPaletteFor(typeCode: String?, familyCode: String?): HubPalette {
+    val trading = typeCode?.uppercase() in setOf("TRADING_WHOLESALE", "DISTRIBUTION_DEALERSHIP") ||
+        familyCode == "TRADING_DISTRIBUTION"
+    return if (trading) {
+        HubPalette(
+            bg = BusinessTokens.Colors.TRADINGCanvas,
+            card = Color(0xFF111827),
+            border = BusinessTokens.Colors.TRADINGAccent.copy(alpha = 0.28f),
+            muted = Color(0xFF94A3B8),
+            text = Color(0xFFF1F5F9),
+            accent = BusinessTokens.Colors.TRADINGAccent,
+            onAccent = BusinessTokens.Colors.TRADINGOnAccent,
+        )
+    } else {
+        val accent = BusinessAppStateAccent.forTypeCode(typeCode).color
+        HubPalette(
+            bg = Color(0xFF0C0F15),
+            card = Color(0xFF161B26),
+            border = Color(0xFF1E293B),
+            muted = Color(0xFF94A3B8),
+            text = Color(0xFFE5E0EE),
+            accent = accent,
+            onAccent = Color(0xFF0C0F15),
+        )
     }
 }
 
-/** Last operating projection for a moment. Paint this before the ledger replay returns. */
+private fun pulseGroupTitle(code: String): String = when (code.uppercase()) {
+    "TARGET_BUDGET" -> "Target & budget"
+    "FINANCE" -> "Finance"
+    "PAYMENT_READINESS" -> "Payment readiness"
+    "ATTENTION" -> "Needs Attention"
+    "ACTIVITY" -> "Activity"
+    "GST" -> "GST"
+    else -> code.replace('_', ' ')
+}
+
+enum class OperatingTab { PULSE, MOMENTS, LIFE, MEMORY, QUICK_ADD }
+
 object OperatingProjectionCache {
     private val stored = java.util.concurrent.ConcurrentHashMap<String, OperatingProjectionDto>()
 
@@ -106,6 +120,10 @@ object OperatingProjectionCache {
 
     fun put(momentId: String, payload: OperatingProjectionDto) {
         stored[momentId] = payload
+    }
+
+    fun invalidate(momentId: String) {
+        stored.remove(momentId)
     }
 }
 
@@ -117,764 +135,258 @@ fun operatingTabFor(destination: BottomDestination): OperatingTab = when (destin
     else -> OperatingTab.PULSE
 }
 
+private fun screenCode(tab: OperatingTab): String? = when (tab) {
+    OperatingTab.PULSE -> "PULSE"
+    OperatingTab.MOMENTS -> "MOMENTS"
+    OperatingTab.LIFE -> "LIFE"
+    OperatingTab.MEMORY -> "MEMORY"
+    OperatingTab.QUICK_ADD -> null
+}
+
 @Composable
 fun OperatingMomentPage(
     momentId: String?,
     momentTypeCode: String?,
     momentTitle: String?,
     tab: OperatingTab,
-    refreshToken: Int,
+    refreshToken: Long,
     onCreateMoment: () -> Unit,
     onOpenQuickAdd: () -> Unit = {},
-    /** Opens the Pulse "Needs Attention" view-all sheet (app-state kit ViewAll variant). */
     onViewAllAttention: () -> Unit = {},
-    /** Moves the shell to another moment; the `Switch Moment` sheet delegates here. */
-    onSwitchMoment: ((String) -> Unit)? = null,
-    companyId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     if (momentId.isNullOrBlank()) {
-        RetiredBusinessMoment(momentTitle, onCreateMoment, modifier)
+        RetiredOrMissingMoment(momentTitle, onCreateMoment, modifier)
         return
     }
-    if (OperatingMomentCatalog.isRetired(momentTypeCode)) {
-        RetiredBusinessMoment(momentTitle, onCreateMoment, modifier)
-        return
-    }
+
     var projection by remember(momentId) { mutableStateOf(OperatingProjectionCache.peek(momentId)) }
+    var widgets by remember(momentId) { mutableStateOf<WidgetsProjectionDto?>(null) }
+    var sources by remember { mutableStateOf<WidgetSourcesDto?>(null) }
+    var drillWidgetId by remember { mutableStateOf<String?>(null) }
     var error by remember(momentId) { mutableStateOf<String?>(null) }
+    var confirm by remember { mutableStateOf<String?>(null) }
     var tick by remember(momentId) { mutableIntStateOf(0) }
+    var loading by remember(momentId) { mutableStateOf(projection == null) }
     val repo = remember { BusinessSliceRepository() }
-    // Period chips are sheet-scoped; switching moments must not keep another moment's range.
-    LaunchedEffect(momentId) {
-        OperatingChromeState.periodFilter = null
-        OperatingChromeState.periodFrom = null
-        OperatingChromeState.periodTo = null
-    }
-    LaunchedEffect(momentId, tab) {
-        OperatingChromeState.clearTransientUi()
-    }
-    val activeMomentId = momentId
-    androidx.compose.runtime.SideEffect {
-        OperatingChromeState.momentId = activeMomentId
-        OperatingChromeState.onSwitchMoment = onSwitchMoment
-        OperatingChromeState.record = { draft ->
-            repo.recordOperatingEvent(
-                activeMomentId,
-                draft.eventType,
-                draft.title,
-                draft.amount,
-                draft.note,
-                draft.channelName,
-                draft.counterpartyName,
-                draft.paymentStatus,
-                draft.occurredAt,
-                draft.parentEventId,
-                draft.quantity,
-                draft.unit,
-                draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
-                    com.example.momentra.data.api.OperatingLineBody(
-                        draft.itemName,
-                        draft.quantity,
-                        draft.unit,
-                        draft.unitPrice,
-                        masterId = draft.masterId,
-                    ),
-                ),
-                draft.masterKind?.let {
-                    com.example.momentra.data.api.OperatingMasterBody(it, draft.title, draft.unit)
-                },
-                draft.revisesEventId,
-            ).fold(
-                onSuccess = { tick += 1 },
-                onFailure = { error = it.message },
-            )
-        }
-    }
-    LaunchedEffect(
-        momentId,
-        refreshToken,
-        tick,
-        OperatingChromeState.refresh,
-        OperatingChromeState.periodFilter,
-        OperatingChromeState.periodFrom,
-        OperatingChromeState.periodTo,
-    ) {
-        repo.getOperating(
-            momentId = momentId,
-            period = OperatingChromeState.periodFilter,
-            from = OperatingChromeState.periodFrom,
-            to = OperatingChromeState.periodTo,
-        ).fold(
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(momentId, refreshToken, tick) {
+        loading = projection == null
+        repo.getOperating(momentId).fold(
             onSuccess = {
                 OperatingProjectionCache.put(momentId, it)
                 projection = it
-                OperatingChromeState.participantNames = it.participants
                 error = null
             },
             onFailure = {
                 if (projection == null) error = it.message ?: "Could not load this moment"
             },
         )
-    }
-    // The shared chrome sheets (masters, story, browsers, pickers) take the vertical's palette.
-    androidx.compose.runtime.SideEffect {
-        when (projection?.subtype) {
-            "DISTRIBUTION_DEALERSHIP" -> {
-                OperatingChromeState.distributionChrome = true
-                OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.distribution.DistBrand
-                OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.distribution.DistQaSheet
-                OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.distribution.DistQaBorder
-                OperatingChromeState.storyInset = com.example.momentra.ui.shell.business.distribution.DistQaField
-                OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.distribution.DistInk
-                OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.distribution.DistSecondary
-            }
-            "STANDARD_PRODUCTION", "MADE_TO_ORDER" -> {
-                OperatingChromeState.distributionChrome = false
-                OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.manufacturing.MfgBrand
-                OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.manufacturing.MfgBg
-                OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.manufacturing.MfgBorder
-                OperatingChromeState.storyInset = Color.Black.copy(alpha = 0.25f)
-                OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.manufacturing.MfgInk
-                OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.manufacturing.MfgSecondary
-            }
-            "CLIENT_CAMPAIGN" -> {
-                // Phase 3 pickers / Switch Moment — Client indigo capture chrome (not Own magenta).
-                val chrome = OperatingCaptureChromeTokens.MarketingClient
-                OperatingChromeState.distributionChrome = false
-                OperatingChromeState.storyAccent = chrome.accent
-                OperatingChromeState.storyAccentSoft = chrome.accentSoft
-                OperatingChromeState.storySurface = chrome.sheet
-                OperatingChromeState.storyBorder = chrome.border
-                OperatingChromeState.storyInset = chrome.field
-                OperatingChromeState.storyInk = chrome.ink
-                OperatingChromeState.storyBody = chrome.label
-            }
-            "OWN_BUSINESS_CAMPAIGN" -> {
-                // Phase 3 pickers / Switch Moment — Own magenta → amber (never Client indigo CampBrand).
-                val chrome = OperatingCaptureChromeTokens.MarketingOwn
-                OperatingChromeState.distributionChrome = false
-                OperatingChromeState.storyAccent = chrome.accent
-                OperatingChromeState.storyAccentSoft = chrome.accentSoft
-                OperatingChromeState.storySurface = chrome.sheet
-                OperatingChromeState.storyBorder = chrome.border
-                OperatingChromeState.storyInset = chrome.field
-                OperatingChromeState.storyInk = chrome.ink
-                OperatingChromeState.storyBody = chrome.label
-            }
-            "RETAIL_STORE" -> {
-                OperatingChromeState.distributionChrome = false
-                OperatingChromeState.storyAccent = com.example.momentra.ui.theme.RetailRose.rose
-                OperatingChromeState.storySurface = com.example.momentra.ui.theme.RetailRose.screenBottom
-                OperatingChromeState.storyBorder = com.example.momentra.ui.theme.RetailRose.roseBorder
-                OperatingChromeState.storyInset = Color.Black.copy(alpha = 0.25f)
-                OperatingChromeState.storyInk = com.example.momentra.ui.theme.RetailRose.textPrimary
-                OperatingChromeState.storyBody = com.example.momentra.ui.theme.RetailRose.textBody
-            }
-            "RESTAURANT_FOOD" -> {
-                OperatingChromeState.distributionChrome = false
-                OperatingChromeState.storyAccent = com.example.momentra.ui.theme.RestaurantEmber.ember
-                OperatingChromeState.storySurface = com.example.momentra.ui.theme.RestaurantEmber.screenBottom
-                OperatingChromeState.storyBorder = com.example.momentra.ui.theme.RestaurantEmber.ember
-                OperatingChromeState.storyInset = Color.Black.copy(alpha = 0.25f)
-                OperatingChromeState.storyInk = com.example.momentra.ui.theme.RestaurantEmber.textPrimary
-                OperatingChromeState.storyBody = com.example.momentra.ui.theme.RestaurantEmber.textBody
-            }
-            "CONSUMER_SERVICE" -> {
-                OperatingChromeState.distributionChrome = false
-                OperatingChromeState.storyAccent = com.example.momentra.ui.theme.ServicesTeal.teal
-                OperatingChromeState.storySurface = com.example.momentra.ui.theme.ServicesTeal.screenBottom
-                OperatingChromeState.storyBorder = com.example.momentra.ui.theme.ServicesTeal.teal
-                OperatingChromeState.storyInset = Color.Black.copy(alpha = 0.25f)
-                OperatingChromeState.storyInk = com.example.momentra.ui.theme.ServicesTeal.textPrimary
-                OperatingChromeState.storyBody = com.example.momentra.ui.theme.ServicesTeal.textBody
-            }
-            else -> {
-                OperatingChromeState.distributionChrome = false
-                OperatingChromeState.storyAccent = com.example.momentra.ui.shell.business.trading.TradeBrand
-                OperatingChromeState.storySurface = com.example.momentra.ui.shell.business.trading.TradeBg
-                OperatingChromeState.storyBorder = com.example.momentra.ui.shell.business.trading.TradeBorder
-                OperatingChromeState.storyInset = Color.Black.copy(alpha = 0.25f)
-                OperatingChromeState.storyInk = com.example.momentra.ui.shell.business.trading.TradeInk
-                OperatingChromeState.storyBody = com.example.momentra.ui.shell.business.trading.TradeSecondary
-            }
-        }
-        // Non-marketing verticals mirror accent for soft; Client/Own set accentSoft above.
-        if (projection?.subtype !in setOf("CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN")) {
-            OperatingChromeState.storyAccentSoft = OperatingChromeState.storyAccent
+        repo.getWidgets(momentId).fold(
+            onSuccess = { widgets = it },
+            onFailure = { },
+        )
+        loading = false
+        val openId = drillWidgetId
+        if (openId != null) {
+            repo.getWidgetSources(momentId, openId).fold(
+                onSuccess = { sources = it },
+                onFailure = { sources = null },
+            )
         }
     }
+
     val model = projection
     if (model?.retired == true) {
-        RetiredBusinessMoment(model.title ?: momentTitle, onCreateMoment, modifier)
+        RetiredOrMissingMoment(model.title ?: momentTitle, onCreateMoment, modifier, momentTypeCode)
         return
     }
-    if (model != null && model.subtype == "RETAIL_STORE") {
-        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
-        RetailStoreActive(
-            model = model,
-            tab = tab,
-            onOpenQuickAdd = onOpenQuickAdd,
-            momentId = momentId,
-            companyId = companyId,
-            onRecord = { draft ->
-                repo.recordOperatingEvent(
-                    momentId,
-                    draft.eventType,
-                    draft.title,
-                    draft.amount,
-                    draft.note,
-                    draft.channelName,
-                    draft.counterpartyName,
-                    draft.paymentStatus,
-                    draft.occurredAt,
-                    draft.parentEventId,
-                    draft.quantity,
-                    draft.unit,
-                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
-                        com.example.momentra.data.api.OperatingLineBody(
-                            draft.itemName,
-                            draft.quantity,
-                            draft.unit,
-                            draft.unitPrice,
-                        ),
-                    ),
-                    draft.master ?: draft.masterKind?.let {
-                        com.example.momentra.data.api.OperatingMasterBody(it, draft.title, draft.unit)
-                    },
-                    draft.revisesEventId,
-                    draft.dueAt,
-                    draft.contract,
-                    activityStatus = draft.activityStatus,
-                ).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            onDecide = { eventId, decision ->
-                repo.decideOperatingEvent(momentId, eventId, decision).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            modifier = inner,
-        )
-        }
-        return
-    }
-    if (model != null && model.subtype == "RESTAURANT_FOOD") {
-        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
-        RestaurantActive(
-            model = model,
-            tab = tab,
-            onOpenQuickAdd = onOpenQuickAdd,
-            momentId = momentId,
-            onRecord = { draft ->
-                repo.recordOperatingEvent(
-                    momentId,
-                    draft.eventType,
-                    draft.title,
-                    draft.amount,
-                    draft.note,
-                    draft.channelName,
-                    draft.counterpartyName,
-                    draft.paymentStatus,
-                    draft.occurredAt,
-                    draft.parentEventId,
-                    draft.quantity,
-                    draft.unit,
-                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
-                        com.example.momentra.data.api.OperatingLineBody(
-                            draft.itemName,
-                            draft.quantity,
-                            draft.unit,
-                            draft.unitPrice,
-                        ),
-                    ),
-                    draft.master ?: draft.masterKind?.let {
-                        com.example.momentra.data.api.OperatingMasterBody(it, draft.title, draft.unit)
-                    },
-                    draft.revisesEventId,
-                    draft.dueAt,
-                    draft.contract,
-                ).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            onDecide = { eventId, decision ->
-                repo.decideOperatingEvent(momentId, eventId, decision).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            modifier = inner,
-        )
-        }
-        return
-    }
-    if (model != null && (model.subtype == "CLIENT_CAMPAIGN" || model.subtype == "OWN_BUSINESS_CAMPAIGN")) {
-        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
-        MarketingActive(
-            model = model,
-            tab = tab,
-            onOpenQuickAdd = onOpenQuickAdd,
-            momentId = momentId,
-            onRecord = { draft ->
-                repo.recordOperatingEvent(
-                    momentId,
-                    draft.eventType,
-                    draft.title,
-                    draft.amount,
-                    draft.note,
-                    draft.channelName,
-                    draft.counterpartyName,
-                    draft.paymentStatus,
-                    draft.occurredAt,
-                    draft.parentEventId,
-                    draft.quantity,
-                    draft.unit,
-                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
-                        com.example.momentra.data.api.OperatingLineBody(
-                            draft.itemName,
-                            draft.quantity,
-                            draft.unit,
-                            draft.unitPrice,
-                        ),
-                    ),
-                    draft.masterKind?.let {
-                        com.example.momentra.data.api.OperatingMasterBody(
-                            kind = it,
-                            name = draft.title,
-                            unit = draft.unit,
-                            sellPrice = draft.masterSellPrice ?: draft.unitPrice,
-                            purchasePrice = draft.masterPurchasePrice,
-                            gstApplicable = draft.masterGstApplicable,
-                            gstClassification = draft.masterGstClassification,
-                            gstRate = draft.masterGstRate,
-                            hsn = draft.masterHsn,
-                        )
-                    },
-                    draft.revisesEventId,
-                    draft.dueAt,
-                    draft.contract,
-                    reportingMode = draft.reportingMode,
-                    metricCode = draft.metricCode,
-                    budgetCategory = draft.budgetCategory,
-                    activityStatus = draft.activityStatus,
-                    attributedSales = draft.attributedSales,
-                    revisionKind = draft.revisionKind,
-                    costBasis = draft.costBasis,
-                    overlapDeduped = draft.overlapDeduped,
-                    creativeVersion = draft.creativeVersion,
-                    resultSource = draft.resultSource,
-                    idempotencyKey = draft.idempotencyKey,
-                    effectiveFrom = draft.effectiveFrom,
-                    periodStart = draft.periodStart,
-                    periodEnd = draft.periodEnd,
-                    supersedesEventId = draft.supersedesEventId,
-                ).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            onDecide = { eventId, decision ->
-                repo.decideOperatingEvent(momentId, eventId, decision).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            modifier = inner,
-        )
-        }
-        return
-    }
-    if (model != null && model.subtype == "MADE_TO_ORDER") {
-        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
-        MadeToOrderActive(
-            model = model,
-            tab = tab,
-            onOpenQuickAdd = onOpenQuickAdd,
-            onRecord = { draft ->
-                repo.recordOperatingEvent(
-                    momentId,
-                    draft.eventType,
-                    draft.title,
-                    draft.amount,
-                    draft.note,
-                    draft.channelName,
-                    draft.counterpartyName,
-                    draft.paymentStatus,
-                    draft.occurredAt,
-                    draft.parentEventId,
-                    draft.quantity,
-                    draft.unit,
-                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
-                        com.example.momentra.data.api.OperatingLineBody(
-                            draft.itemName,
-                            draft.quantity,
-                            draft.unit,
-                            draft.unitPrice,
-                        ),
-                    ),
-                    draft.masterKind?.let {
-                        com.example.momentra.data.api.OperatingMasterBody(it, draft.title, draft.unit)
-                    },
-                    draft.revisesEventId,
-                    draft.dueAt,
-                    draft.contract,
-                    rejectedQuantity = draft.rejectedQuantity,
-                ).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            onDecide = { eventId, decision ->
-                repo.decideOperatingEvent(momentId, eventId, decision).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            companyId = companyId,
-            modifier = inner,
-        )
-        }
-        return
-    }
-    if (model != null && model.subtype == "STANDARD_PRODUCTION") {
-        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
-        ManufacturingActive(
-            model = model,
-            tab = tab,
-            onOpenQuickAdd = onOpenQuickAdd,
-            onRecord = { draft ->
-                repo.recordOperatingEvent(
-                    momentId,
-                    draft.eventType,
-                    draft.title,
-                    draft.amount,
-                    draft.note,
-                    draft.channelName,
-                    draft.counterpartyName,
-                    draft.paymentStatus,
-                    draft.occurredAt,
-                    draft.parentEventId,
-                    draft.quantity,
-                    draft.unit,
-                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
-                        com.example.momentra.data.api.OperatingLineBody(
-                            draft.itemName,
-                            draft.quantity,
-                            draft.unit,
-                            draft.unitPrice,
-                        ),
-                    ),
-                    draft.masterKind?.let {
-                        com.example.momentra.data.api.OperatingMasterBody(it, draft.title, draft.unit)
-                    },
-                    draft.revisesEventId,
-                    draft.dueAt,
-                    draft.contract,
-                    rejectedQuantity = draft.rejectedQuantity,
-                ).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            onDecide = { eventId, decision ->
-                repo.decideOperatingEvent(momentId, eventId, decision).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            companyId = companyId,
-            modifier = inner,
-        )
-        }
-        return
-    }
-    if (model != null && model.subtype == "TRADING_WHOLESALE") {
-        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
-        TradingActive(
-            model = model,
-            tab = tab,
-            onOpenQuickAdd = onOpenQuickAdd,
-            onRecord = { draft ->
-                repo.recordOperatingEvent(
-                    momentId,
-                    draft.eventType,
-                    draft.title,
-                    draft.amount,
-                    draft.note,
-                    draft.channelName,
-                    draft.counterpartyName,
-                    draft.paymentStatus,
-                    draft.occurredAt,
-                    draft.parentEventId,
-                    draft.quantity,
-                    draft.unit,
-                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
-                        com.example.momentra.data.api.OperatingLineBody(
-                            draft.itemName,
-                            draft.quantity,
-                            draft.unit,
-                            draft.unitPrice,
-                            masterId = draft.masterId,
-                        ),
-                    ),
-                    draft.masterKind?.let {
-                        com.example.momentra.data.api.OperatingMasterBody(
-                            it,
-                            draft.title,
-                            draft.unit,
-                            conversionToBase = draft.conversionToBase,
-                            gstApplicable = draft.masterGstApplicable,
-                            gstClassification = draft.masterGstClassification,
-                            gstRate = draft.masterGstRate,
-                            priceIncludesGst = draft.masterPriceIncludesGst,
-                            salePriceIncludesGst = draft.masterSalePriceIncludesGst,
-                            purchasePriceIncludesGst = draft.masterPurchasePriceIncludesGst,
-                            gstEffectiveFrom = draft.masterGstEffectiveFrom,
-                            hsn = draft.masterHsn,
-                            gstRegistration = draft.masterGstRegistration,
-                            businessState = draft.masterBusinessState,
-                            billingState = draft.masterBillingState,
-                            deliveryState = draft.masterDeliveryState,
-                            gstin = draft.masterGstin,
-                        )
-                    },
-                    draft.revisesEventId,
-                    draft.dueAt,
-                    draft.contract,
-                ).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = {
-                        // Surface to capture sheet (TradingQuickAdds dismisses only after onRecord returns).
-                        error = it.message
-                        throw it
-                    },
-                )
-            },
-            onDecide = { eventId, decision ->
-                repo.decideOperatingEvent(momentId, eventId, decision).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            companyId = companyId,
-            modifier = inner,
-        )
-        }
-        return
-    }
-    if (model != null && model.subtype == "DISTRIBUTION_DEALERSHIP") {
-        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
-        DistributionActive(
-            model = model,
-            tab = tab,
-            onOpenQuickAdd = onOpenQuickAdd,
-            onRecord = { draft ->
-                repo.recordOperatingEvent(
-                    momentId,
-                    draft.eventType,
-                    draft.title,
-                    draft.amount,
-                    draft.note,
-                    draft.channelName,
-                    draft.counterpartyName,
-                    draft.paymentStatus,
-                    draft.occurredAt,
-                    draft.parentEventId,
-                    draft.quantity,
-                    draft.unit,
-                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
-                        com.example.momentra.data.api.OperatingLineBody(
-                            draft.itemName,
-                            draft.quantity,
-                            draft.unit,
-                            draft.unitPrice,
-                            masterId = draft.masterId,
-                        ),
-                    ),
-                    draft.masterKind?.let {
-                        com.example.momentra.data.api.OperatingMasterBody(
-                            it,
-                            draft.title,
-                            draft.unit,
-                            conversionToBase = draft.conversionToBase,
-                            gstApplicable = draft.masterGstApplicable,
-                            gstClassification = draft.masterGstClassification,
-                            gstRate = draft.masterGstRate,
-                            priceIncludesGst = draft.masterPriceIncludesGst,
-                            salePriceIncludesGst = draft.masterSalePriceIncludesGst,
-                            purchasePriceIncludesGst = draft.masterPurchasePriceIncludesGst,
-                            gstEffectiveFrom = draft.masterGstEffectiveFrom,
-                            hsn = draft.masterHsn,
-                            gstRegistration = draft.masterGstRegistration,
-                            businessState = draft.masterBusinessState,
-                            billingState = draft.masterBillingState,
-                            deliveryState = draft.masterDeliveryState,
-                            gstin = draft.masterGstin,
-                        )
-                    },
-                    draft.revisesEventId,
-                    draft.dueAt,
-                    draft.contract,
-                ).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            onDecide = { eventId, decision ->
-                repo.decideOperatingEvent(momentId, eventId, decision).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            modifier = inner,
-        )
-        }
-        return
-    }
-    if (model != null && model.subtype == "CONSUMER_SERVICE") {
-        OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
-        ConsumerServiceActive(
-            model = model,
-            tab = tab,
-            onOpenQuickAdd = onOpenQuickAdd,
-            momentId = momentId,
-            onRecord = { draft ->
-                repo.recordOperatingEvent(
-                    momentId,
-                    draft.eventType,
-                    draft.title,
-                    draft.amount,
-                    draft.note,
-                    draft.channelName,
-                    draft.counterpartyName,
-                    draft.paymentStatus,
-                    draft.occurredAt,
-                    draft.parentEventId,
-                    draft.quantity,
-                    draft.unit,
-                    draft.lines ?: if (draft.itemName.isNullOrBlank()) null else listOf(
-                        com.example.momentra.data.api.OperatingLineBody(
-                            draft.itemName,
-                            draft.quantity,
-                            draft.unit,
-                            draft.unitPrice,
-                        ),
-                    ),
-                    draft.masterKind?.let {
-                        com.example.momentra.data.api.OperatingMasterBody(it, draft.title, draft.unit)
-                    },
-                    draft.revisesEventId,
-                    draft.dueAt,
-                    draft.contract,
-                ).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            onDecide = { eventId, decision ->
-                repo.decideOperatingEvent(momentId, eventId, decision).fold(
-                    onSuccess = { tick += 1 },
-                    onFailure = { error = it.message },
-                )
-            },
-            modifier = inner,
-        )
-        }
-        return
-    }
-    OperatingMomentWithToast(modifier, onOpenQuickAdd) { inner ->
+
+    val palette = hubPaletteFor(momentTypeCode ?: model?.subtype, model?.familyCode)
+
     Column(
-        modifier = inner
+        modifier = modifier
             .fillMaxSize()
-            .background(Bg)
+            .background(palette.bg)
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(familyKicker(model?.familyCode), color = familyAccent(model?.subtype ?: model?.familyCode), fontSize = 12.sp, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
-        Text(model?.subtypeLabel ?: momentTitle ?: "Business moment", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, fontFamily = PlusJakartaSans)
-        Text(model?.partyName.orEmpty(), color = Muted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
-        if (model != null) {
-            Text(model.role?.replace('_', ' ') ?: "", color = familyAccent(model.subtype ?: model.familyCode), fontSize = 12.sp, fontFamily = PlusJakartaSans)
+        Text(
+            familyKicker(model?.familyCode),
+            color = palette.accent,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = PlusJakartaSans,
+        )
+        Text(
+            model?.subtypeLabel ?: momentTitle ?: "Business moment",
+            color = palette.text,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 22.sp,
+            fontFamily = PlusJakartaSans,
+        )
+        val typeCode = (momentTypeCode ?: model?.subtype)?.uppercase()
+        if (typeCode == "CLIENT_CAMPAIGN") {
+            Text(
+                "Plan. Launch. Measure.",
+                color = palette.accent,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+            )
         }
+        Text(model?.partyName.orEmpty(), color = palette.muted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+        if (!model?.role.isNullOrBlank()) {
+            Text(
+                model!!.role!!.replace('_', ' '),
+                color = palette.accent,
+                fontSize = 12.sp,
+                fontFamily = PlusJakartaSans,
+            )
+        }
+
+        if (loading && model == null) {
+            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = palette.accent)
+            }
+        }
+
         if (error != null && model == null) {
-            AppStateGlassCard(accent = BusinessAppStateTokens.ErrorRing, strokeAlpha = 0.40f) {
+            AppStateGlassCard(strokeAlpha = 0.40f) {
                 AppStateEyebrow("COULDN'T LOAD THIS MOMENT", BusinessAppStateTokens.ErrorRing)
-                Text(
-                    text = error ?: "",
-                    color = Color.White.copy(alpha = 0.70f),
-                    fontSize = 13.sp,
-                    fontFamily = PlusJakartaSans,
-                )
+                Text(error ?: "", color = Color.White.copy(alpha = 0.70f), fontSize = 13.sp, fontFamily = PlusJakartaSans)
                 AppStateErrorCodePill(code = "MOMENT_DETAIL_FAILED", accent = BusinessAppStateTokens.ErrorRing)
                 AppStateSecondaryButton(label = "Retry", onClick = { tick += 1 })
             }
         }
+
+        confirm?.let { InfoCard("Saved", it, palette) }
+
         when (tab) {
-            OperatingTab.PULSE -> PulseBlocks(model, onViewAllAttention)
-            OperatingTab.MOMENTS -> BoardSections(model?.boards?.moments, momentsHeading(model?.familyCode))
-            OperatingTab.LIFE -> BoardSections(model?.boards?.life, "How this moment connects")
-            OperatingTab.MEMORY -> BoardSections(model?.boards?.memory, "What stays")
-            OperatingTab.QUICK_ADD -> OperatingQuickAddForm(
+            OperatingTab.PULSE,
+            OperatingTab.MOMENTS,
+            OperatingTab.LIFE,
+            OperatingTab.MEMORY,
+            -> {
+                val screen = screenCode(tab)!!
+                WidgetBlocks(
+                    widgets = widgets?.widgets.orEmpty().filter { it.screen.equals(screen, ignoreCase = true) },
+                    financeVisible = model?.financeVisible == true,
+                    palette = palette,
+                    onOpenSources = { id ->
+                        drillWidgetId = id
+                        scope.launch {
+                            repo.getWidgetSources(momentId, id).fold(
+                                onSuccess = { sources = it },
+                                onFailure = { sources = null },
+                            )
+                        }
+                    },
+                )
+                if (tab == OperatingTab.PULSE) {
+                    PulseFallback(model, palette, onViewAllAttention)
+                } else {
+                    val sections = when (tab) {
+                        OperatingTab.MOMENTS -> model?.boards?.moments
+                        OperatingTab.LIFE -> model?.boards?.life
+                        else -> model?.boards?.memory
+                    }
+                    BoardSections(sections, momentsHeading(model?.familyCode, tab), palette)
+                }
+            }
+            OperatingTab.QUICK_ADD -> TypedOperatingQuickAddForm(
                 model = model,
-                onSubmit = { code, title, amount ->
-                    repo.recordOperatingEvent(momentId, code, title, amount, null).fold(
-                        onSuccess = { tick += 1 },
-                        onFailure = { error = it.message },
-                    )
-                },
-                onDecide = { eventId, decision ->
-                    repo.decideOperatingEvent(momentId, eventId, decision).fold(
-                        onSuccess = { tick += 1 },
+                palette = palette,
+                onSubmit = { eventType, title, amount ->
+                    repo.recordOperatingEvent(
+                        momentId = momentId,
+                        eventType = eventType,
+                        title = title,
+                        amount = amount,
+                        note = null,
+                    ).fold(
+                        onSuccess = {
+                            confirm = "Saved $title"
+                            OperatingProjectionCache.invalidate(momentId)
+                            tick += 1
+                        },
                         onFailure = { error = it.message },
                     )
                 },
             )
         }
-    }
+
+        sources?.let { src ->
+            val cov = WidgetCoveragePresentation.fromServer(src.coverage)
+            InfoCard(
+                "Sources · ${src.widgetId}",
+                buildString {
+                    append(cov.label)
+                    if (cov.showValue && src.reconciledTotal != null) {
+                        append(" · server total ")
+                        append(src.reconciledTotal)
+                    }
+                    append(" · ")
+                    append(src.formula)
+                },
+                palette,
+            )
+            src.sources.forEach { row ->
+                InfoCard(
+                    row.eventType.replace('_', ' '),
+                    listOfNotNull(row.title, row.amount, row.occurredAt).joinToString(" · "),
+                    palette,
+                )
+            }
+            if (src.sources.isEmpty()) {
+                InfoCard("Sources", "No eligible source records for this widget.", palette)
+            }
+            AppStateSecondaryButton(label = "Close sources", onClick = {
+                drillWidgetId = null
+                sources = null
+            })
+        }
+
+        if (tab != OperatingTab.QUICK_ADD) {
+            AppStateSecondaryButton(label = "Quick Adds", onClick = onOpenQuickAdd)
+        }
     }
 }
 
 @Composable
-fun RetiredBusinessMoment(
+private fun RetiredOrMissingMoment(
     title: String?,
     onCreateMoment: () -> Unit,
     modifier: Modifier = Modifier,
+    momentTypeCode: String? = null,
 ) {
+    val palette = hubPaletteFor(momentTypeCode, null)
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Bg)
-            .padding(24.dp),
+        modifier = modifier.fillMaxSize().background(palette.bg).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(title ?: "Business moment", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, fontFamily = PlusJakartaSans)
+        Text(title ?: "Business moment", color = palette.text, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, fontFamily = PlusJakartaSans)
         Text(
-            "Team & Work, Money & Cash Flow, and Daily Business are retired. Create a Marketing, Trading, Retail, or Manufacturing moment.",
-            color = Muted,
+            "Select or create a Marketing, Trading, Retail, Distribution, or Manufacturing moment.",
+            color = palette.muted,
             fontSize = 14.sp,
             fontFamily = PlusJakartaSans,
         )
         Text(
             "Create a moment",
-            color = Color(0xFF0C0F15),
+            color = palette.onAccent,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF818CF8))
+                .background(palette.accent)
                 .clickable(onClick = onCreateMoment)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             fontFamily = PlusJakartaSans,
         )
     }
 }
-
-private fun familyAccent(family: String?): Color = BusinessActiveTheme.forTypeCode(family).accent
 
 private fun familyKicker(family: String?): String = when (family) {
     "TRADING_DISTRIBUTION" -> "TRADING & DISTRIBUTION"
@@ -883,392 +395,356 @@ private fun familyKicker(family: String?): String = when (family) {
     else -> "RETAIL & CONSUMER"
 }
 
-private fun momentsHeading(family: String?): String = when (family) {
-    "TRADING_DISTRIBUTION" -> "Sales, purchases, and movement"
-    "MARKETING_CAMPAIGNS" -> "Spend, results, and delivery"
-    "MANUFACTURING_PRODUCTION" -> "Production, orders, and delivery"
-    else -> "Sales, stock, and service"
+private fun momentsHeading(family: String?, tab: OperatingTab): String = when (tab) {
+    OperatingTab.LIFE -> "How this moment connects"
+    OperatingTab.MEMORY -> "What stays"
+    else -> when (family) {
+        "TRADING_DISTRIBUTION" -> "Sales, purchases, and movement"
+        "MARKETING_CAMPAIGNS" -> "Spend, results, and delivery"
+        "MANUFACTURING_PRODUCTION" -> "Production, orders, and delivery"
+        else -> "Sales, stock, and service"
+    }
 }
 
 @Composable
-private fun BoardSections(sections: List<OperatingBoardSectionDto>?, heading: String) {
-    Text(heading, color = TextPrimary, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
-    val blocks = sections.orEmpty()
-    if (blocks.isEmpty()) InfoCard("This moment", "Nothing recorded yet.")
-    blocks.forEach { section ->
-        InfoCard(section.title, section.detail.ifBlank { "Nothing recorded yet." })
-        section.rows.forEach { row ->
-            val amount = row.amount?.let { " · $it" }.orEmpty()
-            InfoCard(row.eventType.replace('_', ' '), row.title + amount)
+private fun WidgetBlocks(
+    widgets: List<OperatingWidgetDto>,
+    financeVisible: Boolean,
+    palette: HubPalette,
+    onOpenSources: (String) -> Unit,
+) {
+    if (widgets.isEmpty()) return
+    Text("Widgets", color = palette.text, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
+    widgets.forEach { w ->
+        val cov = WidgetCoveragePresentation.fromServer(w.coverage)
+        val metricLine = w.metrics.joinToString(" · ") { m ->
+            val mCov = WidgetCoveragePresentation.fromServer(m.coverage)
+            val valueText = when {
+                !mCov.showValue || m.value == null -> mCov.label
+                else -> "${m.value}${m.unit?.let { " $it" }.orEmpty()}"
+            }
+            "${m.label}: $valueText"
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(palette.card)
+                .border(1.dp, palette.border, RoundedCornerShape(16.dp))
+                .clickable(enabled = cov.showSources || w.sourceEventIds.isNotEmpty()) {
+                    onOpenSources(w.widgetId)
+                }
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(w.title.ifBlank { w.widgetId }, color = palette.muted, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+                Text(cov.label, color = palette.accent, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+            }
+            Text(
+                if (!financeVisible && w.financeOnly) "Finance redacted for your role" else metricLine.ifBlank { cov.label },
+                color = palette.text,
+                fontSize = 14.sp,
+                fontFamily = PlusJakartaSans,
+            )
+            w.why?.takeIf { it.isNotBlank() }?.let {
+                Text(it, color = palette.muted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
+            }
         }
     }
 }
 
 @Composable
-private fun PulseBlocks(model: OperatingProjectionDto?, onViewAllAttention: () -> Unit = {}) {
-    val budget = model?.budget
-    if (model?.financeVisible == true && budget != null) {
-        InfoCard("Budget", "${budget.remaining} left of ${budget.amount} ${model.currency.orEmpty()}")
-        val target = model.target
-        if (target != null) {
-            InfoCard("Target", "${target.progress} of ${target.value} ${target.metric}")
+private fun BoardSections(
+    sections: List<OperatingBoardSectionDto>?,
+    heading: String,
+    palette: HubPalette,
+) {
+    Text(heading, color = palette.text, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
+    val blocks = sections.orEmpty()
+    if (blocks.isEmpty()) InfoCard("This moment", "Nothing recorded yet.", palette)
+    blocks.forEach { section ->
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(palette.card)
+                .border(1.dp, palette.border, RoundedCornerShape(20.dp))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(section.title, color = palette.text, fontWeight = FontWeight.Bold, fontSize = 16.sp, fontFamily = PlusJakartaSans)
+            Text(
+                section.detail.ifBlank { "Nothing recorded yet." },
+                color = palette.muted,
+                fontSize = 12.sp,
+                fontFamily = PlusJakartaSans,
+            )
+            if (section.metrics.isNotEmpty()) {
+                MetricTileRow(section.metrics.map { it.label to it.value }, palette)
+            }
+            section.rows.forEach { row ->
+                val amount = row.amount?.let { " · $it" }.orEmpty()
+                AttentionRow(
+                    title = row.title + amount,
+                    badge = row.badge ?: row.eventType.replace('_', ' '),
+                    palette = palette,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PulseFallback(
+    model: OperatingProjectionDto?,
+    palette: HubPalette,
+    onViewAllAttention: () -> Unit,
+) {
+    val groups = model?.pulseMetrics.orEmpty()
+    if (groups.isNotEmpty()) {
+        groups.forEach { group ->
+            PulseMetricGroupCard(group, palette, onViewAllAttention)
+        }
+        return
+    }
+    if (model?.financeVisible == true) {
+        model.budget?.let { budget ->
+            val body = if (budget.configured) {
+                "${budget.remaining} left of ${budget.amount} ${model.currency.orEmpty()}"
+            } else {
+                "Not recorded"
+            }
+            InfoCard("Budget", body, palette)
+        }
+        model.target?.let { target ->
+            val body = if (target.configured) {
+                "${target.progress} of ${target.value} (${target.metric})"
+            } else {
+                "Not recorded"
+            }
+            InfoCard("Target", body, palette)
         }
         model.paymentReadiness.forEach { item ->
-            InfoCard("Payment Readiness", "${item.title} · ${item.amount} · ${item.status}")
+            InfoCard("Payment Readiness", "${item.title} · ${item.amount} · ${item.status}", palette)
         }
     } else {
-        InfoCard("Your view", "Finance totals stay with Finance, Approver, and Owner.")
+        InfoCard("Your view", "Finance totals stay with Finance, Approver, and Owner.", palette)
     }
-    model?.attention?.forEach { InfoCard(it.kind, it.title) }
+    model?.attention?.forEach { AttentionRow(it.title, it.kind, palette) }
     if (model?.attention.isNullOrEmpty()) {
-        InfoCard("Needs Attention", "Nothing is waiting.")
+        InfoCard("Needs Attention", "Nothing is waiting.", palette)
     } else {
         AppStateSecondaryButton(label = "View all", onClick = onViewAllAttention)
     }
     val recent = model?.activity.orEmpty().take(5)
     if (recent.isNotEmpty()) {
-        Text("Activity", color = TextPrimary, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
+        Text("Activity", color = palette.text, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
         recent.forEach { row ->
             val amount = row.amount?.let { " · $it" }.orEmpty()
-            InfoCard(row.eventType, row.title + amount)
+            InfoCard(row.eventType, row.title + amount, palette)
         }
     }
 }
 
 @Composable
-private fun OperatingQuickAddForm(
-    model: OperatingProjectionDto?,
-    onSubmit: suspend (String, String, String?) -> Unit,
-    onDecide: suspend (String, String) -> Unit,
+private fun PulseMetricGroupCard(
+    group: OperatingPulseMetricGroupDto,
+    palette: HubPalette,
+    onViewAllAttention: () -> Unit,
 ) {
-    val accent = familyAccent(model?.subtype ?: model?.familyCode)
-    val adds = model?.quickAdds.orEmpty()
-    var selected by remember(adds) { mutableStateOf(adds.firstOrNull()?.code.orEmpty()) }
-    var title by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
-    Text("Quick Add", color = TextPrimary, fontWeight = FontWeight.Medium, fontFamily = PlusJakartaSans)
-    if (adds.isEmpty()) {
-        Text("Your role cannot add to this moment.", color = Muted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
-    }
-    adds.forEach { add ->
-        val on = add.code == selected
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(palette.card)
+            .border(1.dp, palette.border, RoundedCornerShape(20.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text(
-            add.label,
-            color = if (on) Color(0xFF0C0F15) else TextPrimary,
-            fontSize = 12.sp,
-            modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .background(if (on) accent else Card)
-                .clickable { selected = add.code }
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+            pulseGroupTitle(group.code),
+            color = palette.text,
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
             fontFamily = PlusJakartaSans,
         )
+        MetricTileRow(group.metrics.map { it.label to it.value }, palette)
+        group.why?.takeIf { it.isNotBlank() }?.let {
+            Text(it, color = palette.muted, fontSize = 12.sp, fontFamily = PlusJakartaSans)
+        }
+        if (group.code.equals("ATTENTION", ignoreCase = true)) {
+            AppStateSecondaryButton(label = "View all", onClick = onViewAllAttention)
+        }
     }
-    BasicTextField(
-        value = title,
-        onValueChange = { title = it },
-        textStyle = TextStyle(color = TextPrimary),
-        cursorBrush = SolidColor(accent),
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MetricTileRow(tiles: List<Pair<String, String>>, palette: HubPalette) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        tiles.forEach { (label, value) ->
+            Column(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(palette.bg)
+                    .border(1.dp, palette.border.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                Text(label, color = palette.muted, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+                Text(value.ifBlank { "Not recorded" }, color = palette.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, fontFamily = PlusJakartaSans)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttentionRow(title: String, badge: String, palette: HubPalette) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Card)
-            .border(1.dp, Border, RoundedCornerShape(12.dp))
-            .padding(12.dp),
+            .background(palette.bg)
+            .border(1.dp, palette.border, RoundedCornerShape(12.dp))
+            .padding(start = 0.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Box(
+            modifier = Modifier
+                .height(36.dp)
+                .padding(end = 12.dp)
+                .border(width = 3.dp, color = palette.accent, shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
+                .padding(start = 14.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text(title, color = palette.text, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+        }
+        Text(badge, color = palette.accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+    }
+}
+
+@Composable
+private fun InfoCard(label: String, body: String, palette: HubPalette) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(palette.card)
+            .border(1.dp, palette.border, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(label, color = palette.muted, fontSize = 11.sp, fontFamily = PlusJakartaSans)
+        Text(body, color = palette.text, fontSize = 14.sp, fontFamily = PlusJakartaSans)
+    }
+}
+
+/**
+ * Figma TRD Quick Adds hub (`5:16417`) — catalog tile grid + compact post form.
+ * Posts title/amount only; rich typed capture can layer later without inventing values.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TypedOperatingQuickAddForm(
+    model: OperatingProjectionDto?,
+    palette: HubPalette,
+    onSubmit: suspend (eventType: String, title: String, amount: String?) -> Unit,
+) {
+    val adds = model?.quickAdds.orEmpty()
+    var selected by remember(adds) { mutableStateOf(adds.firstOrNull()?.code.orEmpty()) }
+    var titleText by remember { mutableStateOf("") }
+    var amountText by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    val selectedAdd = adds.firstOrNull { it.code == selected }
+
+    Text("Quick Adds", color = palette.text, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, fontFamily = PlusJakartaSans)
+    Text(
+        "Post a real capture — empty tiles stay honest until you add.",
+        color = palette.muted,
+        fontSize = 12.sp,
+        fontFamily = PlusJakartaSans,
     )
-    val needsAmount = adds.firstOrNull { it.code == selected }?.needsAmount == true
-    if (needsAmount) {
+    if (adds.isEmpty()) {
+        InfoCard("Quick Adds", "Your role cannot add to this moment.", palette)
+        return
+    }
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        adds.forEach { add ->
+            val on = add.code == selected
+            Column(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (on) palette.accent.copy(alpha = 0.18f) else palette.card)
+                    .border(1.dp, if (on) palette.accent else palette.border, RoundedCornerShape(16.dp))
+                    .clickable { selected = add.code }
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(add.label, color = if (on) palette.accent else palette.text, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PlusJakartaSans)
+            }
+        }
+    }
+    BasicTextField(
+        value = titleText,
+        onValueChange = { titleText = it },
+        textStyle = TextStyle(color = palette.text, fontSize = 14.sp, fontFamily = PlusJakartaSans),
+        cursorBrush = SolidColor(palette.accent),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(palette.card)
+            .border(1.dp, palette.border, RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        decorationBox = { inner ->
+            if (titleText.isEmpty()) Text("Title", color = palette.muted, fontSize = 14.sp, fontFamily = PlusJakartaSans)
+            inner()
+        },
+    )
+    if (selectedAdd?.needsAmount == true) {
         BasicTextField(
-            value = amount,
-            onValueChange = { amount = it },
-            textStyle = TextStyle(color = TextPrimary),
-            cursorBrush = SolidColor(accent),
+            value = amountText,
+            onValueChange = { amountText = it },
+            textStyle = TextStyle(color = palette.text, fontSize = 14.sp, fontFamily = PlusJakartaSans),
+            cursorBrush = SolidColor(palette.accent),
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
-                .background(Card)
-                .border(1.dp, Border, RoundedCornerShape(12.dp))
+                .background(palette.card)
+                .border(1.dp, palette.border, RoundedCornerShape(12.dp))
                 .padding(12.dp),
+            decorationBox = { inner ->
+                if (amountText.isEmpty()) Text("Amount", color = palette.muted, fontSize = 14.sp, fontFamily = PlusJakartaSans)
+                inner()
+            },
         )
     }
+    val canSubmit = selected.isNotBlank() && titleText.isNotBlank()
     Text(
         "Add",
-        color = Color(0xFF0C0F15),
+        color = palette.onAccent,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(accent)
-            .clickable(enabled = selected.isNotBlank() && title.isNotBlank()) {
+            .background(if (canSubmit) palette.accent else palette.muted.copy(alpha = 0.35f))
+            .clickable(enabled = canSubmit) {
                 val code = selected
-                val label = title.trim()
-                val value = amount.trim().ifBlank { null }
+                val title = titleText.trim()
+                val amount = amountText.trim().ifBlank { null }
                 scope.launch {
-                    onSubmit(code, label, value)
-                    title = ""
-                    amount = ""
+                    onSubmit(code, title, amount)
+                    titleText = ""
+                    amountText = ""
                 }
             }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         fontFamily = PlusJakartaSans,
     )
-    model?.attention?.filter { it.kind == "APPROVAL" }?.forEach { item ->
-        Text(
-            "Approve ${item.title}",
-            color = accent,
-            modifier = Modifier.clickable {
-                scope.launch { onDecide(item.id, "APPROVED") }
-            },
-            fontFamily = PlusJakartaSans,
-        )
-    }
 }
-
-@Composable
-private fun InfoCard(label: String, body: String) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Card)
-            .border(1.dp, Border, RoundedCornerShape(16.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(label, color = Muted, fontSize = 11.sp, fontFamily = PlusJakartaSans)
-        Text(body, color = TextPrimary, fontSize = 14.sp, fontFamily = PlusJakartaSans)
-    }
-}
-
-@Composable
-internal fun OperatingChromeSheets(model: OperatingProjectionDto, companyId: String? = null) {
-    val editing = OperatingChromeState.editing
-    val settling = OperatingChromeState.settling
-    val record = OperatingChromeState.record
-    if (editing != null && record != null) {
-        OperatingCaptureSheet(
-            title = "Edit activity",
-            icon = com.example.momentra.R.drawable.qa_shield,
-            eventType = editing.eventType,
-            mode = editing.eventType,
-            model = model,
-            seed = editing,
-            onDismiss = { OperatingChromeState.editing = null },
-            onSubmit = { draft ->
-                record(draft)
-                OperatingChromeState.editing = null
-            },
-            companyId = companyId,
-        )
-    }
-    if (settling != null && record != null) {
-        val collect = settling.relevance == "RECEIVABLE"
-        OperatingCaptureSheet(
-            title = if (collect) "Record Collection" else "Record Payment",
-            icon = com.example.momentra.R.drawable.qa_shield,
-            eventType = if (collect) "COLLECTION" else "PAYMENT",
-            mode = if (collect) "COLLECTION" else "PAYMENT",
-            model = model,
-            seed = com.example.momentra.data.api.OperatingActivityDto(
-                id = "",
-                title = settling.title,
-                eventType = if (collect) "COLLECTION" else "PAYMENT",
-                amount = settling.amount,
-                counterpartyName = settling.counterpartyName,
-                parentEventId = settling.id,
-            ),
-            onDismiss = { OperatingChromeState.settling = null },
-            onSubmit = { draft ->
-                record(draft)
-                OperatingChromeState.settling = null
-            },
-            companyId = companyId,
-        )
-    }
-
-    // Story config — `TRD-MEMORY-v12` / `DST-MEMORY-v12` Memory-tab CTA.
-    val storyId = OperatingChromeState.momentId
-    if (OperatingChromeState.storyConfigOpen && storyId != null) {
-        OperatingSheetScrim(
-            onDismiss = { OperatingChromeState.storyConfigOpen = false },
-            accent = OperatingChromeState.storyAccent,
-            surface = OperatingChromeState.storySurface,
-            border = OperatingChromeState.storyBorder,
-        ) {
-            when (model.subtype) {
-                "DISTRIBUTION_DEALERSHIP" ->
-                    com.example.momentra.ui.shell.business.distribution.DistributionStoryConfigSheet(
-                        model = model,
-                        momentId = storyId,
-                        theme = OperatingChromeState.storyTheme(),
-                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
-                    )
-                "STANDARD_PRODUCTION", "MADE_TO_ORDER" ->
-                    com.example.momentra.ui.shell.business.manufacturing.ManufacturingStoryConfigSheet(
-                        model = model,
-                        momentId = storyId,
-                        theme = OperatingChromeState.storyTheme(),
-                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
-                    )
-                "RETAIL_STORE" ->
-                    com.example.momentra.ui.shell.business.retail.RetailStoryConfigSheet(
-                        model = model,
-                        momentId = storyId,
-                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
-                    )
-                "RESTAURANT_FOOD" ->
-                    com.example.momentra.ui.shell.business.restaurant.RestaurantStoryConfigSheet(
-                        model = model,
-                        momentId = storyId,
-                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
-                    )
-                "CONSUMER_SERVICE" ->
-                    com.example.momentra.ui.shell.business.service.ServiceStoryConfigSheet(
-                        model = model,
-                        momentId = storyId,
-                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
-                    )
-                "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN" ->
-                    com.example.momentra.ui.shell.business.marketing.MarketingStoryConfigSheet(
-                        model = model,
-                        momentId = storyId,
-                        theme = OperatingChromeState.storyTheme(),
-                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
-                    )
-                else ->
-                    com.example.momentra.ui.shell.business.trading.TradingStoryConfigSheet(
-                        model = model,
-                        momentId = storyId,
-                        theme = OperatingChromeState.storyTheme(),
-                        onDismiss = { OperatingChromeState.storyConfigOpen = false },
-                    )
-            }
-        }
-    }
-
-    // Masters — opened from Quick Add or a view-all sheet.
-    val mastersTab = OperatingChromeState.mastersOpen
-    val mastersMomentId = OperatingChromeState.momentId
-    if (mastersTab != null && mastersMomentId != null) {
-        val tab = OperatingMasterTab.entries.firstOrNull { it.name == mastersTab } ?: OperatingMasterTab.Catalogue
-        OperatingSheetScrim(
-            onDismiss = { OperatingChromeState.mastersOpen = null },
-            accent = OperatingChromeState.storyAccent,
-            surface = OperatingChromeState.storySurface,
-            border = OperatingChromeState.storyBorder,
-        ) {
-            OperatingMastersSheet(
-                tab = tab,
-                model = model,
-                context = OperatingMasterContext(
-                    companyId = companyId,
-                    momentId = mastersMomentId,
-                    onChanged = { OperatingChromeState.refresh += 1 },
-                ),
-                theme = OperatingChromeState.storyTheme(),
-                onClose = { OperatingChromeState.mastersOpen = null },
-            )
-        }
-    }
-
-    // Parts / Materials browsers — Quote/Job/PO chrome (`2706:37762`, `2706:37822`, `2547:29629`).
-    val browserKind = when (OperatingChromeState.partsBrowserOpen?.lowercase()) {
-        "parts", "part", "sku" -> OperatingBrowserKind.Parts
-        "materials", "material", "bom" -> OperatingBrowserKind.Materials
-        else -> null
-    }
-    if (browserKind != null) {
-        OperatingSheetScrim(
-            onDismiss = { OperatingChromeState.partsBrowserOpen = null },
-            accent = OperatingChromeState.storyAccent,
-            surface = OperatingChromeState.storySurface,
-            border = OperatingChromeState.storyBorder,
-        ) {
-            OperatingPartsBrowserSheet(
-                model = model,
-                kind = browserKind,
-                theme = OperatingChromeState.storyTheme(),
-                contextLabel = model.title?.takeIf { it.isNotBlank() },
-                onAdd = { item ->
-                    val selection = item.toSelection(browserKind, model.subtype)
-                    OperatingChromeState.browserSelection = selection
-                    OperatingChromeState.partsBrowserOpen = null
-                    // Open capture absorbs the selection; otherwise open the matching Quick Add.
-                    // Hint alone is enough — Active surfaces already route `quickAddHint` into
-                    // the hub sheet when the operator is on Quick Add (or next opens it).
-                    if (!OperatingChromeState.captureOpen) {
-                        OperatingChromeState.quickAddHint = selection.captureHint.lowercase()
-                    }
-                },
-                onCreateNew = {
-                    OperatingChromeState.partsBrowserOpen = null
-                    OperatingChromeState.mastersOpen = OperatingMasterTab.Catalogue.name
-                },
-                onDismiss = { OperatingChromeState.partsBrowserOpen = null },
-            )
-        }
-    }
-
-    // SVC-SHEET · Services browser (`2533:29628`) — Booking / Finalize Charge picker.
-    val servicesHint = OperatingChromeState.servicesBrowserOpen
-    if (servicesHint != null) {
-        OperatingSheetScrim(
-            onDismiss = { OperatingChromeState.servicesBrowserOpen = null },
-            accent = com.example.momentra.ui.theme.ServicesTeal.lime,
-            surface = com.example.momentra.ui.theme.ServicesTeal.card,
-            border = com.example.momentra.ui.theme.ServicesTeal.sheetBorder,
-        ) {
-            com.example.momentra.ui.shell.business.service.ServiceServicesBrowserSheet(
-                model = model,
-                momentId = OperatingChromeState.momentId,
-                captureHint = servicesHint,
-                onAdd = { selection ->
-                    OperatingChromeState.browserSelection = selection
-                    OperatingChromeState.servicesBrowserOpen = null
-                    if (!OperatingChromeState.captureOpen) {
-                        OperatingChromeState.quickAddHint = selection.captureHint.lowercase()
-                    }
-                },
-                onDismiss = { OperatingChromeState.servicesBrowserOpen = null },
-            )
-        }
-    }
-
-    // `Switch Moment` — `TRD-SWITCH 2566:33577`. Selecting a moment is delegated to the
-    // shell so this sheet never navigates on its own.
-    if (OperatingChromeState.switchMomentOpen) {
-        OperatingSheetScrim(
-            onDismiss = { OperatingChromeState.switchMomentOpen = false },
-            accent = OperatingChromeState.storyAccent,
-            surface = OperatingChromeState.storySurface,
-            border = OperatingChromeState.storyBorder,
-        ) {
-            OperatingSwitchMomentSheet(
-                currentMomentId = OperatingChromeState.momentId,
-                theme = OperatingChromeState.storyTheme(),
-                onDismiss = { OperatingChromeState.switchMomentOpen = false },
-                onSelect = {
-                    OperatingChromeState.switchMomentOpen = false
-                    OperatingChromeState.onSwitchMoment?.invoke(it)
-                },
-            )
-        }
-    }
-}
-
-/** The eight chapters the backend composes for each vertical. */
-internal val TRADING_STORY_PAGES = listOf(
-    "Moment", "Motion", "Orders", "Money", "Stock", "Network", "Attention", "So far",
-)
-internal val DISTRIBUTION_STORY_PAGES = listOf(
-    "Moment", "Motion", "Dealers", "Money", "Stock", "Network", "Attention", "So far",
-)
-internal val MANUFACTURING_STORY_PAGES = listOf(
-    "Moment", "Motion", "Orders", "Money", "Stock", "Network", "Attention", "So far",
-)
-internal val MTO_STORY_PAGES = listOf(
-    "Jobs", "One job", "Confirmed", "Money", "Production", "Customers", "Attention", "So far",
-)
-internal val MARKETING_STORY_PAGES = listOf(
-    "Moment", "Motion", "Spend", "Results", "Creative", "Network", "Attention", "So far",
-)

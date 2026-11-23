@@ -354,13 +354,14 @@ class BusinessAppStateSpecsTest {
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("CONSUMER_SERVICE"))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("STANDARD_PRODUCTION"))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("MADE_TO_ORDER"))
-        assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("CLIENT_CAMPAIGN"))
+        assertEquals(BusinessAppStateAccent.Indigo, BusinessAppStateAccent.forTypeCode("CLIENT_CAMPAIGN"))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("OWN_BUSINESS_CAMPAIGN"))
         assertEquals(BusinessAppStateAccent.Flame, BusinessAppStateAccent.forTypeCode("DISTRIBUTION_DEALERSHIP"))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode(null))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("SOMETHING_NEW"))
         assertEquals(0xFF06B6D4.toInt(), BusinessAppStateAccent.Cyan.color.toArgb())
         assertEquals(0xFFF59E0B.toInt(), BusinessAppStateAccent.Amber.color.toArgb())
+        assertEquals(0xFF6366F1.toInt(), BusinessAppStateAccent.Indigo.color.toArgb())
     }
 
     @Test

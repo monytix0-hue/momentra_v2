@@ -3,45 +3,58 @@ package com.example.momentra.ui.shell.business.appstate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.ui.theme.generated.BusinessTokens
 
 /**
  * Tokens for the Figma "App States · Shared (all Business verticals)" kit.
  *
- * Rebuilt against Figma "Business v3 · International Obsidian · Emerald Theme" (node 2852:39645).
- * That frame replaces the flat dark grey surface with a deep obsidian canvas, a volumetric
- * dual-orb glow mesh, high-refraction glass cards and floating neon indicator badges.
- *
- * Every accent-driven layer in the kit binds a single variable, `appstate/accent`, collapsed to one
- * emerald value shared by every Business vertical, so the whole kit reads as a single accent
- * system. These are the exact Figma values and are the source of truth for this layer — they
- * intentionally do not follow [com.example.momentra.ui.shell.business.shared.BusinessActiveTheme].
+ * Obsidian Emerald (Figma rknf `2:67`). Palette primitives **alias** [BusinessTokens.Colors]
+ * so AppState stays in lockstep with regenerated Business design tokens.
  *
  * Keep in lockstep with `BusinessAppStateTokens.swift` on iOS.
  */
 enum class BusinessAppStateAccent(val color: Color) {
-    /** App States · Accent / Emerald — #10B981 (unified across every Business vertical) */
-    Emerald(Color(0xFF10B981)),
+    /** System emerald / success chrome `#10B981` (not trading amber). */
+    Emerald(BusinessTokens.Colors.SignalPositive),
+    /** Trading / Distribution — TRD-v12 amber `#F59E0B`. */
+    Amber(BusinessTokens.Colors.TRADINGAccent),
+    /** Retail Empty (Rose) `#F43F5E`. */
+    Rose(BusinessTokens.Colors.RETAILAccent),
+    /** RST Food Empty (Flame) `#EA580C`. */
+    Flame(BusinessTokens.Colors.RESTAURANTAccent),
+    /** View All (Cyan) `#06B6D4`. */
+    Cyan(BusinessTokens.Colors.SignalInfo),
+    /** Client Campaign indigo `#6366F1`. */
+    Indigo(BusinessTokens.Colors.MARKETINGAccent),
     ;
 
     companion object {
         /**
          * Resolve the accent for an operating moment subtype code.
          *
-         * The accent is unified, so every code resolves to emerald. The *vertical* still matters
-         * for copy overrides — see [BusinessAppStateVertical].
+         * Trading → Emerald, Distribution → Flame, Retail → Rose, Restaurant → Flame;
+         * Client Campaign → Indigo; Services/MFG/Own Marketing → Emerald unless they grow own accents.
+         * ViewAll screens pass [Cyan] explicitly at the call site.
          */
-        fun forTypeCode(momentTypeCode: String?): BusinessAppStateAccent = Emerald
+        fun forTypeCode(momentTypeCode: String?): BusinessAppStateAccent =
+            when (momentTypeCode?.trim()?.uppercase()) {
+                "TRADING_WHOLESALE" -> Emerald
+                "DISTRIBUTION_DEALERSHIP" -> Flame
+                "RETAIL_STORE" -> Rose
+                "RESTAURANT_FOOD" -> Flame
+                "CLIENT_CAMPAIGN" -> Indigo
+                else -> Emerald
+            }
     }
 }
 
 /**
  * The business vertical a moment belongs to.
  *
- * The accent is unified across verticals, but the kit still carries per-vertical *text* overrides
- * (Figma "Hub label overrides"), so the vertical stays a first-class discriminator even though the
- * colour no longer varies.
+ * Accent can vary (Rose / Flame / Emerald), and the kit still carries per-vertical *text*
+ * overrides (Figma "Hub label overrides").
  *
- * Keep in lockstep with `BusinessAppStateVertical.kt` on iOS.
+ * Keep in lockstep with `BusinessAppStateVertical` on iOS.
  */
 enum class BusinessAppStateVertical {
     Trading,
@@ -54,12 +67,6 @@ enum class BusinessAppStateVertical {
     ;
 
     companion object {
-        /**
-         * Resolve the vertical for an operating moment subtype code.
-         *
-         * Mirrors the Figma mode set exactly, so the same moment is classified identically on every
-         * platform.
-         */
         fun forTypeCode(momentTypeCode: String?): BusinessAppStateVertical =
             when (momentTypeCode?.trim()?.uppercase()) {
                 "TRADING_WHOLESALE" -> Trading
@@ -77,120 +84,94 @@ enum class BusinessAppStateVertical {
 /**
  * Surface ramp shared by every app-state variant.
  *
- * Figma "Obsidian & Neon Refraction": a deep `#05070B` spatial canvas, a volumetric dual-orb glow
- * mesh, `rgba(16,22,35,0.72)` refraction glass at a 1.25dp `rgba(16,185,129,0.35)` border, and the
- * emerald `#059669 → #34D399` CTA ramp. Every value here is read from the frame nodes directly.
+ * Figma "Obsidian & Neon Refraction": deep `#05070B` canvas, refraction glass, emerald CTA ramp.
+ * Color values alias [BusinessTokens] where a matching token exists.
  */
 object BusinessAppStateTokens {
-    // Palette primitives
-    /** Figma emerald 500 — the kit's single accent. */
-    val Emerald = Color(0xFF10B981)
-    /** Figma emerald 600 — CTA start and the warm glow orb. */
-    val EmeraldDeep = Color(0xFF059669)
-    /** Figma emerald 400 — CTA end. */
-    val EmeraldBright = Color(0xFF34D399)
-    /** Figma error / diagnostic red. */
-    val ErrorRing = Color(0xFFFF5C38)
-    /** Figma amber, used for "Not recorded" / "Hidden until online" values. */
-    val Warning = Color(0xFFF5A624)
+    // Palette primitives (alias BusinessTokens)
+    /** System emerald — success toast / positive signals (stays `#10B981`). */
+    val Emerald = BusinessTokens.Colors.SignalPositive
+    val EmeraldDeep = BusinessTokens.Colors.CtaStart
+    val EmeraldBright = BusinessTokens.Colors.CtaEnd
+    /** Trading moment amber (TRD-v12). */
+    val TradingAmber = BusinessTokens.Colors.TRADINGAccent
+    val TradingFlame = BusinessTokens.Colors.TRADINGAccentDeep
+    val ErrorRing = BusinessTokens.Colors.SignalDanger
+    val Warning = BusinessTokens.Colors.SignalWarning
 
     // Surfaces
-    /** Figma root background for every App States frame (`#05070B`). */
-    val Page = Color(0xFF05070B)
-    /** Hero badge core fill (`#0F141F`). */
+    val Page = BusinessTokens.Colors.BgCanvas
     val Sheet = Color(0xFF0F141F)
     val SurfaceRaised = Color(0xFF151D2E)
-    val Border = Color(0xFF1E293B)
+    val Border = BusinessTokens.Colors.BorderDefault
 
     // Text
-    val Text = Color(0xFFFFFFFF)
-    /** Body copy and muted subtitles (`#94A4B8`). */
-    val TextMuted = Color(0xFF94A4B8)
-    /** Footnoted microcopy (`#738099`). */
+    val Text = BusinessTokens.Colors.TextPrimary
+    val TextMuted = BusinessTokens.Colors.TextMuted
     val TextSubtle = Color(0xFF738099)
-    /** Glass-card row labels (`#C7D1E0`). */
-    val RowLabelColor = Color(0xFFC7D1E0)
+    val RowLabelColor = BusinessTokens.Colors.TextSecondary
 
-    // Glass (backdrop-blurred chrome: icon buttons, dividers)
-    val GlassFill = Color(0x14FFFFFF) // white @ 8%
-    val GlassStroke = Color(0x38FFFFFF) // white @ 22%
-    val GlassStrokeSoft = Color(0x24FFFFFF) // white @ 14%
+    // Glass
+    val GlassFill = Color(0x14FFFFFF)
+    val GlassStroke = Color(0x38FFFFFF)
+    val GlassStrokeSoft = Color(0x24FFFFFF)
     val BlurRadius = 24.dp
 
-    /** Refraction glass card fill: `rgba(16,22,35,0.72)`. */
-    val GlassCardFill = Color(0xFF101623).copy(alpha = 0.72f)
-    /** Refraction glass card stroke: emerald @35%. */
-    val GlassCardStroke = Color(0x5910B981)
-    /** Figma draws the card border at `1.25px`. */
+    val GlassCardFill = BusinessTokens.Colors.SurfaceCard.copy(alpha = 0.72f)
+    val GlassCardStroke = Emerald.copy(alpha = 0.35f)
     val GlassCardStrokeWidth = 1.25.dp
-    /** Small emerald hairline used by chips and tab containers. */
-    val HairlineStroke = Color(0x2E10B981)
+    val HairlineStroke = Emerald.copy(alpha = 0.18f)
 
-    // Primary CTA — the emerald gradient glow
-    /** Figma CTA start (`#059669`). */
-    val CtaStart = Color(0xFF059669)
-    /** Figma CTA end (`#34D399`). */
-    val CtaEnd = Color(0xFF34D399)
-    /** Figma `0 4px 12px rgba(16,185,129,0.35)`. */
-    val CtaShadow = Color(0xFF10B981)
+    // Primary CTA
+    val CtaStart = BusinessTokens.Colors.CtaStart
+    val CtaEnd = BusinessTokens.Colors.CtaEnd
+    val CtaShadow = Emerald
     val CtaShadowRadius = 12.dp
     val CtaShadowY = 4.dp
 
-    /** Secondary CTA: no fill on screen bodies, a 6% white wash inside the switcher sheet. */
     val SecondaryButtonFill = Color(0x00FFFFFF)
-    val SecondaryButtonStroke = Color(0x2E10B981)
+    val SecondaryButtonStroke = Emerald.copy(alpha = 0.18f)
 
     // Ambient glow mesh
-    /** Atmospheric accent orb behind the state body (`#10B981`). */
-    val GlowAccent = Color(0xFF10B981)
+    val GlowAccent = Emerald
     val GlowAccentSize = 360.dp
-    /** Stop 0 alpha; the mesh fades to 8% at 60% and 0 at the rim. */
     val GlowAccentAlpha = 0.28f
     val GlowAccentMidAlpha = 0.08f
     val GlowAccentMidStop = 0.60f
-    /** Warm secondary orb (`#059669`). */
-    val GlowWarm = Color(0xFF059669)
+    val GlowWarm = EmeraldDeep
     val GlowWarmSize = 280.dp
     val GlowWarmAlpha = 0.15f
-    /** Error states swap the accent orb for `#FF5C38`. */
-    val GlowError = Color(0xFFFF5C38)
+    val GlowError = ErrorRing
     val GlowErrorAlpha = 0.25f
-    /** Soft blur applied to each orb. */
     val GlowBlur = 120.dp
 
-    // Hero indicator badge (Figma "Hero Indicator Badge", 112dp)
+    // Hero indicator badge
     val HeroSize = 112.dp
-    /** Outer halo: 96 inset 8, emerald @8% fill, emerald @45% 2dp ring. */
     val HeroRingSize = 96.dp
     val HeroRingInset = 8.dp
     val HeroRingStroke = 2.dp
     val HeroRingFillAlpha = 0.08f
     val HeroRingStrokeAlpha = 0.45f
-    /** Inner core: 76 inset 18, `#0F141F` fill, emerald @18% 1.5dp ring. */
     val HeroCoreSize = 76.dp
     val HeroCoreInset = 18.dp
     val HeroCoreStroke = 1.5.dp
     val HeroCoreFill = Color(0xFF0F141F)
     val HeroCoreStrokeAlpha = 0.18f
-    /** Floating status dot: 36 at (72,72), state-coloured fill, emerald 3.5dp ring. */
     val HeroDotSize = 36.dp
     val HeroDotInset = 72.dp
     val HeroDotStroke = 3.5.dp
-    /** Hero glyph inside the core, and the glyph inside the status dot. */
     val HeroGlyphSize = 28.dp
     val HeroDotGlyphSize = 17.sp
-    val HeroDotGlyphColor = Color(0xFF080A0F)
+    val HeroDotGlyphColor = BusinessTokens.Colors.TextInverse
 
     // Semantic
     val Danger = Color(0xFFEF4444)
-    /** Diagnostic pill: red @15% fill, emerald @45% stroke, `#FF5C38` label. */
-    val ErrorPillFill = Color(0x26FF5C38)
-    val ErrorPillStroke = Color(0x7310B981)
-    /** Offline status pill: `rgba(38,46,61,0.9)` fill, emerald @40% stroke. */
+    val ErrorPillFill = ErrorRing.copy(alpha = 0.15f)
+    val ErrorPillStroke = Emerald.copy(alpha = 0.45f)
     val OfflineBannerFill = Color(0xFF262E3D).copy(alpha = 0.90f)
-    val OfflineBannerStroke = Color(0x6610B981)
+    val OfflineBannerStroke = Emerald.copy(alpha = 0.40f)
     val OfflineBannerHeight = 34.dp
-    val OfflineGrey = Color(0xFF94A4B8)
+    val OfflineGrey = BusinessTokens.Colors.TextMuted
 
     // Geometry
     val ScreenHorizontalPadding = 24.dp
@@ -204,37 +185,33 @@ object BusinessAppStateTokens {
     val PrimaryButtonHeight = 50.dp
     val SecondaryButtonHeight = 46.dp
 
-    // Hub capture grid (Figma "Quick Adds Glass Grid")
-    /** Six `111x67` tiles across the `354` body width: `3*111 + 2*10 = 353`. */
+    // Hub capture grid
     val HubTileWidth = 111.dp
     val HubTileHeight = 67.dp
     val HubColumnGap = 10.dp
     val HubRowGap = 10.dp
     val HubTileRadius = 16.dp
-    val HubTileFill = Color(0x0DFFFFFF) // white @ 5%
-    /** Tile hairline: emerald @ 25%. */
-    val HubTileStroke = Color(0x4010B981)
+    val HubTileFill = Color(0x0DFFFFFF)
+    val HubTileStroke = Emerald.copy(alpha = 0.25f)
     val HubIconSize = 18.dp
     val HubLabelSize = 11.5f
     val HubTileLabelGap = 6.dp
     val HubTileVerticalPadding = 14.dp
 
-    // Loading skeleton (Figma "Loading Glass Skeleton Box")
+    // Loading skeleton
     val SkeletonBoxHeight = 150.dp
     val SkeletonPadHorizontal = 20.dp
     val SkeletonPadVertical = 22.dp
     val SkeletonGap = 14.dp
     val SkeletonBarHeight = 16.dp
     val SkeletonBarRadius = 8.dp
-    /** Shimmer ramp: base → 18% at 50% → base. */
-    val SkeletonBarBase = Color(0x0AFFFFFF) // white @ 4%
-    val SkeletonBarHighlight = Color(0x2EFFFFFF) // white @ 18%
+    val SkeletonBarBase = Color(0x0AFFFFFF)
+    val SkeletonBarHighlight = Color(0x2EFFFFFF)
     val SkeletonTrailingSpace = 110.dp
 
     // Type scale
     val TitleSize = 24f
     val BodySize = 13.5f
-    /** Figma body line height over the 13.5sp ramp. */
     val BodyLineHeight = 19f
     val EyebrowSize = 11f
     val RowLabelSize = 13f
@@ -248,7 +225,23 @@ object BusinessAppStateTokens {
     val ButtonTracking = 1f
     val ErrorCodeTracking = 1.5f
 
-    // Alphas still referenced by shared chrome
-    /** Footnote alpha over [TextSubtle]. Figma draws footnotes solid, so this stays at 1. */
     val FootnoteMutedOpacity = 1f
+
+    // Toaster / banner system (Figma 2:1375)
+    val ToastRadius = 14.dp
+    val ToastPadHorizontal = 14.dp
+    val ToastPadVertical = 12.dp
+    val ToastLabelSize = 12.5f
+    val ToastTitleSize = 13.5f
+    val ToastSubtitleSize = 11.5f
+    val SetupActivatedFill = Color(0xFF16120E).copy(alpha = 0.96f)
+    val SetupActivatedStroke = BusinessTokens.Colors.RESTAURANTAccent.copy(alpha = 0.45f)
+    val SetupActivatedCheck = BusinessTokens.Colors.RESTAURANTAccent
+    val SuccessToastFill = Color(0xFF0B1F18).copy(alpha = 0.94f)
+    val SuccessToastStroke = Emerald.copy(alpha = 0.55f)
+    val SuccessToastCheck = Emerald
+    val QueueToastFill = Color(0xFF262E3D).copy(alpha = 0.92f)
+    val QueueToastStroke = Emerald.copy(alpha = 0.35f)
+    val ErrorToastFill = ErrorRing.copy(alpha = 0.16f)
+    val ErrorToastStroke = ErrorRing.copy(alpha = 0.45f)
 }
