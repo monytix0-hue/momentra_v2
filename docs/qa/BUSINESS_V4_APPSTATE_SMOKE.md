@@ -131,6 +131,13 @@ Setup smoke (Figma v6 parity):
 - [ ] Roles: Owner / Admin / Campaign Lead / Finance / Approver
 - [ ] **Save draft** / **Discard draft**; reopen restores prefs
 - [ ] Activate missing budget or startDate highlights those fields; missing client highlights `clientName`; bad GSTIN with tracking Yes highlights GSTIN
+- [ ] Activate → toast **Campaign is live** with animated ✓ (~2.75s) then Pulse (`5:29386`)
+- [ ] Pulse indigo chrome; tagline **Plan. Launch. Measure.**; widgets Needs Attention → Target & Budget → Payment Readiness → Finance → Activity
+- [ ] Fresh activate (prefs only) shows budget/target identity; empty Attention honesty
+- [ ] Moments (`5:29681`): Campaign Overview / People / Channels & Network / Open Commitments / Campaign Results
+- [ ] Life (`5:29935`): Current Campaign / Channel Activity / Money Moving / People Today
+- [ ] Memory (`5:30195`): Monthly History / Money History / People & Activity / Patterns & Decisions
+- [ ] CREATE Quick Adds hub (`64:16631`): 10 Client tiles incl. Invoice + Collection; Saving → Saved confirm; indigo capture chrome
 
 ### Own Business Campaign (`5:38325`) — five sections (no Network)
 
