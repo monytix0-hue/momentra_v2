@@ -224,16 +224,39 @@ struct OperatingMomentHubView: View {
         .foregroundStyle(palette.accent)
     }
 
+    private func widgetTitle(_ w: OperatingWidgetPayload, clientCampaign: Bool) -> String {
+        let server = w.title ?? ""
+        if clientCampaign {
+            return ClientCampaignHubWidgets.displayTitle(widgetId: w.widgetId, serverTitle: server)
+        }
+        return server.isEmpty ? w.widgetId : server
+    }
+
+    private var clientCampaignPulseWidgets: [OperatingWidgetPayload] {
+        guard ClientCampaignHubWidgets.isClientCampaign(momentTypeCode ?? projection?.subtype) else { return [] }
+        let screen = tab.screenCode ?? "PULSE"
+        let filtered = (widgets?.widgets ?? []).filter {
+            ($0.screen ?? "").caseInsensitiveCompare(screen) == .orderedSame
+        }
+        return ClientCampaignHubWidgets.sortWidgets(screen: screen, widgets: filtered)
+    }
+
     @ViewBuilder
     private var boardFallback: some View {
         if tab == .pulse {
-            let groups = projection?.pulseMetrics ?? []
-            if !groups.isEmpty {
-                ForEach(groups) { group in
-                    pulseGroupCard(group)
-                }
+            let skipPulseFallback = ClientCampaignHubWidgets.isClientCampaign(momentTypeCode ?? projection?.subtype)
+                && !clientCampaignPulseWidgets.isEmpty
+            if skipPulseFallback {
+                EmptyView()
             } else {
-                legacyPulseFallback
+                let groups = projection?.pulseMetrics ?? []
+                if !groups.isEmpty {
+                    ForEach(groups) { group in
+                        pulseGroupCard(group)
+                    }
+                } else {
+                    legacyPulseFallback
+                }
             }
         } else {
             let sections: [OperatingBoardSectionPayload] = {
@@ -394,9 +417,14 @@ struct OperatingMomentHubView: View {
 
     @ViewBuilder
     private func widgetBlocks(for screen: String) -> some View {
-        let list = (widgets?.widgets ?? []).filter {
+        let subtype = (momentTypeCode ?? projection?.subtype)?.uppercased()
+        let filtered = (widgets?.widgets ?? []).filter {
             ($0.screen ?? "").caseInsensitiveCompare(screen) == .orderedSame
         }
+        let list: [OperatingWidgetPayload] = {
+            guard subtype == ClientCampaignHubWidgets.typeCode else { return filtered }
+            return ClientCampaignHubWidgets.sortWidgets(screen: screen, widgets: filtered)
+        }()
         if !list.isEmpty {
             Text("Widgets")
                 .font(.system(size: 15, weight: .medium))
@@ -409,7 +437,7 @@ struct OperatingMomentHubView: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text(w.title?.isEmpty == false ? w.title! : w.widgetId)
+                            Text(widgetTitle(w, clientCampaign: subtype == ClientCampaignHubWidgets.typeCode))
                                 .font(.system(size: 11))
                                 .foregroundStyle(palette.muted)
                             Spacer()

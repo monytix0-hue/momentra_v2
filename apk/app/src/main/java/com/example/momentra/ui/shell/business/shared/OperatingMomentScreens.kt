@@ -271,8 +271,14 @@ fun OperatingMomentPage(
             OperatingTab.MEMORY,
             -> {
                 val screen = screenCode(tab)!!
+                val screenWidgets = widgets?.widgets.orEmpty().filter { it.screen.equals(screen, ignoreCase = true) }
+                val tabWidgets = if (typeCode == ClientCampaignHubWidgets.TYPE_CODE) {
+                    ClientCampaignHubWidgets.presentForClient(screen, screenWidgets)
+                } else {
+                    screenWidgets
+                }
                 WidgetBlocks(
-                    widgets = widgets?.widgets.orEmpty().filter { it.screen.equals(screen, ignoreCase = true) },
+                    widgets = tabWidgets,
                     financeVisible = model?.financeVisible == true,
                     palette = palette,
                     onOpenSources = { id ->
@@ -286,7 +292,10 @@ fun OperatingMomentPage(
                     },
                 )
                 if (tab == OperatingTab.PULSE) {
-                    PulseFallback(model, palette, onViewAllAttention)
+                    val skipPulseFallback = typeCode == ClientCampaignHubWidgets.TYPE_CODE && tabWidgets.isNotEmpty()
+                    if (!skipPulseFallback) {
+                        PulseFallback(model, palette, onViewAllAttention)
+                    }
                 } else {
                     val sections = when (tab) {
                         OperatingTab.MOMENTS -> model?.boards?.moments
