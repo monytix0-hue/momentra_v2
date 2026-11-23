@@ -1305,7 +1305,8 @@ struct AppShellView: View {
                 onQuickAddCode: { code in
                     BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: code)
                     model.selectBottomDestination(.create)
-                }
+                },
+                onViewAllAttention: { businessAttentionViewAllOpen = true }
             )
             .id(momentId)
         } else if model.selectedContext == .business,

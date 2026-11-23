@@ -146,6 +146,7 @@ struct OperatingMomentHubView: View {
     @State private var error: String?
     @State private var confirm: String?
     @State private var selectedQuickAdd: String = ""
+    @State private var quickAddSearch = ""
     @State private var titleText = ""
     @State private var amountText = ""
     @State private var tick = 0
@@ -211,6 +212,20 @@ struct OperatingMomentHubView: View {
                     }
                 }
 
+                if isDistribution {
+                    switch tab {
+                    case .moments:
+                        DistributionMomentsHero(projection: projection, palette: palette)
+                    case .life:
+                        DistributionLifeHeader(palette: palette)
+                        DistributionPaymentChips(projection: projection, palette: palette)
+                    case .memory:
+                        DistributionMemoryHero(projection: projection, palette: palette)
+                    default:
+                        EmptyView()
+                    }
+                }
+
                 if loading && projection == nil {
                     ProgressView().tint(palette.accent).frame(maxWidth: .infinity).padding()
                 }
@@ -243,6 +258,14 @@ struct OperatingMomentHubView: View {
             .padding(20)
         }
         .background(palette.bg)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if tab == .memory && isDistribution {
+                DistributionGenerateStoryButton(palette: palette, action: onGenerateStory)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(palette.bg.opacity(0.95))
+            }
+        }
         .task(id: "\(momentId)-\(refreshToken)-\(tick)") {
             await reload()
         }
@@ -568,61 +591,79 @@ struct OperatingMomentHubView: View {
     @ViewBuilder
     private var quickAddForm: some View {
         let adds = projection?.quickAdds ?? []
-        Text("Quick Adds")
-            .font(.system(size: 18, weight: .semibold))
-            .foregroundStyle(palette.text)
-        Text("Post a real capture — empty tiles stay honest until you add.")
-            .font(.system(size: 12))
-            .foregroundStyle(palette.muted)
-        if adds.isEmpty {
-            Text("Your role cannot add to this moment.")
-                .font(.system(size: 13))
+        if isDistribution {
+            if adds.isEmpty {
+                Text("Your role cannot add to this moment.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(palette.muted)
+            } else {
+                DistributionQuickAddHub(
+                    adds: adds,
+                    palette: palette,
+                    selectedCode: $selectedQuickAdd,
+                    search: $quickAddSearch,
+                    titleText: $titleText,
+                    amountText: $amountText,
+                    onSubmit: { Task { await submitQuickAdd() } }
+                )
+            }
+        } else {
+            Text("Quick Adds")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(palette.text)
+            Text("Post a real capture — empty tiles stay honest until you add.")
+                .font(.system(size: 12))
                 .foregroundStyle(palette.muted)
-        }
-        FlowLayout(spacing: 10) {
-            ForEach(adds) { add in
-                let on = add.code == selectedQuickAdd
-                Button {
-                    selectedQuickAdd = add.code
-                } label: {
-                    Text(add.label)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(on ? palette.accent : palette.text)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 14)
-                        .background(on ? palette.accent.opacity(0.18) : palette.card)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(on ? palette.accent : palette.border, lineWidth: 1)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+            if adds.isEmpty {
+                Text("Your role cannot add to this moment.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(palette.muted)
+            }
+            FlowLayout(spacing: 10) {
+                ForEach(adds) { add in
+                    let on = add.code == selectedQuickAdd
+                    Button {
+                        selectedQuickAdd = add.code
+                    } label: {
+                        Text(add.label)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(on ? palette.accent : palette.text)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 14)
+                            .background(on ? palette.accent.opacity(0.18) : palette.card)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(on ? palette.accent : palette.border, lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
                 }
             }
-        }
-        TextField("Title", text: $titleText)
-            .textFieldStyle(.plain)
-            .padding(12)
-            .background(palette.card)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .foregroundStyle(palette.text)
-        if adds.first(where: { $0.code == selectedQuickAdd })?.needsAmount == true {
-            TextField("Amount", text: $amountText)
+            TextField("Title", text: $titleText)
                 .textFieldStyle(.plain)
                 .padding(12)
                 .background(palette.card)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .foregroundStyle(palette.text)
+            if adds.first(where: { $0.code == selectedQuickAdd })?.needsAmount == true {
+                TextField("Amount", text: $amountText)
+                    .textFieldStyle(.plain)
+                    .padding(12)
+                    .background(palette.card)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .foregroundStyle(palette.text)
+            }
+            Button("Add") {
+                Task { await submitQuickAdd() }
+            }
+            .disabled(selectedQuickAdd.isEmpty || titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(palette.onAccent)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(palette.accent)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
-        Button("Add") {
-            Task { await submitQuickAdd() }
-        }
-        .disabled(selectedQuickAdd.isEmpty || titleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        .font(.system(size: 15, weight: .semibold))
-        .foregroundStyle(palette.onAccent)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(palette.accent)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func infoCard(label: String, body: String) -> some View {
@@ -653,7 +694,9 @@ struct OperatingMomentHubView: View {
         do {
             let op = try await APIClient.shared.getOperatingMoment(momentId: momentId)
             projection = op
-            if selectedQuickAdd.isEmpty {
+            if tab == .quickAdd, let pending = BusinessMomentFamilyConfig.consumePendingQuickAdd(momentId: momentId) {
+                selectedQuickAdd = pending
+            } else if selectedQuickAdd.isEmpty {
                 selectedQuickAdd = BusinessMomentFamilyConfig.consumePendingQuickAdd(momentId: momentId)
                     ?? op.quickAdds?.first?.code
                     ?? ""
