@@ -1299,7 +1299,13 @@ struct AppShellView: View {
                     ?? model.moments.first(where: { $0.momentId == momentId })?.momentTypeCode,
                 destination: model.bottomDestination,
                 refreshToken: model.businessTabRefreshToken,
-                onStoryReady: { id in storyMomentId = id }
+                momentTitle: model.selectedMomentTitle,
+                onStoryReady: { id in storyMomentId = id },
+                onOpenQuickAdd: { model.selectBottomDestination(.create) },
+                onQuickAddCode: { code in
+                    BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: code)
+                    model.selectBottomDestination(.create)
+                }
             )
             .id(momentId)
         } else if model.selectedContext == .business,

@@ -127,6 +127,7 @@ import com.example.momentra.ui.shell.business.shared.BusinessMomentFamilyConfig
 import com.example.momentra.ui.shell.business.shared.BusinessQuickAddKind
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
+import com.example.momentra.ui.shell.business.shared.BusinessMomentFamilyConfig
 import com.example.momentra.ui.shell.business.shared.OperatingMomentPage
 import com.example.momentra.ui.shell.business.shared.OperatingProjectionCache
 import com.example.momentra.ui.shell.business.shared.OperatingTab
@@ -1970,10 +1971,14 @@ private fun ShellDestinationContent(
                             momentTypeCode = quickAddType,
                             momentTitle = selectedMomentTitle,
                             tab = OperatingTab.QUICK_ADD,
-                            refreshToken = businessTabRefreshToken.toInt(),
+                            refreshToken = businessTabRefreshToken,
                             companyId = companyId,
                             onCreateMoment = onCreateMoment,
                             onOpenQuickAdd = onOpenQuickAdd,
+                            onQuickAddCode = { code ->
+                                selectedMomentId?.let { BusinessMomentFamilyConfig.setPendingQuickAdd(it, code) }
+                                onOpenQuickAdd()
+                            },
                         )
                     } else {
                         ContextEmptyExperience(
@@ -2221,12 +2226,15 @@ private fun ShellDestinationContent(
                                 momentTypeCode = businessTypeCode,
                                 momentTitle = selectedMomentTitle,
                                 tab = OperatingTab.PULSE,
-                                refreshToken = businessTabRefreshToken.toInt(),
+                                refreshToken = businessTabRefreshToken,
                                 companyId = companyId,
                                 onCreateMoment = onCreateMoment,
                                 onOpenQuickAdd = onOpenQuickAdd,
                                 onViewAllAttention = onViewAllBusinessAttention,
-                                onSwitchMoment = onSelectMoment,
+                                onQuickAddCode = { code ->
+                                    selectedMomentId?.let { BusinessMomentFamilyConfig.setPendingQuickAdd(it, code) }
+                                    onOpenQuickAdd()
+                                },
                             )
                         }
                         context == AppContext.BUSINESS && destination == BottomDestination.MOMENTS -> {
@@ -2237,10 +2245,14 @@ private fun ShellDestinationContent(
                                 momentTypeCode = businessTypeCode,
                                 momentTitle = selectedMomentTitle,
                                 tab = OperatingTab.MOMENTS,
-                                refreshToken = businessTabRefreshToken.toInt(),
+                                refreshToken = businessTabRefreshToken,
                                 companyId = companyId,
                                 onCreateMoment = onCreateMoment,
                                 onOpenQuickAdd = onOpenQuickAdd,
+                                onQuickAddCode = { code ->
+                                    selectedMomentId?.let { BusinessMomentFamilyConfig.setPendingQuickAdd(it, code) }
+                                    onOpenQuickAdd()
+                                },
                             )
                         }
                         context == AppContext.BUSINESS && destination == BottomDestination.LIFE -> {
@@ -2251,10 +2263,14 @@ private fun ShellDestinationContent(
                                 momentTypeCode = businessTypeCode,
                                 momentTitle = selectedMomentTitle,
                                 tab = OperatingTab.LIFE,
-                                refreshToken = businessTabRefreshToken.toInt(),
+                                refreshToken = businessTabRefreshToken,
                                 companyId = companyId,
                                 onCreateMoment = onCreateMoment,
                                 onOpenQuickAdd = onOpenQuickAdd,
+                                onQuickAddCode = { code ->
+                                    selectedMomentId?.let { BusinessMomentFamilyConfig.setPendingQuickAdd(it, code) }
+                                    onOpenQuickAdd()
+                                },
                             )
                         }
                         context == AppContext.BUSINESS && destination == BottomDestination.MEMORY -> {
@@ -2265,10 +2281,14 @@ private fun ShellDestinationContent(
                                 momentTypeCode = businessTypeCode,
                                 momentTitle = selectedMomentTitle,
                                 tab = OperatingTab.MEMORY,
-                                refreshToken = businessTabRefreshToken.toInt(),
+                                refreshToken = businessTabRefreshToken,
                                 companyId = companyId,
                                 onCreateMoment = onCreateMoment,
                                 onOpenQuickAdd = onOpenQuickAdd,
+                                onQuickAddCode = { code ->
+                                    selectedMomentId?.let { BusinessMomentFamilyConfig.setPendingQuickAdd(it, code) }
+                                    onOpenQuickAdd()
+                                },
                             )
                         }
                         context == AppContext.PERSONAL && (
