@@ -222,6 +222,13 @@ describe('P3.2 Distribution / Dealership', () => {
       bundle.widgets.find((w) => w.widgetId === 'P02')?.metrics.find((m) => m.key === 'sales')?.value,
       '2000.0000'
     );
+    for (const w of bundle.widgets.filter((row) => row.widgetId.startsWith('DD-'))) {
+      for (const m of w.metrics) {
+        if (m.coverage === 'UNAVAILABLE') {
+          assert.equal(m.value, null, `${w.widgetId}.${m.key} must not invent zero`);
+        }
+      }
+    }
   });
 });
 
