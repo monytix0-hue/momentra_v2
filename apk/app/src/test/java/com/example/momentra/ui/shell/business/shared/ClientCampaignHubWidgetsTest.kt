@@ -46,4 +46,22 @@ class ClientCampaignHubWidgetsTest {
         assertEquals("Money Moving", ClientCampaignHubWidgets.displayTitle("L03", "Money Moving"))
         assertEquals("People Today", ClientCampaignHubWidgets.displayTitle("L04", "Operations / Execution"))
     }
+
+    @Test
+    fun memorySortOrderAndTitlesMatchFigma() {
+        val screen = "MEMORY"
+        val incoming = listOf("ME04", "ME02", "ME01", "ME03").map { widget(it, screen) }
+        val sorted = ClientCampaignHubWidgets.sortWidgets(screen, incoming)
+        assertEquals(listOf("ME01", "ME02", "ME03", "ME04"), sorted.map { it.widgetId })
+        assertEquals("Monthly History", ClientCampaignHubWidgets.displayTitle("ME01", "Monthly History"))
+        assertEquals("Money History", ClientCampaignHubWidgets.displayTitle("ME02", "Money History"))
+        assertEquals("People & Activity", ClientCampaignHubWidgets.displayTitle("ME03", "People & Activity"))
+        assertEquals("Patterns & Decisions", ClientCampaignHubWidgets.displayTitle("ME04", "Patterns & Decisions"))
+    }
+
+    @Test
+    fun unknownScreenLeavesWidgetListOrderUntouched() {
+        val incoming = listOf(widget("P05", "OTHER"), widget("P04", "OTHER"))
+        assertEquals(incoming, ClientCampaignHubWidgets.sortWidgets("UNKNOWN", incoming))
+    }
 }
