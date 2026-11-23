@@ -510,16 +510,22 @@ export async function createMoment(
       { userId: ctx.userId, displayName: 'Owner' },
       { draft: momentStatus === 'DRAFT' }
     );
-    result.setupId = await insertBusinessSetupRow(
-      client,
-      ctx,
-      momentId,
-      body.companyId ?? null,
-      body.businessSetup.familyCode,
-      body.title,
-      preferences,
-      momentStatus
     );
+    if (
+      momentStatus === 'ACTIVE' &&
+      body.businessSetup.familyCode === 'MARKETING_CAMPAIGNS' &&
+      body.companyId
+    ) {
+      const { insertReportingCadenceActivity, normalizeOperatingPreferences } = await import(
+        '../business/operating-service'
+      );
+      const normalized = normalizeOperatingPreferences(
+        body.businessSetup.familyCode,
+        preferences,
+        { userId: ctx.userId, displayName: 'Owner' }
+      );
+      await insertReportingCadenceActivity(client, ctx, momentId, body.companyId, normalized);
+    }
   }
 
   if (body.domainCode === 'GROUP' && body.groupSetup) {
@@ -663,6 +669,23 @@ export async function activateMomentDraft(
          WHERE moment_id = $1 AND status = 'DRAFT'`,
         [momentId]
       );
+      if (setup.rows[0].family_code === 'MARKETING_CAMPAIGNS' && setup.rows[0].company_id) {
+        const { insertReportingCadenceActivity, normalizeOperatingPreferences } = await import(
+          '../business/operating-service'
+        );
+        const normalized = normalizeOperatingPreferences(
+          'MARKETING_CAMPAIGNS',
+          setup.rows[0].preferences ?? {},
+          { userId: ctx.userId, displayName: 'Owner' }
+        );
+        await insertReportingCadenceActivity(
+          client,
+          ctx,
+          momentId,
+          setup.rows[0].company_id,
+          normalized
+        );
+      }
     }
   }
 
