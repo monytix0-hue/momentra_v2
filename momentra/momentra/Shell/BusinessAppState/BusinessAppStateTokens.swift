@@ -31,7 +31,7 @@ enum BusinessAppStateAccent: String, CaseIterable {
         }
     }
 
-    /// Trading → Emerald, Distribution → Flame, Retail → Rose, Restaurant → Flame;
+    /// Trading wholesale → Emerald; Distribution dealership → Flame (`#EA580C`); Retail → Rose;
     /// Client Campaign → Indigo; else Emerald.
     /// ViewAll screens pass `.cyan` explicitly at the call site.
     static func forTypeCode(_ momentTypeCode: String?) -> BusinessAppStateAccent {

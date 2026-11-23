@@ -32,7 +32,7 @@ enum class BusinessAppStateAccent(val color: Color) {
         /**
          * Resolve the accent for an operating moment subtype code.
          *
-         * Trading → Emerald, Distribution → Flame, Retail → Rose, Restaurant → Flame;
+         * Trading wholesale → Emerald; Distribution dealership → Flame (`#EA580C`); Retail → Rose;
          * Client Campaign → Indigo; Services/MFG/Own Marketing → Emerald unless they grow own accents.
          * ViewAll screens pass [Cyan] explicitly at the call site.
          */
