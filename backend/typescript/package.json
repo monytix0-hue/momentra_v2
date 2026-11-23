@@ -74,7 +74,7 @@
     "pg": "^8.23.0",
     "tsx": "^4.23.12",
     "uuid": "^14.0.2",
-    "ws": "^8.18.0",
+    "ws": "^8.23.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -87,7 +87,7 @@
     "@types/pdfkit": "^0.17.6",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
-    "@types/ws": "^8.5.13",
+    "@types/ws": "^8.18.2",
     "supertest": "^7.2.2",
     "typescript": "^7.0.2",
     "yaml": "^2.8.1"
