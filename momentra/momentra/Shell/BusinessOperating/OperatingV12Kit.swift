@@ -227,6 +227,8 @@ struct OperatingV12Card<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
+        // Twin shadow locked for TRD/DST-v12 Figma chrome:
+        // black ambient 0.35, Trading accent glow 0.18 / Dist 0.32, default radius 20.
         let glow = theme.isTrading ? 0.18 : 0.32
         VStack(alignment: .leading, spacing: spacing) {
             content()
@@ -572,8 +574,11 @@ struct OperatingV12PulseHero: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
 
-            Image(systemName: "arrow.left.arrow.right")
-                .font(.system(size: 14, weight: .semibold))
+            Image(TradingChromeIcons.hubAsset("COLLECTION"))
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 16, height: 16)
                 .foregroundStyle(theme.accent)
                 .frame(width: 40, height: 40)
                 .background(theme.canvas.opacity(0.9))
@@ -582,6 +587,7 @@ struct OperatingV12PulseHero: View {
                         .stroke(theme.accent, lineWidth: 1)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .shadow(color: theme.accent.opacity(0.35), radius: 6, y: 2)
                 .padding(16)
         }
     }
@@ -664,6 +670,82 @@ struct OperatingV12Ring: View {
             Text(note)
                 .font(v12Font(10, weight: .medium))
                 .foregroundStyle(OperatingV12.subtitle)
+        }
+    }
+}
+
+struct OperatingV12ActionTile: View {
+    let theme: OperatingV12Theme
+    let title: String
+    let subtitle: String
+    let iconAsset: String
+    var lockedReason: String? = nil
+    let action: () -> Void
+
+    var body: some View {
+        let isLocked = lockedReason != nil
+        let glow = theme.isTrading ? 0.25 : 0.4
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 6) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(theme.accent.opacity(isLocked ? 0.08 : 0.16))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(theme.accent.opacity(isLocked ? 0.25 : 0.45), lineWidth: 1)
+                    Image(iconAsset)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 16, height: 16)
+                        .foregroundStyle(isLocked ? OperatingV12.subtitle : theme.accent)
+                }
+                .frame(width: 32, height: 32)
+                .shadow(color: theme.accent.opacity(isLocked ? 0 : 0.5), radius: 6)
+                Text(title)
+                    .font(v12Font(14, weight: .bold))
+                    .foregroundStyle(isLocked ? OperatingV12.subtitle : OperatingV12.title)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Text(lockedReason ?? subtitle)
+                    .font(v12Font(10, weight: .medium))
+                    .foregroundStyle(OperatingV12.subtitle)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 112, maxHeight: 112, alignment: .topLeading)
+            .background(OperatingV12.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(theme.accent.opacity(isLocked ? 0.2 : 0.35), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .shadow(color: Color.black.opacity(isLocked ? 0.15 : 0.4), radius: 6, y: 4)
+            .shadow(color: theme.accent.opacity(isLocked ? 0 : glow), radius: 6, y: 2)
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .opacity(isLocked ? 0.72 : 1)
+        }
+        .buttonStyle(.plain)
+        .disabled(isLocked)
+    }
+}
+
+struct OperatingV12SectionHead: View {
+    let title: String
+    var trailing: String? = nil
+    var trailingTone: Color = OperatingV12.cyan
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(v12Font(16, weight: .bold))
+                .foregroundStyle(OperatingV12.sectionTitle)
+            Spacer(minLength: 8)
+            if let trailing {
+                Text(trailing)
+                    .font(v12Font(11, weight: .semibold))
+                    .foregroundStyle(trailingTone)
+            }
         }
     }
 }

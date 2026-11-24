@@ -62,41 +62,45 @@ fun OperatingV12HubScreen(
     val plantHub = theme.verticalKey == "manufacturing"
     val core = if (plantHub) {
         listOf(
-            HubTile("SALE", "Sale", "Invoice · buyer · GST", R.drawable.qa_receipt, requires = listOf("SALE")),
-            HubTile("PURCHASE", "Purchase", "Material · GRN", R.drawable.qa_wallet, requires = listOf("PURCHASE")),
-            HubTile("COLLECTION", "Collection", "Allocate open AR", R.drawable.qa_arrow_left_right, requires = listOf("COLLECTION")),
-            HubTile("PAYMENT", "Payment", "Settle open AP", R.drawable.qa_credit_card, requires = listOf("PAYMENT")),
-            HubTile("SPEND", "Expense", "Running plant cost", R.drawable.qa_budget, requires = listOf("SPEND")),
-            HubTile("STOCK", "Stock", "Material · WIP · FG", R.drawable.qa_package, requires = listOf("STOCK")),
-            HubTile("ORDER", "Order", "Customer · commitment", R.drawable.qa_clipboard, requires = listOf("ORDER", "CUSTOMER_ORDER")),
-            HubTile("PRODUCTION", "Production", "Output · batch · scrap", R.drawable.qa_factory, requires = listOf("PRODUCTION")),
-            HubTile("BUDGET", "Budget", "Versioned revise", R.drawable.qa_budget, requires = listOf("BUDGET")),
+            HubTile("SALE", "Sale", "Invoice · buyer · GST", TradingChromeIcons.hubDrawable("SALE"), requires = listOf("SALE")),
+            HubTile("PURCHASE", "Purchase", "Material · GRN", TradingChromeIcons.hubDrawable("PURCHASE"), requires = listOf("PURCHASE")),
+            HubTile("COLLECTION", "Collection", "Allocate open AR", TradingChromeIcons.hubDrawable("COLLECTION"), requires = listOf("COLLECTION")),
+            HubTile("PAYMENT", "Payment", "Settle open AP", TradingChromeIcons.hubDrawable("PAYMENT"), requires = listOf("PAYMENT")),
+            HubTile("SPEND", "Expense", "Running plant cost", TradingChromeIcons.hubDrawable("SPEND"), requires = listOf("SPEND")),
+            HubTile("STOCK", "Stock", "Material · WIP · FG", TradingChromeIcons.hubDrawable("STOCK"), requires = listOf("STOCK")),
+            HubTile("ORDER", "Order", "Customer · commitment", TradingChromeIcons.hubDrawable("ORDER"), requires = listOf("ORDER", "CUSTOMER_ORDER")),
+            HubTile("PRODUCTION", "Production", "Output · batch · scrap", TradingChromeIcons.hubDrawable("PRODUCTION"), requires = listOf("PRODUCTION")),
+            HubTile("BUDGET", "Budget", "Versioned revise", TradingChromeIcons.hubDrawable("BUDGET"), requires = listOf("BUDGET")),
         )
     } else if (theme.isTrading) {
         // TRD-QA-01…12 hub titles — match Figma capture sheet names.
-        listOf(
-            HubTile("SALE", "Sale", "TRD-QA-01 · amount · buyer", R.drawable.qa_receipt, requires = listOf("SALE")),
-            HubTile("PURCHASE", "Purchase", "TRD-QA-02 · supplier · goods", R.drawable.qa_wallet, requires = listOf("PURCHASE")),
-            HubTile("COLLECTION", "Collection", "TRD-QA-03 · allocate AR", R.drawable.qa_arrow_left_right, requires = listOf("COLLECTION")),
-            HubTile("PAYMENT", "Payment", "TRD-QA-04 · settle AP", R.drawable.qa_credit_card, requires = listOf("PAYMENT")),
-            HubTile("SPEND", "Expense", "TRD-QA-05 · paid / later", R.drawable.qa_budget, requires = listOf("SPEND")),
-            HubTile("STOCK", "Stock", "TRD-QA-06 · set · add · reduce", R.drawable.qa_package, requires = listOf("STOCK")),
-            HubTile("RETURN", "Return", "TRD-QA-07 · credit note", R.drawable.qa_arrow_left_right, requires = listOf("RETURN")),
-            HubTile("BUDGET", "Budget", "TRD-QA-08 · versioned revise", R.drawable.qa_budget, requires = listOf("BUDGET")),
-            HubTile("ORDER", "Order", "TRD-QA-11 · commitment only", R.drawable.qa_clipboard, requires = listOf("ORDER", "CUSTOMER_ORDER")),
-            HubTile("SHIPMENT", "Delivery", "TRD-QA-12 · goods move", R.drawable.qa_shipment, requires = listOf("SHIPMENT", "DELIVERY")),
-        )
+        TradingChromeIcons.tradingHubCoreIds.map { id ->
+            val (title, subtitle, requires) = when (id) {
+                "SALE" -> Triple("Sale", "TRD-QA-01 · amount · buyer", listOf("SALE"))
+                "PURCHASE" -> Triple("Purchase", "TRD-QA-02 · supplier · goods", listOf("PURCHASE"))
+                "COLLECTION" -> Triple("Collection", "TRD-QA-03 · allocate AR", listOf("COLLECTION"))
+                "PAYMENT" -> Triple("Payment", "TRD-QA-04 · settle AP", listOf("PAYMENT"))
+                "SPEND" -> Triple("Expense", "TRD-QA-05 · paid / later", listOf("SPEND"))
+                "STOCK" -> Triple("Stock", "TRD-QA-06 · set · add · reduce", listOf("STOCK"))
+                "RETURN" -> Triple("Return", "TRD-QA-07 · credit note", listOf("RETURN"))
+                "BUDGET" -> Triple("Budget", "TRD-QA-08 · versioned revise", listOf("BUDGET"))
+                "ORDER" -> Triple("Order", "TRD-QA-11 · commitment only", listOf("ORDER", "CUSTOMER_ORDER"))
+                "SHIPMENT" -> Triple("Delivery", "TRD-QA-12 · goods move", listOf("SHIPMENT", "DELIVERY"))
+                else -> error("Unknown trading hub core id: $id")
+            }
+            HubTile(id, title, subtitle, TradingChromeIcons.hubDrawable(id), requires = requires)
+        }
     } else {
         listOf(
-            HubTile("SALE", "Sale", "Invoice · buyer · GST", R.drawable.qa_receipt, requires = listOf("SALE")),
-            HubTile("PURCHASE", "Purchase", "Supplier · GRN", R.drawable.qa_wallet, requires = listOf("PURCHASE")),
-            HubTile("COLLECTION", "Collection", "Allocate open AR", R.drawable.qa_arrow_left_right, requires = listOf("COLLECTION")),
-            HubTile("PAYMENT", "Payment", "Settle open AP", R.drawable.qa_credit_card, requires = listOf("PAYMENT")),
-            HubTile("SPEND", "Expense", "Route · van · depot", R.drawable.qa_budget, requires = listOf("SPEND")),
-            HubTile("STOCK", "Stock", "Adjust · count · batch", R.drawable.qa_package, requires = listOf("STOCK")),
-            HubTile("ORDER", "Order", "SO · PO commitment", R.drawable.qa_clipboard, requires = listOf("ORDER", "CUSTOMER_ORDER")),
-            HubTile("SHIPMENT", "Delivery", "Dispatch · POD", R.drawable.qa_shipment, requires = listOf("SHIPMENT", "DELIVERY")),
-            HubTile("BUDGET", "Budget", "Versioned revise", R.drawable.qa_budget, requires = listOf("BUDGET")),
+            HubTile("SALE", "Sale", "Invoice · buyer · GST", TradingChromeIcons.hubDrawable("SALE"), requires = listOf("SALE")),
+            HubTile("PURCHASE", "Purchase", "Supplier · GRN", TradingChromeIcons.hubDrawable("PURCHASE"), requires = listOf("PURCHASE")),
+            HubTile("COLLECTION", "Collection", "Allocate open AR", TradingChromeIcons.hubDrawable("COLLECTION"), requires = listOf("COLLECTION")),
+            HubTile("PAYMENT", "Payment", "Settle open AP", TradingChromeIcons.hubDrawable("PAYMENT"), requires = listOf("PAYMENT")),
+            HubTile("SPEND", "Expense", "Route · van · depot", TradingChromeIcons.hubDrawable("SPEND"), requires = listOf("SPEND")),
+            HubTile("STOCK", "Stock", "Adjust · count · batch", TradingChromeIcons.hubDrawable("STOCK"), requires = listOf("STOCK")),
+            HubTile("ORDER", "Order", "SO · PO commitment", TradingChromeIcons.hubDrawable("ORDER"), requires = listOf("ORDER", "CUSTOMER_ORDER")),
+            HubTile("SHIPMENT", "Delivery", "Dispatch · POD", TradingChromeIcons.hubDrawable("SHIPMENT"), requires = listOf("SHIPMENT", "DELIVERY")),
+            HubTile("BUDGET", "Budget", "Versioned revise", TradingChromeIcons.hubDrawable("BUDGET"), requires = listOf("BUDGET")),
         )
     }
     val support = listOf(
@@ -112,14 +116,14 @@ fun OperatingV12HubScreen(
                 theme.isTrading -> "Suppliers · retailers"
                 else -> "Principals · dealers"
             },
-            R.drawable.qa_users,
+            TradingChromeIcons.hubDrawable("PRINCIPALS"),
             master = "Principals",
         ),
         HubTile(
             "CATALOGUE",
             if (plantHub) "Parts & BOM" else "Catalogue & SKU",
             if (plantHub) "Part · SKU · BOM" else "SKU · batch · price",
-            R.drawable.qa_package,
+            TradingChromeIcons.hubDrawable("CATALOGUE"),
             master = "Catalogue",
         ),
         HubTile(
@@ -130,31 +134,37 @@ fun OperatingV12HubScreen(
                 else -> "Warehouses & routes"
             },
             if (plantHub) "Lines · WIP · FG" else "Depots · beats",
-            R.drawable.qa_truck,
+            TradingChromeIcons.hubDrawable("LOCATIONS"),
             master = "Locations",
         ),
-        HubTile("INVITE", "Invite & QR", "Join · people · roles", R.drawable.qa_qr, master = "Invite"),
+        HubTile("INVITE", "Invite & QR", "Join · people · roles", TradingChromeIcons.hubDrawable("INVITE"), master = "Invite"),
         HubTile(
             "UPDATE",
             if (theme.isTrading) "Update / Issue" else "Issue",
             if (theme.isTrading) "TRD-QA-09 · ops signal" else "Update · blocker · risk",
-            R.drawable.qa_alert,
+            TradingChromeIcons.hubDrawable("UPDATE"),
             requires = listOf("UPDATE", "ISSUE"),
         ),
         if (theme.isTrading) {
-            HubTile("APPROVAL", "Approval", "TRD-QA-10 · decide · reimburse", R.drawable.qa_shield, requires = listOf("UPDATE", "ISSUE", "PAYMENT"))
+            HubTile(
+                "APPROVAL",
+                "Approval",
+                "TRD-QA-10 · decide · reimburse",
+                TradingChromeIcons.hubDrawable("APPROVAL"),
+                requires = listOf("UPDATE", "ISSUE", "PAYMENT"),
+            )
         } else {
             null
         },
     ).filterNotNull()
     val utilities = if (plantHub) {
         listOf(
-            HubTile("REWORK", "Rework / Scrap", "Rework · scrap · job work", R.drawable.qa_alert, requires = listOf("STOCK")),
-            HubTile("HOLD", "Hold", "Park work order", R.drawable.qa_shield, requires = listOf("ORDER", "CUSTOMER_ORDER")),
-            HubTile("TRANSFER", "WIP transfer", "Between lines · stores", R.drawable.qa_shipment, requires = listOf("STOCK")),
-            HubTile("REPRINT", "Reprint", "Invoice · job card", R.drawable.qa_receipt, requires = listOf("SALE")),
-            HubTile("RETURN", "Return", "Credit · goods outcome", R.drawable.qa_arrow_left_right, requires = listOf("RETURN")),
-            HubTile("DELIVERY", "Delivery", "Dispatch · POD", R.drawable.qa_shipment, requires = listOf("DELIVERY", "SHIPMENT")),
+            HubTile("REWORK", "Rework / Scrap", "Rework · scrap · job work", TradingChromeIcons.hubDrawable("UPDATE"), requires = listOf("STOCK")),
+            HubTile("HOLD", "Hold", "Park work order", TradingChromeIcons.hubDrawable("HOLD"), requires = listOf("ORDER", "CUSTOMER_ORDER")),
+            HubTile("TRANSFER", "WIP transfer", "Between lines · stores", TradingChromeIcons.hubDrawable("TRANSFER"), requires = listOf("STOCK")),
+            HubTile("REPRINT", "Reprint", "Invoice · job card", TradingChromeIcons.hubDrawable("REPRINT"), requires = listOf("SALE")),
+            HubTile("RETURN", "Return", "Credit · goods outcome", TradingChromeIcons.hubDrawable("RETURN"), requires = listOf("RETURN")),
+            HubTile("DELIVERY", "Delivery", "Dispatch · POD", TradingChromeIcons.hubDrawable("DELIVERY"), requires = listOf("DELIVERY", "SHIPMENT")),
         )
     } else {
         emptyList()
@@ -234,10 +244,10 @@ private fun hubHero(
         Text(theme.motionLine, color = theme.accent, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         Text(identity, color = OperatingV12.subtitle, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Medium, fontSize = 12.sp)
         if (theme.verticalKey == "manufacturing") {
-            hubButton("Record Production", R.drawable.qa_factory, filled = true, theme, locked = heroLocked("PRODUCTION")) {
+            hubButton("Record Production", TradingChromeIcons.hubDrawable("PRODUCTION"), filled = true, theme, locked = heroLocked("PRODUCTION")) {
                 onCapture("PRODUCTION")
             }
-            hubButton("Record Sale", R.drawable.qa_receipt, filled = false, theme, locked = heroLocked("SALE")) {
+            hubButton("Record Sale", TradingChromeIcons.hubDrawable("SALE"), filled = false, theme, locked = heroLocked("SALE")) {
                 onCapture("SALE")
             }
             Text(
@@ -250,12 +260,12 @@ private fun hubHero(
         } else {
             hubButton(
                 "Dispatch",
-                R.drawable.qa_shipment,
+                TradingChromeIcons.hubDrawable("SHIPMENT"),
                 filled = true,
                 theme,
                 locked = heroLocked("SHIPMENT", "DELIVERY"),
             ) { onCapture("SHIPMENT") }
-            hubButton("Record Sale", R.drawable.qa_receipt, filled = false, theme, locked = heroLocked("SALE")) {
+            hubButton("Record Sale", TradingChromeIcons.hubDrawable("SALE"), filled = false, theme, locked = heroLocked("SALE")) {
                 onCapture("SALE")
             }
             Text(
@@ -348,7 +358,7 @@ private fun searchBar(theme: OperatingV12Theme, query: String, onChange: (String
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(painterResource(R.drawable.qa_search), contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(15.dp))
+        Icon(painterResource(TradingChromeIcons.hubDrawable("SEARCH")), contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(15.dp))
         BasicTextField(
             value = query,
             onValueChange = onChange,

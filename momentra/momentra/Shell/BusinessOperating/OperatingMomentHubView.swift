@@ -75,7 +75,7 @@ struct HubPalette {
     let accent: Color
     let onAccent: Color
 
-    static func forType(subtype: String?, family: String?) -> HubPalette {
+    static func forType(subtype: String?, family: String?, tab: OperatingHubTab? = nil) -> HubPalette {
         let code = subtype?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if code == DistributionDealershipHub.typeCode {
             return HubPalette(
@@ -99,17 +99,20 @@ struct HubPalette {
                 onAccent: BusinessTokens.Colors.marketingOwnOnAccent
             )
         }
+        let familyUpper = family?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let tradingWholesale = code == "TRADING_WHOLESALE" ||
-            (family == "TRADING_DISTRIBUTION" && code != DistributionDealershipHub.typeCode)
+            (familyUpper == "TRADING_DISTRIBUTION" && code != DistributionDealershipHub.typeCode)
         if tradingWholesale {
+            let c = BusinessTokens.Colors
+            let (bg, card) = tradingSurfaces(tab: tab)
             return HubPalette(
-                bg: BusinessTokens.Colors.tradingCanvas,
-                card: Color(hex: "#111827"),
-                border: BusinessTokens.Colors.tradingAccent.opacity(0.28),
+                bg: bg,
+                card: card,
+                border: c.tradingAccent.opacity(0.28),
                 muted: Color(hex: "#94A3B8"),
                 text: Color(hex: "#F1F5F9"),
-                accent: BusinessTokens.Colors.tradingAccent,
-                onAccent: BusinessTokens.Colors.tradingOnAccent
+                accent: c.tradingAccent,
+                onAccent: c.tradingOnAccent
             )
         }
         let accent = BusinessAppStateAccent.forTypeCode(subtype).color
@@ -122,6 +125,24 @@ struct HubPalette {
             accent: accent,
             onAccent: Color(hex: "#0C0F15")
         )
+    }
+
+    private static func tradingSurfaces(tab: OperatingHubTab?) -> (Color, Color) {
+        let c = BusinessTokens.Colors
+        switch tab {
+        case .pulse:
+            return (c.tradingPulseCanvas, c.tradingPulseSurface)
+        case .moments:
+            return (c.tradingMomentsCanvas, c.tradingMomentsSurface)
+        case .life:
+            return (c.tradingLifeCanvas, c.tradingLifeSurface)
+        case .memory:
+            return (c.tradingMemoryCanvas, c.tradingMemorySurface)
+        case .quickAdd:
+            return (c.tradingQuickAddCanvas, c.tradingQuickAddSurface)
+        case nil:
+            return (c.tradingCanvas, c.tradingPulseSurface)
+        }
     }
 }
 
@@ -164,7 +185,11 @@ struct OperatingMomentHubView: View {
     @State private var loading = true
 
     private var palette: HubPalette {
-        HubPalette.forType(subtype: momentTypeCode ?? projection?.subtype, family: projection?.familyCode)
+        HubPalette.forType(
+            subtype: momentTypeCode ?? projection?.subtype,
+            family: projection?.familyCode,
+            tab: tab
+        )
     }
 
     private var typeCode: String? {
@@ -179,8 +204,11 @@ struct OperatingMomentHubView: View {
         OwnMarketingHub.isOwn(typeCode)
     }
 
+    /// HubPalette-aligned: exact wholesale subtype, or trading family that is not dealership.
     private var isTradingWholesale: Bool {
-        typeCode == "TRADING_WHOLESALE"
+        if typeCode == "TRADING_WHOLESALE" { return true }
+        let family = (projection?.familyCode ?? "").uppercased()
+        return family == "TRADING_DISTRIBUTION" && !isDistribution
     }
 
     var body: some View {
@@ -205,7 +233,7 @@ struct OperatingMomentHubView: View {
                         companyId: companyId ?? projection?.companyId,
                         palette: palette
                     )
-                } else if !isOwn {
+                } else if !isOwn && !(isTradingWholesale && tab != .quickAdd) {
                     Text(familyKicker(projection?.familyCode))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(palette.accent)
@@ -232,7 +260,7 @@ struct OperatingMomentHubView: View {
                     }
                 }
 
-                if tab != .quickAdd && (isDistribution || isTradingWholesale) {
+                if tab != .quickAdd && isDistribution {
                     DistributionQuickActionStrip(palette: palette) { code in
                         BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: code)
                         onQuickAddCode(code)
@@ -268,17 +296,24 @@ struct OperatingMomentHubView: View {
 
                 switch tab {
                 case .pulse, .moments, .life, .memory:
-                    widgetBlocks(for: tab.screenCode ?? "PULSE")
-                    boardFallback
+                    if isTradingWholesale {
+                        // Never flash generic Widgets for trading — wait for projection or show error.
+                        if let projection {
+                            tradingV12Body(projection)
+                        }
+                    } else {
+                        widgetBlocks(for: tab.screenCode ?? "PULSE")
+                        boardFallback
+                    }
                 case .quickAdd:
                     quickAddForm
                 }
 
-                if let sources {
+                if let sources, !isTradingWholesale {
                     sourceSection(sources)
                 }
 
-                if tab != .quickAdd {
+                if tab != .quickAdd && !isTradingWholesale {
                     Button("Quick Adds", action: onOpenQuickAdd).foregroundStyle(palette.accent)
                 }
             }
@@ -300,6 +335,53 @@ struct OperatingMomentHubView: View {
         }
         .task(id: "\(momentId)-\(refreshToken)-\(tick)") {
             await reload()
+        }
+    }
+
+    @ViewBuilder
+    private func tradingV12Body(_ model: OperatingProjectionPayload) -> some View {
+        let theme = OperatingV12Theme.tradingForScreen(tab)
+        let onCapture: (String) -> Void = { code in
+            BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: code)
+            onQuickAddCode(code)
+        }
+        let onViewAll: (String) -> Void = { code in
+            if code.uppercased() == "ATTENTION" {
+                onViewAllAttention()
+            }
+        }
+        switch tab {
+        case .pulse:
+            OperatingV12PulseScreen(
+                model: model,
+                theme: theme,
+                onCapture: onCapture,
+                onViewAll: onViewAll
+            )
+        case .moments:
+            OperatingV12MomentsScreen(
+                model: model,
+                theme: theme,
+                onCapture: onCapture,
+                onViewAll: onViewAll
+            )
+        case .life:
+            OperatingV12LifeScreen(
+                model: model,
+                theme: theme,
+                onCapture: onCapture,
+                onViewAll: onViewAll
+            )
+        case .memory:
+            OperatingV12MemoryScreen(
+                model: model,
+                theme: theme,
+                onCapture: onCapture,
+                onStory: onGenerateStory,
+                onViewAll: onViewAll
+            )
+        case .quickAdd:
+            EmptyView()
         }
     }
 
@@ -666,6 +748,26 @@ struct OperatingMomentHubView: View {
                 selectedCode: $selectedQuickAdd,
                 onSubmit: { eventType, title, amount in
                     await submitOwnQuickAdd(eventType: eventType, title: title, amount: amount)
+                }
+            )
+        } else if isTradingWholesale, let projection {
+            OperatingV12HubScreen(
+                model: projection,
+                theme: OperatingV12Theme.tradingForScreen(.quickAdd),
+                onCapture: { code in
+                    BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: code)
+                    selectedQuickAdd = code
+                    onQuickAddCode(code)
+                    onOpenQuickAdd()
+                },
+                onOpenMasters: { tab in
+                    confirm = "Masters · \(tab)"
+                    // Invite opens as a capture hint; other master tabs surface via confirm until sheet host lands.
+                    if tab.caseInsensitiveCompare("Invite") == .orderedSame {
+                        BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: "INVITE")
+                        onQuickAddCode("INVITE")
+                        onOpenQuickAdd()
+                    }
                 }
             )
         } else if isDistribution {

@@ -440,7 +440,8 @@ fun OperatingV12Card(
     spacing: Dp = 14.dp,
     content: @Composable () -> Unit,
 ) {
-    // Twin shadow: black depth + accent soft glow (stronger on Dist orange per DST-PULSE-v12).
+    // Twin shadow locked for TRD/DST-v12 Figma chrome:
+    // elevation 12, black ambient 0.35, Trading accent glow 0.18 / Dist 0.32, default radius 20.
     val glow = if (theme.isTrading) 0.18f else 0.32f
     Column(
         modifier
