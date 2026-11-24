@@ -68,8 +68,11 @@ struct OperatingV12Theme {
 
     static func trading() -> OperatingV12Theme { tradingForScreen(.pulse) }
 
+    // Callers: OperatingV12Theme.trading() / tradingForScreen from hub screens.
+    // Existing: same file — no alternate trading theme factory. Reads BusinessTokens only.
+    // User: "Expected member name or initializer call after type name" (same Colors enum issue).
     static func tradingForScreen(_ tab: OperatingHubTab) -> OperatingV12Theme {
-        let c = BusinessTokens.Colors
+        let c = BusinessTokens.Colors.self
         let canvas: Color
         let surface: Color
         let heroStart: Color

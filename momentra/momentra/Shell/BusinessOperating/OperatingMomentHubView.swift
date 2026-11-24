@@ -102,8 +102,11 @@ struct HubPalette {
         let familyUpper = family?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let tradingWholesale = code == "TRADING_WHOLESALE" ||
             (familyUpper == "TRADING_DISTRIBUTION" && code != DistributionDealershipHub.typeCode)
+        // Callers: HubPalette.palette(for:). Nested Colors enum needs .self metatype.
+        // No alternate palette helper. Reads BusinessTokens only.
+        // User: "Expected member name or initializer call after type name"
         if tradingWholesale {
-            let c = BusinessTokens.Colors
+            let c = BusinessTokens.Colors.self
             let (bg, card) = tradingSurfaces(tab: tab)
             return HubPalette(
                 bg: bg,
@@ -128,7 +131,9 @@ struct HubPalette {
     }
 
     private static func tradingSurfaces(tab: OperatingHubTab?) -> (Color, Color) {
-        let c = BusinessTokens.Colors
+        // Callers: palette(for:). Nested enum metatype — not a value instance.
+        // User: fix "Expected member name or initializer call after type name"
+        let c = BusinessTokens.Colors.self
         switch tab {
         case .pulse:
             return (c.tradingPulseCanvas, c.tradingPulseSurface)
@@ -525,15 +530,17 @@ struct OperatingMomentHubView: View {
     @ViewBuilder
     private var legacyPulseFallback: some View {
         if projection?.financeVisible == true {
+            // Callers: legacyPulseFallback. OperatingMoney/Target fields are non-optional String.
+            // User: fix "Left side of nil coalescing operator '??' has non-optional type 'String'"
             if let budget = projection?.budget {
                 let body = budget.configured == true
-                    ? "\(budget.remaining ?? "0") left of \(budget.amount ?? "0") \(projection?.currency ?? "")"
+                    ? "\(budget.remaining) left of \(budget.amount) \(projection?.currency ?? "")"
                     : "Not recorded"
                 infoCard(label: "Budget", body: body)
             }
             if let target = projection?.target {
                 let body = target.configured == true
-                    ? "\(target.progress ?? "0") of \(target.value ?? "0") (\(target.metric ?? ""))"
+                    ? "\(target.progress) of \(target.value) (\(target.metric))"
                     : "Not recorded"
                 infoCard(label: "Target", body: body)
             }
@@ -634,7 +641,9 @@ struct OperatingMomentHubView: View {
 
     @ViewBuilder
     private func metricTiles(_ metrics: [OperatingBoardMetricPayload]) -> some View {
-        FlowLayout(spacing: 8) {
+        // Callers: metricTiles. Renamed — PersonalMoneyQuickAddSheets already defines FlowLayout.
+        // User: fix "Invalid redeclaration of 'FlowLayout'"
+        OperatingHubFlowLayout(spacing: 8) {
             ForEach(metrics) { m in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(m.label.isEmpty ? m.key : m.label)
@@ -826,7 +835,9 @@ struct OperatingMomentHubView: View {
                     .font(.system(size: 13))
                     .foregroundStyle(palette.muted)
             }
-            FlowLayout(spacing: 10) {
+            // Callers: quick-add chips. Avoid clash with PersonalMoneyQuickAddSheets.FlowLayout.
+            // User: "Invalid redeclaration of 'FlowLayout'"
+            OperatingHubFlowLayout(spacing: 10) {
                 ForEach(adds) { add in
                     let on = add.code == selectedQuickAdd
                     let label = client
@@ -987,7 +998,10 @@ struct OperatingMomentHubView: View {
 }
 
 /// Simple wrapping layout for metric tiles / quick-add chips.
-private struct FlowLayout: Layout {
+/// Callers: metricTiles / quick-add chips in this file only.
+/// Named uniquely — `FlowLayout` already exists in PersonalMoneyQuickAddSheets.
+/// User: "Invalid redeclaration of 'FlowLayout'"
+private struct OperatingHubFlowLayout: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
