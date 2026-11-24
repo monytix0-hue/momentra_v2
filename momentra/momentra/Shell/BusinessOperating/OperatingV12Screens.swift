@@ -626,7 +626,11 @@ struct OperatingV12MemoryScreen: View {
     private var storyCta: some View {
         Button(action: onStory) {
             VStack(alignment: .leading, spacing: 2) {
-                Image(systemName: "sparkles")
+                Image("qa_check")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
                     .foregroundStyle(OperatingV12.deepInk)
                     .padding(.bottom, 2)
                 Text("Generate Business Story")
