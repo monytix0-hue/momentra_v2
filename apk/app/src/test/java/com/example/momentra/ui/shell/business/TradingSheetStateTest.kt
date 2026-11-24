@@ -143,11 +143,26 @@ class TradingSheetStateTest {
             com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.figmaId("M1"),
         )
         assertEquals(
-            "2566:33689",
+            "5:19925",
             com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.figmaId(
                 "FINANCE",
                 "TRADING_WHOLESALE",
             ),
+        )
+        assertEquals(
+            "5:19827",
+            com.example.momentra.ui.shell.business.shared.OperatingSheetChrome.figmaId(
+                "TARGET_BUDGET",
+                "TRADING_WHOLESALE",
+            ),
+        )
+        assertEquals(
+            TradingSheetState.NeedsAttention,
+            com.example.momentra.ui.shell.business.trading.tradingSheetForPulseOrBoard("ATTENTION"),
+        )
+        assertEquals(
+            TradingSheetState.TargetBudget,
+            com.example.momentra.ui.shell.business.trading.tradingSheetForPulseOrBoard("TARGET_BUDGET"),
         )
         assertEquals(
             "2513:29426",

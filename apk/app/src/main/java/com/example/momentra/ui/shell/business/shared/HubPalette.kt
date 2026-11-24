@@ -37,6 +37,17 @@ fun hubPaletteFor(typeCode: String?, familyCode: String?): HubPalette {
             onAccent = BusinessTokens.Colors.DISTRIBUTIONOnAccent,
         )
     }
+    if (OwnMarketingHub.isOwn(code)) {
+        return HubPalette(
+            bg = BusinessTokens.Colors.MARKETING_OWNCanvas,
+            card = BusinessTokens.Colors.MARKETING_OWNSurface,
+            border = BusinessTokens.Colors.MARKETING_OWNAccent.copy(alpha = 0.28f),
+            muted = BusinessTokens.Colors.MARKETING_OWNHint,
+            text = BusinessTokens.Colors.MARKETING_OWNLabel,
+            accent = BusinessTokens.Colors.MARKETING_OWNAccent,
+            onAccent = BusinessTokens.Colors.MARKETING_OWNOnAccent,
+        )
+    }
     val tradingWholesale = code == "TRADING_WHOLESALE" ||
         (familyCode == "TRADING_DISTRIBUTION" && code != DistributionDealershipHub.TYPE_CODE)
     return if (tradingWholesale) {

@@ -1,10 +1,24 @@
 import FirebaseAnalytics
 import FirebaseAuth
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
-/// Screen timing, session tracking, demographics, and widget taps via Firebase Analytics.
+/// Screen timing, session tracking, and widget taps via Firebase Analytics.
+///
+/// Account identity is deliberately kept out of Firebase Analytics. GA4 forbids personally
+/// identifiable data in user properties and event parameters, and that applies to email, phone,
+/// name and photo URL as much as to anything else. The non-identifying properties that remain —
+/// `has_photo`, `auth_providers` — are enough to segment without carrying a person's contact
+/// details into a third-party pipeline.
 final class MomentraAnalytics {
     static let shared = MomentraAnalytics()
+
+    /// Off by default. When false, `syncUserDemographics` sends only non-identifying properties to
+    /// Firebase and skips `BackendTelemetry` entirely. Turn it on only where there is a documented
+    /// consent basis for storing an account's name, email and phone server-side.
+    private let sendsAccountSnapshotToBackend = false
 
     private var sessionStartedAt = Date()
     private var sessionActive = true
@@ -15,8 +29,16 @@ final class MomentraAnalytics {
     private var lastInteractionAt = Date()
     private var stuckReported = false
 
+    /// Backend-only cadence. One second was producing a Firebase event per second — several
+    /// thousand an hour of foreground use — for a duration figure the backend already receives.
+    private static let tickInterval: TimeInterval = 15
+
     private init() {
         logEvent("app_session_start", ["platform": "ios"])
+    }
+
+    deinit {
+        tickTimer?.invalidate()
     }
 
     func onAppForeground() {
@@ -33,7 +55,13 @@ final class MomentraAnalytics {
     func onAppBackground() {
         guard sessionActive else { return }
         let foregroundSec = Int(Date().timeIntervalSince(sessionStartedAt))
-        logEvent("session_end", ["platform": "ios", "duration_sec": foregroundSec])
+        // `onSessionEnd` enqueues the backend's `session_end` and flushes it. Routing the same
+        // event through `logEvent` first would deliver it twice — once with `duration_sec`, once
+        // without.
+        BackendTelemetry.shared.enqueue(
+            name: "session_end",
+            params: ["platform": "ios", "duration_sec": foregroundSec]
+        )
         BackendTelemetry.shared.onSessionEnd()
         sessionActive = false
         stopScreenTicks()
@@ -102,19 +130,19 @@ final class MomentraAnalytics {
             return
         }
         Analytics.setUserID(user.uid)
+
+        let photoUrl = user.photoURL?.absoluteString ?? ""
+        setUserProperty("has_photo", value: photoUrl.isEmpty ? "no" : "yes")
+        let providers = user.providerData.map(\.providerID).joined(separator: ",")
+        setUserProperty("auth_providers", value: String(providers.prefix(100)))
+
+        // No email, phone, name, age, sex or photo URL is written as a Firebase user property:
+        // GA4's terms exclude personal data from that surface regardless of consent.
+        guard sendsAccountSnapshotToBackend else { return }
+
         let name = profileDisplayName ?? user.displayName ?? ""
         let email = profileEmail ?? user.email ?? ""
         let phone = user.phoneNumber ?? ""
-        let photoUrl = user.photoURL?.absoluteString ?? ""
-        setUserProperty("user_name", value: String(name.prefix(100)))
-        setUserProperty("user_email", value: String(email.prefix(100)))
-        setUserProperty("user_phone", value: String(phone.prefix(100)))
-        setUserProperty("has_photo", value: photoUrl.isEmpty ? "no" : "yes")
-        setUserProperty("photo_url", value: String(photoUrl.prefix(100)))
-        setUserProperty("user_sex", value: String((profileSex ?? "unknown").prefix(100)))
-        setUserProperty("user_age", value: String((profileAge ?? "unknown").prefix(100)))
-        let providers = user.providerData.map(\.providerID).joined(separator: ",")
-        setUserProperty("auth_providers", value: String(providers.prefix(100)))
         BackendTelemetry.shared.updateUserSnapshot(
             TelemetryUserSnapshot(
                 userName: name.isEmpty ? nil : String(name.prefix(100)),
@@ -147,13 +175,15 @@ final class MomentraAnalytics {
 
     private func resumeScreenTicks(screenName: String) {
         stopScreenTicks()
-        tickTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: Self.tickInterval, repeats: true) { [weak self] _ in
             guard let self, self.sessionActive, self.currentScreen == screenName else { return }
             let now = Date()
             let screenElapsedSec = max(Int(now.timeIntervalSince(self.currentScreenEnteredAt)), 0)
             let sessionElapsedSec = max(Int(now.timeIntervalSince(self.sessionStartedAt)), 0)
             let idleSec = max(Int(now.timeIntervalSince(self.lastInteractionAt)), 0)
-            self.logEvent("screen_tick", [
+            // Backend only. This used to reach Firebase once per second; a duration sample does
+            // not need that granularity and the volume is not free.
+            BackendTelemetry.shared.enqueue(name: "screen_tick", params: [
                 "screen_name": screenName,
                 "screen_elapsed_sec": screenElapsedSec,
                 "session_elapsed_sec": sessionElapsedSec,
@@ -161,13 +191,17 @@ final class MomentraAnalytics {
             ])
             if idleSec >= 30, !self.stuckReported {
                 self.stuckReported = true
-                self.logEvent("screen_stuck", [
+                BackendTelemetry.shared.enqueue(name: "screen_stuck", params: [
                     "screen_name": screenName,
                     "idle_sec": idleSec,
                     "screen_elapsed_sec": screenElapsedSec,
                 ])
             }
         }
+        // Scheduled on the main run loop explicitly: a timer created on a background queue's run
+        // loop never fires.
+        RunLoop.main.add(timer, forMode: .common)
+        tickTimer = timer
     }
 
     private func stopScreenTicks() {

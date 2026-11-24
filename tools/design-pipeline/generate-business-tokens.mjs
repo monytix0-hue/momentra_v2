@@ -74,6 +74,13 @@ const domains = Object.entries(domainInfo).map(([key, info]) => ({
 // Helper functions
 const camelCase = (parts) => parts.flatMap((p) => String(p).split(/[^A-Za-z0-9]+/)).filter(Boolean).map((w, i) => i === 0 ? w[0].toLowerCase() + w.slice(1) : w[0].toUpperCase() + w.slice(1)).join('');
 const pascalCase = (parts) => { const c = camelCase(parts); return c[0].toUpperCase() + c.slice(1); };
+/** domain.trading.screens.pulse.surface → PulseSurface (drop the `screens` segment). */
+const domainTokenSuffix = (subAfterDomain) => {
+  if (subAfterDomain[0] === 'screens' && subAfterDomain.length >= 3) {
+    return pascalCase(subAfterDomain.slice(1));
+  }
+  return pascalCase(subAfterDomain);
+};
 const ktFloat = (n) => { const s = fmt(n, 3); return s.includes('.') ? s : `${s}.0`; };
 
 // iOS Swift Business Tokens
@@ -106,7 +113,7 @@ const ktFloat = (n) => { const s = fmt(n, 3); return s.includes('.') ? s : `${s}
   for (const d of domains) {
     const domainColors = colors.filter(c => c.sub[0] === 'domain' && c.sub[1] === d.key);
     for (const c of domainColors) {
-      const constName = `${d.swift}${pascalCase(c.sub.slice(2))}`;
+      const constName = `${d.swift}${domainTokenSuffix(c.sub.slice(2))}`;
       L.push(`        static let ${constName} = Color(hex: "${rgbHex(c.c)}")`);
     }
   }
@@ -125,8 +132,9 @@ const ktFloat = (n) => { const s = fmt(n, 3); return s.includes('.') ? s : `${s}
   for (const d of domains) {
     const domainColors = colors.filter(c => c.sub[0] === 'domain' && c.sub[1] === d.key);
     for (const c of domainColors) {
+      const suffix = domainTokenSuffix(c.sub.slice(2));
       const colorName = c.sub.slice(2).join('');
-      L.push(`            colors["${d.key}.${colorName}"] = ${d.swift}${pascalCase(c.sub.slice(2))}`);
+      L.push(`            colors["${d.key}.${colorName}"] = ${d.swift}${suffix}`);
     }
   }
   L.push('            return colors');
@@ -201,11 +209,12 @@ const ktFloat = (n) => { const s = fmt(n, 3); return s.includes('.') ? s : `${s}
   }
 
   L.push('');
-  L.push('        // Domain accent colors');
+  L.push('        // Domain color palettes (full setup + pulse ramp)');
   for (const d of domains) {
-    const domainAccent = colors.find(c => c.sub.join('.') === `domain.${d.key}.accent`);
-    if (domainAccent) {
-      L.push(`        val ${d.kotlin}Accent = Color(${argbHex(domainAccent.c)})`);
+    const domainColors = colors.filter(c => c.sub[0] === 'domain' && c.sub[1] === d.key);
+    for (const c of domainColors) {
+      const constName = `${d.kotlin}${domainTokenSuffix(c.sub.slice(2))}`;
+      L.push(`        val ${constName} = Color(${argbHex(c.c)})`);
     }
   }
 
@@ -214,7 +223,6 @@ const ktFloat = (n) => { const s = fmt(n, 3); return s.includes('.') ? s : `${s}
   for (const d of domains) {
     L.push(`            BusinessDomain.${d.kotlin} -> ${d.kotlin}Accent`);
   }
-  L.push(`            else -> ${domains[0].kotlin}Accent`);
   L.push('        }');
   L.push('    }');
 

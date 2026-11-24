@@ -170,6 +170,7 @@ enum BusinessSetupDocumentKit {
         @Binding var text: String
         var helper: String = ""
         var error: String? = nil
+        var forceUppercase: Bool = false
 
         private var showError: Bool { BusinessSetupFieldChrome.hasError(error) }
 
@@ -178,9 +179,10 @@ enum BusinessSetupDocumentKit {
                 Text(label)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(theme.label)
-                TextField(placeholder, text: $text)
+                TextField(placeholder, text: uppercaseBinding)
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(BusinessTokens.Colors.textPrimary)
+                    .textInputAutocapitalization(forceUppercase ? .characters : .sentences)
                     .padding(.horizontal, 14)
                     .frame(height: 44)
                     .background(theme.inset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -201,6 +203,21 @@ enum BusinessSetupDocumentKit {
                         .foregroundStyle(theme.hint)
                 }
             }
+        }
+
+        private var uppercaseBinding: Binding<String> {
+            Binding(
+                get: { text },
+                set: { newValue in
+                    if forceUppercase {
+                        text = BusinessSetupDateFormatting.forceUppercaseInput(newValue)
+                    } else if BusinessSetupAmountFormatting.isAmountHelper(helper) {
+                        text = BusinessSetupAmountFormatting.formatIndianAmount(newValue)
+                    } else {
+                        text = newValue
+                    }
+                }
+            )
         }
     }
 
@@ -338,16 +355,216 @@ enum BusinessSetupDocumentKit {
         @Binding var text: String
         var helper: String = ""
         var error: String? = nil
+        var fieldKey: String = ""
+
+        @State private var showPicker = false
+        @State private var draftDate = Date()
+
+        private var mode: BusinessSetupDateFormatting.Mode {
+            BusinessSetupDateFormatting.modeForKey(fieldKey)
+        }
+        private var allowClear: Bool {
+            BusinessSetupDateFormatting.allowClearForKey(fieldKey)
+        }
+        private var showError: Bool { BusinessSetupFieldChrome.hasError(error) }
+        private var display: String {
+            BusinessSetupDateFormatting.formatDisplay(text, mode: mode, placeholder: placeholder)
+        }
 
         var body: some View {
-            FieldRow(
-                theme: theme,
-                label: label,
-                placeholder: placeholder,
-                text: $text,
-                helper: helper,
-                error: error
-            )
+            VStack(alignment: .leading, spacing: 6) {
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(theme.label)
+                Button {
+                    draftDate = BusinessSetupDateFormatting.parseToDate(text) ?? Date()
+                    showPicker = true
+                } label: {
+                    HStack {
+                        Text(display)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(
+                                text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    ? theme.hint
+                                    : BusinessTokens.Colors.textPrimary
+                            )
+                        Spacer()
+                        Text("▼")
+                            .font(.system(size: 12))
+                            .foregroundStyle(theme.hint)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 44)
+                    .background(theme.inset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(
+                                showError ? BusinessTokens.Colors.signalDanger : theme.accent.opacity(0.12),
+                                lineWidth: 1
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+                if showError, let error {
+                    Text(error)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(BusinessTokens.Colors.signalDanger)
+                } else if !helper.isEmpty {
+                    Text(helper)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(theme.hint)
+                }
+            }
+            .sheet(isPresented: $showPicker) {
+                // Solid calendar backing — glass panel is too transparent to read days.
+                let calendarSurface = Color(hex: "#101623")
+                NavigationStack {
+                    DatePicker("", selection: $draftDate, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                        .padding()
+                        .navigationTitle(label)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") { showPicker = false }
+                            }
+                            if allowClear {
+                                ToolbarItem(placement: .destructiveAction) {
+                                    Button("Clear") {
+                                        text = ""
+                                        showPicker = false
+                                    }
+                                }
+                            }
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("OK") {
+                                    text = BusinessSetupDateFormatting.toStorage(from: draftDate, mode: mode)
+                                    showPicker = false
+                                }
+                            }
+                        }
+                        .toolbarBackground(calendarSurface, for: .navigationBar)
+                        .toolbarColorScheme(.dark, for: .navigationBar)
+                }
+                .scrollContentBackground(.hidden)
+                .background(calendarSurface.ignoresSafeArea())
+                .presentationDetents([.medium, .large])
+                .presentationCornerRadius(BusinessAppStateTokens.cardRadius)
+                .presentationDragIndicator(.visible)
+                .preferredColorScheme(.dark)
+            }
+        }
+    }
+
+    struct PickerRow: View {
+        let theme: BusinessSetupTheme
+        let label: String
+        let value: String
+        var placeholder: String = "Select"
+        var helper: String = ""
+        var error: String? = nil
+        var onTap: () -> Void = {}
+
+        private var showError: Bool { BusinessSetupFieldChrome.hasError(error) }
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(theme.label)
+                Button(action: onTap) {
+                    HStack {
+                        Text(value.isEmpty ? placeholder : value)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(
+                                value.isEmpty ? theme.hint : BusinessTokens.Colors.textPrimary
+                            )
+                        Spacer()
+                        Text("▼")
+                            .font(.system(size: 12))
+                            .foregroundStyle(theme.hint)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 44)
+                    .background(theme.inset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(
+                                showError ? BusinessTokens.Colors.signalDanger : theme.accent.opacity(0.12),
+                                lineWidth: 1
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+                if showError, let error {
+                    Text(error)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(BusinessTokens.Colors.signalDanger)
+                } else if !helper.isEmpty {
+                    Text(helper)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(theme.hint)
+                }
+            }
+        }
+    }
+
+    struct CurrencyDropdown: View {
+        let theme: BusinessSetupTheme
+        let label: String
+        let options: [String]
+        @Binding var selected: String
+        var helper: String = ""
+        var error: String? = nil
+
+        private var showError: Bool { BusinessSetupFieldChrome.hasError(error) }
+        private var shown: String {
+            selected.isEmpty ? (options.first ?? "") : selected
+        }
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(theme.label)
+                Menu {
+                    ForEach(options, id: \.self) { option in
+                        Button(option) { selected = option }
+                    }
+                } label: {
+                    HStack {
+                        Text(shown.isEmpty ? "Select currency" : shown)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(
+                                shown.isEmpty ? theme.hint : BusinessTokens.Colors.textPrimary
+                            )
+                        Spacer()
+                        Text("▼")
+                            .font(.system(size: 12))
+                            .foregroundStyle(theme.hint)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 44)
+                    .background(theme.inset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(
+                                showError ? BusinessTokens.Colors.signalDanger : theme.accent.opacity(0.12),
+                                lineWidth: 1
+                            )
+                    )
+                }
+                if showError, let error {
+                    Text(error)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(BusinessTokens.Colors.signalDanger)
+                } else if !helper.isEmpty {
+                    Text(helper)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(theme.hint)
+                }
+            }
         }
     }
 
@@ -415,46 +632,47 @@ enum BusinessSetupDocumentKit {
     struct ModuleList: View {
         let theme: BusinessSetupTheme
         let modules: [BusinessSetupModuleRow]
-        @State private var expanded: Set<String> = []
+        var helper: String = ""
 
         var body: some View {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(modules, id: \.title) { module in
-                    let isOpen = expanded.contains(module.title)
-                    Button {
-                        if isOpen { expanded.remove(module.title) } else { expanded.insert(module.title) }
-                    } label: {
-                        HStack(alignment: .center) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(module.title)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(BusinessTokens.Colors.textPrimary)
-                                if !module.subtitle.isEmpty {
-                                    Text(module.subtitle)
-                                        .font(.system(size: 11, weight: .medium))
-                                        .foregroundStyle(theme.hint)
-                                }
-                            }
-                            Spacer()
-                            Image(systemName: isOpen ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 12, weight: .semibold))
+                    let isAction = module.title.trimmingCharacters(in: .whitespaces).hasPrefix("+")
+                    HStack(alignment: .center, spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(theme.accent.opacity(0.28))
+                                .frame(width: 36, height: 36)
+                            Text(isAction ? "+" : "▣")
+                                .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(theme.accent)
                         }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                        .background(theme.inset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(theme.accent.opacity(0.16), lineWidth: 1)
-                        )
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(module.title)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(isAction ? theme.accent : BusinessTokens.Colors.textPrimary)
+                            if !module.subtitle.isEmpty {
+                                Text(module.subtitle)
+                                    .font(.system(size: 12, weight: .regular))
+                                    .foregroundStyle(theme.hint)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        Text("›")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(theme.accentSoft)
                     }
-                    .buttonStyle(.plain)
-                    if isOpen {
-                        Text(module.subtitle.isEmpty ? "Available after you start this business." : module.subtitle)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(theme.hint)
-                            .padding(.leading, 8)
-                    }
+                    .padding(12)
+                    .background(theme.inset, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(theme.accent.opacity(0.35), lineWidth: 1)
+                    )
+                }
+                if !helper.isEmpty {
+                    Text(helper)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(theme.hint)
                 }
             }
         }

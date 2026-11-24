@@ -147,8 +147,7 @@ export async function createMilestone(
       [momentId]
     );
     if (bmc.rows[0]) {
-      const { refreshBusinessProjectionsAfterWrite } = await import('../business/business-projection');
-      await refreshBusinessProjectionsAfterWrite(client, bmc.rows[0].company_id, momentId, bmc.rows[0].business_family);
+      /* Business V4: projection refresh no-op */
     }
   }
 

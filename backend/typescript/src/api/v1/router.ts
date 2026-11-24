@@ -13,21 +13,6 @@ import { rateLimitMiddleware } from '../../platform/rate-limit/interface';
 import { toProjectionHints } from '../../platform/projections/hints';
 import { projectionCodesForDomain } from '../../modules/moment/projection-routing';
 import { publishProjectionUpdated } from '../../realtime/sse';
-import * as businessService from '../../modules/business/service';
-import * as businessMembership from '../../modules/business/membership';
-import * as businessSetupService from '../../modules/business/setup-service';
-import * as operatingService from '../../modules/business/operating-service';
-import * as operatingMasters from '../../modules/business/operating-masters';
-import { GST_STATES, normalizeGstState, gstStateName } from '../../modules/business/operating-gst-states';
-import { validateGstin } from '../../modules/business/operating-gstin';
-import { HSN_LOOKUP_NOTE, searchHsn } from '../../modules/business/operating-hsn';
-import * as businessFinanceService from '../../modules/finance/business-finance';
-import * as businessOpsPrecision from '../../modules/business/operations-precision';
-import * as businessClosureWriters from '../../modules/business/business-closure-writers';
-import * as businessClosureReads from '../../modules/business/business-closure-reads';
-import * as businessReads from '../../modules/business/business-reads';
-import * as businessMemoryCommands from '../../modules/business/business-memory-commands';
-import * as businessKhata from '../../modules/business/khata';
 import * as projectionService from '../../modules/projection/service';
 import * as deviceService from '../../modules/device/service';
 import * as accountService from '../../modules/account/service';
@@ -54,6 +39,24 @@ import * as futurePrecision from '../../modules/personal/future-precision';
 import * as lifestylePrecision from '../../modules/personal/lifestyle-precision';
 import * as relationshipsPrecision from '../../modules/personal/relationships-precision';
 import * as inviteService from '../../modules/collaboration/invite-service';
+import * as businessService from '../../modules/business/service';
+import * as businessMembership from '../../modules/business/membership';
+import * as businessSetupService from '../../modules/business/setup-service';
+import * as operatingService from '../../modules/business/operating-service';
+import * as ledgerProjection from '../../modules/business/ledger-projection';
+// Callers: GET /business/moments/:momentId/widgets(+/sources) below. User: "Implement source drill-down for every widget."
+import * as operatingWidgets from '../../modules/business/operating-widget-service';
+import * as operatingMasters from '../../modules/business/operating-masters';
+import { GST_STATES, normalizeGstState, gstStateName } from '../../modules/business/operating-gst-states';
+import { validateGstin } from '../../modules/business/operating-gstin';
+import { HSN_LOOKUP_NOTE, searchHsn } from '../../modules/business/operating-hsn';
+import * as businessFinanceService from '../../modules/finance/business-finance';
+import * as businessOpsPrecision from '../../modules/business/operations-precision';
+import * as businessClosureWriters from '../../modules/business/business-closure-writers';
+import * as businessClosureReads from '../../modules/business/business-closure-reads';
+import * as businessReads from '../../modules/business/business-reads';
+import * as businessMemoryCommands from '../../modules/business/business-memory-commands';
+import * as businessKhata from '../../modules/business/khata';
 import * as companyInviteService from '../../modules/business/company-invite-service';
 import * as collaborationService from '../../modules/collaboration/service';
 import * as groupMembership from '../../modules/collaboration/group-membership';
@@ -67,6 +70,7 @@ import { telemetryRouter } from './telemetry-router';
 import { leanAnalyticsRouter } from './lean-analytics-router';
 
 export const v1Router = Router();
+
 v1Router.use('/telemetry', telemetryRouter);
 v1Router.use('/analytics/lean', leanAnalyticsRouter);
 v1Router.use(authMiddleware);
@@ -1552,6 +1556,58 @@ v1Router.post('/business/setups/:familyCode/activate', requireIdempotencyKey, as
         projectionHints: toProjectionHints([...hints], 'refresh'),
       })
     );
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/business/moments/:momentId/ledger', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      ledgerProjection.getMomentLedgerProjection(client, ctx, param(req.params.momentId))
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+/** P3: source-reconciled Pulse/Moments/Life/Memory widget contracts. */
+v1Router.get('/business/moments/:momentId/widgets', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const periodRaw = typeof req.query.period === 'string' ? req.query.period : undefined;
+    const period =
+      periodRaw === 'this_month' || periodRaw === 'last_month' || periodRaw === 'custom'
+        ? periodRaw
+        : undefined;
+    const query: operatingService.OperatingProjectionQuery = {
+      period,
+      from: typeof req.query.from === 'string' ? req.query.from : undefined,
+      to: typeof req.query.to === 'string' ? req.query.to : undefined,
+    };
+    const data = await withDb((client) =>
+      operatingWidgets.getMomentWidgets(client, ctx, param(req.params.momentId), query)
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/business/moments/:momentId/widgets/:widgetId/sources', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const data = await withDb((client) =>
+      operatingWidgets.getWidgetSources(
+        client,
+        ctx,
+        param(req.params.momentId),
+        param(req.params.widgetId)
+      )
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
   } catch (e) {
     next(e);
   }
@@ -5045,6 +5101,7 @@ v1Router.post('/company/invites/:code/redeem', requireIdempotencyKey, async (req
     next(e);
   }
 });
+
 
 // --- Analytics (S8) ---
 v1Router.get('/analytics/metrics', async (req, res, next) => {

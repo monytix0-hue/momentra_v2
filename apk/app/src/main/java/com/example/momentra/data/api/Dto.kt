@@ -380,6 +380,85 @@ data class PatchMeResultDto(
 data class SoftDeleteMeResultDto(
     @SerializedName("userId") val userId: String,
     val status: String,
+    val erased: MeErasedCountsDto? = null,
+)
+
+data class MeErasedCountsDto(
+    @SerializedName("personalMoments") val personalMoments: Int = 0,
+    @SerializedName("soleMemberGroups") val soleMemberGroups: Int = 0,
+    @SerializedName("groupsLeft") val groupsLeft: Int = 0,
+    @SerializedName("companiesLeft") val companiesLeft: Int = 0,
+    @SerializedName("consentsWithdrawn") val consentsWithdrawn: Int = 0,
+    @SerializedName("userMediaExpired") val userMediaExpired: Int = 0,
+    @SerializedName("notificationsCleared") val notificationsCleared: Int = 0,
+)
+
+data class MeExportDto(
+    @SerializedName("exportedAt") val exportedAt: String? = null,
+    val profile: MeExportProfileDto? = null,
+    val devices: List<MeExportDeviceDto> = emptyList(),
+    val consents: List<MeExportConsentDto> = emptyList(),
+    val processors: List<MeExportProcessorDto> = emptyList(),
+    val notes: List<String> = emptyList(),
+)
+
+data class MeExportProfileDto(
+    @SerializedName("userId") val userId: String? = null,
+    val email: String? = null,
+    @SerializedName("displayName") val displayName: String? = null,
+    val timezone: String? = null,
+    val locale: String? = null,
+    val status: String? = null,
+)
+
+data class MeExportDeviceDto(
+    @SerializedName("deviceId") val deviceId: String? = null,
+    val platform: String? = null,
+    @SerializedName("appVersion") val appVersion: String? = null,
+    @SerializedName("lastSeenAt") val lastSeenAt: String? = null,
+    val revoked: Boolean = false,
+)
+
+data class MeExportConsentDto(
+    val code: String? = null,
+    @SerializedName("displayName") val displayName: String? = null,
+    val description: String? = null,
+    val granted: Boolean = false,
+    @SerializedName("consentId") val consentId: String? = null,
+    @SerializedName("grantedAt") val grantedAt: String? = null,
+)
+
+data class MeExportProcessorDto(
+    val name: String? = null,
+    val purpose: String? = null,
+)
+
+data class ErasurePreflightDto(
+    @SerializedName("canErase") val canErase: Boolean = false,
+    val blockers: List<ErasureBlockerDto> = emptyList(),
+    @SerializedName("personalMomentsToDelete") val personalMomentsToDelete: List<ErasureMomentDto> = emptyList(),
+    @SerializedName("groupMembershipsToLeave") val groupMembershipsToLeave: List<ErasureMomentDto> = emptyList(),
+    @SerializedName("companyMembershipsToLeave") val companyMembershipsToLeave: List<ErasureCompanyDto> = emptyList(),
+    @SerializedName("soleMemberGroupsToDelete") val soleMemberGroupsToDelete: List<ErasureMomentDto> = emptyList(),
+)
+
+data class ErasureBlockerDto(
+    val kind: String? = null,
+    val id: String? = null,
+    val title: String? = null,
+    val message: String? = null,
+)
+
+data class ErasureMomentDto(
+    @SerializedName("momentId") val momentId: String? = null,
+    val title: String? = null,
+    val role: String? = null,
+)
+
+data class ErasureCompanyDto(
+    @SerializedName("companyId") val companyId: String? = null,
+    val name: String? = null,
+    @SerializedName("membershipType") val membershipType: String? = null,
 )
 
 data class DeviceListDto(
@@ -1208,12 +1287,13 @@ data class OperatingPaymentDto(
 )
 
 data class OperatingFinanceDto(
-    val sales: String = "0.0000",
-    val received: String = "0.0000",
-    val outstanding: String = "0.0000",
-    val payable: String = "0.0000",
-    val eligibleCost: String = "0.0000",
-    val cashPaid: String = "0.0000",
+    /** Null when the projection omitted the field — never invent ₹0 client-side (RFC v5). */
+    val sales: String? = null,
+    val received: String? = null,
+    val outstanding: String? = null,
+    val payable: String? = null,
+    val eligibleCost: String? = null,
+    val cashPaid: String? = null,
 )
 
 data class OperatingActivityLineDto(
@@ -1289,6 +1369,8 @@ data class OperatingBoardSectionDto(
     val coverage: String? = null,
     val metrics: List<OperatingBoardMetricDto> = emptyList(),
     val why: String? = null,
+    /** Figma AN-* section code when present (marketing). */
+    val displayCode: String? = null,
 )
 
 data class OperatingBoardsDto(
@@ -1303,6 +1385,26 @@ data class OperatingQuickAddDto(
     val needsAmount: Boolean = false,
 )
 
+data class OperatingQuickAddHubTileDto(
+    val code: String = "",
+    val label: String = "",
+    val subtitle: String? = null,
+    val kind: String = "WRITE",
+    val chromeOnly: Boolean = false,
+    val needsAmount: Boolean = false,
+    val mapsTo: String? = null,
+)
+
+data class OperatingQuickAddHubGroupDto(
+    val id: String = "",
+    val title: String = "",
+    val tiles: List<OperatingQuickAddHubTileDto> = emptyList(),
+)
+
+data class OperatingQuickAddHubDto(
+    val groups: List<OperatingQuickAddHubGroupDto> = emptyList(),
+)
+
 data class OperatingProjectionDto(
     val retired: Boolean = false,
     @SerializedName("companyId") val companyId: String? = null,
@@ -1311,6 +1413,8 @@ data class OperatingProjectionDto(
     val subtypeLabel: String? = null,
     val title: String? = null,
     val partyName: String? = null,
+    /** Marketing Own identity line (Figma “Plan. Launch. Measure.”). */
+    val tagline: String? = null,
     val role: String? = null,
     val financeVisible: Boolean = false,
     val currency: String? = null,
@@ -1329,6 +1433,8 @@ data class OperatingProjectionDto(
     val memory: OperatingMemoryDto? = null,
     val boards: OperatingBoardsDto? = null,
     val quickAdds: List<OperatingQuickAddDto> = emptyList(),
+    /** Own Business Campaign hub groups (core + chrome support/utilities). */
+    val quickAddHub: OperatingQuickAddHubDto? = null,
     val gstTracking: String? = null,
     val gstRegistration: String? = null,
     val gstState: String? = null,
@@ -1346,6 +1452,59 @@ data class OperatingPulseMetricGroupDto(
     val code: String = "",
     val metrics: List<OperatingBoardMetricDto> = emptyList(),
     val why: String? = null,
+    val displayCode: String? = null,
+)
+
+/** Callers: ApiService.getBusinessMomentWidgets + OperatingMomentScreens. P4 widget contracts. */
+data class WidgetsProjectionDto(
+    val momentId: String = "",
+    val familyCode: String = "",
+    val subtype: String = "",
+    val currency: String = "",
+    val role: String = "",
+    val financeVisible: Boolean = false,
+    val postingComplete: Boolean = true,
+    val residualIncomplete: Boolean = false,
+    val widgets: List<OperatingWidgetDto> = emptyList(),
+)
+
+data class OperatingWidgetDto(
+    val widgetId: String = "",
+    val screen: String = "",
+    val title: String = "",
+    val financeOnly: Boolean = false,
+    val formula: String = "",
+    val metrics: List<OperatingWidgetMetricDto> = emptyList(),
+    val sourceEventIds: List<String> = emptyList(),
+    val coverage: String = "UNAVAILABLE",
+    val why: String? = null,
+    /** Figma AN-* display code when present (marketing). */
+    val displayCode: String? = null,
+)
+
+data class OperatingWidgetMetricDto(
+    val key: String = "",
+    val label: String = "",
+    val value: Any? = null,
+    val unit: String? = null,
+    val coverage: String = "UNAVAILABLE",
+)
+
+data class WidgetSourcesDto(
+    val widgetId: String = "",
+    val formula: String = "",
+    val coverage: String = "UNAVAILABLE",
+    val reconciledTotal: Any? = null,
+    val sources: List<WidgetSourceRowDto> = emptyList(),
+)
+
+data class WidgetSourceRowDto(
+    val sourceEventId: String = "",
+    val eventType: String = "",
+    val title: String = "",
+    val amount: String? = null,
+    val occurredAt: String = "",
+    val ledgerStatus: String? = null,
 )
 
 data class OperatingMasterDto(
@@ -1939,6 +2098,13 @@ data class MediaUploadCompleteResultDto(
     @SerializedName("uploadId") val uploadId: String,
     @SerializedName("mediaId") val mediaId: String,
     val status: String,
+    @SerializedName("downloadUrl") val downloadUrl: String? = null,
+)
+
+/** Result of company logo media complete — callers: BusinessSliceRepository.uploadCompanyLogo. */
+data class CompanyLogoUploadResult(
+    val mediaId: String,
+    val downloadUrl: String? = null,
 )
 
 data class AttachExpenseMediaBody(

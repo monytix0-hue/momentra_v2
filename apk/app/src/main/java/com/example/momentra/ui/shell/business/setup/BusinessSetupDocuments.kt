@@ -77,6 +77,14 @@ data class BusinessSetupDocumentSpec(
 }
 
 object BusinessSetupDocuments {
+    val CURRENCY_OPTIONS = listOf(
+        "INR · Indian Rupee (₹)",
+        "USD · US Dollar ($)",
+        "EUR · Euro (€)",
+        "GBP · British Pound (£)",
+        "AED · UAE Dirham (د.إ)",
+    )
+
     fun spec(forTypeCode: String): BusinessSetupDocumentSpec =
         when (forTypeCode.uppercase()) {
             "OWN_BUSINESS_CAMPAIGN" -> ownMarketing
@@ -166,7 +174,7 @@ object BusinessSetupDocuments {
                         "gstin", "GSTIN", "27AAKCM4321D1Z2",
                         helper = "15-digit GSTIN, if you have one",
                     ),
-                    text("currency", "Currency", "INR · Indian Rupee (₹)"),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
                     date("startDate", "Start date", "12 October 2026"),
                     date("endDate", "End date", "Still open"),
                     panelHeader("panelClient", "Client"),
@@ -177,7 +185,7 @@ object BusinessSetupDocuments {
                         "campaignPurpose", "Campaign purpose",
                         listOf("Leads", "Launch", "Awareness", "Sales", "Event", "Traffic"),
                     ),
-                    text("promotedBrand", "Promoted brand", "Optional"),
+                    text("promotedBrand", "Promoted brand / product", "Optional"),
                 ),
             ),
             section(
@@ -224,7 +232,7 @@ object BusinessSetupDocuments {
                     text("monthlyTarget", "Primary target", "120", helper = "Amount / count"),
                     choice(
                         "targetMetric", "Target unit",
-                        listOf("Leads", "Reach", "Clicks", "Sales"),
+                        listOf("Leads", "Reach", "Clicks", "Sales", "Client billing", "Custom"),
                     ),
                 ),
             ),
@@ -291,14 +299,14 @@ object BusinessSetupDocuments {
                     panelHeader("panelIdentity", "Identity"),
                     text("campaignName", "Campaign name", "Harbor & Loom launch"),
                     text(
-                        "brandName", "Promoted brand", "Harbor & Loom",
+                        "brandName", "Promoted brand / product", "Harbor & Loom",
                         helper = "Your company — not a client",
                     ),
                     text(
                         "gstin", "GSTIN", "29ABCDE4321T1Z5",
                         helper = "15-digit GSTIN, if you have one",
                     ),
-                    text("currency", "Currency", "INR · Indian Rupee (₹)"),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
                     date("startDate", "Start date", "12 October 2026"),
                     date("endDate", "End date", "Still open"),
                     panelHeader("panelPurpose", "Purpose & structure"),
@@ -344,7 +352,10 @@ object BusinessSetupDocuments {
                         "conversionGoal", "Primary target", "Store visits / sales",
                         helper = "What success looks like",
                     ),
-                    text("targetMetric", "Target unit", "Leads"),
+                    choice(
+                        "targetMetric", "Target unit",
+                        listOf("Leads", "Reach", "Clicks", "Attributed sales", "Engagements", "Custom"),
+                    ),
                     text("supportingTarget", "Supporting target", "Optional secondary metric"),
                 ),
             ),
@@ -409,7 +420,7 @@ object BusinessSetupDocuments {
                 "basics", "Business Basics", "A home for this trading business.",
                 listOf(
                     panelHeader("panelIdentity", "Identity"),
-                    text("businessName", "Business name", "Northstar Trading"),
+                    text("businessName", "Brand name", "Northstar Trading"),
                     text(
                         "companyName", "Company name", "Northstar Trading",
                         helper = "Registered company name",
@@ -418,7 +429,7 @@ object BusinessSetupDocuments {
                         "gstin", "GSTIN", "29ABCDE4321T1Z5",
                         helper = "15-digit GSTIN, if you have one",
                     ),
-                    text("currency", "Currency", "INR · Indian Rupee (₹)"),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
                     date("startDate", "Start date", "12 October 2026"),
                     date("endDate", "End date", "Still open"),
                     panelHeader("panelDates", "Dates & more"),
@@ -450,7 +461,11 @@ object BusinessSetupDocuments {
                     date("planMonth", "Month", "October 2026"),
                     text("monthlyBudget", "Monthly budget", "₹60,00,000", helper = "Amount"),
                     text("monthlyTarget", "Monthly sales target", "₹90,00,000", helper = "Amount"),
-                    text("targetMetric", "How the target is measured", "Revenue"),
+                                        choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf("Revenue", "Orders", "Count"),
+                    ),
                 ),
             ),
             section(
@@ -513,7 +528,7 @@ object BusinessSetupDocuments {
                 "basics", "Business Basics", "A home for this distribution business.",
                 listOf(
                     panelHeader("panelIdentity", "Identity"),
-                    text("businessName", "Business name", "Metro Distribution"),
+                    text("businessName", "Brand name", "Metro Distribution"),
                     text(
                         "companyName", "Company name", "Metro Distribution",
                         helper = "Registered company name",
@@ -522,7 +537,7 @@ object BusinessSetupDocuments {
                         "gstin", "GSTIN", "27AAKCM4321D1Z2",
                         helper = "15-digit GSTIN, if you have one",
                     ),
-                    text("currency", "Currency", "INR · Indian Rupee (₹)"),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
                     date("startDate", "Start date", "12 October 2026"),
                     date("endDate", "End date", "Still open"),
                     panelHeader("panelDates", "Dates & more"),
@@ -554,7 +569,11 @@ object BusinessSetupDocuments {
                     date("planMonth", "Month", "October 2026"),
                     text("monthlyBudget", "Monthly budget", "₹60,00,000", helper = "Amount"),
                     text("monthlyTarget", "Monthly sales target", "₹90,00,000", helper = "Amount"),
-                    text("targetMetric", "How the target is measured", "Revenue"),
+                                        choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf("Revenue", "Orders", "Count"),
+                    ),
                 ),
             ),
             section(
@@ -626,7 +645,7 @@ object BusinessSetupDocuments {
                         "gstin", "GSTIN", "27AAHCH4321M1Z3",
                         helper = "15-digit GSTIN, if you have one",
                     ),
-                    text("currency", "Currency", "INR · Indian Rupee (₹)"),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
                     date("startDate", "Start date", "12 October 2026"),
                     date("endDate", "End date", "Still open"),
                     panelHeader("panelDates", "Dates & more"),
@@ -658,7 +677,11 @@ object BusinessSetupDocuments {
                     date("planMonth", "Month", "October 2026"),
                     text("monthlyBudget", "Monthly budget", "₹8,40,000", helper = "Amount"),
                     text("monthlyTarget", "Monthly sales target", "₹12,00,000", helper = "Amount"),
-                    text("targetMetric", "How the target is measured", "Revenue"),
+                                        choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf("Revenue", "Orders", "Count"),
+                    ),
                 ),
             ),
             section(
@@ -730,7 +753,7 @@ object BusinessSetupDocuments {
                         "gstin", "GSTIN", "27AASCS4821K1Z3",
                         helper = "15-digit GSTIN, if you have one",
                     ),
-                    text("currency", "Currency", "INR · Indian Rupee (₹)"),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
                     date("startDate", "Start date", "12 October 2026"),
                     date("endDate", "End date", "Still open"),
                     panelHeader("panelDates", "Dates & more"),
@@ -762,7 +785,11 @@ object BusinessSetupDocuments {
                     date("planMonth", "Month", "October 2026"),
                     text("monthlyBudget", "Monthly budget", "₹5,20,000", helper = "Amount"),
                     text("monthlyTarget", "Monthly sales target", "₹6,50,000", helper = "Amount"),
-                    text("targetMetric", "How the target is measured", "Revenue"),
+                                        choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf("Revenue", "Orders", "Count"),
+                    ),
                 ),
             ),
             section(
@@ -842,7 +869,7 @@ object BusinessSetupDocuments {
                 "basics", "Business Basics", "A home for this salon & spa.",
                 listOf(
                     panelHeader("panelIdentity", "Identity"),
-                    text("serviceName", "Business name", "BrightCare"),
+                    text("serviceName", "Brand name", "BrightCare"),
                     text(
                         "companyName", "Company name", "BrightCare",
                         helper = "Registered company name",
@@ -851,7 +878,7 @@ object BusinessSetupDocuments {
                         "gstin", "GSTIN", "27AAHCB4321M1Z8",
                         helper = "15-digit GSTIN, if you have one",
                     ),
-                    text("currency", "Currency", "INR · Indian Rupee (₹)"),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
                     date("startDate", "Start date", "12 October 2026"),
                     date("endDate", "End date", "Still open"),
                     panelHeader("panelDates", "Dates & more"),
@@ -886,7 +913,11 @@ object BusinessSetupDocuments {
                         "monthlyChargeTarget", "Monthly charge target", "₹6,50,000",
                         helper = "Amount",
                     ),
-                    text("targetMetric", "How the target is measured", "Revenue"),
+                                        choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf("Revenue", "Appointments", "Count"),
+                    ),
                 ),
             ),
             section(
@@ -932,55 +963,102 @@ object BusinessSetupDocuments {
         ),
     )
 
+    // Figma `5:50728` / `5:55863` — Products/BOM/Network omitted (same as Trading).
+    // Callers: BusinessSetupShell via BusinessSetupDocuments.spec.
+    // User: "continue and remove section 4 too"
     val manufacturing = BusinessSetupDocumentSpec(
         typeCode = "STANDARD_PRODUCTION",
         familyTitle = "Manufacturing",
         eyebrow = "Manufacturing",
-        heroTitle = "Set up production",
-        heroSubtitle = "Batches, BOM, and finished goods for standard production.",
+        heroTitle = "Forge & Form Setup",
+        heroSubtitle = "Bring your business, people, and monthly plan together before you start.",
         activateLabel = "Start this business",
-        defaultTitleKey = "plantName",
+        defaultTitleKey = "businessName",
         sections = listOf(
             section(
-                "basics", "Business Basics", "Your plant.",
+                "basics", "Business Basics", "A home for this plant.",
                 listOf(
-                    text("plantName", "Plant / business", "Northline Works"),
-                    text("productLine", "Product line", "What you make"),
-                    choice("batchStyle", "Production", listOf("Batch", "Continuous", "Mixed")),
-                    text("gstin", "GSTIN", "Optional"),
+                    panelHeader("panelIdentity", "Identity"),
+                    text("businessName", "Brand name", "Forge & Form"),
+                    text("companyName", "Company name", "Forge & Form", helper = "Registered company name"),
+                    text("gstin", "GSTIN", "27AAFCF4321M1Z6", helper = "15-digit GSTIN, if you have one"),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
+                    date("startDate", "Start date", "12 October 2026"),
+                    date("endDate", "End date", "Still open"),
+                    panelHeader("panelDates", "Dates & more"),
+                    text("description", "Description", "Everyday notes about this plant"),
+                    text("location", "Location", "Add your plant location"),
                 ),
             ),
             section(
-                "people", "People & Roles", "Floor and planning.",
+                "people",
+                "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
                 listOf(
                     memberList("teamMembers", "Team", listOf("You (Owner)")),
-                    multiChoice("roles", "Roles", listOf("Owner", "Plant manager", "Supervisor", "Operator")),
-                    rowAction("addPeople", "Add Member", "Add"),
-                ),
-            ),
-            section(
-                "channels", "Channels & Monthly Plan", "Output targets.",
-                listOf(
-                    text("monthlyOutput", "Monthly output target", "Units / value"),
-                    text("wipNote", "WIP note", "Optional"),
-                    multiChoice("channels", "Sales channels", listOf("Dealers", "Direct", "Export", "Other")),
-                ),
-            ),
-            section(
-                "network", "BOM, Warehouses & Network", "Modules that light up after start.",
-                listOf(
-                    moduleList(
-                        "modules", "Modules",
-                        listOf("BOM & recipes", "Raw materials", "Finished goods", "Suppliers & buyers"),
+                    multiChoice(
+                        "roles",
+                        "Roles on invite",
+                        listOf("Owner", "Manager", "Supervisor", "Storekeeper", "Operator"),
+                        helper = "Default Operator · own work orders & production entry. Role applies when they join.",
                     ),
                 ),
             ),
             section(
-                "gst", "GST & Tax Details", "Plant registration.",
+                "channels", "Channels & Monthly Plan", "Where do you sell or make? Choose at least one.",
                 listOf(
-                    toggle("gstRegistered", "Registered for GST?"),
-                    choice("gstType", "Registration type", listOf("Regular", "Composition", "Unregistered")),
-                    text("gstState", "State", "Maharashtra"),
+                    panelHeader("panelChannels", "Channels"),
+                    multiChoice(
+                        "channels",
+                        "Channels",
+                        listOf("Direct B2B", "Dealers", "OEM", "Export", "Job work"),
+                        helper = "These are the places you sell or serve. They are not a different kind of business.",
+                    ),
+                    date("planMonth", "Month", "October 2026"),
+                    text("monthlyBudget", "Monthly budget", "₹42,00,000", helper = "Amount"),
+                    text("monthlyTarget", "Monthly sales target", "₹65,00,000", helper = "Amount"),
+                                        choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf(
+                            "Invoiced value (or accepted job units)",
+                            "Production output",
+                            "Delivery count",
+                            "Orders",
+                        ),
+                    ),
+                ),
+            ),
+            section(
+                "gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.",
+                listOf(
+                    panelHeader("panelTracking", "Tracking"),
+                    choice(
+                        "gstTracking",
+                        "Do you want to track GST in this Moment?",
+                        listOf("Yes", "Not now"),
+                        helper = "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.",
+                    ),
+                    panelHeader("panelRegistration", "Registration"),
+                    choice(
+                        "gstRegistration",
+                        "How is your business registered for GST?",
+                        listOf("Regular", "Composition", "Unregistered", "Not sure"),
+                    ),
+                    text(
+                        "gstState",
+                        "Which state is your business registered in?",
+                        "Maharashtra",
+                        helper = "State",
+                    ),
+                    panelHeader("panelPricing", "Pricing"),
+                    choice(
+                        "salePriceIncludesGst",
+                        "Do prices include GST?",
+                        listOf("Prices include GST", "GST is added separately"),
+                        helper = "Your GSTIN stays the one entered above. It is stored as a reference only.",
+                    ),
+                    date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
                 ),
             ),
             section(
@@ -988,70 +1066,164 @@ object BusinessSetupDocuments {
                 listOf(
                     reviewSummary(
                         "review", "Summary",
-                        listOf("plantName", "productLine", "batchStyle", "monthlyOutput"),
+                        listOf(
+                            "businessName", "companyName", "gstin", "channels",
+                            "monthlyBudget", "monthlyTarget", "targetMetric",
+                        ),
                     ),
                 ),
             ),
         ),
     )
 
+    // Figma `5:55863` — Quotes/Jobs/Network omitted. No Plan · Monthly section.
+    // Channels/budget/target fold into Basics; CTA Activate Moment; eyebrow Job order.
     val madeToOrder = BusinessSetupDocumentSpec(
         typeCode = "MADE_TO_ORDER",
         familyTitle = "Manufacturing",
-        eyebrow = "Made to order",
-        heroTitle = "Set up job-order work",
-        heroSubtitle = "Quotes, job orders, and invoices against custom work.",
-        activateLabel = "Start this business",
-        defaultTitleKey = "shopName",
+        eyebrow = "Job order",
+        heroTitle = "Forge & Form Setup",
+        heroSubtitle = "Bring your business, people, and monthly plan together before you start.",
+        activateLabel = "Activate Moment",
+        defaultTitleKey = "businessName",
         sections = listOf(
             section(
-                "basics", "Business Basics", "What customers order.",
+                "basics", "Business Basics", "A home for this job-order shop.",
                 listOf(
-                    text("shopName", "Shop / business", "Precision Jobs"),
-                    text("jobType", "Job type", "Fabrication / print / …"),
-                    choice("quoteStyle", "Quotes", listOf("Formal quotes", "Verbal + invoice", "Both")),
-                    text("gstin", "GSTIN", "Optional"),
-                ),
-            ),
-            section(
-                "people", "People & Roles", "Who owns the jobs.",
-                listOf(
-                    memberList("teamMembers", "Team", listOf("You (Owner)")),
-                    multiChoice("roles", "Roles", listOf("Owner", "Estimator", "Shop floor", "Accounts")),
-                    rowAction("addPeople", "Add Member", "Add"),
-                ),
-            ),
-            section(
-                "channels", "Channels & Monthly Plan", "How orders move.",
-                listOf(
-                    choice("leadTime", "Typical lead time", listOf("Same day", "2–7 days", "Longer")),
-                    text("capacityNote", "Capacity note", "Optional"),
-                    text("monthlyJobs", "Jobs / month target", "40"),
-                ),
-            ),
-            section(
-                "network", "Jobs & Network", "Modules that light up after start.",
-                listOf(
-                    moduleList(
-                        "modules", "Modules",
-                        listOf("Quotes", "Job orders", "Materials", "Invoices"),
+                    text("businessName", "Brand name", "Forge & Form"),
+                    text("companyName", "Company name", "Forge & Form", helper = "Registered company name"),
+                    text("gstin", "GSTIN", "27AAFCF4321M1Z6", helper = "15-digit GSTIN, if you have one"),
+                    choice("currency", "Currency", CURRENCY_OPTIONS),
+                    date("startDate", "Start date", "12 October 2026"),
+                    date("endDate", "End date", "Still open"),
+                    panelHeader("panelDates", "Dates & more"),
+                    text("description", "Description", "Everyday notes about this plant"),
+                    multiChoice(
+                        "channels",
+                        "Channels",
+                        listOf("Direct B2B", "Dealers", "OEM", "Export", "Job work"),
+                        helper = "Channels are where you sell. They never change the Job order mode.",
+                    ),
+                    text("monthlyBudget", "Monthly budget", "₹9,00,000", helper = "Amount"),
+                    text("monthlyTarget", "Monthly target", "₹18,00,000", helper = "Amount"),
+                    choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf(
+                            "Invoiced value (or accepted job units)",
+                            "Production output",
+                            "Delivery count",
+                            "Orders",
+                        ),
+                        helper = "Posted invoices count toward the target. Quotes, confirmed orders and advances never do.",
                     ),
                 ),
             ),
             section(
-                "gst", "GST & Tax Details", "Shop registration.",
+                "people",
+                "People & Roles",
+                "Invite teammates and pick a role on Invite & QR. No separate Add person.",
                 listOf(
-                    toggle("gstRegistered", "Registered for GST?"),
-                    choice("gstType", "Registration type", listOf("Regular", "Composition", "Unregistered")),
-                    text("gstState", "State", "Maharashtra"),
+                    memberList("teamMembers", "Team", listOf("You (Owner)")),
+                    multiChoice(
+                        "roles",
+                        "Roles on invite",
+                        listOf("Owner", "Manager", "Supervisor", "Storekeeper", "Operator"),
+                        helper = "Default Operator · own work orders & production entry. Role applies when they join.",
+                    ),
+                    rowAction("addPeople", "+ Invite & QR · pick role", "Invite"),
                 ),
             ),
             section(
-                "review", "Review your setup", "Confirm before you start.",
+                "quotes",
+                "Job order · Quotes & order approval",
+                "Job order only. The customer-order picker activates when a quote is accepted.",
+                listOf(
+                    choice(
+                        "quoteValidity",
+                        "Quote validity",
+                        listOf(
+                            "15 days · expired quotes revise, never invoice",
+                            "30 days · expired quotes revise, never invoice",
+                            "7 days · expired quotes revise, never invoice",
+                        ),
+                    ),
+                    choice(
+                        "specificationTemplate",
+                        "+ Specification template",
+                        listOf(
+                            "Drawing · material · tolerance · finish",
+                            "Create / upload / link from library",
+                        ),
+                    ),
+                    choice(
+                        "orderApproval",
+                        "Order approval",
+                        listOf(
+                            "Discount >5% or value >₹5L → Owner approves",
+                            "All confirmed orders → Owner approves",
+                            "No approval required",
+                        ),
+                    ),
+                    choice(
+                        "jobOnConfirm",
+                        "Job per confirmed order",
+                        listOf(
+                            "Accepted order opens a job with target qty",
+                            "Open job manually after confirm",
+                        ),
+                    ),
+                    choice(
+                        "productsBomNote",
+                        "Products & BOM (optional)",
+                        listOf(
+                            "Fully detailed · BOM with cost and lead time",
+                            "Skip for now · never forced",
+                        ),
+                    ),
+                ),
+            ),
+            section(
+                "gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.",
+                listOf(
+                    panelHeader("panelTracking", "Tracking"),
+                    choice(
+                        "gstRegistered",
+                        "Do you want to track GST in this Moment?",
+                        listOf("Yes", "Not now"),
+                        helper = "Skipping means tax tracking is disabled in Momentra. It does not mean the business is legally GST-exempt.",
+                    ),
+                    panelHeader("panelRegistration", "Registration"),
+                    choice(
+                        "gstType",
+                        "How is your business registered for GST?",
+                        listOf("Regular", "Composition", "Unregistered", "Not sure"),
+                    ),
+                    text(
+                        "gstState",
+                        "Which state is your business registered in?",
+                        "Maharashtra",
+                        helper = "State",
+                    ),
+                    panelHeader("panelPricing", "Pricing"),
+                    choice(
+                        "priceIncludesGst",
+                        "Do prices include GST?",
+                        listOf("Prices include GST", "GST is added separately"),
+                        helper = "Your GSTIN stays the one entered above. It is stored as a reference only.",
+                    ),
+                    date("gstEffectiveFrom", "Effective from (optional)", "YYYY-MM-DD"),
+                ),
+            ),
+            section(
+                "review", "Activate", "Confirm before you start.",
                 listOf(
                     reviewSummary(
                         "review", "Summary",
-                        listOf("shopName", "jobType", "quoteStyle", "leadTime"),
+                        listOf(
+                            "businessName", "companyName", "gstin", "monthlyBudget", "monthlyTarget",
+                            "targetMetric", "quoteValidity",
+                        ),
                     ),
                 ),
             ),

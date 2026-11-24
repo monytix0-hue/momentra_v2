@@ -5,8 +5,6 @@ import com.example.momentra.data.repository.MeRepository
 import com.example.momentra.domain.MomentSummary
 import com.example.momentra.domain.isActiveStatus
 import com.example.momentra.domain.isCompletedStatus
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateVertical
 import com.example.momentra.ui.shell.group.shared.GroupExperienceFamily
 import com.example.momentra.ui.shell.group.shared.groupExperienceFamilyFor
 import com.example.momentra.ui.shell.group.shared.isThemedLiving
@@ -44,13 +42,12 @@ data class MomentSwitcherBucket(
     val singular: String,
     /** Card gradient; one stop per entry in [MomentSwitcherTokens.LiveCardStops] when three long. */
     val cardGradient: List<Color>,
-    /** Unified accent. The kit is emerald everywhere, matching Figma `appstate/accent`. */
-    val accent: BusinessAppStateAccent = BusinessAppStateAccent.Emerald,
+    /** Unified accent color for card chrome. */
+    val accent: Color = MomentSwitcherTokens.Accent,
     /**
-     * Business vertical, carried so the pre-existing `businessDirectoryBucketFor` contract and its
-     * copy overrides survive. Null for Group buckets.
+     * Optional business vertical id (`marketing`, `trading`, …). Null for Group buckets.
      */
-    val vertical: BusinessAppStateVertical? = null,
+    val vertical: String? = null,
 )
 
 /**
@@ -140,13 +137,13 @@ fun momentSwitcherSubtitle(
 // ---------------------------------------------------------------------------------------------
 
 private val BusinessBuckets: List<MomentSwitcherBucket> = listOf(
-    Triple("marketing", "Marketing", BusinessAppStateVertical.Marketing),
-    Triple("trading", "Trading", BusinessAppStateVertical.Trading),
-    Triple("distribution", "Distribution", BusinessAppStateVertical.Distribution),
-    Triple("retail", "Retail", BusinessAppStateVertical.Retail),
-    Triple("food", "Food", BusinessAppStateVertical.Rst),
-    Triple("service", "Service", BusinessAppStateVertical.Services),
-    Triple("manufacturing", "Manufacturing", BusinessAppStateVertical.Mfg),
+    Triple("marketing", "Marketing", "marketing"),
+    Triple("trading", "Trading", "trading"),
+    Triple("distribution", "Distribution", "distribution"),
+    Triple("retail", "Retail", "retail"),
+    Triple("food", "Food", "rst"),
+    Triple("service", "Service", "services"),
+    Triple("manufacturing", "Manufacturing", "mfg"),
 ).map { (id, label, vertical) ->
     MomentSwitcherBucket(
         id = id,
@@ -160,9 +157,7 @@ private val BusinessBuckets: List<MomentSwitcherBucket> = listOf(
 /**
  * Bucket for a Business moment type code.
  *
- * Moved verbatim from the retired `BusinessActiveMomentsDirectory.kt` so the existing
- * `BusinessAppStateSpecsTest.directoryBuckets*` contract still holds: same ids, same verticals,
- * same unified emerald accent.
+ * Moved from the retired Business directory classifier so bucket ids stay stable for tests.
  */
 fun businessDirectoryBucketFor(momentTypeCode: String?): MomentSwitcherBucket {
     val code = momentTypeCode?.uppercase(Locale.US).orEmpty()

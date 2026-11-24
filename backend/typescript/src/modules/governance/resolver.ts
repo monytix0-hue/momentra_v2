@@ -45,6 +45,31 @@ const OBSERVER_DENIED_ACTIONS = new Set([
   'MOMENT_REOPEN',
   'MOMENT_ARCHIVE',
   'MOMENT_CANCEL',
+  // Business company / ops mutate paths.
+  'ISSUE_CREATE',
+  'RISK_CREATE',
+  'VENDOR_MANAGE',
+  'SLA_MANAGE',
+  'REVIEW_CREATE',
+  'DECISION_RECORD',
+  'MEETING_CREATE',
+  'RECOGNITION_CREATE',
+  'RETRO_CREATE',
+  'ACTIVITY_LOG_CREATE',
+  'LOCATION_CREATE',
+  'LOCATION_UPDATE',
+  'TEAM_CREATE',
+  'COMPANY_UPDATE',
+  'TAX_OBLIGATION_CREATE',
+  'FORECAST_CREATE',
+  'INVESTOR_UPDATE_CREATE',
+  'BUDGET_ALERT_CREATE',
+  'BUSINESS_UPDATE_CREATE',
+  'OPERATING_MASTER_CREATE',
+  'OPERATING_MASTER_UPDATE',
+  'OPERATING_MASTER_ARCHIVE',
+  'OPERATING_PRICE_LIST_CREATE',
+  'OPERATING_PRICE_LIST_UPDATE',
 ]);
 
 /**
@@ -73,85 +98,92 @@ export async function authorize(
   }
 
   if (input.momentId) {
-    const access = await client.query<{
-      ok: boolean;
-      domain_code: string | null;
-      moment_type_id: string | null;
-      participant_role: string | null;
-      company_membership_type: string | null;
-      is_organizer: boolean;
-    }>(
-      `SELECT
-         EXISTS (
-           SELECT 1 FROM core.moment m
-           LEFT JOIN personal.personal_moment_context pmc ON pmc.moment_id = m.moment_id
-           LEFT JOIN collaboration.moment_participant mp
-             ON mp.moment_id = m.moment_id AND mp.user_id = $1 AND mp.status = 'ACTIVE'
-           LEFT JOIN collaboration.group_moment_context gmc ON gmc.moment_id = m.moment_id
-           LEFT JOIN business.business_moment_context bmc ON bmc.moment_id = m.moment_id
-           LEFT JOIN business.company_membership cm
-             ON cm.company_id = bmc.company_id AND cm.user_id = $1 AND cm.status = 'ACTIVE'
-           WHERE m.moment_id = $2
-             AND (
-               (m.domain_code = 'PERSONAL' AND (pmc.user_id = $1 OR m.created_by_user_id = $1))
-               OR (m.domain_code = 'GROUP' AND (gmc.organizer_user_id = $1 OR mp.participant_id IS NOT NULL))
-               OR (m.domain_code = 'BUSINESS' AND cm.company_membership_id IS NOT NULL)
-               OR m.created_by_user_id = $1
-             )
-         ) AS ok,
-         (SELECT domain_code FROM core.moment WHERE moment_id = $2) AS domain_code,
-         (SELECT moment_type_id FROM core.moment WHERE moment_id = $2) AS moment_type_id,
-         (
-           SELECT UPPER(mp.participant_role)
-           FROM collaboration.moment_participant mp
-           WHERE mp.moment_id = $2 AND mp.user_id = $1 AND mp.status = 'ACTIVE'
-           LIMIT 1
-         ) AS participant_role,
-         (
-           SELECT UPPER(cm.membership_type)
-           FROM business.business_moment_context bmc
-           JOIN business.company_membership cm
-             ON cm.company_id = bmc.company_id AND cm.user_id = $1 AND cm.status = 'ACTIVE'
-           WHERE bmc.moment_id = $2
-           LIMIT 1
-         ) AS company_membership_type,
-         EXISTS (
-           SELECT 1 FROM collaboration.group_moment_context gmc
-           WHERE gmc.moment_id = $2 AND gmc.organizer_user_id = $1
-         ) AS is_organizer`,
-      [ctx.userId, input.momentId]
+    const domainRow = await client.query<{ domain_code: string | null; moment_type_id: string | null }>(
+      `SELECT domain_code, moment_type_id FROM core.moment WHERE moment_id = $1`,
+      [input.momentId]
     );
-    if (!access.rows[0]?.ok) {
-      return { allowed: false, reason: 'Not permitted for this moment scope.' };
-    }
+    const domainCode = domainRow.rows[0]?.domain_code ?? null;
+    const momentTypeId = domainRow.rows[0]?.moment_type_id ?? null;
 
-    const role = access.rows[0].participant_role;
-    const isObserver =
-      !access.rows[0].is_organizer &&
-      (role === 'OBSERVER' || role === 'VIEWER');
-    if (isObserver && OBSERVER_DENIED_ACTIONS.has(input.actionCode)) {
-      return { allowed: false, reason: 'Viewers can view but not create or edit.' };
-    }
-    const companyRole = access.rows[0].company_membership_type;
-    if (companyRole === 'OBSERVER' && OBSERVER_DENIED_ACTIONS.has(input.actionCode)) {
-      return { allowed: false, reason: 'Observers can view but not create or edit.' };
-    }
-
-    // V019 contract: catalog capabilities must be mapped on the moment type.
-    const catalog = await client.query<{ capability_id: string }>(
-      `SELECT capability_id FROM core.capability
-       WHERE code = $1 AND status = 'ACTIVE'
-       LIMIT 1`,
-      [input.actionCode]
-    );
-    if (catalog.rows[0] && access.rows[0].moment_type_id) {
-      const mapped = await resolveCapabilityForMomentType(
-        client,
-        access.rows[0].moment_type_id,
-        input.actionCode
+    if (domainCode === 'BUSINESS') {
+      // Single authoritative policy for Business Moments (OPEN/RESTRICTED + grants).
+      const { evaluateCompanyMomentAccess } = await import('../business/access-policy');
+      const scope = await evaluateCompanyMomentAccess(client, ctx, input.momentId);
+      if (!scope) {
+        return { allowed: false, reason: 'Not permitted for this moment scope.' };
+      }
+      if (scope.membershipType === 'OBSERVER' && OBSERVER_DENIED_ACTIONS.has(input.actionCode)) {
+        return { allowed: false, reason: 'Observers can view but not create or edit.' };
+      }
+      if (scope.viewerRole === 'OBSERVER' && OBSERVER_DENIED_ACTIONS.has(input.actionCode)) {
+        return { allowed: false, reason: 'Viewers can view but not create or edit.' };
+      }
+      const catalog = await client.query<{ capability_id: string }>(
+        `SELECT capability_id FROM core.capability
+         WHERE code = $1 AND status = 'ACTIVE'
+         LIMIT 1`,
+        [input.actionCode]
       );
-      if (!mapped) {
-        return { allowed: false, reason: 'Capability not enabled for this moment type.' };
+      if (catalog.rows[0] && momentTypeId) {
+        const mapped = await resolveCapabilityForMomentType(client, momentTypeId, input.actionCode);
+        if (!mapped) {
+          return { allowed: false, reason: 'Capability not enabled for this moment type.' };
+        }
+      }
+    } else {
+      const access = await client.query<{
+        ok: boolean;
+        participant_role: string | null;
+        is_organizer: boolean;
+      }>(
+        `SELECT
+           EXISTS (
+             SELECT 1 FROM core.moment m
+             LEFT JOIN personal.personal_moment_context pmc ON pmc.moment_id = m.moment_id
+             LEFT JOIN collaboration.moment_participant mp
+               ON mp.moment_id = m.moment_id AND mp.user_id = $1 AND mp.status = 'ACTIVE'
+             LEFT JOIN collaboration.group_moment_context gmc ON gmc.moment_id = m.moment_id
+             WHERE m.moment_id = $2
+               AND (
+                 (m.domain_code = 'PERSONAL' AND (pmc.user_id = $1 OR m.created_by_user_id = $1))
+                 OR (m.domain_code = 'GROUP' AND (gmc.organizer_user_id = $1 OR mp.participant_id IS NOT NULL))
+               )
+           ) AS ok,
+           (
+             SELECT UPPER(mp.participant_role)
+             FROM collaboration.moment_participant mp
+             WHERE mp.moment_id = $2 AND mp.user_id = $1 AND mp.status = 'ACTIVE'
+             LIMIT 1
+           ) AS participant_role,
+           EXISTS (
+             SELECT 1 FROM collaboration.group_moment_context gmc
+             WHERE gmc.moment_id = $2 AND gmc.organizer_user_id = $1
+           ) AS is_organizer`,
+        [ctx.userId, input.momentId]
+      );
+      if (!access.rows[0]?.ok) {
+        return { allowed: false, reason: 'Not permitted for this moment scope.' };
+      }
+
+      const role = access.rows[0].participant_role;
+      const isObserver =
+        !access.rows[0].is_organizer &&
+        (role === 'OBSERVER' || role === 'VIEWER');
+      if (isObserver && OBSERVER_DENIED_ACTIONS.has(input.actionCode)) {
+        return { allowed: false, reason: 'Viewers can view but not create or edit.' };
+      }
+
+      const catalog = await client.query<{ capability_id: string }>(
+        `SELECT capability_id FROM core.capability
+         WHERE code = $1 AND status = 'ACTIVE'
+         LIMIT 1`,
+        [input.actionCode]
+      );
+      if (catalog.rows[0] && momentTypeId) {
+        const mapped = await resolveCapabilityForMomentType(client, momentTypeId, input.actionCode);
+        if (!mapped) {
+          return { allowed: false, reason: 'Capability not enabled for this moment type.' };
+        }
       }
     }
   }

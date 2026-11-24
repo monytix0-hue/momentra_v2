@@ -6,9 +6,7 @@ import SwiftUI
 /// Read from the five state frames: `2678:37481` Ongoing, `2678:37561` Completed, `2678:37634`
 /// Empty, `2678:37715` SearchEmpty, `2678:37790` LoadError.
 ///
-/// Deliberately *not* folded into `BusinessAppStateTokens`: that kit backs a different Figma family
-/// (`2852:39645`) whose values are asserted by `BusinessAppStateSpecsTests`, and the switcher now
-/// serves Group too.
+/// Standalone switcher tokens (Business App States kit was removed in Phase 1C).
 ///
 /// Keep in lockstep with `MomentSwitcherTokens.kt` on Android.
 enum MomentSwitcherTokens {

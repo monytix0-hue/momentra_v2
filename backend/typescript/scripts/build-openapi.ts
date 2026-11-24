@@ -113,6 +113,14 @@ const ENDPOINTS: EndpointDef[] = [
   { method: 'get', path: '/business/moments/{momentId}/roster', operationId: 'getBusinessRoster', summary: 'Business company roster', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
   { method: 'get', path: '/business/moments/{momentId}/weekly-report', operationId: 'getBusinessWeeklyReport', summary: 'Business weekly activity report', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
   { method: 'post', path: '/business/moments/{momentId}/share-link', operationId: 'createBusinessShareLink', summary: 'Create business dashboard share link', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
+  // Callers: npm run openapi:build → openapi/momentra-v1.yaml; openapi:validate; Android/iOS ApiService.
+  // No prior ENDPOINTS entries for /operating|/ledger|/widgets (routes exist in router.ts since P3).
+  // Reads: none. Writes: regenerated YAML path entries only.
+  // User: "Include `/widgets` and `/widgets/:widgetId/sources`." + "Regenerate and validate OpenAPI"
+  { method: 'get', path: '/business/moments/{momentId}/operating', operationId: 'getOperatingMoment', summary: 'Business operating projection (Pulse/Moments/Life/Memory + Quick Adds)', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
+  { method: 'get', path: '/business/moments/{momentId}/ledger', operationId: 'getBusinessMomentLedger', summary: 'Authoritative AR/AP/inventory ledger projection (server totals only)', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
+  { method: 'get', path: '/business/moments/{momentId}/widgets', operationId: 'getBusinessMomentWidgets', summary: 'Source-reconciled widget contracts with COMPLETE|PARTIAL|UNAVAILABLE|ZERO coverage', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
+  { method: 'get', path: '/business/moments/{momentId}/widgets/{widgetId}/sources', operationId: 'getBusinessMomentWidgetSources', summary: 'Eligible source records for a widget (reconciles displayed totals)', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
   { method: 'post', path: '/business/moments/{momentId}/operating-events', operationId: 'recordOperatingEvent', summary: 'Record an operating (business vertical) record', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
   { method: 'patch', path: '/business/moments/{momentId}/operating-events/{eventId}', operationId: 'reviseOperatingEvent', summary: 'Revise an operating record', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
   { method: 'post', path: '/business/moments/{momentId}/operating-events/{eventId}/decision', operationId: 'decideOperatingEvent', summary: 'Approve or reject an operating record', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
@@ -121,6 +129,10 @@ const ENDPOINTS: EndpointDef[] = [
   { method: 'post', path: '/companies/{companyId}/operating-masters', operationId: 'createOperatingMaster', summary: 'Create an operating master', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
   { method: 'patch', path: '/companies/{companyId}/operating-masters/{masterId}', operationId: 'updateOperatingMaster', summary: 'Update an operating master', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
   { method: 'delete', path: '/companies/{companyId}/operating-masters/{masterId}', operationId: 'archiveOperatingMaster', summary: 'Archive an operating master', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
+  { method: 'get', path: '/companies/{companyId}/products', operationId: 'listCompanyProducts', summary: 'List retail catalogue products (alias of operating masters)', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
+  { method: 'post', path: '/companies/{companyId}/products', operationId: 'createCompanyProduct', summary: 'Create a retail catalogue product', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
+  { method: 'patch', path: '/companies/{companyId}/products/{productId}', operationId: 'updateCompanyProduct', summary: 'Update a retail catalogue product', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
+  { method: 'get', path: '/companies/{companyId}/products/{productId}/stock', operationId: 'getCompanyProductStock', summary: 'On-hand by location for a product on a moment', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
   { method: 'get', path: '/companies/{companyId}/operating-price-lists', operationId: 'listOperatingPriceLists', summary: 'List effective-dated price lists', tags: ['Business'], kind: 'read', implStatus: 'IMPLEMENTED' },
   { method: 'post', path: '/companies/{companyId}/operating-price-lists', operationId: 'createOperatingPriceList', summary: 'Create an effective-dated price list', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
   { method: 'patch', path: '/companies/{companyId}/operating-price-lists/{priceListId}', operationId: 'updateOperatingPriceList', summary: 'Update a price list', tags: ['Business'], kind: 'command', idempotency: true, implStatus: 'IMPLEMENTED' },
@@ -331,6 +343,22 @@ components:
         format: uuid
     priceListIdParam:
       name: priceListId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    widgetIdParam:
+      name: widgetId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 64
+        description: Widget contract id (e.g. P02, MKT-ATTRIBUTION, MFG-STOCK)
+    productIdParam:
+      name: productId
       in: path
       required: true
       schema:

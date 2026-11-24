@@ -57,6 +57,18 @@ Setup smoke (Figma v6 parity):
 - [ ] GSTIN types in capitals (keyboard + paste)
 - [ ] Business bottom sheets on **iOS and APK** (DateRow, Manage when Business, View-all) show glass + dim scrim; setup fullscreen covers stay opaque gradient
 
+### Brand name label, live hero title, logo, keyboard (all 9 setups)
+
+- [ ] Trading, Distribution, Consumer Service, Manufacturing, Job order show **Brand name** (not “Business name”)
+- [ ] Retail Store still says **Store name**, Restaurant still says **Restaurant name**, Marketing still says **Campaign name**
+- [ ] Marketing’s second field reads **Promoted brand / product**
+- [ ] Typing in Brand name updates the hero to `{name} Setup` on every keystroke
+- [ ] Clearing Brand name restores the Figma placeholder hero title
+- [ ] Editing Company name alone leaves the hero title unchanged
+- [ ] Tapping the hero circle opens the image picker; after upload the circle shows the logo
+- [ ] Keyboard has a Done affordance and closes on scroll; sticky CTAs stay tappable while it is open
+- [ ] Reopening a draft saved before this change still shows the saved name under **Brand name**
+
 ### Job order (`MADE_TO_ORDER` / `5:55863`)
 
 - [ ] Scroll Basics → People & Roles → Job order · Quotes & order approval → GST → Activate (no Plan · Monthly section)
@@ -64,6 +76,12 @@ Setup smoke (Figma v6 parity):
 - [ ] CTA is **Activate Moment**; secondary **Save draft** works
 - [ ] Budget/target/channels live under Business Basics; invalid GSTIN highlights `gstin`
 - [ ] Discard draft removes DRAFT moment
+
+### Hero logo + live title (all 9 setups)
+- [ ] Changing Business Basics primary name updates hero title immediately to `{name} Setup`
+- [ ] Clearing the name restores the Figma placeholder hero title
+- [ ] Tapping hero logo opens image picker; after successful upload the circle shows the logo (not buildings/`▣`)
+- [ ] Save draft persists `logoMediaId`; reopen still has logo when URL/preview available
 
 ### Retail Store (`5:80797`) — five sections (no Catalogue/Network)
 

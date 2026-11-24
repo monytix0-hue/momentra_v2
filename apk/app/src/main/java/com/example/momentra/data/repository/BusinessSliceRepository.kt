@@ -6,6 +6,7 @@ import com.example.momentra.data.api.DecideOperatingEventBody
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.data.api.OperatingLineBody
 import com.example.momentra.data.api.OperatingMasterBody
+import com.example.momentra.data.api.OperatingContractBody
 import com.example.momentra.data.api.RecordOperatingEventBody
 import com.example.momentra.data.api.BusinessFacetDto
 import com.example.momentra.data.api.BusinessFinancePayloadDto
@@ -28,6 +29,7 @@ import com.example.momentra.data.api.BusinessRevenueListDto
 import com.example.momentra.data.api.CreateBusinessExpenseBody
 import com.example.momentra.data.api.CreateBusinessExpenseResultDto
 import com.example.momentra.data.api.ExpenseAttachmentDto
+import com.example.momentra.data.api.CompanyLogoUploadResult
 import com.example.momentra.data.api.MediaUploadCompleteBody
 import com.example.momentra.data.api.MediaUploadIntentBody
 import kotlinx.coroutines.Dispatchers
@@ -120,6 +122,23 @@ class BusinessSliceRepository(
         ).data
     }.recoverCatching { e -> throw mapError(e) }
 
+    /** Callers: OperatingMomentScreens — GET /widgets. Server coverage only; no client totals. */
+    suspend fun getWidgets(
+        momentId: String,
+        period: String? = null,
+        from: String? = null,
+        to: String? = null,
+    ): Result<com.example.momentra.data.api.WidgetsProjectionDto> = runCatching {
+        api.getBusinessMomentWidgets(momentId, period, from, to).data
+    }.recoverCatching { e -> throw mapError(e) }
+
+    suspend fun getWidgetSources(
+        momentId: String,
+        widgetId: String,
+    ): Result<com.example.momentra.data.api.WidgetSourcesDto> = runCatching {
+        api.getBusinessMomentWidgetSources(momentId, widgetId).data
+    }.recoverCatching { e -> throw mapError(e) }
+
     suspend fun recordOperatingEvent(
         momentId: String,
         eventType: String,
@@ -163,7 +182,7 @@ class BusinessSliceRepository(
             note = note,
             counterpartyName = counterpartyName,
             channelName = channelName,
-            paymentStatus = paymentStatus,
+            paymentStatus = normalizeOperatingPaymentStatus(paymentStatus),
             occurredAt = occurredAt,
             parentEventId = parentEventId,
             quantity = quantity,
@@ -171,12 +190,12 @@ class BusinessSliceRepository(
             lines = lines,
             master = master,
             dueAt = dueAt,
-            contract = contract,
+            contract = normalizeOperatingContract(contract),
             reportingMode = reportingMode,
             metricCode = metricCode,
             budgetCategory = budgetCategory,
             paymentState = paymentState,
-            activityStatus = activityStatus,
+            activityStatus = normalizeOperatingActivityStatus(activityStatus),
             attributedSales = attributedSales,
             revisionKind = revisionKind,
             rejectedQuantity = rejectedQuantity,
@@ -190,10 +209,13 @@ class BusinessSliceRepository(
             periodEnd = periodEnd,
             supersedesEventId = supersedesEventId,
         )
+        // Callers: TypedOperatingQuickAddForm — reuse client idempotencyKey for retries.
+        // User: "Use idempotency keys for submission and retries."
+        val key = idempotencyKey?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString()
         if (revisesEventId.isNullOrBlank()) {
-            api.recordOperatingEvent(momentId, UUID.randomUUID().toString(), body)
+            api.recordOperatingEvent(momentId, key, body)
         } else {
-            api.reviseOperatingEvent(momentId, revisesEventId, UUID.randomUUID().toString(), body)
+            api.reviseOperatingEvent(momentId, revisesEventId, key, body)
         }
         Unit
     }.recoverCatching { e -> throw mapError(e) }
@@ -428,13 +450,17 @@ class BusinessSliceRepository(
         intent.uploadId
     }.recoverCatching { e -> throw mapError(e) }
 
-    /** Upload a company logo and return the completed media id. */
+    /**
+     * Upload a company logo via existing media pipeline.
+     * Callers: MomentCreateViewModel.uploadSetupLogo (BusinessSetupShell).
+     * Returns mediaId + optional downloadUrl from complete.
+     */
     suspend fun uploadCompanyLogo(
         companyId: String,
         bytes: ByteArray,
         contentType: String = "image/jpeg",
         idempotencyKey: String = UUID.randomUUID().toString(),
-    ): Result<String> = runCatching {
+    ): Result<CompanyLogoUploadResult> = runCatching {
         val intent = api.createMediaUploadIntent(
             idempotencyKey = idempotencyKey,
             body = MediaUploadIntentBody(
@@ -455,11 +481,15 @@ class BusinessSliceRepository(
             client.newCall(putReq).execute().use { it.isSuccessful }
         }
         if (!putOk) error("Failed to upload media bytes to storage")
-        api.completeMediaUpload(
+        val completed = api.completeMediaUpload(
             uploadId = intent.uploadId,
             idempotencyKey = UUID.randomUUID().toString(),
             body = MediaUploadCompleteBody(storageKey = storageKey),
-        ).data.mediaId
+        ).data
+        CompanyLogoUploadResult(
+            mediaId = completed.mediaId,
+            downloadUrl = completed.downloadUrl,
+        )
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun createRevenue(
@@ -794,5 +824,114 @@ class BusinessSliceRepository(
         }
         is IOException -> com.example.momentra.data.api.ApiResultException.Network(cause = e)
         else -> e
+    }
+}
+
+/** Wire: NONE|PENDING|READY|PAID|COLLECTED — map legacy capture tokens. */
+private fun normalizeOperatingPaymentStatus(raw: String?): String? {
+    if (raw.isNullOrBlank()) return raw
+    return when (raw.trim().uppercase()) {
+        "OPEN", "UNPAID", "DUE", "OWED", "PAY_LATER" -> "PENDING"
+        "PARTIAL", "PART", "PART_PAID", "PARTIALLY_PAID" -> "PENDING"
+        "SETTLED", "COMPLETE", "COMPLETED" -> "PAID"
+        "RECEIVED" -> "COLLECTED"
+        else -> raw.trim().uppercase()
+    }
+}
+
+/** Wire: OPEN|DONE|IN_PROGRESS|BLOCKED|POSTPONED|COMPLETED|CANCELLED. */
+private fun normalizeOperatingActivityStatus(raw: String?): String? {
+    if (raw.isNullOrBlank()) return raw
+    return when (raw.trim().uppercase()) {
+        "PICKING", "READY_TO_PICK", "READY", "DISPATCHED", "FULFILLED", "ACTIVE", "PLANNED" -> "IN_PROGRESS"
+        "DONE", "COMPLETE", "FULFIL" -> "COMPLETED"
+        "HOLD", "ON_HOLD", "HELD" -> "BLOCKED"
+        else -> raw.trim().uppercase()
+    }
+}
+
+private fun normalizeOperatingContract(
+    contract: OperatingContractBody?,
+): OperatingContractBody? {
+    if (contract == null) return null
+    return contract.copy(
+        goodsStatus = normalizeGoodsStatus(contract.goodsStatus),
+        orderStatus = normalizeOrderStatus(contract.orderStatus),
+        shipmentStatus = normalizeShipmentStatus(contract.shipmentStatus),
+        receiptState = normalizeReceiptState(contract.receiptState),
+        deliveryStatus = normalizeDeliveryStatus(contract.deliveryStatus),
+        holdStatus = normalizeHoldStatus(contract.holdStatus),
+    )
+}
+
+/** Wire: DELIVERED|PARTIAL|LATER. */
+private fun normalizeGoodsStatus(raw: String?): String? {
+    if (raw.isNullOrBlank()) return raw
+    return when (raw.trim().uppercase()) {
+        "RECEIVED", "FULL", "FULLY_DELIVERED", "COMPLETE", "COMPLETED" -> "DELIVERED"
+        "PART", "PART_RECEIVED", "PARTIALLY_DELIVERED" -> "PARTIAL"
+        "AWAITING", "PENDING", "NOT_YET", "LATER" -> "LATER"
+        "DRAFT" -> "LATER"
+        else -> raw.trim().uppercase()
+    }
+}
+
+/** Wire: PLACED|PREPARING|READY|COMPLETED|CANCELLED. */
+private fun normalizeOrderStatus(raw: String?): String? {
+    if (raw.isNullOrBlank()) return raw
+    return when (raw.trim().uppercase()) {
+        "OPEN", "SENT", "CONFIRMED", "DRAFT", "PLACED", "BOOKED" -> "PLACED"
+        "PARTIAL", "PICKING", "READY_TO_PICK", "IN_PROGRESS", "PREPARING" -> "PREPARING"
+        "ON_HOLD", "HOLD", "HELD" -> "PLACED"
+        "DISPATCHED", "FULFILLED", "DONE", "COMPLETE", "FULFIL" -> "COMPLETED"
+        "READY" -> "READY"
+        "CANCELLED", "CANCELED" -> "CANCELLED"
+        else -> raw.trim().uppercase()
+    }
+}
+
+/** Wire: PLACED|IN_TRANSIT|DELIVERED|CANCELLED. */
+private fun normalizeShipmentStatus(raw: String?): String? {
+    if (raw.isNullOrBlank()) return raw
+    return when (raw.trim().uppercase()) {
+        "PICKING", "READY_TO_PICK", "READY", "PLACED", "OPEN", "DRAFT" -> "PLACED"
+        "DISPATCHED", "IN_TRANSIT", "SHIPPED" -> "IN_TRANSIT"
+        "FULFILLED", "FULFIL", "DELIVERED", "DONE", "COMPLETE", "COMPLETED" -> "DELIVERED"
+        "CANCELLED", "CANCELED" -> "CANCELLED"
+        else -> raw.trim().uppercase()
+    }
+}
+
+/** Wire: RECEIVED|PART_RECEIVED|AWAITING. */
+private fun normalizeReceiptState(raw: String?): String? {
+    if (raw.isNullOrBlank()) return raw
+    return when (raw.trim().uppercase()) {
+        "PARTIAL", "PART" -> "PART_RECEIVED"
+        "PENDING", "LATER", "OPEN" -> "AWAITING"
+        else -> raw.trim().uppercase()
+    }
+}
+
+/** Wire: PLANNED|DISPATCHED|DELIVERED|ACCEPTED|RETURNED. */
+private fun normalizeDeliveryStatus(raw: String?): String? {
+    if (raw.isNullOrBlank()) return raw
+    val token = raw.trim().uppercase()
+    return when {
+        token in setOf("PLANNED", "DISPATCHED", "DELIVERED", "ACCEPTED", "RETURNED") -> token
+        token in setOf("PICKING", "READY_TO_PICK", "READY", "OPEN", "DRAFT") -> "PLANNED"
+        token in setOf("IN_TRANSIT", "SHIPPED") -> "DISPATCHED"
+        token in setOf("FULFILLED", "FULFIL", "DONE", "COMPLETE", "COMPLETED") -> "DELIVERED"
+        // Free-form mode chips (e.g. "Floor run") are not wire tokens — drop them.
+        else -> null
+    }
+}
+
+/** Wire: NONE|HELD|RELEASED. */
+private fun normalizeHoldStatus(raw: String?): String? {
+    if (raw.isNullOrBlank()) return raw
+    return when (raw.trim().uppercase()) {
+        "ON_HOLD", "HOLD", "HELD", "TRUE" -> "HELD"
+        "RELEASE", "RELEASED", "OPEN" -> "RELEASED"
+        else -> raw.trim().uppercase()
     }
 }

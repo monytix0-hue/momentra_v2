@@ -74,7 +74,7 @@ function num(value: string | number | null | undefined): number {
 }
 
 function money(value: number): string {
-  return value.toFixed(4);
+  return value.toFixed(2);
 }
 
 function fail(message: string): { ok: false; message: string } {
@@ -543,6 +543,13 @@ export function manufacturingStock(events: ManufacturingEvent[]): ManufacturingS
       const accepted = explicitAccepted(row);
       if (accepted != null && accepted > 0 && named(row.title)) {
         touch(row.title, row.unit ?? null, 'FINISHED').onHand += accepted;
+      }
+      const bom = (row.contract as { bomLines?: Array<{ itemName?: string; quantity?: string; unit?: string }> }).bomLines ?? [];
+      for (const line of bom) {
+        const name = String(line.itemName ?? '').trim();
+        const take = num(line.quantity);
+        if (!name || !(take > 0)) continue;
+        touch(name, line.unit ?? null, 'MATERIAL').onHand -= take;
       }
     }
     if (row.eventType === 'RETURN' && row.contract?.goodsOutcome === 'TO_STOCK') {

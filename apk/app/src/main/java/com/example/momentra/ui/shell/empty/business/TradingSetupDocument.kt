@@ -611,7 +611,7 @@ private fun SetupKindCard(state: SetupDocState, theme: SetupDocTheme) {
 private fun Section01(state: SetupDocState, theme: SetupDocTheme, onPicker: (SetupPickerTarget) -> Unit) {
     SetupPanel("Identity", theme) {
         SetupField(
-            label = "Business name",
+            label = "Brand name",
             value = state.businessName,
             theme = theme,
             placeholder = "Northstar Trading",

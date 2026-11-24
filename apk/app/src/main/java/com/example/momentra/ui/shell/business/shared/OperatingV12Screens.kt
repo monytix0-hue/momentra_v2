@@ -89,7 +89,7 @@ private fun attentionCard(
 ) {
     val group = model.pulseGroup("ATTENTION")
     val items = model.attention.take(5)
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
+    OperatingV12Card(theme = theme, fill = theme.surface) {
         OperatingV12WidgetHeader(
             title = "Needs Attention",
             subtitle = "Severity then due · goods and money are separate axes",
@@ -161,7 +161,7 @@ private fun targetCard(
     val amountNumber = OperatingV12Money.number(budget?.amount) ?: 0.0
     val usedPct = if (amountNumber > 0) ((spentNumber / amountNumber) * 100).roundToInt() else null
 
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
+    OperatingV12Card(theme = theme, fill = theme.surface) {
         OperatingV12WidgetHeader(
             title = "Target & Budget",
             subtitle = "Period · $period · as-of effective plan",
@@ -249,7 +249,7 @@ private fun paymentCard(
     val overdueAp = payable.filter { it.dueBucket.equals("OVERDUE", ignoreCase = true) }
         .mapNotNull { OperatingV12Money.number(it.amount) }.sum()
 
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
+    OperatingV12Card(theme = theme, fill = theme.surface) {
         OperatingV12WidgetHeader(
             title = "Payment Readiness",
             subtitle = "Invoice totals include GST · dues with due dates",
@@ -288,7 +288,7 @@ private fun financeCard(
     onViewAll: (String) -> Unit,
 ) {
     val metrics = model.pulseGroup("FINANCE")?.metrics.orEmpty()
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
+    OperatingV12Card(theme = theme, fill = theme.surface) {
         OperatingV12WidgetHeader(
             title = "Finance",
             subtitle = "Flows by event date · balances as-of end",
@@ -318,7 +318,7 @@ private fun activityCard(
 ) {
     val group = model.pulseGroup("ACTIVITY")
     val rows = model.activity.take(4)
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
+    OperatingV12Card(theme = theme, fill = theme.surface) {
         OperatingV12WidgetHeader(
             title = "Activity",
             subtitle = "Today · posted events only",
@@ -377,7 +377,7 @@ private fun gstCard(
     val gst = model.gstPosition
     val difference = OperatingV12Money.number(gst?.difference) ?: 0.0
     val differenceText = OperatingV12Money.amount(gst?.difference, currency)
-    OperatingV12Card(theme = theme, fill = OperatingV12.pulseSurface) {
+    OperatingV12Card(theme = theme, fill = theme.surface) {
         OperatingV12WidgetHeader(
             title = "GST Position",
             subtitle = "Current month · As of ${OperatingV12Date.monthDayYear(model.endDate) ?: OperatingV12Date.today()} · GST enabled",
@@ -711,7 +711,8 @@ private fun sectionCard(
         if (label == null) metric else metric.copy(label = label)
     }
     val rows = section?.rows.orEmpty().take(3)
-    OperatingV12Card(theme = theme) {
+    val cardFill = if (theme.isTrading) theme.surface else OperatingV12.surface
+    OperatingV12Card(theme = theme, fill = cardFill) {
         OperatingV12WidgetHeader(title = title, subtitle = subtitle, onViewAll = { onViewAll(code) })
         OperatingV12TileGrid(theme = theme, metrics = metrics, columns = if (metrics.size == 2) 2 else columns, currency = model.currency)
         if (rows.isEmpty()) {

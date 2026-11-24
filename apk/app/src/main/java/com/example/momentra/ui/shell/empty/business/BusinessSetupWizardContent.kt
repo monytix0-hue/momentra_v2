@@ -1099,31 +1099,8 @@ private fun StepButton(label: String, color: Color, tag: String? = null, onClick
     )
 }
 
-internal fun plainAmount(raw: String): String = buildString {
-    var dot = false
-    for (c in raw) {
-        if (c.isDigit()) append(c)
-        else if (c == '.' && !dot) {
-            append('.')
-            dot = true
-        }
-    }
-}
+internal fun plainAmount(raw: String): String =
+    com.example.momentra.ui.shell.business.setup.BusinessSetupAmountFormatting.plainAmount(raw)
 
-internal fun formatIndianAmount(raw: String): String {
-    val cleaned = plainAmount(raw)
-    if (cleaned.isEmpty()) return ""
-    val dot = cleaned.indexOf('.')
-    val intRaw = if (dot >= 0) cleaned.substring(0, dot) else cleaned
-    val frac = if (dot >= 0) cleaned.substring(dot).take(3) else ""
-    val digits = intRaw.trimStart('0').ifEmpty { if (intRaw.isNotEmpty() || frac.isNotEmpty()) "0" else "" }
-    if (digits.isEmpty()) return ""
-    return indianGroup(digits) + frac
-}
-
-private fun indianGroup(digits: String): String {
-    if (digits.length <= 3) return digits
-    val head = digits.dropLast(3)
-    val tail = digits.takeLast(3)
-    return head.reversed().chunked(2).joinToString(",").reversed() + "," + tail
-}
+internal fun formatIndianAmount(raw: String): String =
+    com.example.momentra.ui.shell.business.setup.BusinessSetupAmountFormatting.formatIndianAmount(raw)

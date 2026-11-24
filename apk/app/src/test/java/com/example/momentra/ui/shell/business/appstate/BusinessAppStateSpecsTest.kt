@@ -344,6 +344,11 @@ class BusinessAppStateSpecsTest {
             "Brightline · Campaign is live · opening Pulse",
             BusinessSetupActivateToastCopy.subtitle("Brightline", "CLIENT_CAMPAIGN"),
         )
+        assertEquals(
+            "Harbor & Loom · Campaign is live · opening Pulse",
+            BusinessSetupActivateToastCopy.subtitle("Harbor & Loom", "OWN_BUSINESS_CAMPAIGN"),
+        )
+        assertEquals("Moment activated", BusinessSetupActivateToastCopy.DEFAULT_TITLE)
     }
 
     @Test
@@ -355,7 +360,7 @@ class BusinessAppStateSpecsTest {
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("STANDARD_PRODUCTION"))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("MADE_TO_ORDER"))
         assertEquals(BusinessAppStateAccent.Indigo, BusinessAppStateAccent.forTypeCode("CLIENT_CAMPAIGN"))
-        assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("OWN_BUSINESS_CAMPAIGN"))
+        assertEquals(BusinessAppStateAccent.Magenta, BusinessAppStateAccent.forTypeCode("OWN_BUSINESS_CAMPAIGN"))
         assertEquals(BusinessAppStateAccent.Flame, BusinessAppStateAccent.forTypeCode("DISTRIBUTION_DEALERSHIP"))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode(null))
         assertEquals(BusinessAppStateAccent.Emerald, BusinessAppStateAccent.forTypeCode("SOMETHING_NEW"))
@@ -411,6 +416,8 @@ class BusinessAppStateSpecsTest {
                 BusinessAppStateAccent.Rose,
                 BusinessAppStateAccent.Flame,
                 BusinessAppStateAccent.Cyan,
+                BusinessAppStateAccent.Indigo,
+                BusinessAppStateAccent.Magenta,
             ),
             BusinessAppStateAccent.entries.toList(),
         )
@@ -419,6 +426,8 @@ class BusinessAppStateSpecsTest {
         assertEquals(0xFFF43F5E.toInt(), BusinessAppStateAccent.Rose.color.toArgb())
         assertEquals(0xFFEA580C.toInt(), BusinessAppStateAccent.Flame.color.toArgb())
         assertEquals(0xFF06B6D4.toInt(), BusinessAppStateAccent.Cyan.color.toArgb())
+        assertEquals(0xFF6366F1.toInt(), BusinessAppStateAccent.Indigo.color.toArgb())
+        assertEquals(0xFFD946EF.toInt(), BusinessAppStateAccent.Magenta.color.toArgb())
         BusinessAppStateAccent.entries.forEach { accent ->
             assertEquals("${accent.name} must be fully opaque", 1f, accent.color.alpha)
         }

@@ -7,6 +7,8 @@ import { assertGovernanceAllowed } from '../governance/resolver';
 import {
   assertActiveCompanyMember,
   assertCompanyMomentAccess,
+  assertCompanyFinanceVisible,
+  assertFinanceVisible,
   assertNotCompanyObserver,
   requireCompanyBoundMoment,
 } from './membership';
@@ -56,6 +58,7 @@ export async function createKhataParty(
   phone: string | null;
 }> {
   await assertActiveCompanyMember(client, ctx, companyId);
+  await assertCompanyFinanceVisible(client, ctx, companyId);
   await assertGovernanceAllowed(client, ctx, {
     actionCode: 'COMPANY_UPDATE',
     resourceType: 'VENDOR',
@@ -97,6 +100,7 @@ export async function createKhataEntry(
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
   requireCompanyBoundMoment(scope);
   assertNotCompanyObserver(scope.membershipType);
+  assertFinanceVisible(scope);
   await assertGovernanceAllowed(client, ctx, {
     actionCode: 'COMPANY_UPDATE',
     resourceType: 'VENDOR',
@@ -210,6 +214,7 @@ export async function listKhataParties(
   }>;
 }> {
   await assertActiveCompanyMember(client, ctx, companyId);
+  await assertCompanyFinanceVisible(client, ctx, companyId);
 
   const rows = await client.query<{
     vendor_id: string;
@@ -298,6 +303,7 @@ export async function listKhataPartyEntries(
   }>;
 }> {
   await assertActiveCompanyMember(client, ctx, companyId);
+  await assertCompanyFinanceVisible(client, ctx, companyId);
 
   const party = await client.query<{ name: string; status: string }>(
     `SELECT name, status FROM business.vendor

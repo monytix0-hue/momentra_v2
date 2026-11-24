@@ -450,8 +450,7 @@ export async function createPollCommand(
   );
   const domainCode = domain.rows[0]?.domain_code ?? 'GROUP';
   if (domainCode === 'BUSINESS') {
-    const { assertCompanyMomentAccess } = await import('../business/membership');
-    await assertCompanyMomentAccess(client, ctx, momentId);
+    /* Business V4: company moment access no-op */
   } else {
     await assertGroupMember(client, ctx, momentId);
   }
@@ -1013,8 +1012,7 @@ export async function votePollCommand(
     throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Poll not found', 404);
   }
   if (domain.rows[0]?.domain_code === 'BUSINESS') {
-    const { assertCompanyMomentAccess } = await import('../business/membership');
-    await assertCompanyMomentAccess(client, ctx, momentId);
+    /* Business V4: company moment access no-op */
   } else {
     await assertGroupMember(client, ctx, momentId);
   }
@@ -1034,8 +1032,7 @@ export async function closePollCommand(client: PoolClient, ctx: RequestContext, 
     throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Poll not found', 404);
   }
   if (domain.rows[0]?.domain_code === 'BUSINESS') {
-    const { assertCompanyMomentAccess } = await import('../business/membership');
-    await assertCompanyMomentAccess(client, ctx, momentId);
+    /* Business V4: company moment access no-op */
   } else {
     await assertGroupMember(client, ctx, momentId);
   }

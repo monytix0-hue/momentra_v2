@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">momentra</string>
+    <string name="shortcut_personal_short">Personal</string>
+    <string name="shortcut_personal_long">Open Personal Moments and Pulse</string>
+    <string name="shortcut_business_short">Business</string>
+    <string name="shortcut_business_long">Open Business Operations and Orders</string>
 </resources>

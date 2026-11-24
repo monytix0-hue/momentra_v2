@@ -57,7 +57,6 @@ struct AppShellView: View {
     @State private var showReferComingSoon = false
     @State private var pendingGroupJoin: PendingGroupJoin?
     @State private var pendingCompanyJoin: PendingCompanyJoin?
-    @State private var businessSetupOpen = false
     @State private var businessJoinOpen = false
     @State private var joinFeedbackMessage: String?
     @State private var habitRewardMessage: String?
@@ -603,18 +602,6 @@ struct AppShellView: View {
     @ViewBuilder
     private func attachBusinessAndSystemSheets<V: View>(to content: V) -> some View {
         content
-            .sheet(isPresented: $businessSetupOpen) {
-                CompanySetupFlowView(
-                    onClose: { businessSetupOpen = false },
-                    onActivated: { company in
-                        businessSetupOpen = false
-                        model.onCompanyCreated(company)
-                        if model.selectedContext != .business {
-                            model.selectContext(.business)
-                        }
-                    }
-                )
-            }
             .sheet(isPresented: $businessJoinOpen) {
                 NavigationStack {
                     VStack(spacing: 16) {
@@ -1253,7 +1240,7 @@ struct AppShellView: View {
                     groupMomentDirectoryOpen = true
                 }
             },
-            onCreateBusiness: { businessSetupOpen = true },
+            onCreateBusiness: { model.selectBottomDestination(.create) },
             onJoinCompany: { businessJoinOpen = true }
         )
     }
@@ -1343,7 +1330,7 @@ struct AppShellView: View {
                     status: outcome.status
                 )
             },
-            onCreateBusiness: { businessSetupOpen = true },
+            onCreateBusiness: { model.selectBottomDestination(.create) },
             onJoinCompany: { businessJoinOpen = true }
         )
     }

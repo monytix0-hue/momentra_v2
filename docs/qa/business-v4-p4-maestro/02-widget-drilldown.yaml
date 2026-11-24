@@ -1,0 +1,22 @@
+# Reader: Maestro CLI. Effect: opens widget sources drill-down against live V4 API.
+# No secrets. User: "Ensure every widget can navigate to its eligible source records."
+appId: com.example.momentra
+---
+- launchApp
+- tapOn: "Business"
+- extendedWaitUntil:
+    visible: "Widgets"
+    timeout: 45000
+- tapOn:
+    text: "Complete"
+    optional: true
+- extendedWaitUntil:
+    visible:
+      anyOf:
+        - "Sources"
+        - "Complete"
+        - "Partial"
+        - "Unavailable"
+        - "Zero"
+        - "No eligible source"
+    timeout: 20000

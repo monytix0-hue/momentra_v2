@@ -163,7 +163,7 @@ object OperatingSetupPayloadBuilder {
             }
         }
 
-        mapSalePriceIncludesGst(prefs["salePriceIncludesGst"])?.let {
+        mapSalePriceIncludesGst(prefs["salePriceIncludesGst"] ?: prefs["priceIncludesGst"])?.let {
             prefs["salePriceIncludesGst"] = it
         }
 
@@ -195,7 +195,10 @@ object OperatingSetupPayloadBuilder {
         val purpose = stringValue(prefs["campaignPurpose"]).ifEmpty { stringValue(prefs["offering"]) }
         if (purpose.isNotEmpty()) prefs["offering"] = purpose
 
-        mapMarketingTargetMetric(prefs["targetMetric"])?.let { prefs["targetMetric"] = it }
+        (mapManufacturingTargetMetric(prefs["targetMetric"])
+            ?: mapMarketingTargetMetric(prefs["targetMetric"])
+            ?: mapCommerceTargetMetric(prefs["targetMetric"]))
+            ?.let { prefs["targetMetric"] = it }
         if (positiveAmount(prefs["monthlyTarget"]) == null) {
             val target = firstNonEmpty(
                 prefs["monthlyTarget"],
@@ -402,6 +405,20 @@ object OperatingSetupPayloadBuilder {
         return if (upper in setOf("YES", "NO")) upper else null
     }
 
+    /** Figma Job-order / manufacturing target chips → closed metrics. */
+    fun mapManufacturingTargetMetric(value: Any?): String? {
+        val raw = stringValue(value)
+        if (raw.isEmpty()) return null
+        val lower = raw.lowercase()
+        return when {
+            "invoiced" in lower || "accepted job" in lower -> "REVENUE"
+            "production" in lower || "finished goods" in lower -> "PRODUCTION_OUTPUT"
+            "deliver" in lower -> "DELIVERY_COUNT"
+            lower == "orders" || lower == "order" -> "ORDERS"
+            else -> null
+        }
+    }
+
     /** Soft Channels status copy — informational, never blocks activate for retail. */
     fun planStatusMessage(preferences: Map<String, Any>): Pair<Boolean, String> {
         val budgetOk = positiveAmount(preferences["monthlyBudget"]) != null
@@ -435,12 +452,26 @@ object OperatingSetupPayloadBuilder {
         return when (raw.lowercase()) {
             "leads" -> "LEADS"
             "reach" -> "REACH"
-            "clicks" -> "ENGAGEMENT"
-            "sales" -> "REVENUE"
+            "clicks", "engagements" -> "ENGAGEMENT"
+            "sales", "attributed sales" -> "REVENUE"
+            "client billing" -> "CLIENT_BILLING"
+            "custom", "count" -> "CUSTOM_COUNT"
             else -> {
                 val code = raw.uppercase().replace(" ", "_")
                 code.ifEmpty { null }
             }
+        }
+    }
+
+    /** Trading / retail / restaurant / service chip labels → closed metrics. */
+    fun mapCommerceTargetMetric(value: Any?): String? {
+        val raw = stringValue(value)
+        if (raw.isEmpty()) return null
+        return when (raw.lowercase()) {
+            "revenue" -> "REVENUE"
+            "orders", "order" -> "ORDERS"
+            "count", "custom", "appointments", "appointment" -> "CUSTOM_COUNT"
+            else -> null
         }
     }
 
@@ -455,8 +486,7 @@ object OperatingSetupPayloadBuilder {
                 "CONSUMER_SERVICE" -> "serviceName"
                 "RETAIL_STORE" -> "storeName"
                 "RESTAURANT_FOOD" -> "outletName"
-                "STANDARD_PRODUCTION" -> "plantName"
-                "MADE_TO_ORDER" -> "shopName"
+                "STANDARD_PRODUCTION", "MADE_TO_ORDER" -> "businessName"
                 "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN" -> "campaignName"
                 else -> "businessName"
             }
@@ -485,13 +515,17 @@ object OperatingSetupPayloadBuilder {
                 errors["monthlyTarget"] = "Monthly target must be a positive amount."
             }
         }
-        if (subtype in retailChannelsRequired && channels.isEmpty()) {
+        val manufacturingSubtypes = setOf("STANDARD_PRODUCTION", "MADE_TO_ORDER")
+        if ((subtype in retailChannelsRequired || subtype in manufacturingSubtypes) && channels.isEmpty()) {
             errors["channels"] = "Select at least one channel."
         }
         val tracking = stringValue(prefs["gstTracking"])
         val gstin = stringValue(prefs["gstin"])
-        if (tracking == "YES" && gstin.isNotEmpty() && !isValidGstin(gstin)) {
-            errors["gstin"] = "Enter a valid 15-digit GSTIN."
+        if (tracking == "YES") {
+            when {
+                gstin.isEmpty() -> errors["gstin"] = "GSTIN is required when GST tracking is on."
+                !isValidGstin(gstin) -> errors["gstin"] = "Enter a valid 15-digit GSTIN."
+            }
         }
         return errors
     }
@@ -527,5 +561,35 @@ object OperatingSetupPayloadBuilder {
         is String -> value.trim()
         is Number -> value.toString()
         else -> value.toString().trim()
+    }
+}
+
+/**
+ * Prefers an already-linked company over creating a second one during HeroCard logo upload.
+ * Callers: MomentCreateViewModel.uploadSetupLogo, BusinessSetupShell DRAFT ensure.
+ * [resolveForUpload] is the decision uploadSetupLogo uses before ensureSetupCompany.
+ * Strings only — no data files. User: Dual company + round-2 unit coverage for resolve+create.
+ */
+sealed class SetupLogoCompanyDecision {
+    data class UseExisting(val companyId: String) : SetupLogoCompanyDecision()
+    data object WouldCreate : SetupLogoCompanyDecision()
+}
+
+object SetupLogoCompanyResolver {
+    fun preferExisting(passedCompanyId: String?, momentLinkedCompanyId: String?): String? =
+        passedCompanyId?.takeIf { it.isNotBlank() }
+            ?: momentLinkedCompanyId?.takeIf { it.isNotBlank() }
+
+    /** Resolve+create decision used by uploadSetupLogo (passed → linked → WouldCreate). */
+    fun resolveForUpload(
+        passedCompanyId: String?,
+        momentLinkedCompanyId: String?,
+    ): SetupLogoCompanyDecision {
+        val existing = preferExisting(passedCompanyId, momentLinkedCompanyId)
+        return if (existing != null) {
+            SetupLogoCompanyDecision.UseExisting(existing)
+        } else {
+            SetupLogoCompanyDecision.WouldCreate
+        }
     }
 }

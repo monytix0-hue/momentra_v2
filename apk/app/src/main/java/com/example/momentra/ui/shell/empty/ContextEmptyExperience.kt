@@ -56,15 +56,9 @@ import com.example.momentra.ui.shell.empty.personal.PersonalMemoryEmptyContent
 import com.example.momentra.ui.shell.empty.personal.PersonalMomentsEmptyContent
 import com.example.momentra.ui.shell.empty.personal.PersonalPulseEmptyContent
 import com.example.momentra.ui.shell.personal.experience.PersonalExperienceHost
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateBody
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateHubBody
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStatePhase
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateScreen
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateSpecs
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateVertical
 import com.example.momentra.ui.shell.circle.CircleComingSoonContent
-import com.example.momentra.ui.theme.ShellTokens
+import com.example.momentra.domain.ShellContentState
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateHost
 
 @Composable
 fun ContextEmptyExperience(
@@ -81,9 +75,9 @@ fun ContextEmptyExperience(
     onCompanyActivated: (com.example.momentra.domain.CompanySummary) -> Unit = {},
     onMomentCreated: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
     onJoinGroupCode: (String) -> Unit = {},
-    /** Opens the business company-creation flow (NoCompany setup state). */
+    /** Opens CREATE → guided business selection → setup shell (NoCompany). */
     onCreateBusiness: () -> Unit = {},
-    /** Opens the company join-code sheet (NoCompany setup state). */
+    /** Unused — company join sheet removed; kept for call-site compatibility. */
     onJoinCompany: () -> Unit = {},
     /** Moves the shell to another bottom destination (kit "Back to Pulse" CTAs). */
     onSelectDestination: (BottomDestination) -> Unit = {},
@@ -95,9 +89,7 @@ fun ContextEmptyExperience(
     onOpenCompletedMoments: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    val accent = ShellTokens.contextSelectedColor(context)
     val history = recentHistoryMoments(moments)
-    val first = experience == MomentExperienceKind.FIRST_MOMENT
     val between = experience == MomentExperienceKind.BETWEEN_MOMENTS ||
         experience == MomentExperienceKind.PAUSED_ONLY
 
@@ -124,20 +116,21 @@ fun ContextEmptyExperience(
             modifier = modifier,
         )
 
-        AppContext.BUSINESS -> BusinessEmpty(
+        AppContext.BUSINESS -> BusinessAppStateHost(
             destination = destination,
-            first = first,
-            history = history,
+            content = ShellContentState.Empty,
             hasCompany = hasCompany,
-            companyId = companyId,
             momentTypeCode = momentTypeCode,
-            onCreateMoment = onCreateMoment,
-            onCreateBack = onCreateBack,
-            onCompanyActivated = onCompanyActivated,
-            onMomentCreated = onMomentCreated,
-            onCreateBusiness = onCreateBusiness,
+            onRetry = {},
+            onPrimary = onCreateMoment,
+            onSecondary = { onSelectDestination(BottomDestination.CREATE) },
+            onCreateBusiness = { onSelectDestination(BottomDestination.CREATE) },
             onJoinCompany = onJoinCompany,
-            onSelectDestination = onSelectDestination,
+            onOpenQuickAdds = { onSelectDestination(BottomDestination.CREATE) },
+            onBackToPulse = { onSelectDestination(BottomDestination.PULSE) },
+            onCreateBack = onCreateBack,
+            companyId = companyId,
+            onMomentCreated = onMomentCreated,
             modifier = modifier,
         )
 
@@ -329,76 +322,3 @@ private fun GroupBetweenEmpty(
 
 
 
-@Composable
-
-private fun BusinessEmpty(
-    destination: BottomDestination,
-    first: Boolean,
-    history: List<MomentSummary>,
-    hasCompany: Boolean,
-    companyId: String? = null,
-    momentTypeCode: String? = null,
-    onCreateMoment: () -> Unit,
-    onCreateBack: () -> Unit,
-    onCompanyActivated: (com.example.momentra.domain.CompanySummary) -> Unit = {},
-    onMomentCreated: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
-    onCreateBusiness: () -> Unit = {},
-    onJoinCompany: () -> Unit = {},
-    onSelectDestination: (BottomDestination) -> Unit = {},
-    createViewModel: MomentCreateViewModel = viewModel(),
-    modifier: Modifier,
-) {
-    val accent = BusinessAppStateAccent.forTypeCode(momentTypeCode)
-    val vertical = BusinessAppStateVertical.forTypeCode(momentTypeCode)
-
-    // No business yet: Pulse, Moments, Life and Memory all need a company first.
-    if (!hasCompany) {
-        BusinessAppStateBody(
-            spec = BusinessAppStateSpecs.spec(
-                BusinessAppStateScreen.NoCompany,
-                BusinessAppStatePhase.Setup,
-            ),
-            accent = accent,
-            onPrimary = onCreateBusiness,
-            onSecondary = onJoinCompany,
-            modifier = modifier,
-        )
-        return
-    }
-
-    // Quick adds renders the Hub capture grid rather than a ring-and-rows body.
-    if (destination == BottomDestination.CREATE) {
-        BusinessAppStateHubBody(
-            accent = accent,
-            vertical = vertical,
-            onPrimary = onCreateMoment,
-            onSecondary = onCreateMoment,
-            onBackToPulse = { onSelectDestination(BottomDestination.PULSE) },
-            modifier = modifier,
-        )
-        return
-    }
-
-    // Every remaining business destination uses the shared App States kit, so the
-    // empty screen matches the same Figma frame family on both platforms.
-    BusinessAppStateBody(
-        spec = BusinessAppStateSpecs.spec(
-            businessAppStateScreen(destination),
-            BusinessAppStatePhase.Empty,
-        ),
-        accent = accent,
-        onPrimary = onCreateMoment,
-        onSecondary = onCreateMoment,
-        modifier = modifier,
-    )
-}
-
-/** Maps the shell's bottom destination onto the kit's screen family. */
-private fun businessAppStateScreen(destination: BottomDestination): BusinessAppStateScreen =
-    when (destination) {
-        BottomDestination.PULSE -> BusinessAppStateScreen.Pulse
-        BottomDestination.MOMENTS -> BusinessAppStateScreen.Moments
-        BottomDestination.LIFE -> BusinessAppStateScreen.Life
-        BottomDestination.MEMORY -> BusinessAppStateScreen.Memory
-        BottomDestination.CREATE -> BusinessAppStateScreen.Hub
-    }

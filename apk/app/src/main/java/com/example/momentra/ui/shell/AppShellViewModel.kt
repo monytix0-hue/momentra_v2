@@ -31,6 +31,8 @@ import com.example.momentra.ui.shell.perf.ShellPerf
 import com.example.momentra.ui.shell.personal.shared.PersonalTabDataCache
 import com.example.momentra.ui.shell.personal.shared.loadPersonalPulseTab
 import com.example.momentra.ui.shell.personal.shared.resolvePreferredPersonalMoment
+import com.example.momentra.ui.shell.business.appstate.BusinessSetupActivatedToast
+import com.example.momentra.ui.shell.business.appstate.BusinessSetupActivateToastCopy
 import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
 import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
 import com.example.momentra.ui.shell.business.shared.businessRefreshPrefetchesPulse
@@ -91,6 +93,8 @@ data class AppShellUiState(
     val ttcsMs: Long? = null,
     /** Shown while the shell is on cached data or quick adds are waiting to sync. */
     val offlineNotice: String? = null,
+    /** Business activate Operating toaster (Figma animated ✓ → Pulse). */
+    val businessSuccessToast: BusinessSetupActivatedToast? = null,
 )
 
 enum class BootstrapStatus { IDLE, CACHED, REFRESHING, READY, ERROR }
@@ -880,6 +884,17 @@ class AppShellViewModel(
         if (ctx == AppContext.PERSONAL) {
             preferredPersonalMomentId = momentId
         }
+        val resolvedType = (momentTypeCode ?: _state.value.selectedMomentTypeCode)
+            ?.trim()
+            ?.uppercase()
+        val activateToast = if (ctx == AppContext.BUSINESS && status.equals("ACTIVE", ignoreCase = true)) {
+            BusinessSetupActivatedToast(
+                title = BusinessSetupActivateToastCopy.DEFAULT_TITLE,
+                subtitle = BusinessSetupActivateToastCopy.subtitle(title, resolvedType),
+            )
+        } else {
+            null
+        }
         _state.update {
             val existingIdx = it.moments.indexOfFirst { m -> m.momentId == momentId }
             val updatedMoments = if (existingIdx >= 0) {
@@ -909,6 +924,7 @@ class AppShellViewModel(
                 selectedMomentByContext = it.selectedMomentByContext + (ctx to momentId),
                 moments = updatedMoments,
                 groupMomentDirectoryHome = false,
+                businessSuccessToast = activateToast ?: it.businessSuccessToast,
             )
         }
         reloadCurrentContext(preserveMomentId = momentId)
@@ -917,6 +933,10 @@ class AppShellViewModel(
             AppContext.BUSINESS -> refreshVisibleBusinessTab()
             else -> Unit
         }
+    }
+
+    fun clearBusinessSuccessToast() {
+        _state.update { it.copy(businessSuccessToast = null) }
     }
 
     fun redeemGroupInvite(

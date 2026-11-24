@@ -1,4 +1,5 @@
 import Foundation
+import ActivityKit
 
 enum OfflineReplay {
     case synced(String?)
@@ -25,23 +26,29 @@ struct OfflineCommand: Codable {
 final class OfflineOutbox {
     static let shared = OfflineOutbox()
     static let localId = "offline"
+    static let appGroupId = "group.resolvingpoint.momentra"
 
     private let lock = NSLock()
     private var userId: String?
     private var lastQueuedCommandId: String?
     private var bootstrapRefresh = false
+    private var didMigrateLegacyStorage = false
     var onChanged: (() -> Void)?
 
     private init() {}
 
     func bindUser(_ userId: String) {
         guard !userId.isEmpty else { return }
+        migrateLegacyStorageIfNeeded()
         lock.lock()
+        if self.userId != userId {
+            lastQueuedCommandId = nil
+            bootstrapRefresh = false
+        }
         self.userId = userId
         lock.unlock()
     }
 
-    /// Last successful member list for a moment, used when the network read fails.
     func saveRoster(momentId: String, participants: [APIClient.GroupParticipantPayload]) {
         lock.lock()
         defer { lock.unlock() }
@@ -49,6 +56,17 @@ final class OfflineOutbox {
         var map = loadRoster(userId)
         map[momentId] = participants
         saveRoster(userId, map)
+        // Mirror Business roster publishing: keep the Group widget snapshot in sync.
+        let snapshot = GroupRosterWidgetSnapshot(
+            members: participants.map {
+                GroupRosterWidgetSnapshot.RosterMember(
+                    displayName: $0.displayName,
+                    membershipType: $0.roleLabel ?? $0.roleCode
+                )
+            },
+            updatedAt: Date().timeIntervalSince1970
+        )
+        WidgetSnapshotManager.writeGroupRoster(momentId: momentId, payload: snapshot)
     }
 
     func roster(momentId: String) -> [APIClient.GroupParticipantPayload]? {
@@ -56,6 +74,22 @@ final class OfflineOutbox {
         defer { lock.unlock() }
         guard let userId else { return nil }
         return loadRoster(userId)[momentId]
+    }
+
+    func purge(userId: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        let queued = load(userId)
+        for command in queued {
+            deleteMedia(command.fileName)
+        }
+        if let url = file(userId) { try? FileManager.default.removeItem(at: url) }
+        if let url = rosterFile(userId) { try? FileManager.default.removeItem(at: url) }
+        if self.userId == userId {
+            self.userId = nil
+            lastQueuedCommandId = nil
+            bootstrapRefresh = false
+        }
     }
 
     func enqueue(
@@ -96,7 +130,6 @@ final class OfflineOutbox {
         DispatchQueue.main.async { changed?() }
     }
 
-    /// Store photo bytes and attach them after the parent command syncs when the resource id is still local.
     func enqueueMedia(
         attachPath: String,
         momentId: String,
@@ -110,8 +143,7 @@ final class OfflineOutbox {
         guard let userId else { return }
         let id = UUID().uuidString
         guard let url = mediaURL(id) else { return }
-        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? bytes.write(to: url, options: .atomic)
+        writeProtected(bytes, to: url)
         let body: [String: Any] = [
             "contentType": contentType,
             "byteSize": bytes.count,
@@ -167,6 +199,10 @@ final class OfflineOutbox {
         let uid = pending.uid
         let snapshot = pending.items
 
+        if #available(iOS 16.1, *) {
+            await FlushLiveActivity.shared.start(total: snapshot.count)
+        }
+
         var synced = 0
         var remaining: [OfflineCommand] = []
         var deferred: [OfflineCommand] = []
@@ -175,11 +211,15 @@ final class OfflineOutbox {
         var stop = false
         var needsBootstrap = false
 
-        for item in snapshot {
+        for (index, item) in snapshot.enumerated() {
             if stop {
                 remaining.append(item)
                 outcomes[item.id] = item.status == "failed" ? "failed" : "stopped"
                 continue
+            }
+            if #available(iOS 16.1, *) {
+                let desc = item.fileName != nil ? "Photo #\(index + 1)" : "Command #\(index + 1)"
+                await FlushLiveActivity.shared.update(synced: synced, remaining: snapshot.count - synced, current: desc)
             }
             let step = await step(item, allowDefer: true, createdIds: createdIds, outcomes: outcomes, all: snapshot)
             apply(
@@ -195,10 +235,13 @@ final class OfflineOutbox {
         }
         let waiting = deferred
         deferred = []
-        for item in waiting {
+        for (index, item) in waiting.enumerated() {
             if stop {
                 remaining.append(item)
                 continue
+            }
+            if #available(iOS 16.1, *) {
+                await FlushLiveActivity.shared.update(synced: synced, remaining: remaining.count + waiting.count - index, current: "Retry #\(index + 1)")
             }
             let step = await step(item, allowDefer: false, createdIds: createdIds, outcomes: outcomes, all: snapshot)
             apply(
@@ -213,11 +256,14 @@ final class OfflineOutbox {
             )
         }
 
-        commitFlush(uid: uid, remaining: remaining, needsBootstrap: needsBootstrap)
+        commitFlush(uid: uid, snapshot: snapshot, remaining: remaining, needsBootstrap: needsBootstrap)
+
+        if #available(iOS 16.1, *) {
+            await FlushLiveActivity.shared.end()
+        }
         return synced
     }
 
-    /// Synchronous so the lock is never taken from an async function.
     private func snapshotPending() -> (uid: String, items: [OfflineCommand])? {
         lock.lock()
         defer { lock.unlock() }
@@ -225,11 +271,18 @@ final class OfflineOutbox {
         return (userId, load(userId))
     }
 
-    private func commitFlush(uid: String, remaining: [OfflineCommand], needsBootstrap: Bool) {
+    private func commitFlush(
+        uid: String,
+        snapshot: [OfflineCommand],
+        remaining: [OfflineCommand],
+        needsBootstrap: Bool
+    ) {
         lock.lock()
         defer { lock.unlock() }
         if needsBootstrap { bootstrapRefresh = true }
-        save(uid, remaining)
+        let snapshotIds = Set(snapshot.map(\.id))
+        let queuedDuringFlush = load(uid).filter { !snapshotIds.contains($0.id) }
+        save(uid, remaining + queuedDuringFlush)
     }
 
     private enum Step {
@@ -263,9 +316,12 @@ final class OfflineOutbox {
         var command = prepared.command
         let bytes = readMedia(command.fileName)
         if (command.method ?? "POST") == "MEDIA", bytes == nil {
-            command.status = "failed"
-            command.error = "The saved photo is missing on this device."
-            return .kept(command, outcome: "failed")
+            guard mediaExists(command.fileName) else {
+                command.status = "failed"
+                command.error = "The saved photo is missing on this device."
+                return .kept(command, outcome: "failed")
+            }
+            return .stopped(command)
         }
         switch await APIClient.shared.replayQueued(command, media: bytes) {
         case .synced(let body):
@@ -375,20 +431,96 @@ final class OfflineOutbox {
         return false
     }
 
-    private func file(_ userId: String) -> URL? {
-        guard let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            return nil
+    // MARK: - App Group container
+
+    private func sharedContainer() -> URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupId)
+    }
+
+    // MARK: - Protected, non-backed-up storage
+
+    private func queueDirectory() -> URL? {
+        guard let base = sharedContainer() else {
+            guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+                return nil
+            }
+            let dir = base.appendingPathComponent("OfflineOutbox", isDirectory: true)
+            createDirectory(at: dir)
+            return dir
         }
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let dir = base.appendingPathComponent("OfflineOutbox", isDirectory: true)
+        createDirectory(at: dir)
+        return dir
+    }
+
+    private func createDirectory(at url: URL) {
+        try? FileManager.default.createDirectory(
+            at: url,
+            withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]
+        )
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var mutable = url
+        try? mutable.setResourceValues(values)
+    }
+
+    private func writeProtected(_ data: Data, to url: URL) {
+        try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var mutable = url
+        try? mutable.setResourceValues(values)
+    }
+
+    private func migrateLegacyStorageIfNeeded() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !didMigrateLegacyStorage else { return }
+        didMigrateLegacyStorage = true
+        guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first,
+              let dir = queueDirectory() else { return }
+        let fm = FileManager.default
+        if let entries = try? fm.contentsOfDirectory(at: base, includingPropertiesForKeys: nil) {
+            for url in entries {
+                let name = url.lastPathComponent
+                guard name.hasPrefix("offline-outbox-") || name.hasPrefix("group-roster-") else { continue }
+                let destination = dir.appendingPathComponent(name)
+                if !fm.fileExists(atPath: destination.path) {
+                    try? fm.moveItem(at: url, to: destination)
+                }
+            }
+        }
+        let legacyMedia = base.appendingPathComponent("offline-media", isDirectory: true)
+        if fm.fileExists(atPath: legacyMedia.path),
+           let destination = mediaDirectory() {
+            if let files = try? fm.contentsOfDirectory(at: legacyMedia, includingPropertiesForKeys: nil) {
+                for url in files {
+                    let target = destination.appendingPathComponent(url.lastPathComponent)
+                    if !fm.fileExists(atPath: target.path) {
+                        try? fm.moveItem(at: url, to: target)
+                    }
+                }
+            }
+            try? fm.removeItem(at: legacyMedia)
+        }
+    }
+
+    private func file(_ userId: String) -> URL? {
+        guard let dir = queueDirectory() else { return nil }
         return dir.appendingPathComponent("offline-outbox-\(userId).json")
     }
 
     private func rosterFile(_ userId: String) -> URL? {
-        guard let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        guard let dir = queueDirectory() else { return nil }
         return dir.appendingPathComponent("group-roster-\(userId).json")
+    }
+
+    private func mediaDirectory() -> URL? {
+        guard let dir = queueDirectory() else { return nil }
+        let media = dir.appendingPathComponent("media", isDirectory: true)
+        createDirectory(at: media)
+        return media
     }
 
     private func loadRoster(_ userId: String) -> [String: [APIClient.GroupParticipantPayload]] {
@@ -398,14 +530,17 @@ final class OfflineOutbox {
 
     private func saveRoster(_ userId: String, _ map: [String: [APIClient.GroupParticipantPayload]]) {
         guard let url = rosterFile(userId), let data = try? JSONEncoder().encode(map) else { return }
-        try? data.write(to: url, options: .atomic)
+        writeProtected(data, to: url)
     }
 
     private func mediaURL(_ name: String) -> URL? {
-        guard let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        return dir.appendingPathComponent("offline-media", isDirectory: true).appendingPathComponent(name)
+        guard let dir = mediaDirectory() else { return nil }
+        return dir.appendingPathComponent(name)
+    }
+
+    private func mediaExists(_ name: String?) -> Bool {
+        guard let name, let url = mediaURL(name) else { return false }
+        return FileManager.default.fileExists(atPath: url.path)
     }
 
     private func readMedia(_ name: String?) -> Data? {
@@ -420,11 +555,80 @@ final class OfflineOutbox {
 
     private func load(_ userId: String) -> [OfflineCommand] {
         guard let url = file(userId), let data = try? Data(contentsOf: url) else { return [] }
-        return (try? JSONDecoder().decode([OfflineCommand].self, from: data)) ?? []
+        do {
+            return try JSONDecoder().decode([OfflineCommand].self, from: data)
+        } catch {
+            let aside = url.appendingPathExtension("undecodable")
+            try? FileManager.default.removeItem(at: aside)
+            try? FileManager.default.copyItem(at: url, to: aside)
+            return []
+        }
     }
 
     private func save(_ userId: String, _ items: [OfflineCommand]) {
         guard let url = file(userId), let data = try? JSONEncoder().encode(items) else { return }
-        try? data.write(to: url, options: .atomic)
+        writeProtected(data, to: url)
+        writeSnapshot(userId: userId)
+    }
+
+    // MARK: - Widget snapshot
+
+    private func writeSnapshot(userId: String) {
+        guard let dir = queueDirectory() else { return }
+        let items = load(userId)
+        let snapshot = OutboxWidgetSnapshot(
+            pendingCount: items.filter { $0.status == "pending" }.count,
+            failedCount: items.filter { $0.status == "failed" }.count,
+            failedMessage: items.first { $0.status == "failed" }?.error,
+            totalCount: items.count,
+            lastUpdated: Date().timeIntervalSince1970
+        )
+        let url = dir.appendingPathComponent("outbox-snapshot-\(userId).json")
+        if let data = try? JSONEncoder().encode(snapshot) {
+            try? data.write(to: url, options: [.atomic])
+        }
+    }
+}
+
+// MARK: - Live Activity Reporter
+
+// `OutboxFlushAttributes` is declared in `OutboxFlushAttributes.swift` — shared with the widget
+// extension, which renders the activity.
+
+@available(iOS 16.1, *)
+actor FlushLiveActivity {
+    static let shared = FlushLiveActivity()
+    private var activity: Activity<OutboxFlushAttributes>?
+
+    func start(total: Int) {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        let attributes = OutboxFlushAttributes(total: total)
+        let state = OutboxFlushAttributes.ContentState(synced: 0, remaining: total, currentItemDescription: "Starting sync…")
+        do {
+            activity = try Activity.request(
+                attributes: attributes,
+                content: .init(state: state, staleDate: nil),
+                pushType: nil
+            )
+        } catch {
+            activity = nil
+        }
+    }
+
+    func update(synced: Int, remaining: Int, current: String) {
+        guard let activity else { return }
+        let state = OutboxFlushAttributes.ContentState(synced: synced, remaining: remaining, currentItemDescription: current)
+        Task {
+            await activity.update(.init(state: state, staleDate: nil))
+        }
+    }
+
+    func end() {
+        guard let activity else { return }
+        let final = OutboxFlushAttributes.ContentState(synced: activity.attributes.total, remaining: 0, currentItemDescription: "Done")
+        Task {
+            await activity.end(.init(state: final, staleDate: nil), dismissalPolicy: .default)
+        }
+        self.activity = nil
     }
 }

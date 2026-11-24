@@ -30,6 +30,8 @@ ui-debug.log
 **/build/
 **/.gradle/
 **/DerivedData/
+**/.dd/
+**/.spm-cache/
 **/.next/
 **/Pods/
 **/.build/
@@ -70,3 +72,9 @@ tools/design-pipeline/package.tmp.json
 test.png
 
 .worktrees/
+
+# Kotlin compiler session markers
+apk/.kotlin/
+
+# Editor/test backups
+*.bak

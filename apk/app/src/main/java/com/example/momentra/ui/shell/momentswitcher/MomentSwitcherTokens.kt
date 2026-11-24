@@ -12,9 +12,8 @@ import androidx.compose.ui.unit.sp
  * `2678:37481` Ongoing, `2678:37561` Completed, `2678:37634` Empty, `2678:37715` SearchEmpty,
  * `2678:37790` LoadError.
  *
- * Deliberately *not* folded into [com.example.momentra.ui.shell.business.appstate.BusinessAppStateTokens]:
- * that kit backs a different Figma family (`2852:39645`) whose values are asserted by
- * `BusinessAppStateSpecsTest`, and the switcher now serves Group too.
+ * Shared by Group and Business moment switchers. Keep presentation tokens here rather than
+ * folding them into context-specific kits.
  *
  * Keep in lockstep with `MomentSwitcherTokens.swift` on iOS.
  */

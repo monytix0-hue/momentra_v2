@@ -433,11 +433,77 @@ export const MARKETING_WIDGET_IDS = [
   'ME01', 'ME02', 'ME03', 'ME04',
 ] as const;
 
+/**
+ * Figma AN-* section codes for Marketing Pulse/Moments/Life/Memory.
+ * Pulse follows Harbor & Loom / Brightline visual order (Needs Attention first),
+ * not the evaluation widgetId number. Evaluation keeps P01/M01/… unchanged.
+ */
+const MARKETING_DISPLAY_CODES: Record<string, string> = {
+  P04: 'AN-P01', // Needs Attention
+  P01: 'AN-P02', // Target & Budget
+  P03: 'AN-P03', // Payment Readiness
+  P02: 'AN-P04', // Finance
+  P05: 'AN-P05', // Activity
+  M01: 'AN-M01',
+  M02: 'AN-M02',
+  M03: 'AN-M03',
+  M04: 'AN-M04',
+  L01: 'AN-L01',
+  L02: 'AN-L02',
+  L03: 'AN-L03',
+  L04: 'AN-L04',
+  ME01: 'AN-ME01',
+  ME02: 'AN-ME02',
+  ME03: 'AN-ME03',
+  ME04: 'AN-ME04',
+};
+
+/** Board section codes use M1/L1/ME1; map to the same AN-* frame labels. */
+const MARKETING_BOARD_DISPLAY_CODES: Record<string, string> = {
+  M1: 'AN-M01',
+  M2: 'AN-M02',
+  M3: 'AN-M03',
+  M4: 'AN-M04',
+  L1: 'AN-L01',
+  L2: 'AN-L02',
+  L3: 'AN-L03',
+  L4: 'AN-L04',
+  ME1: 'AN-ME01',
+  ME2: 'AN-ME02',
+  ME3: 'AN-ME03',
+  ME4: 'AN-ME04',
+};
+
+/** Pulse metric group codes → Figma AN-P0x (same visual order as widgets). */
+const MARKETING_PULSE_GROUP_DISPLAY_CODES: Record<string, string> = {
+  ATTENTION: 'AN-P01',
+  TARGET_BUDGET: 'AN-P02',
+  PAYMENT_READINESS: 'AN-P03',
+  FINANCE: 'AN-P04',
+  ACTIVITY: 'AN-P05',
+};
+
+export function marketingWidgetDisplayCode(widgetId: string): string | null {
+  return MARKETING_DISPLAY_CODES[widgetId] ?? null;
+}
+
+export function marketingBoardDisplayCode(sectionCode: string): string | null {
+  return MARKETING_BOARD_DISPLAY_CODES[sectionCode] ?? null;
+}
+
+export function marketingPulseGroupDisplayCode(groupCode: string): string | null {
+  return MARKETING_PULSE_GROUP_DISPLAY_CODES[groupCode] ?? null;
+}
+
 export function widgetsForSubtype(familyCode: string, subtype: string): WidgetDefinition[] {
   return WIDGET_CATALOG.filter((w) => {
     if (!w.familyCodes.includes(familyCode)) return false;
     if (w.subtypes === '*') return true;
     return w.subtypes.includes(subtype);
+  }).map((w) => {
+    if (familyCode !== 'MARKETING_CAMPAIGNS') return w;
+    const displayCode = marketingWidgetDisplayCode(w.widgetId);
+    return displayCode ? { ...w, displayCode } : w;
   });
 }
 
@@ -448,6 +514,7 @@ export function widgetById(widgetId: string): WidgetDefinition | undefined {
 export function coverageMatrix(familyCode: string, subtype: string) {
   return widgetsForSubtype(familyCode, subtype).map((w) => ({
     widgetId: w.widgetId,
+    displayCode: w.displayCode ?? null,
     screen: w.screen,
     title: w.title,
     eligibleEventTypes: w.eligibleEventTypes,

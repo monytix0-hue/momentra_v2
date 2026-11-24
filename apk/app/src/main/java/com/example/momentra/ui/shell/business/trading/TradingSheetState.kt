@@ -108,7 +108,7 @@ sealed interface TradingSheetState {
     data object PeopleNetwork : TradingSheetState {
         override val spec = OperatingSheetSpec(
             code = "network",
-            title = "Buyers, Suppliers & Channels",
+            title = "People & Network",
             eyebrow = "Who the trade runs through",
             emptyTitle = "No people yet",
             emptyBody = "Named buyers, suppliers, and channels appear as you record them.",

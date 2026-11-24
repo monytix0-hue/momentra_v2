@@ -7,7 +7,13 @@ import { assertGovernanceAllowed } from '../governance/resolver';
 import { insertAudit, insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import { assertActiveCompanyMember } from './membership';
 
-const OPERATING_INVITE_ROLES = ['FINANCE', 'APPROVER', 'OPERATIONS_LEAD', 'CONTRIBUTOR'] as const;
+/** Exact set allowed by V102 ck_company_invite__operating_role — no silent map/upgrade. */
+const OPERATING_INVITE_ROLES = [
+  'OPERATIONS_LEAD',
+  'FINANCE',
+  'APPROVER',
+  'CONTRIBUTOR',
+] as const;
 
 export const mintCompanyInviteSchema = z
   .object({
@@ -39,6 +45,7 @@ export interface RedeemCompanyInviteResult {
   companyId: string;
   membershipId: string | null;
   membershipType: string;
+  operatingRole?: string;
   alreadyMember: boolean;
 }
 
@@ -51,6 +58,12 @@ const DISPLAY_HOST = DISPLAY_ORIGIN.replace(/^https?:\/\//i, '');
 const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 
 const SNAPSHOT_ROLE = '||';
+
+function persistableOperatingRole(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  const code = raw.toUpperCase();
+  return (OPERATING_INVITE_ROLES as readonly string[]).includes(code) ? code : null;
+}
 
 function splitInviteSnapshot(raw: string): { title: string; operatingRole?: string } {
   const idx = raw.lastIndexOf(SNAPSHOT_ROLE);
@@ -69,7 +82,7 @@ function toInviteViews(row: {
   membership_type: string;
   expires_at: Date | string;
 }): CompanyInviteResult {
-  const hostPath = `${DISPLAY_HOST}/c/${row.invite_code}`;
+  const hostPath = `${DISPLAY_HOST}/j/${row.invite_code}`;
   const expiresAt =
     row.expires_at instanceof Date ? row.expires_at.toISOString() : String(row.expires_at);
   const snapshot = splitInviteSnapshot(row.title_snapshot);
@@ -77,7 +90,7 @@ function toInviteViews(row: {
     inviteId: row.invite_id,
     inviteCode: row.invite_code,
     invitePath: hostPath,
-    inviteUrl: `${DISPLAY_ORIGIN}/c/${row.invite_code}`,
+    inviteUrl: `${DISPLAY_ORIGIN}/j/${row.invite_code}`,
     status: row.status,
     title: snapshot.title,
     companyId: row.company_id,
@@ -146,8 +159,8 @@ export async function mintCompanyInvite(
     expires_at: Date;
   }>(
     `INSERT INTO business.company_invite (
-       invite_code, created_by_user_id, company_id, membership_type, title_snapshot, status, version
-     ) VALUES ($1, $2, $3, $4, $5, 'ACTIVE', 1)
+       invite_code, created_by_user_id, company_id, membership_type, title_snapshot, operating_role, status, version
+     ) VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE', 1)
      RETURNING invite_id, invite_code, status, title_snapshot, company_id, membership_type, expires_at`,
     [
       code,
@@ -157,6 +170,7 @@ export async function mintCompanyInvite(
       body.operatingRole
         ? `${company.rows[0].display_name}${SNAPSHOT_ROLE}${body.operatingRole}`
         : company.rows[0].display_name,
+      body.operatingRole ?? null,
     ]
   );
   const row = inserted.rows[0]!;
@@ -219,8 +233,11 @@ export async function redeemCompanyInvite(
     created_by_user_id: string;
     company_id: string;
     membership_type: string;
+    title_snapshot: string;
+    operating_role: string | null;
   }>(
-    `SELECT invite_id, status, created_by_user_id, company_id, membership_type
+    `SELECT invite_id, status, created_by_user_id, company_id, membership_type,
+            title_snapshot, operating_role
      FROM business.company_invite
      WHERE invite_code = $1
      FOR UPDATE`,
@@ -260,12 +277,26 @@ export async function redeemCompanyInvite(
     };
   }
 
+  // Persist only the invite's stored role when it matches V102 CHECK — never escalate from snapshot alone
+  // if column is null and snapshot has a non-CHECK role (legacy). Reject inconsistent invites.
+  const fromColumn = persistableOperatingRole(row.operating_role);
+  const fromSnapshot = persistableOperatingRole(splitInviteSnapshot(row.title_snapshot).operatingRole);
+  const snapshotRaw = splitInviteSnapshot(row.title_snapshot).operatingRole;
+  if (snapshotRaw && !fromSnapshot && !fromColumn) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      `Invite operating role '${snapshotRaw}' is not supported. Re-issue the invite with a V102 role.`,
+      400
+    );
+  }
+  const redeemRole = fromColumn ?? fromSnapshot;
+
   const inserted = await client.query<{ company_membership_id: string }>(
     `INSERT INTO business.company_membership (
-       company_id, user_id, membership_type, status, joined_at, version
-     ) VALUES ($1, $2, $3, 'ACTIVE', now(), 1)
+       company_id, user_id, membership_type, operating_role, status, joined_at, version
+     ) VALUES ($1, $2, $3, $4, 'ACTIVE', now(), 1)
      RETURNING company_membership_id`,
-    [row.company_id, ctx.userId, row.membership_type]
+    [row.company_id, ctx.userId, row.membership_type, redeemRole]
   );
   const membershipId = inserted.rows[0]!.company_membership_id;
 
@@ -319,6 +350,7 @@ export async function redeemCompanyInvite(
     companyId: row.company_id,
     membershipId,
     membershipType: row.membership_type,
+    operatingRole: redeemRole ?? undefined,
     alreadyMember: false,
   };
 }

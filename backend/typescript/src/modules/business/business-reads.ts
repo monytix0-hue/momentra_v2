@@ -3,7 +3,7 @@
  */
 import type { PoolClient } from 'pg';
 import type { RequestContext } from '../../platform/request-context/context';
-import { assertCompanyMomentAccess, assertActiveCompanyMember } from './membership';
+import { assertCompanyMomentAccess, assertActiveCompanyMember, assertFinanceVisible } from './membership';
 
 export async function listBusinessExpenses(
   client: PoolClient,
@@ -12,6 +12,7 @@ export async function listBusinessExpenses(
   limit = 50
 ) {
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
+  assertFinanceVisible(scope);
   const rows = await client.query<{
     expense_id: string;
     amount: string;
@@ -62,6 +63,7 @@ export async function listBusinessRevenues(
   limit = 50
 ) {
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
+  assertFinanceVisible(scope);
   const rows = await client.query<{
     revenue_id: string;
     amount: string;
@@ -97,6 +99,7 @@ export async function listBusinessInvoices(
   limit = 50
 ) {
   const scope = await assertCompanyMomentAccess(client, ctx, momentId);
+  assertFinanceVisible(scope);
   const rows = await client.query<{
     invoice_id: string;
     invoice_number: string;

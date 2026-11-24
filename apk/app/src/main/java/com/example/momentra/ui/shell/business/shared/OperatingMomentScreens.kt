@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.OperatingBoardSectionDto
+import com.example.momentra.data.api.OperatingMasterBody
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.data.api.OperatingPulseMetricGroupDto
 import com.example.momentra.data.api.OperatingWidgetDto
@@ -62,8 +64,9 @@ import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateTokens
 import com.example.momentra.ui.shell.business.marketing.MarketingEventDraft
 import com.example.momentra.ui.shell.business.marketing.MarketingQuickAddHub
+import com.example.momentra.ui.shell.business.trading.TradingActive
+import com.example.momentra.ui.shell.business.trading.TradingEventDraft
 import com.example.momentra.ui.theme.PlusJakartaSans
-import com.example.momentra.ui.theme.generated.BusinessTokens
 import kotlinx.coroutines.launch
 
 enum class OperatingTab { PULSE, MOMENTS, LIFE, MEMORY, QUICK_ADD }
@@ -88,6 +91,14 @@ fun operatingTabFor(destination: BottomDestination): OperatingTab = when (destin
     BottomDestination.MEMORY -> OperatingTab.MEMORY
     BottomDestination.CREATE -> OperatingTab.QUICK_ADD
     else -> OperatingTab.PULSE
+}
+
+/** HubPalette-aligned trading gate — exact wholesale subtype or trading family (not dealership). */
+fun isTradingWholesaleHub(typeCode: String?, familyCode: String?): Boolean {
+    val code = typeCode?.trim()?.uppercase()
+    if (code == "TRADING_WHOLESALE") return true
+    if (DistributionDealershipHub.isDistribution(code)) return false
+    return familyCode?.trim()?.uppercase() == "TRADING_DISTRIBUTION"
 }
 
 private fun screenCode(tab: OperatingTab): String? = when (tab) {
@@ -165,52 +176,128 @@ fun OperatingMomentPage(
     val palette = hubPaletteFor(momentTypeCode ?: model?.subtype, model?.familyCode)
     val typeCode = (momentTypeCode ?: model?.subtype)?.uppercase()
     val isDistribution = DistributionDealershipHub.isDistribution(typeCode)
-    val isTradingWholesale = typeCode == "TRADING_WHOLESALE"
+    val isOwnMarketing = OwnMarketingHub.isOwn(typeCode)
+    val isTradingWholesale = isTradingWholesaleHub(typeCode, model?.familyCode)
+
+    // Figma Trading V12 — never fall through to generic WidgetBlocks for trading.
+    if (isTradingWholesale) {
+        when {
+            model != null -> {
+                TradingActive(
+                    model = model,
+                    tab = tab,
+                    onOpenQuickAdd = onOpenQuickAdd,
+                    onRecord = { draft ->
+                        recordTradingDraft(repo, momentId, draft).fold(
+                            onSuccess = {
+                                OperatingProjectionCache.invalidate(momentId)
+                                tick += 1
+                            },
+                            onFailure = { error = it.message },
+                        )
+                    },
+                    onDecide = { eventId, decision ->
+                        repo.decideOperatingEvent(momentId, eventId, decision).fold(
+                            onSuccess = {
+                                OperatingProjectionCache.invalidate(momentId)
+                                tick += 1
+                            },
+                            onFailure = { error = it.message },
+                        )
+                    },
+                    companyId = companyId,
+                    modifier = modifier,
+                )
+                return
+            }
+            loading -> {
+                Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = palette.accent)
+                }
+                return
+            }
+            error != null -> {
+                Column(
+                    modifier
+                        .fillMaxSize()
+                        .background(palette.bg)
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    AppStateGlassCard(strokeAlpha = 0.40f) {
+                        AppStateEyebrow("COULDN'T LOAD THIS MOMENT", BusinessAppStateTokens.ErrorRing)
+                        Text(
+                            error ?: "",
+                            color = Color.White.copy(alpha = 0.70f),
+                            fontSize = 13.sp,
+                            fontFamily = PlusJakartaSans,
+                        )
+                        AppStateErrorCodePill(code = "MOMENT_DETAIL_FAILED", accent = BusinessAppStateTokens.ErrorRing)
+                        AppStateSecondaryButton(label = "Retry", onClick = { tick += 1 })
+                    }
+                }
+                return
+            }
+            else -> {
+                // Trading: never fall through to WidgetBlocks while projection is settling.
+                Box(modifier.fillMaxSize().background(palette.bg), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = palette.accent)
+                }
+                return
+            }
+        }
+    }
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(palette.bg)
+            .background(if (isOwnMarketing) OwnMarketingHub.ownCanvasBrush() else Brush.verticalGradient(listOf(palette.bg, palette.bg)))
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (isDistribution && model != null) {
-            DistributionHeroHeader(model, momentTitle, palette, companyId ?: model.companyId)
-        } else {
-            Text(
-                familyKicker(model?.familyCode),
-                color = palette.accent,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = PlusJakartaSans,
-            )
-            Text(
-                model?.title?.takeIf { it.isNotBlank() } ?: momentTitle ?: model?.subtypeLabel ?: "Business moment",
-                color = palette.text,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 22.sp,
-                fontFamily = PlusJakartaSans,
-            )
-            if (typeCode == "CLIENT_CAMPAIGN") {
+        when {
+            isOwnMarketing && tab == OperatingTab.PULSE ->
+                OwnMarketingHeroHeader(model, momentTitle, palette)
+            isOwnMarketing && tab != OperatingTab.QUICK_ADD ->
+                OwnMarketingTabHeader(tab, model, momentTitle)
+            isDistribution && model != null ->
+                DistributionHeroHeader(model, momentTitle, palette, companyId ?: model.companyId)
+            !isOwnMarketing -> {
                 Text(
-                    "Plan. Launch. Measure.",
-                    color = palette.accent,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = PlusJakartaSans,
-                )
-            }
-            model?.partyName?.takeIf { it.isNotBlank() }?.let {
-                Text(it, color = palette.muted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
-            }
-            if (!model?.role.isNullOrBlank()) {
-                Text(
-                    model!!.role!!.replace('_', ' '),
+                    familyKicker(model?.familyCode),
                     color = palette.accent,
                     fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
                     fontFamily = PlusJakartaSans,
                 )
+                Text(
+                    model?.title?.takeIf { it.isNotBlank() } ?: momentTitle ?: model?.subtypeLabel ?: "Business moment",
+                    color = palette.text,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 22.sp,
+                    fontFamily = PlusJakartaSans,
+                )
+                if (typeCode == "CLIENT_CAMPAIGN") {
+                    Text(
+                        "Plan. Launch. Measure.",
+                        color = palette.accent,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
+                model?.partyName?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, color = palette.muted, fontSize = 13.sp, fontFamily = PlusJakartaSans)
+                }
+                if (!model?.role.isNullOrBlank()) {
+                    Text(
+                        model!!.role!!.replace('_', ' '),
+                        color = palette.accent,
+                        fontSize = 12.sp,
+                        fontFamily = PlusJakartaSans,
+                    )
+                }
             }
         }
 
@@ -246,7 +333,9 @@ fun OperatingMomentPage(
             }
         }
 
-        confirm?.let { InfoCard("Saved", it, palette) }
+        if (!isOwnMarketing) {
+            confirm?.let { InfoCard("Saved", it, palette) }
+        }
 
         when (tab) {
             OperatingTab.PULSE,
@@ -259,26 +348,45 @@ fun OperatingMomentPage(
                 val tabWidgets = when {
                     typeCode == ClientCampaignHubWidgets.TYPE_CODE ->
                         ClientCampaignHubWidgets.presentForClient(screen, screenWidgets)
+                    isOwnMarketing ->
+                        OwnMarketingHub.presentWidgets(screen, screenWidgets)
                     isDistribution ->
                         DistributionDealershipHub.presentWidgets(screen, screenWidgets)
                     else -> screenWidgets
                 }
-                WidgetBlocks(
-                    widgets = tabWidgets,
-                    financeVisible = model?.financeVisible == true,
-                    palette = palette,
-                    onOpenSources = { id ->
-                        drillWidgetId = id
-                        scope.launch {
-                            repo.getWidgetSources(momentId, id).fold(
-                                onSuccess = { sources = it },
-                                onFailure = { sources = null },
-                            )
-                        }
-                    },
-                )
+                val openSources: (String) -> Unit = { id ->
+                    drillWidgetId = id
+                    scope.launch {
+                        repo.getWidgetSources(momentId, id).fold(
+                            onSuccess = { sources = it },
+                            onFailure = { sources = null },
+                        )
+                    }
+                }
+                if (isOwnMarketing) {
+                    OwnMarketingWidgetCards(
+                        widgets = tabWidgets,
+                        financeVisible = model?.financeVisible == true,
+                        palette = palette,
+                        onOpenSources = openSources,
+                        onViewAll = onViewAllAttention,
+                    )
+                } else {
+                    WidgetBlocks(
+                        widgets = tabWidgets,
+                        financeVisible = model?.financeVisible == true,
+                        palette = palette,
+                        onOpenSources = openSources,
+                    )
+                }
                 if (tab == OperatingTab.PULSE) {
                     when {
+                        isOwnMarketing ->
+                            OwnMarketingPulseGroups(
+                                groups = model?.pulseMetrics.orEmpty(),
+                                palette = palette,
+                                onViewAllAttention = onViewAllAttention,
+                            )
                         isDistribution ->
                             DistributionPulseMetricCards(
                                 groups = model?.pulseMetrics.orEmpty(),
@@ -288,6 +396,17 @@ fun OperatingMomentPage(
                         typeCode == ClientCampaignHubWidgets.TYPE_CODE && tabWidgets.isNotEmpty() -> Unit
                         else -> PulseFallback(model, palette, onViewAllAttention)
                     }
+                } else if (isOwnMarketing) {
+                    val sections = when (tab) {
+                        OperatingTab.MOMENTS -> model?.boards?.moments.orEmpty()
+                        OperatingTab.LIFE -> model?.boards?.life.orEmpty()
+                        else -> model?.boards?.memory.orEmpty()
+                    }
+                    OwnMarketingBoardSections(
+                        sections = sections,
+                        heading = OwnMarketingHub.tabHeading(tab),
+                        palette = palette,
+                    )
                 } else {
                     val sections = when (tab) {
                         OperatingTab.MOMENTS -> model?.boards?.moments
@@ -349,6 +468,28 @@ fun OperatingMomentPage(
                             },
                         )
                     }
+                    isOwnMarketing -> {
+                        OwnMarketingQuickAddHub(
+                            projection = model,
+                            palette = palette,
+                            initialCode = pending,
+                            onSubmit = { eventType, title, amount ->
+                                repo.recordOperatingEvent(
+                                    momentId = momentId,
+                                    eventType = eventType,
+                                    title = title,
+                                    amount = amount,
+                                    note = null,
+                                ).fold(
+                                    onSuccess = {
+                                        OperatingProjectionCache.invalidate(momentId)
+                                        tick += 1
+                                    },
+                                    onFailure = { error = it.message },
+                                )
+                            },
+                        )
+                    }
                     else -> {
                         TypedOperatingQuickAddForm(
                             model = model,
@@ -378,6 +519,9 @@ fun OperatingMomentPage(
 
         if (tab == OperatingTab.MEMORY && isDistribution) {
             DistributionGenerateStoryButton(palette, onGenerateStory)
+        }
+        if (tab == OperatingTab.MEMORY && isOwnMarketing) {
+            OwnGenerateBusinessStoryButton(palette, onGenerateStory)
         }
 
         sources?.let { src ->
@@ -458,6 +602,9 @@ private fun familyKicker(family: String?): String = when (family) {
 }
 
 private fun momentsHeading(family: String?, tab: OperatingTab, typeCode: String? = null): String {
+    if (OwnMarketingHub.isOwn(typeCode)) {
+        return OwnMarketingHub.tabHeading(tab)
+    }
     if (ClientCampaignHubWidgets.isClientCampaign(typeCode)) {
         return when (tab) {
             OperatingTab.MOMENTS -> "Plan, people, and channels"
@@ -887,4 +1034,49 @@ private suspend fun recordClientMarketingDraft(
     periodEnd = draft.periodEnd,
     supersedesEventId = draft.supersedesEventId,
     lines = draft.lines,
+)
+
+private suspend fun recordTradingDraft(
+    repo: BusinessSliceRepository,
+    momentId: String,
+    draft: TradingEventDraft,
+): Result<Unit> = repo.recordOperatingEvent(
+    momentId = momentId,
+    eventType = draft.eventType,
+    title = draft.title,
+    amount = draft.amount,
+    note = draft.note,
+    channelName = draft.channelName,
+    counterpartyName = draft.counterpartyName,
+    paymentStatus = draft.paymentStatus,
+    occurredAt = draft.occurredAt,
+    quantity = draft.quantity,
+    unit = draft.unit,
+    parentEventId = draft.parentEventId,
+    revisesEventId = draft.revisesEventId,
+    dueAt = draft.dueAt,
+    contract = draft.contract,
+    lines = draft.lines,
+    master = draft.masterKind?.let { kind ->
+        OperatingMasterBody(
+            kind = kind,
+            name = draft.title,
+            unit = draft.unit,
+            conversionToBase = draft.conversionToBase,
+            sellPrice = draft.unitPrice,
+            gstApplicable = draft.masterGstApplicable,
+            gstClassification = draft.masterGstClassification,
+            gstRate = draft.masterGstRate,
+            priceIncludesGst = draft.masterPriceIncludesGst,
+            salePriceIncludesGst = draft.masterSalePriceIncludesGst,
+            purchasePriceIncludesGst = draft.masterPurchasePriceIncludesGst,
+            gstEffectiveFrom = draft.masterGstEffectiveFrom,
+            hsn = draft.masterHsn,
+            gstRegistration = draft.masterGstRegistration,
+            businessState = draft.masterBusinessState,
+            billingState = draft.masterBillingState,
+            deliveryState = draft.masterDeliveryState,
+            gstin = draft.masterGstin,
+        )
+    },
 )

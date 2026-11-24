@@ -183,6 +183,7 @@ struct OperatingMomentHubView: View {
     @State private var amountText = ""
     @State private var tick = 0
     @State private var loading = true
+    @State private var tradingViewAll: TradingSheetState? = nil
 
     private var palette: HubPalette {
         HubPalette.forType(
@@ -336,6 +337,32 @@ struct OperatingMomentHubView: View {
         .task(id: "\(momentId)-\(refreshToken)-\(tick)") {
             await reload()
         }
+        .overlay {
+            if let sheet = tradingViewAll, let model = projection {
+                TradingBoardSheet(
+                    state: sheet,
+                    model: model,
+                    onDismiss: { tradingViewAll = nil },
+                    onFooterAction: { action in
+                        switch action {
+                        case "PAYMENT":
+                            BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: "PAYMENT")
+                            onQuickAddCode("PAYMENT")
+                            onOpenQuickAdd()
+                        case "ATTENTION":
+                            BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: "ISSUE")
+                            onQuickAddCode("ISSUE")
+                            onOpenQuickAdd()
+                        case "MEMORY":
+                            onGenerateStory()
+                        default:
+                            onOpenQuickAdd()
+                        }
+                        tradingViewAll = nil
+                    }
+                )
+            }
+        }
     }
 
     @ViewBuilder
@@ -346,8 +373,8 @@ struct OperatingMomentHubView: View {
             onQuickAddCode(code)
         }
         let onViewAll: (String) -> Void = { code in
-            if code.uppercased() == "ATTENTION" {
-                onViewAllAttention()
+            if let sheet = tradingSheetForPulseOrBoard(code) {
+                tradingViewAll = sheet
             }
         }
         switch tab {

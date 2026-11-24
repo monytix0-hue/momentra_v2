@@ -183,6 +183,9 @@ describe('Trip Quick Add sheets backends', () => {
       .set('Idempotency-Key', `done-${randomUUID()}`)
       .send({ storageKey });
     assert.equal(complete.status, 200, JSON.stringify(complete.body));
+    // Behaviour: mediaService.completeUpload includes downloadUrl (null ok in CI).
+    // Existing: this file + transaction-crud. User: Write failing backend test asserting downloadUrl key.
+    assert.ok('downloadUrl' in (complete.body.data ?? {}), JSON.stringify(complete.body));
 
     const attach = await request(app)
       .post(`/v1/moments/${momentId}/memories/${memoryId}/media`)

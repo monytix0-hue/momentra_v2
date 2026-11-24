@@ -260,7 +260,7 @@ fun ManageMomentSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(SheetBg)
+            .background(if (isBusiness) Color.Transparent else SheetBg)
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .verticalScroll(rememberScrollState()),
     ) {

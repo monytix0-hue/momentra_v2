@@ -72,7 +72,7 @@ struct MomentScreen: View {
         }
         .background(Color.black)
         .edgesIgnoringSafeArea(.all)
-        .sheet(item: $selectedSetupKind) { kind in
+        .fullScreenCover(item: $selectedSetupKind) { kind in
             BusinessSetupWizardView(
                 kind: kind,
                 createModel: MomentCreateModel(),
@@ -84,10 +84,6 @@ struct MomentScreen: View {
                     handleSetupCompletion(outcome)
                 }
             )
-            .presentationDetents([.fraction(0.94)])
-            .presentationCornerRadius(24)
-            .presentationBackground(Color(hex: 0x0F172A))
-            .presentationDragIndicator(.visible)
         }
     }
 

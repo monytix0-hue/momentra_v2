@@ -1,0 +1,21 @@
+# Reader: Maestro CLI (`maestro test`). Effect: asserts Business operating hub is live.
+# No secrets in plain text. User: "Use Maestro where supported..."
+appId: com.example.momentra
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Business"
+    timeout: 30000
+- tapOn: "Business"
+- extendedWaitUntil:
+    visible:
+      anyOf:
+        - "Widgets"
+        - "Needs Attention"
+        - "TRADING"
+        - "MARKETING"
+        - "RETAIL"
+        - "MANUFACTURING"
+        - "Your view"
+    timeout: 45000
+- assertNotVisible: "Rebuilding"

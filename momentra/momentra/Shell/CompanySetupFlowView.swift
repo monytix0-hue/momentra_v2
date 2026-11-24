@@ -941,12 +941,12 @@ struct CompanySetupFlowView: View {
             var softWarnings: [String] = []
             if let logoData {
                 do {
-                    let mediaId = try await APIClient.shared.uploadCompanyLogo(companyId: created.companyId, bytes: logoData)
+                    let logo = try await APIClient.shared.uploadCompanyLogo(companyId: created.companyId, bytes: logoData)
                     _ = try await APIClient.shared.patchCompany(
                         companyId: created.companyId,
                         body: [
                             "expectedVersion": created.version,
-                            "profileJson": ["logoMediaId": mediaId],
+                            "profileJson": ["logoMediaId": logo.mediaId],
                         ]
                     )
                 } catch {

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import momentra
 
@@ -77,4 +78,10 @@ struct ShellInvariantTests {
         #expect(tiles.contains { $0.label == "Opportunity" })
         #expect(tiles.first { $0.label == "Opportunity" }?.enabledWhenMomentActive == false)
     }
+    @Test func businessContextChromeIsEmerald() {
+        let biz = ContextTheme.of(.business)
+        #expect(biz.contextAccent == Color(hex: "#10B981"))
+        #expect(MomentThemes.business(nil).primary == Color(hex: "#10B981"))
+    }
+
 }

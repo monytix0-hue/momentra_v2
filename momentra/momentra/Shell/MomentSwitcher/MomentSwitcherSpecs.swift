@@ -40,10 +40,9 @@ struct MomentSwitcherBucket: Identifiable, Equatable {
     let singular: String
     /// Card gradient: `#312E81` -> emerald-ish stops.
     let cardGradient: [Color]
-    /// Business vertical, carried so the pre-existing `businessDirectoryBucketFor` contract and its
-    /// copy overrides survive. `nil` for Group buckets.
-    let vertical: BusinessAppStateVertical?
-    var accent: BusinessAppStateAccent { .emerald }
+    /// Optional taxonomy tag for Business buckets (`nil` for Group).
+    let verticalId: String?
+    var accent: Color { MomentSwitcherTokens.accent }
 
     static func == (lhs: MomentSwitcherBucket, rhs: MomentSwitcherBucket) -> Bool {
         lhs.id == rhs.id
@@ -130,20 +129,20 @@ func momentSwitcherSubtitle(
 // MARK: - Business
 
 private let businessBuckets: [MomentSwitcherBucket] = [
-    ("marketing", "Marketing", BusinessAppStateVertical.marketing),
-    ("trading", "Trading", BusinessAppStateVertical.trading),
-    ("distribution", "Distribution", BusinessAppStateVertical.distribution),
-    ("retail", "Retail", BusinessAppStateVertical.retail),
-    ("food", "Food", BusinessAppStateVertical.rst),
-    ("service", "Service", BusinessAppStateVertical.services),
-    ("manufacturing", "Manufacturing", BusinessAppStateVertical.mfg),
+    ("marketing", "Marketing"),
+    ("trading", "Trading"),
+    ("distribution", "Distribution"),
+    ("retail", "Retail"),
+    ("food", "Food"),
+    ("service", "Service"),
+    ("manufacturing", "Manufacturing"),
 ].map { entry in
     MomentSwitcherBucket(
         id: entry.0,
         label: entry.1,
         singular: entry.1,
         cardGradient: MomentSwitcherTokens.liveCardColors,
-        vertical: entry.2
+        verticalId: entry.0
     )
 }
 
@@ -151,11 +150,7 @@ private let businessBucketsById: [String: MomentSwitcherBucket] = Dictionary(
     uniqueKeysWithValues: businessBuckets.map { ($0.id, $0) }
 )
 
-/// Bucket for a Business moment type code.
-///
-/// Moved verbatim from the retired `BusinessActiveMomentsDirectoryView` so the existing
-/// `BusinessAppStateSpecsTests.directoryBuckets*` contract still holds: same ids, same verticals,
-/// same unified emerald accent.
+/// Bucket for a Business moment type code (taxonomy kept for switcher classify tests).
 func businessDirectoryBucketFor(_ momentTypeCode: String?) -> MomentSwitcherBucket {
     let code = (momentTypeCode ?? "").uppercased()
     let id: String
@@ -180,7 +175,7 @@ func businessDirectoryBucketFor(_ momentTypeCode: String?) -> MomentSwitcherBuck
     return businessBucketsById[id] ?? businessBucketsById["trading"]!
 }
 
-/// Business spec — the pixel reference.
+/// Business switcher — Phase 1C empty shell (buckets/classify retained for Group+Business host).
 func businessMomentSwitcherSpec(companyName: String = "Your business") -> MomentSwitcherSpec {
     MomentSwitcherSpec(
         testTag: "business.moment.directory",
@@ -190,18 +185,18 @@ func businessMomentSwitcherSpec(companyName: String = "Your business") -> Moment
             let members = max(moment.participantCount, 1)
             return "\(members) member\(members == 1 ? "" : "s") · \(bucket.singular)"
         },
-        emptyTitle: "No live business moments",
-        emptyBody: "Start a moment for \(companyName) and its Story will build from verified activity.",
-        emptyCta: "Create first moment",
+        emptyTitle: "Business V4",
+        emptyBody: "Business moments are rebuilding. \(companyName) will return here in V4.",
+        emptyCta: "Close",
         completedEmptyTitle: "No completed moments yet",
         completedEmptyBody: "When \(companyName) wraps, its Story lands here.",
-        completedEmptyCta: "Create another moment",
+        completedEmptyCta: "Close",
         errorTitle: "Couldn't load moments",
         errorBody: "Your moments are safe — we just couldn't reach them. Check your connection and try again.",
         errorCode: "MOMENTS_FETCH_FAILED",
-        footerTitle: "That's everything live",
-        footerBody: "Spin up another business moment when you're ready.",
-        footerCta: "Create another moment",
+        footerTitle: "Business V4",
+        footerBody: "Operating moments return in a later phase.",
+        footerCta: "Close",
         emptySubtitle: "Nothing live right now",
         searchingSubtitle: "Searching Ongoing",
         allowDismiss: true,
@@ -277,7 +272,7 @@ private let groupBuckets: [MomentSwitcherBucket] = GroupMomentDirectoryBucket.al
         label: bucket.label,
         singular: bucket.singular,
         cardGradient: bucket.gradient,
-        vertical: nil
+        verticalId: nil
     )
 }
 

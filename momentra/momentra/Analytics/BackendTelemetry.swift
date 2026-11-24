@@ -35,13 +35,22 @@ struct TelemetryIngestPayload: Encodable {
 
 /// First-party telemetry — batches to POST /v1/telemetry/events (PostgreSQL).
 /// Mutable state is confined to `queue`; safe to share across concurrency domains.
+///
+/// `userSnapshot` carries an account's name, email and phone. It is only ever populated when
+/// `MomentraAnalytics.sendsAccountSnapshotToBackend` is on, which is off by default — see the note
+/// there. Nothing in this type decides that policy; it only transports whatever it is handed.
 final class BackendTelemetry: @unchecked Sendable {
     static let shared = BackendTelemetry()
+
+    /// A ceiling on the retry queue. Without one, a persistent 5xx that is not in the drop list
+    /// re-inserts every batch forever and `pending` grows unbounded in a long-lived foreground.
+    private static let maxPendingEvents = 500
 
     private let defaults = UserDefaults.standard
     private let queue = DispatchQueue(label: "momentra.backend-telemetry", qos: .utility)
     private var pending: [TelemetryEventPayload] = []
     private var userSnapshot: TelemetryUserSnapshot?
+    private var flushTimer: Timer?
 
     private lazy var anonymousId: String = {
         if let existing = defaults.string(forKey: Keys.anonymousId) { return existing }
@@ -60,8 +69,15 @@ final class BackendTelemetry: @unchecked Sendable {
     }
 
     private init() {
-        Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
-            self?.flush()
+        // Created on the main queue so the timer lands on the main run loop; a timer built from a
+        // background caller's run loop never fires, and the periodic flush would silently stop.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
+                self?.flush()
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            self.flushTimer = timer
         }
     }
 
@@ -132,7 +148,11 @@ final class BackendTelemetry: @unchecked Sendable {
                 events: batch
             )
             let queue = self.queue
+            // The session-end flush is started from `onAppBackground`, where the process is about
+            // to be suspended; without an assertion the request never leaves the device.
+            let assertion = Self.beginBackgroundAssertion()
             Task {
+                defer { Self.endBackgroundAssertion(assertion) }
                 do {
                     try await APIClient.shared.ingestTelemetry(payload)
                 } catch {
@@ -146,6 +166,11 @@ final class BackendTelemetry: @unchecked Sendable {
                     if !dropBatch {
                         queue.async {
                             self.pending.insert(contentsOf: batch, at: 0)
+                            if self.pending.count > Self.maxPendingEvents {
+                                // Oldest first: the newest events are the ones an operator is most
+                                // likely to be looking for.
+                                self.pending.removeFirst(self.pending.count - Self.maxPendingEvents)
+                            }
                         }
                     }
                 }
@@ -158,6 +183,30 @@ final class BackendTelemetry: @unchecked Sendable {
         let id = UUID().uuidString
         defaults.set(id, forKey: Keys.sessionId)
         return id
+    }
+
+    private static func beginBackgroundAssertion() -> UIBackgroundTaskIdentifier {
+        #if canImport(UIKit)
+        // Hold the task ID in a reference so the expiration handler can read it
+        // without capturing a mutable local that is reassigned after capture.
+        final class TaskIDBox {
+            var value: UIBackgroundTaskIdentifier = .invalid
+        }
+        let box = TaskIDBox()
+        box.value = UIApplication.shared.beginBackgroundTask(withName: "telemetry.flush") {
+            let identifier = box.value
+            if identifier != .invalid { UIApplication.shared.endBackgroundTask(identifier) }
+        }
+        return box.value
+        #else
+        return .invalid
+        #endif
+    }
+
+    private static func endBackgroundAssertion(_ identifier: UIBackgroundTaskIdentifier) {
+        #if canImport(UIKit)
+        if identifier != .invalid { UIApplication.shared.endBackgroundTask(identifier) }
+        #endif
     }
 
     private static var currentDeviceModel: String {

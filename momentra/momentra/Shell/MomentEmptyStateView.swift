@@ -151,7 +151,7 @@ struct ContextEmptyExperienceView: View {
     private var accent: Color {
         switch context {
         case .group: return Color(hex: "#E8621A")
-        case .business: return Color(hex: "#818CF8")
+        case .business: return ContextTheme.of(.business).contextAccent
         default: return Color(hex: "#7C5CFC")
         }
     }
@@ -283,53 +283,23 @@ struct ContextEmptyExperienceView: View {
         )
     }
 
-    /// Business empty states render the shared Figma "App States" kit so every
-    /// destination matches the same 402x874 frame family on iOS and Android.
     @ViewBuilder
     private var businessEmpty: some View {
-        if !hasCompany {
-            BusinessAppStateBody(
-                spec: BusinessAppStateSpecs.spec(.noCompany, .setup),
-                accent: businessAccent,
-                onPrimary: onCreateBusiness,
-                onSecondary: onJoinCompany
-            )
-        } else {
-            businessEmptyWithCompany
-        }
-    }
-
-    @ViewBuilder
-    private var businessEmptyWithCompany: some View {
-        if destination == .create {
-            BusinessAppStateHubBody(
-                accent: businessAccent,
-                vertical: BusinessAppStateVertical.forTypeCode(momentTypeCode),
-                onPrimary: onCreateMoment,
-                onSecondary: onCreateMoment
-            )
-        } else {
-            BusinessAppStateBody(
-                spec: BusinessAppStateSpecs.spec(Self.appStateScreen(for: destination), .empty),
-                accent: businessAccent,
-                onPrimary: onCreateMoment,
-                onSecondary: onCreateMoment
-            )
-        }
-    }
-
-    private var businessAccent: BusinessAppStateAccent {
-        BusinessAppStateAccent.forTypeCode(momentTypeCode)
-    }
-
-    /// Maps the shell's bottom destination onto the kit's screen family.
-    private static func appStateScreen(for destination: BottomDestination) -> BusinessAppStateScreen {
-        switch destination {
-        case .pulse: return .pulse
-        case .moments: return .moments
-        case .life: return .life
-        case .memory: return .memory
-        case .create: return .hub
-        }
+        BusinessAppStateHost(
+            destination: destination,
+            content: .empty,
+            hasCompany: hasCompany,
+            momentTypeCode: momentTypeCode,
+            onRetry: {},
+            onPrimary: onCreateMoment,
+            onSecondary: onCreateMoment,
+            onCreateBusiness: onCreateBusiness,
+            onJoinCompany: onJoinCompany,
+            onOpenQuickAdds: onCreateMoment,
+            onCreateBack: onCreateBack,
+            companyId: selectedCompanyId,
+            onMomentCreated: onMomentCreated,
+            createModel: createModel
+        )
     }
 }

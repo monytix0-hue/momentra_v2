@@ -182,7 +182,8 @@ internal fun tradingSheetForCode(code: String): TradingSheetState? = when (code)
     else -> null
 }
 
-private fun tradingSheetForPulseOrBoard(code: String): TradingSheetState? = when (code) {
+/** Pulse + Moments/Life/Memory View-all router — 18 TRD-SHEET surfaces. */
+fun tradingSheetForPulseOrBoard(code: String): TradingSheetState? = when (code) {
     "ATTENTION" -> TradingSheetState.NeedsAttention
     "TARGET_BUDGET" -> TradingSheetState.TargetBudget
     "PAYMENT_READINESS" -> TradingSheetState.PaymentReadiness

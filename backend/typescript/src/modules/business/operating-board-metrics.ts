@@ -70,6 +70,10 @@ function num(value: string | null | undefined): number {
 }
 
 function effective(row: OperatingEventRow): boolean {
+  // Callers: tradingPulseMetrics / applyTradingBoardMetrics. Align with catalog effective().
+  // User: "Exclude SUPERSEDED and REVERSAL events from effective financial totals."
+  if (row.ledgerStatus === 'SUPERSEDED') return false;
+  if (row.eventType === 'REVERSAL') return false;
   return row.approvalStatus !== 'PENDING' && row.approvalStatus !== 'REJECTED' && row.paymentStatus !== 'CANCELLED';
 }
 
@@ -517,6 +521,8 @@ export interface OperatingPulseMetricGroup {
   code: 'TARGET_BUDGET' | 'FINANCE' | 'PAYMENT_READINESS' | 'ATTENTION' | 'ACTIVITY' | 'GST';
   metrics: OperatingBoardMetric[];
   why: string | null;
+  /** Figma AN-P0x label for marketing Pulse (evaluation code stays `code`). */
+  displayCode?: string | null;
 }
 
 /**

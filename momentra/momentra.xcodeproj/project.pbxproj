@@ -13,6 +13,15 @@
 		87703F822302E064E0031B6D7 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 87703F872302E064E0031B6D7 /* GoogleSignIn */; };
 		87703F882302E064E0031B6D7 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 87703F892302E064E0031B6D7 /* FirebaseAnalytics */; };
 		87703F8A2302E064E0031B6D7 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 87703F8B2302E064E0031B6D7 /* FirebaseMessaging */; };
+		87D877C830A8985D000417E9 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87D877C730A8985D000417E9 /* WidgetKit.framework */; };
+		87D877CA30A8985E000417E9 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87D877C930A8985E000417E9 /* SwiftUI.framework */; };
+		87D877D730A89861000417E9 /* MomentraWidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 87D877C530A8985D000417E9 /* MomentraWidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		87D877E330A89861000417E9 /* WidgetSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D877E030A89861000417E9 /* WidgetSnapshotStore.swift */; };
+		87D877E430A89861000417E9 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D877E130A89861000417E9 /* WidgetSnapshotModels.swift */; };
+		87D877E530A89861000417E9 /* WidgetReloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D877E230A89861000417E9 /* WidgetReloader.swift */; };
+		87D877E730A89861000417E9 /* WidgetSnapshotManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D877E630A89861000417E9 /* WidgetSnapshotManager.swift */; };
+		87D877E930A89861000417E9 /* OutboxFlushAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D877E830A89861000417E9 /* OutboxFlushAttributes.swift */; };
+		87D877EB30A89861000417E9 /* WidgetContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D877EA30A89861000417E9 /* WidgetContext.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -30,15 +39,52 @@
 			remoteGlobalIDString = 87703F52302E064C0031B6D7;
 			remoteInfo = momentra;
 		};
+		87D877D530A89861000417E9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 87703F4B302E064B0031B6D7 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 87D877C430A8985D000417E9;
+			remoteInfo = MomentraWidgetExtensionExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		87D877DC30A89861000417E9 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				87D877D730A89861000417E9 /* MomentraWidgetExtensionExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		87703F53302E064C0031B6D7 /* momentra.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = momentra.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		87703F60302E064E0031B6D7 /* momentraTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = momentraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		87703F6A302E064E0031B6D7 /* momentraUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = momentraUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		87D877C530A8985D000417E9 /* MomentraWidgetExtensionExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MomentraWidgetExtensionExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		87D877C730A8985D000417E9 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = /System/Library/Frameworks/WidgetKit.framework; sourceTree = "<absolute>"; };
+		87D877C930A8985E000417E9 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = /System/Library/Frameworks/SwiftUI.framework; sourceTree = "<absolute>"; };
+		87D877E030A89861000417E9 /* WidgetSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetSnapshotStore.swift; path = momentra/Data/WidgetSnapshotStore.swift; sourceTree = SOURCE_ROOT; };
+		87D877E130A89861000417E9 /* WidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetSnapshotModels.swift; path = momentra/Data/WidgetSnapshotModels.swift; sourceTree = SOURCE_ROOT; };
+		87D877E230A89861000417E9 /* WidgetReloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetReloader.swift; path = momentra/Data/WidgetReloader.swift; sourceTree = SOURCE_ROOT; };
+		87D877E630A89861000417E9 /* WidgetSnapshotManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetSnapshotManager.swift; path = momentra/Data/WidgetSnapshotManager.swift; sourceTree = SOURCE_ROOT; };
+		87D877E830A89861000417E9 /* OutboxFlushAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OutboxFlushAttributes.swift; path = momentra/Data/OutboxFlushAttributes.swift; sourceTree = SOURCE_ROOT; };
+		87D877EA30A89861000417E9 /* WidgetContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetContext.swift; path = momentra/Data/WidgetContext.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		87D877DB30A89861000417E9 /* Exceptions for "MomentraWidgetExtension" folder in "MomentraWidgetExtensionExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 87D877C430A8985D000417E9 /* MomentraWidgetExtensionExtension */;
+		};
 		A1B2C3D4302E064E0031B6D7 /* Exceptions for "momentra" folder in "momentra" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -65,6 +111,14 @@
 		87703F6D302E064E0031B6D7 /* momentraUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = momentraUITests;
+			sourceTree = "<group>";
+		};
+		87D877CB30A8985E000417E9 /* MomentraWidgetExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				87D877DB30A89861000417E9 /* Exceptions for "MomentraWidgetExtension" folder in "MomentraWidgetExtensionExtension" target */,
+			);
+			path = MomentraWidgetExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -97,6 +151,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		87D877C230A8985D000417E9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				87D877CA30A8985E000417E9 /* SwiftUI.framework in Frameworks */,
+				87D877C830A8985D000417E9 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -106,7 +169,10 @@
 				87703F55302E064C0031B6D7 /* momentra */,
 				87703F63302E064E0031B6D7 /* momentraTests */,
 				87703F6D302E064E0031B6D7 /* momentraUITests */,
+				87D877CB30A8985E000417E9 /* MomentraWidgetExtension */,
+				87D877C630A8985D000417E9 /* Frameworks */,
 				87703F54302E064C0031B6D7 /* Products */,
+				87D87E5B30A979ED000417E9 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -116,8 +182,31 @@
 				87703F53302E064C0031B6D7 /* momentra.app */,
 				87703F60302E064E0031B6D7 /* momentraTests.xctest */,
 				87703F6A302E064E0031B6D7 /* momentraUITests.xctest */,
+				87D877C530A8985D000417E9 /* MomentraWidgetExtensionExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		87D877C630A8985D000417E9 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				87D877C730A8985D000417E9 /* WidgetKit.framework */,
+				87D877C930A8985E000417E9 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		87D87E5B30A979ED000417E9 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				87D877E030A89861000417E9 /* WidgetSnapshotStore.swift */,
+				87D877E130A89861000417E9 /* WidgetSnapshotModels.swift */,
+				87D877E230A89861000417E9 /* WidgetReloader.swift */,
+				87D877E630A89861000417E9 /* WidgetSnapshotManager.swift */,
+				87D877E830A89861000417E9 /* OutboxFlushAttributes.swift */,
+				87D877EA30A89861000417E9 /* WidgetContext.swift */,
+			);
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -131,10 +220,12 @@
 				87703F4F302E064C0031B6D7 /* Sources */,
 				87703F50302E064C0031B6D7 /* Frameworks */,
 				87703F51302E064C0031B6D7 /* Resources */,
+				87D877DC30A89861000417E9 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				87D877D630A89861000417E9 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				87703F55302E064C0031B6D7 /* momentra */,
@@ -198,6 +289,28 @@
 			productReference = 87703F6A302E064E0031B6D7 /* momentraUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		87D877C430A8985D000417E9 /* MomentraWidgetExtensionExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 87D877D830A89861000417E9 /* Build configuration list for PBXNativeTarget "MomentraWidgetExtensionExtension" */;
+			buildPhases = (
+				87D877C130A8985D000417E9 /* Sources */,
+				87D877C230A8985D000417E9 /* Frameworks */,
+				87D877C330A8985D000417E9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				87D877CB30A8985E000417E9 /* MomentraWidgetExtension */,
+			);
+			name = MomentraWidgetExtensionExtension;
+			packageProductDependencies = (
+			);
+			productName = MomentraWidgetExtensionExtension;
+			productReference = 87D877C530A8985D000417E9 /* MomentraWidgetExtensionExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -218,6 +331,9 @@
 					87703F69302E064E0031B6D7 = {
 						CreatedOnToolsVersion = 26.5;
 						TestTargetID = 87703F52302E064C0031B6D7;
+					};
+					87D877C430A8985D000417E9 = {
+						CreatedOnToolsVersion = 26.5;
 					};
 				};
 			};
@@ -243,6 +359,7 @@
 				87703F52302E064C0031B6D7 /* momentra */,
 				87703F5F302E064E0031B6D7 /* momentraTests */,
 				87703F69302E064E0031B6D7 /* momentraUITests */,
+				87D877C430A8985D000417E9 /* MomentraWidgetExtensionExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -263,6 +380,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		87703F68302E064E0031B6D7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		87D877C330A8985D000417E9 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -315,6 +439,19 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		87D877C130A8985D000417E9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				87D877E330A89861000417E9 /* WidgetSnapshotStore.swift in Sources */,
+				87D877E430A89861000417E9 /* WidgetSnapshotModels.swift in Sources */,
+				87D877E530A89861000417E9 /* WidgetReloader.swift in Sources */,
+				87D877E730A89861000417E9 /* WidgetSnapshotManager.swift in Sources */,
+				87D877E930A89861000417E9 /* OutboxFlushAttributes.swift in Sources */,
+				87D877EB30A89861000417E9 /* WidgetContext.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -327,6 +464,11 @@
 			isa = PBXTargetDependency;
 			target = 87703F52302E064C0031B6D7 /* momentra */;
 			targetProxy = 87703F6B302E064E0031B6D7 /* PBXContainerItemProxy */;
+		};
+		87D877D630A89861000417E9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 87D877C430A8985D000417E9 /* MomentraWidgetExtensionExtension */;
+			targetProxy = 87D877D530A89861000417E9 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -365,6 +507,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = TY9S2C44WR;
 				ENABLE_ENHANCED_SECURITY = YES;
@@ -390,6 +533,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -429,6 +573,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = TY9S2C44WR;
 				ENABLE_ENHANCED_SECURITY = YES;
@@ -447,6 +592,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -675,6 +821,74 @@
 			};
 			name = Release;
 		};
+		87D877D930A89861000417E9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = MomentraWidgetExtension/MomentraWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = TY9S2C44WR;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MomentraWidgetExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MomentraWidgetExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = resolvingpoint.momentra.MomentraWidgetExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		87D877DA30A89861000417E9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = MomentraWidgetExtension/MomentraWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = TY9S2C44WR;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MomentraWidgetExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MomentraWidgetExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = resolvingpoint.momentra.MomentraWidgetExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -710,6 +924,15 @@
 			buildConfigurations = (
 				87703F7B302E064E0031B6D7 /* Debug */,
 				87703F7C302E064E0031B6D7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		87D877D830A89861000417E9 /* Build configuration list for PBXNativeTarget "MomentraWidgetExtensionExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				87D877D930A89861000417E9 /* Debug */,
+				87D877DA30A89861000417E9 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

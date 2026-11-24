@@ -23,10 +23,11 @@ import androidx.compose.ui.unit.dp
 
 /** Figma bottom-sheet host for Business Create + Setup flows (658:9451+, 692:34736+). */
 object BusinessSheetTheme {
-    val Bg = Color(0xFF0C0F15)
+    /** Obsidian canvas — matches guided create / AppState page. */
+    val Bg = Color(0xFF05070B)
     val Card = Color(0xFF161B26)
     val Border = Color(0xFF1E293B)
-    val Accent = Color(0xFF818CF8)
+    val Accent = Color(0xFF10B981)
 }
 
 @Composable

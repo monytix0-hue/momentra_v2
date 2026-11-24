@@ -12,7 +12,7 @@ struct IndiaState: Identifiable, Hashable {
 }
 
 /// The canonical India States & Union Territories registry, mirroring the backend table in
-/// `backend/typescript/src/modules/business/operating-gst-states.ts`.
+/// Former SoT was `operating-gst-states.ts` (removed in Business V4 Phase 1); reintroduce with GST module.
 ///
 /// GST decides between CGST+SGST and IGST by comparing the business's state with the place of
 /// supply. Comparing typed names is what let "MH" and "Maharashtra" read as two different states

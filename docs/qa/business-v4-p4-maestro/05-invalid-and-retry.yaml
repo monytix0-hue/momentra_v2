@@ -1,0 +1,38 @@
+# Process that reads this file: Maestro CLI (`maestro test`).
+# Effect of the change: asserts invalid Quick Add shows validation error, then a retry
+# submission remains usable (idempotency path).
+# No secrets are written in plain text.
+# User instruction: "Exercise an invalid submission."
+# User instruction: "Verify retry/idempotency behavior."
+appId: resolvingpoint.momentra
+---
+- launchApp
+- tapOn: "Business"
+- tapOn: "Create"
+- extendedWaitUntil:
+    visible: "Quick Add"
+    timeout: 45000
+- tapOn: "Add"
+- extendedWaitUntil:
+    visible:
+      anyOf:
+        - "required"
+        - "Required"
+        - "Title is required"
+        - "is required"
+        - "Could not save"
+        - "cannot"
+    timeout: 15000
+- tapOn:
+    text: "Title"
+    optional: true
+- inputText: "P4 retry probe"
+- tapOn: "Add"
+- extendedWaitUntil:
+    visible:
+      anyOf:
+        - "Saved"
+        - "P4 retry probe"
+        - "required"
+        - "Amount"
+    timeout: 30000

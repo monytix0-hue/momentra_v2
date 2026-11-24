@@ -56,7 +56,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
 import com.example.momentra.data.local.AppPreferences
 import com.example.momentra.data.local.OfflineOutbox
-import com.example.momentra.data.local.PendingCompanyJoinInvite
 import com.example.momentra.data.local.PendingJoinInvite
 import com.example.momentra.data.local.PendingDeepLink
 import com.example.momentra.data.repository.AccountRepository
@@ -227,7 +226,6 @@ fun AppShellScreen(
     val tourRegistry = rememberTourTargetRegistry()
 
     var pendingGroupJoinCode by remember { mutableStateOf<String?>(null) }
-    var pendingCompanyJoinCode by remember { mutableStateOf<String?>(null) }
     var inboxOpen by remember { mutableStateOf(false) }
     var storyMomentId by remember { mutableStateOf<String?>(null) }
     var unreadNotificationCount by remember { mutableIntStateOf(0) }
@@ -279,15 +277,6 @@ fun AppShellScreen(
         }
     }
 
-    LaunchedEffect(state.identity?.userId) {
-        if (state.identity?.userId == null) return@LaunchedEffect
-        prefs.getPendingCompanyJoinCode()?.let { PendingCompanyJoinInvite.hydrate(it) }
-        PendingCompanyJoinInvite.code.collect { offered ->
-            if (offered.isNullOrBlank()) return@collect
-            val code = PendingCompanyJoinInvite.consume(prefs) ?: return@collect
-            pendingCompanyJoinCode = code
-        }
-    }
 
     LaunchedEffect(state.identity?.userId) {
         if (state.identity?.userId == null) return@LaunchedEffect
@@ -1186,10 +1175,6 @@ fun AppShellScreen(
                     showJoinQrScanner = false
                     pendingGroupJoinCode = code
                 },
-                onCompanyCode = { code ->
-                    showJoinQrScanner = false
-                    pendingCompanyJoinCode = code
-                },
                 onDismiss = { showJoinQrScanner = false },
             )
         }
@@ -1730,7 +1715,6 @@ private fun ShellDestinationContent(
     onPurchaseQuickAdd: (PurchaseQuickAddKind) -> Unit = {},
     onLivingQuickAdd: (LivingQuickAddKind) -> Unit = {},
     onBusinessQuickAdd: (BusinessQuickAddKind) -> Unit = {},
-    onOpenCompanySettings: () -> Unit = {},
     /** Moves the shell to another bottom destination (kit "Back to Pulse" CTAs). */
     onSelectDestination: (BottomDestination) -> Unit = {},
     onAddRevenue: () -> Unit = {},
@@ -1840,8 +1824,8 @@ private fun ShellDestinationContent(
                 onCompanyActivated = onCompanyActivated,
                 onMomentCreated = onMomentCreated,
                 onJoinGroupCode = onJoinGroupCode,
-                onCreateBusiness = { onOpenCompanySettings() },
-                onJoinCompany = { onOpenCompanySettings() },
+                onCreateBusiness = { onSelectDestination(BottomDestination.CREATE) },
+                onJoinCompany = { onSelectDestination(BottomDestination.CREATE) },
                 onSelectDestination = onSelectDestination,
                 groupCreatePhase = groupCreatePhase,
                 onGroupCreatePhase = onGroupCreatePhase,

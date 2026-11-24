@@ -354,4 +354,181 @@ class OperatingSetupPayloadBuilderTest {
         assertEquals("650000.0000", result.preferences["monthlyTarget"])
         assertEquals("TEAM_MEMBER", OperatingSetupPayloadBuilder.mapRole("Waiter"))
     }
+
+    @Test
+    fun mfgFieldErrorsForMissingBudgetTargetChannelsAndGstin() {
+        val missingChannels = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Forge & Form",
+                "companyName" to "Forge & Form",
+                "monthlyBudget" to "900000",
+                "monthlyTarget" to "1800000",
+            ),
+            momentTypeCode = "STANDARD_PRODUCTION",
+            title = "Forge",
+        )
+        assertEquals("Select at least one channel.", missingChannels.fieldErrors["channels"])
+
+        val missingGstin = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Forge & Form",
+                "companyName" to "Forge & Form",
+                "monthlyBudget" to "900000",
+                "monthlyTarget" to "1800000",
+                "channels" to "Direct B2B",
+                "gstTracking" to "Yes",
+            ),
+            momentTypeCode = "MADE_TO_ORDER",
+            title = "Forge",
+        )
+        assertEquals("GSTIN is required when GST tracking is on.", missingGstin.fieldErrors["gstin"])
+    }
+
+    @Test
+    fun mfgHappyPathMapsBudgetTargetAndCurrency() {
+        val built = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Forge & Form",
+                "companyName" to "Forge & Form Pvt",
+                "monthlyBudget" to "₹42,00,000",
+                "monthlyTarget" to "₹65,00,000",
+                "targetMetric" to "Revenue",
+                "channels" to "Direct B2B|OEM",
+                "currency" to "INR · Indian Rupee (₹)",
+                "salePriceIncludesGst" to "GST is added separately",
+                "gstTracking" to "Not now",
+                "startDate" to "12 October 2026",
+            ),
+            momentTypeCode = "STANDARD_PRODUCTION",
+            title = "Forge",
+        )
+        assertNull(built.validationError)
+        assertTrue(built.fieldErrors.isEmpty())
+        assertEquals("Forge & Form", built.preferences["identityName"])
+        assertEquals("4200000.0000", built.preferences["monthlyBudget"])
+        assertEquals("6500000.0000", built.preferences["monthlyTarget"])
+        assertEquals("NOT_NOW", built.preferences["gstTracking"])
+        assertEquals("NO", built.preferences["salePriceIncludesGst"])
+    }
+
+
+    @Test
+    fun jobOrderMapsInvoicedMetricAndPriceIncludesGst() {
+        val built = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Forge & Form",
+                "companyName" to "Forge & Form Pvt",
+                "monthlyBudget" to "₹9,00,000",
+                "monthlyTarget" to "₹18,00,000",
+                "targetMetric" to "Invoiced value (or accepted job units)",
+                "channels" to "Direct B2B|Job work",
+                "priceIncludesGst" to "Prices include GST",
+                "gstRegistered" to "Not now",
+                "quoteValidity" to "15 days · expired quotes revise, never invoice",
+                "jobOnConfirm" to "Open job manually after confirm",
+            ),
+            momentTypeCode = "MADE_TO_ORDER",
+            title = "Forge",
+        )
+        assertNull(built.validationError)
+        assertTrue(built.fieldErrors.isEmpty())
+        assertEquals("REVENUE", built.preferences["targetMetric"])
+        assertEquals("YES", built.preferences["salePriceIncludesGst"])
+        assertEquals("NOT_NOW", built.preferences["gstTracking"])
+        assertEquals("15 days · expired quotes revise, never invoice", built.preferences["quoteValidity"])
+    }
+
+
+    // Behaviour: logoMediaId preference must survive draft build (HeroCard).
+    // Existing: this file. User: Verify preference pass-through for logoMediaId.
+    @Test
+    fun logoMediaIdPassesThroughOnDraft() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Northstar",
+                "companyName" to "Northstar",
+                "logoMediaId" to "media-logo-1",
+            ),
+            momentTypeCode = "TRADING_WHOLESALE",
+            title = "Northstar",
+            activating = false,
+        )
+        assertNull(result.validationError)
+        assertEquals("media-logo-1", result.preferences["logoMediaId"])
+    }
+
+    // Behaviour: prefer existing linked company id — single-company logo path.
+    // Module: SetupLogoCompanyResolver. User: missing unit coverage for uploadSetupLogo path.
+    @Test
+    fun preferExistingLinkedCompanyOverCreating() {
+        assertEquals(
+            "company-a",
+            SetupLogoCompanyResolver.preferExisting("company-a", "company-b"),
+        )
+        assertEquals(
+            "company-a",
+            SetupLogoCompanyResolver.preferExisting(null, "company-a"),
+        )
+        assertEquals(
+            "company-a",
+            SetupLogoCompanyResolver.preferExisting("  ", "company-a"),
+        )
+        assertNull(SetupLogoCompanyResolver.preferExisting(null, null))
+    }
+
+    // Behaviour: uploadSetupLogo resolve+create decision (pure path used before ensureSetupCompany).
+    @Test
+    fun mapsTargetMetricChipLabels() {
+        assertEquals("CLIENT_BILLING", OperatingSetupPayloadBuilder.mapMarketingTargetMetric("Client billing"))
+        assertEquals("CUSTOM_COUNT", OperatingSetupPayloadBuilder.mapMarketingTargetMetric("Custom"))
+        assertEquals("REVENUE", OperatingSetupPayloadBuilder.mapMarketingTargetMetric("Attributed sales"))
+        assertEquals("ENGAGEMENT", OperatingSetupPayloadBuilder.mapMarketingTargetMetric("Engagements"))
+        assertEquals("CUSTOM_COUNT", OperatingSetupPayloadBuilder.mapCommerceTargetMetric("Count"))
+        assertEquals("CUSTOM_COUNT", OperatingSetupPayloadBuilder.mapCommerceTargetMetric("Appointments"))
+        assertEquals("REVENUE", OperatingSetupPayloadBuilder.mapCommerceTargetMetric("Revenue"))
+        assertEquals("ORDERS", OperatingSetupPayloadBuilder.mapCommerceTargetMetric("Orders"))
+    }
+
+    @Test
+    fun tradingTargetMetricChipStoredAsClosedCode() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Northstar",
+                "companyName" to "Northstar",
+                "channels" to "Wholesale",
+                "monthlyBudget" to "6000000",
+                "monthlyTarget" to "9000000",
+                "targetMetric" to "Count",
+            ),
+            momentTypeCode = "TRADING_WHOLESALE",
+            title = "Northstar",
+            activating = false,
+        )
+        assertEquals("CUSTOM_COUNT", result.preferences["targetMetric"])
+    }
+
+    // Module: SetupLogoCompanyResolver.resolveForUpload. No ViewModel fake harness in this worktree.
+    @Test
+    fun resolveForUploadCoversPassedLinkedAndWouldCreate() {
+        assertEquals(
+            SetupLogoCompanyDecision.UseExisting("company-a"),
+            SetupLogoCompanyResolver.resolveForUpload("company-a", "company-b"),
+        )
+        assertEquals(
+            SetupLogoCompanyDecision.UseExisting("company-a"),
+            SetupLogoCompanyResolver.resolveForUpload(null, "company-a"),
+        )
+        assertEquals(
+            SetupLogoCompanyDecision.UseExisting("company-a"),
+            SetupLogoCompanyResolver.resolveForUpload("  ", "company-a"),
+        )
+        assertEquals(
+            SetupLogoCompanyDecision.WouldCreate,
+            SetupLogoCompanyResolver.resolveForUpload(null, null),
+        )
+        assertEquals(
+            SetupLogoCompanyDecision.WouldCreate,
+            SetupLogoCompanyResolver.resolveForUpload("  ", "  "),
+        )
+    }
 }

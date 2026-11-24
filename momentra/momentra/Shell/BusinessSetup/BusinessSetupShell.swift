@@ -20,6 +20,7 @@ struct BusinessSetupShell: View {
     @State private var draftMomentId: String?
     @State private var draftMomentStatus: String?
     @State private var draftSavedMessage: String?
+    @State private var showGstStatePicker = false
 
     init(
         family: BusinessSetupFamily,
@@ -181,6 +182,21 @@ struct BusinessSetupShell: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showGstStatePicker) {
+            SetupStatePickerSheet(
+                theme: theme,
+                selected: values["gstState"] ?? "",
+                onPick: { state in
+                    values["gstState"] = state.name
+                    fieldErrors["gstState"] = nil
+                    showGstStatePicker = false
+                },
+                onCancel: { showGstStatePicker = false }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .preferredColorScheme(.dark)
+        }
         .onAppear {
             if !didSeed {
                 reseeds(for: typeCode, priorTitle: initialTitle)
@@ -248,28 +264,68 @@ struct BusinessSetupShell: View {
         case .panelHeader(let title):
             BusinessSetupDocumentKit.PanelHeader(theme: theme, title: title)
         case .text:
-            BusinessSetupDocumentKit.FieldRow(
-                theme: theme,
-                label: field.label,
-                placeholder: field.placeholder,
-                text: binding(for: field.key),
-                helper: field.helper,
-                error: fieldErrors[field.key]
-            )
-        case .choice(let options):
-            VStack(alignment: .leading, spacing: 6) {
-                Text(field.label)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(theme.label)
-                BusinessSetupDocumentKit.ChoiceChips(
+            if field.key == "gstState" {
+                let selected = values[field.key] ?? ""
+                let code = IndiaStateCatalog.codeOf(selected)
+                let display: String = {
+                    if selected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "" }
+                    if !code.isEmpty {
+                        return "\(IndiaStateCatalog.displayName(selected)) · \(code)"
+                    }
+                    return selected
+                }()
+                BusinessSetupDocumentKit.PickerRow(
                     theme: theme,
-                    options: options,
-                    selected: binding(for: field.key)
+                    label: field.label,
+                    value: display,
+                    placeholder: field.placeholder.isEmpty ? "Select state" : field.placeholder,
+                    helper: field.helper,
+                    error: fieldErrors[field.key],
+                    onTap: { showGstStatePicker = true }
                 )
-                if !field.helper.isEmpty, fieldErrors[field.key] == nil {
-                    Text(field.helper)
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundStyle(theme.hint)
+            } else {
+                BusinessSetupDocumentKit.FieldRow(
+                    theme: theme,
+                    label: field.label,
+                    placeholder: field.placeholder,
+                    text: binding(for: field.key),
+                    helper: field.helper,
+                    error: fieldErrors[field.key],
+                    forceUppercase: field.key == "gstin"
+                )
+            }
+        case .choice(let options):
+            if field.key == "currency" {
+                BusinessSetupDocumentKit.CurrencyDropdown(
+                    theme: theme,
+                    label: field.label,
+                    options: options,
+                    selected: Binding(
+                        get: {
+                            let current = values[field.key] ?? ""
+                            if current.isEmpty { return options.first ?? "" }
+                            return current
+                        },
+                        set: { values[field.key] = $0; fieldErrors[field.key] = nil }
+                    ),
+                    helper: field.helper,
+                    error: fieldErrors[field.key]
+                )
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(field.label)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(theme.label)
+                    BusinessSetupDocumentKit.ChoiceChips(
+                        theme: theme,
+                        options: options,
+                        selected: binding(for: field.key)
+                    )
+                    if !field.helper.isEmpty, fieldErrors[field.key] == nil {
+                        Text(field.helper)
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(theme.hint)
+                    }
                 }
             }
         case .multiChoice(let options):
@@ -298,7 +354,8 @@ struct BusinessSetupShell: View {
                 placeholder: field.placeholder,
                 text: binding(for: field.key),
                 helper: field.helper,
-                error: fieldErrors[field.key]
+                error: fieldErrors[field.key],
+                fieldKey: field.key
             )
         case .rowAction(let action):
             BusinessSetupDocumentKit.RowAction(
