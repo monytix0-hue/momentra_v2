@@ -1507,6 +1507,56 @@ data class WidgetSourceRowDto(
     val ledgerStatus: String? = null,
 )
 
+/** Callers: ApiService.getBusinessMomentWidgets + OperatingMomentScreens. P4 widget contracts. */
+data class WidgetsProjectionDto(
+    val momentId: String = "",
+    val familyCode: String = "",
+    val subtype: String = "",
+    val currency: String = "",
+    val role: String = "",
+    val financeVisible: Boolean = false,
+    val postingComplete: Boolean = true,
+    val residualIncomplete: Boolean = false,
+    val widgets: List<OperatingWidgetDto> = emptyList(),
+)
+
+data class OperatingWidgetDto(
+    val widgetId: String = "",
+    val screen: String = "",
+    val title: String = "",
+    val financeOnly: Boolean = false,
+    val formula: String = "",
+    val metrics: List<OperatingWidgetMetricDto> = emptyList(),
+    val sourceEventIds: List<String> = emptyList(),
+    val coverage: String = "UNAVAILABLE",
+    val why: String? = null,
+)
+
+data class OperatingWidgetMetricDto(
+    val key: String = "",
+    val label: String = "",
+    val value: Any? = null,
+    val unit: String? = null,
+    val coverage: String = "UNAVAILABLE",
+)
+
+data class WidgetSourcesDto(
+    val widgetId: String = "",
+    val formula: String = "",
+    val coverage: String = "UNAVAILABLE",
+    val reconciledTotal: Any? = null,
+    val sources: List<WidgetSourceRowDto> = emptyList(),
+)
+
+data class WidgetSourceRowDto(
+    val sourceEventId: String = "",
+    val eventType: String = "",
+    val title: String = "",
+    val amount: String? = null,
+    val occurredAt: String = "",
+    val ledgerStatus: String? = null,
+)
+
 data class OperatingMasterDto(
     val id: String = "",
     /** MASTER rows are table-backed and editable; EVENT rows are the legacy fallback. */

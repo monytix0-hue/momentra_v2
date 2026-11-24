@@ -129,7 +129,7 @@
           }
         }
       },
-      "manufacturing": {
+        "manufacturing": {
         "canvas": { "$type": "color", "$value": "#18181B", "$extensions": { "figma": "MFG-PULSE-v12 2396:29655 canvas gradient end" } },
         "canvasTop": { "$type": "color", "$value": "#3F3F46", "$extensions": { "figma": "MFG-PULSE-v12 canvas gradient start" } },
         "canvasDeep": { "$type": "color", "$value": "#09090B" },

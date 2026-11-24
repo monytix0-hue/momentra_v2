@@ -1,0 +1,64 @@
+import XCTest
+@testable import momentra
+
+final class DistributionQuickAddCopyTests: XCTestCase {
+
+    func testPurchaseContextContainsStockOnlyWhenReceived() {
+        let line = DistributionQuickAddCopy.context(mode: "PURCHASE", brand: "Metro")
+        XCTAssertEqual(
+            line,
+            "Metro Distribution · Purchase ≠ payment · stock only when received"
+        )
+        XCTAssertTrue(line.contains("stock only when received"))
+    }
+
+    func testBlankBrandFallsBackToDistribution() {
+        XCTAssertEqual(
+            DistributionQuickAddCopy.context(mode: "SALE", brand: "  "),
+            "Distribution Distribution · Sale ≠ receipt · stock only on dispatch"
+        )
+    }
+
+    func testEmptyStatesMatchFigma() {
+        XCTAssertEqual(DistributionQuickAddCopy.emptyTitle(mode: "PAYMENT"), "NOTHING TO PAY")
+        XCTAssertEqual(DistributionQuickAddCopy.emptyTitle(mode: "RETURN"), "NOTHING TO RETURN")
+        XCTAssertEqual(DistributionQuickAddCopy.emptyTitle(mode: "DELIVERY"), "NOTHING TO DELIVER")
+        XCTAssertTrue(DistributionQuickAddCopy.emptyBody(mode: "PAYMENT").contains("never creates a purchase"))
+        XCTAssertEqual(DistributionQuickAddCopy.stickyEmpty(mode: "PAYMENT"), "Nothing to record")
+    }
+
+    func testReimburseCtaAndSticky() {
+        XCTAssertEqual(
+            DistributionQuickAddCopy.cta(mode: "APPROVAL", approvalChoice: "Reimburse"),
+            "Continue to Record Payment"
+        )
+        XCTAssertEqual(
+            DistributionQuickAddCopy.stickyApproval(choice: "Reimburse"),
+            "Approval ≠ payment · posts in Record Payment"
+        )
+    }
+
+    func testPurchaseWhySplitsQuickVsItemized() {
+        XCTAssertTrue(
+            DistributionQuickAddCopy.why(mode: "PURCHASE", entryMode: "Quick cost")
+                .contains("no goods state")
+        )
+        XCTAssertTrue(
+            DistributionQuickAddCopy.why(mode: "PURCHASE", entryMode: "Itemized")
+                .contains("Part received")
+        )
+    }
+
+    func testHoldTransferReprintWhyAreDistributionSpecific() {
+        XCTAssertTrue(DistributionQuickAddCopy.why(mode: "HOLD").contains("Hold pauses a delivery order"))
+        XCTAssertTrue(DistributionQuickAddCopy.why(mode: "TRANSFER").contains("warehouses at cost"))
+        XCTAssertTrue(DistributionQuickAddCopy.why(mode: "REPRINT").contains("same number"))
+    }
+
+    func testMoreDetailsLabelMatchesFigma() {
+        XCTAssertEqual(
+            DistributionQuickAddCopy.moreDetailsLabel,
+            "More details · notes, attachments, tags"
+        )
+    }
+}
