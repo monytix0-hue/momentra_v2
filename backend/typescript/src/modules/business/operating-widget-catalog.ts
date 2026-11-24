@@ -390,6 +390,39 @@ export const MARKETING_WIDGET_IDS = [
   'ME01', 'ME02', 'ME03', 'ME04',
 ] as const;
 
+/** Board section codes use M1/L1/ME1; map to Figma AN-* frame labels. */
+const MARKETING_BOARD_DISPLAY_CODES: Record<string, string> = {
+  M1: 'AN-M01',
+  M2: 'AN-M02',
+  M3: 'AN-M03',
+  M4: 'AN-M04',
+  L1: 'AN-L01',
+  L2: 'AN-L02',
+  L3: 'AN-L03',
+  L4: 'AN-L04',
+  ME1: 'AN-ME01',
+  ME2: 'AN-ME02',
+  ME3: 'AN-ME03',
+  ME4: 'AN-ME04',
+};
+
+/** Pulse metric group codes → Figma AN-P0x (Harbor visual order). */
+const MARKETING_PULSE_GROUP_DISPLAY_CODES: Record<string, string> = {
+  ATTENTION: 'AN-P01',
+  TARGET_BUDGET: 'AN-P02',
+  PAYMENT_READINESS: 'AN-P03',
+  FINANCE: 'AN-P04',
+  ACTIVITY: 'AN-P05',
+};
+
+export function marketingBoardDisplayCode(sectionCode: string): string | null {
+  return MARKETING_BOARD_DISPLAY_CODES[sectionCode] ?? null;
+}
+
+export function marketingPulseGroupDisplayCode(groupCode: string): string | null {
+  return MARKETING_PULSE_GROUP_DISPLAY_CODES[groupCode] ?? null;
+}
+
 export function widgetsForSubtype(familyCode: string, subtype: string): WidgetDefinition[] {
   return WIDGET_CATALOG.filter((w) => {
     if (!w.familyCodes.includes(familyCode)) return false;
