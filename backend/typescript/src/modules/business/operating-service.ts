@@ -405,9 +405,18 @@ function prefsOf(raw: OperatingPreferences | Record<string, unknown>): Operating
 }
 
 function tradingGstContext(prefs: OperatingPreferences) {
-  const yesNo = (value: string | undefined): boolean | null => (value === 'YES' ? true : value === 'NO' ? false : null);
+  const tracking = String(prefs.gstTracking ?? '').trim().toUpperCase().replace(/\s+/g, '_');
+  const registration = String(prefs.gstRegistration ?? '').trim().toUpperCase().replace(/\s+/g, '_');
+  const yesNo = (value: string | undefined): boolean | null => {
+    const raw = String(value ?? '').trim().toLowerCase();
+    if (['yes', 'y', 'true', 'prices include gst', 'include', 'included'].includes(raw)) return true;
+    if (['no', 'n', 'false', 'gst is added separately', 'added separately', 'exclude', 'excluded'].includes(raw)) {
+      return false;
+    }
+    return null;
+  };
   return {
-    enabled: prefs.gstTracking === 'YES' && prefs.gstRegistration === 'REGULAR',
+    enabled: (tracking === 'YES' || tracking === 'Y') && (registration === 'REGULAR'),
     businessState: prefs.gstState ?? '',
     businessStateCode: prefs.gstStateCode || gstStateCodeOf(prefs.gstState),
     saleIncludesGst: yesNo(prefs.salePriceIncludesGst),

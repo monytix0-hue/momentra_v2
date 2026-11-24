@@ -120,9 +120,8 @@ export async function insertBusinessSetupRow(
 }
 
 /**
- * Rewrite a DRAFT business setup in place — the setup document's Section 01–05 edits after the
- * draft moment already exists. Only a DRAFT row is writable: once a setup is ACTIVE its
- * preferences move through the operating events (`BUDGET` / `TARGET` revisions), not a rewrite.
+ * Rewrite business setup preferences in place (DRAFT or ACTIVE).
+ * Setup document edits after go-live must round-trip the same Figma fields.
  */
 export async function updateBusinessSetupDraftRow(
   client: PoolClient,
@@ -137,7 +136,7 @@ export async function updateBusinessSetupDraftRow(
   const updated = await client.query<{ business_system_setup_id: string }>(
     `UPDATE business.business_system_setup
      SET title = $2, preferences = $3::jsonb, updated_at = now(), version = version + 1
-     WHERE moment_id = $1 AND status = 'DRAFT'
+     WHERE moment_id = $1 AND status IN ('DRAFT', 'ACTIVE')
      RETURNING business_system_setup_id`,
     [momentId, title, JSON.stringify(preferences)]
   );

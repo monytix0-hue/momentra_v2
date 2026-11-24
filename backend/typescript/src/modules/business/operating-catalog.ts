@@ -59,6 +59,10 @@ import {
   rollMarketingLedger,
   MARKETING_METRICS,
 } from './operating-marketing';
+import {
+  marketingBoardDisplayCode,
+  marketingPulseGroupDisplayCode,
+} from './operating-widget-catalog';
 
 export const OPERATING_FAMILY_CODES = [
   'MARKETING_CAMPAIGNS',
@@ -133,6 +137,81 @@ export interface QuickAddDef {
   paymentRelevance: PaymentRelevance;
   financeOnly: boolean;
   needsAmount: boolean;
+}
+
+/** Hub tile kind: WRITE posts via operating-events; NAV opens masters/sheets only. */
+export type QuickAddHubKind = 'WRITE' | 'NAV';
+
+export type QuickAddHubGroupId = 'CORE' | 'SUPPORT' | 'UTILITIES';
+
+export interface QuickAddHubTile {
+  code: string;
+  label: string;
+  subtitle?: string;
+  kind: QuickAddHubKind;
+  /** When true, clients must not POST — open chrome/masters only. */
+  chromeOnly?: boolean;
+  needsAmount?: boolean;
+  /** Chrome tile that opens an existing write sheet (e.g. Issue → UPDATE). */
+  mapsTo?: string;
+}
+
+export interface QuickAddHubGroup {
+  id: QuickAddHubGroupId;
+  title: string;
+  tiles: QuickAddHubTile[];
+}
+
+export interface QuickAddHub {
+  groups: QuickAddHubGroup[];
+}
+
+/** Own Business Campaign hub — Figma MKT-OWN groups; HOLD/TRANSFER stay chrome-only. */
+export function ownBusinessQuickAddHub(): QuickAddHub {
+  return {
+    groups: [
+      {
+        id: 'CORE',
+        title: 'Core actions',
+        tiles: [
+          { code: 'ACTIVITY', label: 'Activity', subtitle: 'Task · brief · due', kind: 'WRITE', needsAmount: false },
+          { code: 'PROGRESS', label: 'Progress', subtitle: 'Milestone update', kind: 'WRITE', needsAmount: false },
+          { code: 'SPEND', label: 'Spend', subtitle: 'Media · vendor bill', kind: 'WRITE', needsAmount: true },
+          { code: 'PAYMENT', label: 'Payment', subtitle: 'Settle open AP', kind: 'WRITE', needsAmount: true },
+          { code: 'REVISION', label: 'Budget / Revision', subtitle: 'Versioned revise', kind: 'WRITE', needsAmount: true },
+          { code: 'APPROVAL', label: 'Approval', subtitle: 'Decision · sign-off', kind: 'WRITE', needsAmount: false },
+          { code: 'UPDATE', label: 'Update', subtitle: 'Team note · risk', kind: 'WRITE', needsAmount: false },
+          { code: 'RESULT', label: 'Result', subtitle: 'Campaign outcome', kind: 'WRITE', needsAmount: true },
+        ],
+      },
+      {
+        id: 'SUPPORT',
+        title: 'Support & management',
+        tiles: [
+          { code: 'VENDORS_CREATORS', label: 'Vendors & creators', kind: 'NAV', chromeOnly: true },
+          { code: 'VENDOR_RATES', label: 'Vendor rates', kind: 'NAV', chromeOnly: true },
+          { code: 'CHANNELS_TEAMS', label: 'Channels & teams', kind: 'NAV', chromeOnly: true },
+          { code: 'INVITE_QR', label: 'Invite & QR', kind: 'NAV', chromeOnly: true },
+          {
+            code: 'ISSUE',
+            label: 'Issue',
+            kind: 'NAV',
+            chromeOnly: true,
+            mapsTo: 'UPDATE',
+            subtitle: 'Raises Pulse alert',
+          },
+        ],
+      },
+      {
+        id: 'UTILITIES',
+        title: 'Utilities',
+        tiles: [
+          { code: 'HOLD', label: 'Hold', kind: 'NAV', chromeOnly: true, subtitle: 'Pause · no write API' },
+          { code: 'TRANSFER', label: 'Transfer', kind: 'NAV', chromeOnly: true, subtitle: 'Move · no write API' },
+        ],
+      },
+    ],
+  };
 }
 
 const QA = {
@@ -437,8 +516,16 @@ export interface OperatingPreferences {
   jobOnConfirm: string;
   productsBomNote: string;
   planMonth: string;
+  /** Marketing UI extras — persisted so setup documents round-trip. */
+  clientContact: string;
+  billingBasis: string;
+  offerType: string;
+  supportingTarget: string;
+  promotedProducts: string;
   /** COMPANY (default) = any active company member; RESTRICTED = grant/Moment membership required. */
   momentAccess: 'COMPANY' | 'RESTRICTED';
+  /** Durable company logo media id from HeroCard upload; optional passthrough. */
+  logoMediaId?: string;
 }
 
 const ROLE_LABEL_ALIASES: Record<string, OperatingRole> = {
@@ -743,9 +830,18 @@ export function applyOperatingSetupAliases(
   const metricLabel = String(prefs.targetMetric ?? '').trim().toLowerCase();
   if (metricLabel === 'leads') prefs.targetMetric = 'LEADS';
   else if (metricLabel === 'reach') prefs.targetMetric = 'REACH';
-  else if (metricLabel === 'clicks') prefs.targetMetric = 'ENGAGEMENT';
-  else if (metricLabel === 'sales' || metricLabel === 'revenue') prefs.targetMetric = 'REVENUE';
-  else if (/invoiced|accepted job/.test(metricLabel)) prefs.targetMetric = 'REVENUE';
+  else if (metricLabel === 'clicks' || metricLabel === 'engagements') prefs.targetMetric = 'ENGAGEMENT';
+  else if (metricLabel === 'sales' || metricLabel === 'revenue' || metricLabel === 'attributed sales') {
+    prefs.targetMetric = 'REVENUE';
+  } else if (metricLabel === 'client billing') prefs.targetMetric = 'CLIENT_BILLING';
+  else if (
+    metricLabel === 'count' ||
+    metricLabel === 'custom' ||
+    metricLabel === 'appointments' ||
+    metricLabel === 'appointment'
+  ) {
+    prefs.targetMetric = 'CUSTOM_COUNT';
+  } else if (/invoiced|accepted job/.test(metricLabel)) prefs.targetMetric = 'REVENUE';
   else if (/production\s*output|finished goods/.test(metricLabel)) prefs.targetMetric = 'PRODUCTION_OUTPUT';
   else if (/deliver/.test(metricLabel)) prefs.targetMetric = 'DELIVERY_COUNT';
   else if (/^orders?$/.test(metricLabel) || metricLabel === 'orders') prefs.targetMetric = 'ORDERS';
@@ -996,13 +1092,20 @@ export function normalizeOperatingPreferences(
       counterparties.push({ name, kind: String(rec.kind ?? 'OTHER').trim() || 'OTHER' });
     }
   }
+  const logoMediaId = String(prefs.logoMediaId ?? '').trim();
+  const resolvedStart =
+    familyCode === 'MARKETING_CAMPAIGNS' ? startDate : String(prefs.startDate ?? '');
+  const planMonthRaw = String(prefs.planMonth ?? '').trim();
+  const planMonth =
+    planMonthRaw
+    || (/^\d{4}-\d{2}/.test(resolvedStart) ? resolvedStart.slice(0, 7) : '');
   return {
     subtype,
     identityName,
     partyName,
     description: String(prefs.description ?? '').trim(),
     currency: String(prefs.currency ?? 'INR').toUpperCase(),
-    startDate: familyCode === 'MARKETING_CAMPAIGNS' ? startDate : String(prefs.startDate ?? ''),
+    startDate: resolvedStart,
     endDate: familyCode === 'MARKETING_CAMPAIGNS' ? endDate : String(prefs.endDate ?? ''),
     location: String(prefs.location ?? '').trim(),
     activationPolicy: String(prefs.activationPolicy ?? '').toUpperCase() === 'APPROVAL_REQUIRED'
@@ -1015,13 +1118,182 @@ export function normalizeOperatingPreferences(
     monthlyBudget,
     monthlyTarget,
     targetMetric,
+    planMonth,
     ...normalizeGstPreferences(familyCode, prefs, draft),
     ...normalizeMarketingPreferences(familyCode, subtype, prefs),
     ...normalizeMtoPreferences(subtype, prefs),
     momentAccess: String(prefs.momentAccess ?? prefs.accessMode ?? '').toUpperCase() === 'RESTRICTED'
       ? 'RESTRICTED'
       : 'COMPANY',
+    ...(logoMediaId ? { logoMediaId } : {}),
   };
+}
+
+const TARGET_METRIC_UI_LABELS: Record<string, string> = {
+  REVENUE: 'Revenue',
+  ORDERS: 'Orders',
+  CUSTOM_COUNT: 'Count',
+  LEADS: 'Leads',
+  REACH: 'Reach',
+  ENGAGEMENT: 'Clicks',
+  CLIENT_BILLING: 'Client billing',
+  PRODUCTION_OUTPUT: 'Production output',
+  DELIVERY_COUNT: 'Deliveries',
+};
+
+const GST_REGISTRATION_UI_LABELS: Record<string, string> = {
+  REGULAR: 'Regular',
+  COMPOSITION: 'Composition',
+  UNREGISTERED: 'Unregistered',
+  NOT_SURE: 'Not sure',
+};
+
+/**
+ * Echo closed OperatingPreferences back as Figma document keys so setup shells
+ * can prefill by exact key after GET /setup.
+ *
+ * `forUi: true` also remaps choice codes → chip labels (GET only). Storage keeps
+ * closed codes (`YES`, `REVENUE`, `INR`) so operating Pulse/GST keep working.
+ */
+export function expandOperatingPreferencesForUi(
+  input: OperatingPreferences | Record<string, unknown>,
+  options: { forUi?: boolean } = {}
+): Record<string, unknown> {
+  const forUi = options.forUi === true;
+  const prefs = { ...(input as Record<string, unknown>) };
+  const subtype = String(prefs.subtype ?? '').toUpperCase();
+  const identityName = String(prefs.identityName ?? '').trim();
+  const partyName = String(prefs.partyName ?? '').trim();
+
+  if (identityName) {
+    prefs.identityName = identityName;
+    switch (subtype) {
+      case 'RETAIL_STORE':
+        prefs.storeName = identityName;
+        break;
+      case 'RESTAURANT_FOOD':
+        prefs.outletName = identityName;
+        prefs.restaurantName = identityName;
+        break;
+      case 'CONSUMER_SERVICE':
+        prefs.serviceName = identityName;
+        break;
+      case 'CLIENT_CAMPAIGN':
+      case 'OWN_BUSINESS_CAMPAIGN':
+        prefs.campaignName = identityName;
+        break;
+      case 'STANDARD_PRODUCTION':
+      case 'MADE_TO_ORDER':
+        prefs.businessName = identityName;
+        prefs.plantName = identityName;
+        break;
+      default:
+        prefs.businessName = identityName;
+        break;
+    }
+  }
+
+  if (partyName) {
+    prefs.partyName = partyName;
+    if (subtype === 'CLIENT_CAMPAIGN') prefs.clientName = partyName;
+    else if (subtype === 'OWN_BUSINESS_CAMPAIGN') prefs.brandName = partyName;
+    else prefs.companyName = partyName;
+  }
+
+  if (forUi) {
+    const currency = String(prefs.currency ?? '').trim().toUpperCase();
+    if (currency === 'INR') prefs.currency = 'INR · Indian Rupee (₹)';
+    else if (currency && !currency.includes('·')) prefs.currency = currency;
+
+    const gstTracking = String(prefs.gstTracking ?? '').trim().toUpperCase();
+    if (gstTracking === 'YES') {
+      prefs.gstTracking = 'Yes';
+      prefs.gstRegistered = 'Yes';
+    } else if (gstTracking === 'NOT_NOW') {
+      prefs.gstTracking = 'Not now';
+      prefs.gstRegistered = 'Not now';
+    }
+
+    const gstRegistration = String(prefs.gstRegistration ?? '').trim().toUpperCase();
+    if (GST_REGISTRATION_UI_LABELS[gstRegistration]) {
+      prefs.gstRegistration = GST_REGISTRATION_UI_LABELS[gstRegistration];
+      prefs.gstType = GST_REGISTRATION_UI_LABELS[gstRegistration];
+    }
+
+    const saleIncludes = String(prefs.salePriceIncludesGst ?? '').trim().toUpperCase();
+    if (saleIncludes === 'YES') {
+      prefs.salePriceIncludesGst = 'Prices include GST';
+      prefs.priceIncludesGst = 'Yes';
+    } else if (saleIncludes === 'NO') {
+      prefs.salePriceIncludesGst = 'GST is added separately';
+      prefs.priceIncludesGst = 'No';
+    }
+
+    const metric = String(prefs.targetMetric ?? '').trim().toUpperCase();
+    if (TARGET_METRIC_UI_LABELS[metric]) {
+      prefs.targetMetric = TARGET_METRIC_UI_LABELS[metric];
+    }
+  } else {
+    // Storage: keep MTO GST aliases as codes so reopen via expand(forUi) still works.
+    const gstTracking = String(prefs.gstTracking ?? '').trim().toUpperCase();
+    if (gstTracking === 'YES' || gstTracking === 'NOT_NOW') prefs.gstRegistered = gstTracking;
+    const gstRegistration = String(prefs.gstRegistration ?? '').trim().toUpperCase();
+    if (gstRegistration) prefs.gstType = gstRegistration;
+    const saleIncludes = String(prefs.salePriceIncludesGst ?? '').trim().toUpperCase();
+    if (saleIncludes === 'YES' || saleIncludes === 'NO') prefs.priceIncludesGst = saleIncludes;
+  }
+
+  const monthlyTarget = String(prefs.monthlyTarget ?? '').trim();
+  if (monthlyTarget) {
+    if (subtype === 'CONSUMER_SERVICE') prefs.monthlyChargeTarget = monthlyTarget;
+    if (subtype === 'OWN_BUSINESS_CAMPAIGN' || subtype === 'CLIENT_CAMPAIGN') {
+      prefs.conversionGoal = monthlyTarget;
+      prefs.primaryTarget = monthlyTarget;
+    }
+  }
+  const monthlyBudget = String(prefs.monthlyBudget ?? '').trim();
+  if (monthlyBudget && (subtype === 'OWN_BUSINESS_CAMPAIGN' || subtype === 'CLIENT_CAMPAIGN')) {
+    prefs.marketingBudget = monthlyBudget;
+    prefs.ownMarketingBudget = monthlyBudget;
+    if (subtype === 'CLIENT_CAMPAIGN' && !String(prefs.campaignBudget ?? '').trim()) {
+      prefs.campaignBudget = monthlyBudget;
+    }
+  }
+
+  const offering = String(prefs.offering ?? '').trim();
+  if (offering) prefs.campaignPurpose = offering;
+
+  const participants = Array.isArray(prefs.participants) ? prefs.participants : [];
+  if (participants.length > 0) {
+    const names: string[] = [];
+    const roles: string[] = [];
+    for (const row of participants) {
+      if (!row || typeof row !== 'object') continue;
+      const rec = row as Record<string, unknown>;
+      const displayName = String(rec.displayName ?? '').trim();
+      if (!displayName) continue;
+      const roleCode = String(rec.role ?? '').trim().toUpperCase();
+      const roleLabel =
+        OPERATING_ROLES.find((r) => r.code === roleCode)?.label
+        ?? (roleCode || 'Team Member');
+      names.push(displayName);
+      roles.push(roleLabel);
+    }
+    if (names.length > 0) {
+      prefs.teamMembers = names.join(' | ');
+      prefs.roles = roles.join(' | ');
+    }
+  }
+
+  // Keep channels as string[] — Android/iOS prefill join List → pipe for MultiChoice.
+
+  const planMonth = String(prefs.planMonth ?? '').trim();
+  if (!planMonth) {
+    const start = String(prefs.startDate ?? '').trim();
+    if (/^\d{4}-\d{2}/.test(start)) prefs.planMonth = start.slice(0, 7);
+  }
+
+  return prefs;
 }
 
 function normalizeMtoPreferences(
@@ -1034,7 +1306,6 @@ function normalizeMtoPreferences(
   | 'orderApproval'
   | 'jobOnConfirm'
   | 'productsBomNote'
-  | 'planMonth'
 > {
   const empty = {
     quoteValidity: '',
@@ -1042,7 +1313,6 @@ function normalizeMtoPreferences(
     orderApproval: '',
     jobOnConfirm: '',
     productsBomNote: '',
-    planMonth: '',
   };
   if (subtype !== 'MADE_TO_ORDER') return empty;
   const jobRaw = String(prefs.jobOnConfirm ?? '').trim().toUpperCase();
@@ -1059,7 +1329,6 @@ function normalizeMtoPreferences(
     orderApproval: String(prefs.orderApproval ?? '').trim(),
     jobOnConfirm,
     productsBomNote: String(prefs.productsBomNote ?? '').trim(),
-    planMonth: String(prefs.planMonth ?? '').trim(),
   };
 }
 
@@ -1079,6 +1348,11 @@ function normalizeMarketingPreferences(
   | 'conversionDenominator'
   | 'conversionDefinitionVersion'
   | 'campaignStatus'
+  | 'clientContact'
+  | 'billingBasis'
+  | 'offerType'
+  | 'supportingTarget'
+  | 'promotedProducts'
 > {
   const empty = {
     clientFee: '',
@@ -1091,6 +1365,11 @@ function normalizeMarketingPreferences(
     conversionDenominator: '',
     conversionDefinitionVersion: '',
     campaignStatus: 'OPEN',
+    clientContact: '',
+    billingBasis: '',
+    offerType: '',
+    supportingTarget: '',
+    promotedProducts: '',
   };
   if (familyCode !== 'MARKETING_CAMPAIGNS') return empty;
   const client = subtype === 'CLIENT_CAMPAIGN';
@@ -1106,6 +1385,11 @@ function normalizeMarketingPreferences(
     conversionDenominator: String(prefs.conversionDenominator ?? '').trim(),
     conversionDefinitionVersion: String(prefs.conversionDefinitionVersion ?? '').trim(),
     campaignStatus: String(prefs.campaignStatus ?? '').toUpperCase() === 'CLOSED' ? 'CLOSED' : 'OPEN',
+    clientContact: String(prefs.clientContact ?? '').trim(),
+    billingBasis: String(prefs.billingBasis ?? '').trim(),
+    offerType: String(prefs.offerType ?? '').trim(),
+    supportingTarget: String(prefs.supportingTarget ?? '').trim(),
+    promotedProducts: String(prefs.promotedProducts ?? prefs.promotedBrand ?? '').trim(),
   };
 }
 
@@ -1343,6 +1627,13 @@ export interface OperatingProjection {
     memory: OperatingBoardSection[];
   };
   quickAdds: Array<{ code: string; label: string; needsAmount: boolean }>;
+  /**
+   * Own Business Campaign Figma hub groups (core write tiles + chrome-only support/utilities).
+   * Null for other subtypes — clients keep using `quickAdds` for write chips.
+   */
+  quickAddHub: QuickAddHub | null;
+  /** Marketing Own identity line (Figma “Plan. Launch. Measure.”). */
+  tagline: string | null;
   gstTracking: string;
   gstRegistration: string;
   gstState: string;
@@ -1438,6 +1729,8 @@ export interface OperatingBoardSection {
   metrics?: OperatingBoardMetric[];
   /** Figma "Why: ..." footnote. Only explains a gap, never restates the tiles. */
   why?: string | null;
+  /** Figma AN-M0x / AN-L0x / AN-ME0x for marketing boards. */
+  displayCode?: string | null;
 }
 
 function num(value: string | null | undefined): number {
@@ -1465,7 +1758,7 @@ function toManufacturing(row: OperatingEventRow): ManufacturingEvent {
 }
 
 function money(value: number): string {
-  return value.toFixed(4);
+  return value.toFixed(2);
 }
 
 function effective(row: OperatingEventRow): boolean {
@@ -2019,6 +2312,8 @@ export function projectOperatingMoment(args: {
     .map((code) => QA[code])
     .filter((def) => canSubmit(args.role, def))
     .map((def) => ({ code: def.code, label: def.label, needsAmount: def.needsAmount }));
+  const quickAddHub = ownCampaign ? ownBusinessQuickAddHub() : null;
+  const tagline = ownCampaign ? 'Plan. Launch. Measure.' : null;
   return {
     retired: false,
     familyCode: args.familyCode,
@@ -2026,6 +2321,7 @@ export function projectOperatingMoment(args: {
     subtypeLabel: sub?.label ?? args.prefs.subtype,
     title: args.prefs.identityName,
     partyName: args.prefs.partyName,
+    tagline,
     role: args.role,
     financeVisible: visible,
     currency: args.prefs.currency,
@@ -2098,6 +2394,7 @@ export function projectOperatingMoment(args: {
       asOf,
     }),
     quickAdds,
+    quickAddHub,
     gstTracking: args.prefs.gstTracking,
     gstRegistration: args.prefs.gstRegistration,
     gstState: args.prefs.gstState,
@@ -2122,32 +2419,44 @@ export function projectOperatingMoment(args: {
           )
         : null,
     marketing: marketingInsight,
-    pulseMetrics:
-      isTradingSubtype(args.prefs.subtype) ||
-      isRetailSubtype(args.prefs.subtype) ||
-      isMarketingSubtype(args.prefs.subtype) ||
-      isManufacturingSubtype(args.prefs.subtype)
-        ? tradingPulseMetrics({
-            events: args.events,
-            visible,
-            currency: args.prefs.currency,
-            asOf,
-            prefs: args.prefs,
-            role: args.role,
-            projection: {
-              budget: visible
-                ? { amount: money(budget), spent: money(spent), remaining: money(budget - spent), configured: budgetConfigured }
-                : null,
-              target: visible
-                ? { metric: args.prefs.targetMetric, value: money(target), progress: money(progress), configured: targetConfigured }
-                : null,
-              finance,
-              attention,
-              paymentReadiness,
-              activity: pulseEvents.map((row) => ({ eventType: row.eventType })),
-            },
-          })
-        : null,
+    pulseMetrics: (() => {
+      const marketing = isMarketingSubtype(args.prefs.subtype);
+      if (
+        !(
+          isTradingSubtype(args.prefs.subtype) ||
+          isRetailSubtype(args.prefs.subtype) ||
+          marketing ||
+          isManufacturingSubtype(args.prefs.subtype)
+        )
+      ) {
+        return null;
+      }
+      const groups = tradingPulseMetrics({
+        events: args.events,
+        visible,
+        currency: args.prefs.currency,
+        asOf,
+        prefs: args.prefs,
+        role: args.role,
+        projection: {
+          budget: visible
+            ? { amount: money(budget), spent: money(spent), remaining: money(budget - spent), configured: budgetConfigured }
+            : null,
+          target: visible
+            ? { metric: args.prefs.targetMetric, value: money(target), progress: money(progress), configured: targetConfigured }
+            : null,
+          finance,
+          attention,
+          paymentReadiness,
+          activity: pulseEvents.map((row) => ({ eventType: row.eventType })),
+        },
+      });
+      if (!marketing) return groups;
+      return groups.map((group) => ({
+        ...group,
+        displayCode: marketingPulseGroupDisplayCode(group.code),
+      }));
+    })(),
   };
 }
 
@@ -2544,6 +2853,10 @@ function decorateMarketingBoards(
       if (section.code !== 'L3' && section.code !== 'ME2') continue;
       section.rows = section.rows.filter((row) => !hide.has(row.eventType));
     }
+  }
+  for (const section of [...moments, ...life, ...memory]) {
+    const displayCode = marketingBoardDisplayCode(section.code);
+    if (displayCode) section.displayCode = displayCode;
   }
 }
 

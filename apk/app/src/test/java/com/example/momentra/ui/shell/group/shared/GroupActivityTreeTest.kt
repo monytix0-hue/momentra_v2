@@ -109,6 +109,38 @@ class GroupActivityTreeTest {
         assertTrue(groupActivityNodeHasVoidChild(tree[0]))
     }
 
+    @Test
+    fun parentSurfacesLatestUpdatedAmountAndTitle() {
+        val recorded = activity(
+            code = "GROUP_EXPENSE_RECORDED",
+            title = "Lunch",
+            occurredAt = "2026-09-10T10:00:00Z",
+            amount = "100.0000",
+            expenseId = "e1",
+        )
+        val firstUpdate = activity(
+            code = "GROUP_EXPENSE_UPDATED",
+            title = "Brunch",
+            occurredAt = "2026-09-10T11:00:00Z",
+            amount = "120.0000",
+            expenseId = "e1",
+        )
+        val latestUpdate = activity(
+            code = "GROUP_EXPENSE_UPDATED",
+            title = "Dinner",
+            occurredAt = "2026-09-10T12:00:00Z",
+            amount = "250.0000",
+            expenseId = "e1",
+        )
+
+        val tree = groupActivityTree(listOf(recorded, firstUpdate, latestUpdate))
+        val expenseNode = tree.first { it.item.activityPayload?.expenseId == "e1" }
+        assertEquals("GROUP_EXPENSE_RECORDED", expenseNode.item.activityCode)
+        assertEquals("Dinner", expenseNode.item.title)
+        assertEquals("₹250", groupActivityAmountLabel(expenseNode.item))
+        assertEquals(2, expenseNode.children.size)
+    }
+
     private fun activity(
         code: String,
         title: String = "Item",

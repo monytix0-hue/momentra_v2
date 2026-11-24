@@ -102,7 +102,29 @@ private fun buildGroupActivityNode(group: List<ActivityItemDto>): GroupActivityT
         if (item === parent) return@filter false
         isGroupActivityVoided(item.activityCode) || isGroupActivityUpdated(item.activityCode)
     }
-    return GroupActivityTreeNode(parent, children)
+    // PATCH appends GROUP_*_UPDATED; keep RECORDED as the nest parent but surface the
+    // latest update's title/amount so Pulse doesn't look like the edit never saved.
+    return GroupActivityTreeNode(applyLatestUpdateToParent(parent, children), children)
+}
+
+internal fun applyLatestUpdateToParent(
+    parent: ActivityItemDto,
+    children: List<ActivityItemDto>,
+): ActivityItemDto {
+    val latestUpdate = children.lastOrNull { isGroupActivityUpdated(it.activityCode) } ?: return parent
+    val updatePayload = latestUpdate.activityPayload
+    val basePayload = parent.activityPayload
+    return parent.copy(
+        title = latestUpdate.title.trim().takeIf { it.isNotEmpty() } ?: parent.title,
+        activityPayload = when {
+            updatePayload == null -> basePayload
+            basePayload == null -> updatePayload
+            else -> basePayload.copy(
+                amount = updatePayload.amount ?: basePayload.amount,
+                currencyCode = updatePayload.currencyCode ?: basePayload.currencyCode,
+            )
+        },
+    )
 }
 
 private fun latestGroupActivityOccurredAtMillis(node: GroupActivityTreeNode): Long {

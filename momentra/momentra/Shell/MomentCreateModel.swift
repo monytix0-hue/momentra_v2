@@ -105,12 +105,8 @@ final class MomentCreateModel: ObservableObject {
                         taxIdentifier: taxIdentifier,
                         editingMomentId: editingMomentId
                     )
-                    // The document cancels its debounce when §06 is pressed, so the last edits are
-                    // written here before the status flips — activation must not promote a draft
-                    // that is one keystroke behind the screen. An already-ACTIVE moment has no
-                    // draft row to patch, so this only runs for a DRAFT.
-                    if !prefsForApi.isEmpty,
-                       editingMomentStatus?.caseInsensitiveCompare("DRAFT") == .orderedSame {
+                    // Persist setup preferences for DRAFT (pre-activate) and ACTIVE (edit reopen).
+                    if !prefsForApi.isEmpty {
                         _ = try? await APIClient.shared.patchBusinessSetupDraft(
                             momentId: editingMomentId,
                             title: resolvedTitle,
