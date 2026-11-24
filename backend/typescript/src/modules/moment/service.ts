@@ -24,24 +24,11 @@ import {
 } from './setup-persistence';
 import { bindInviteToMoment } from '../collaboration/invite-service';
 import { emitLeanBusinessEvent } from '../analytics/lean-events';
-/** Phase 1A: marketing subtype helpers stubbed (Business V4 tear-down). */
-type MarketingEvent = {
-  operatingEventId: string;
-  eventType: string;
-  title: string;
-  amount: string | null;
-  paymentStatus: string;
-  approvalStatus: string;
-  occurredAt: string;
-};
-function isMarketingSubtype(_code: string): boolean { return false; }
-function assertMarketingSubtypeStable(
-  _previous: string,
-  _next: string,
-  _events: MarketingEvent[]
-): { ok: true } | { ok: false; message: string } {
-  return { ok: true };
-}
+import {
+  assertMarketingSubtypeStable,
+  isMarketingSubtype,
+  type MarketingEvent,
+} from '../business/operating-marketing';
 
 const participantRoleSchema = z.enum([
   'ORGANIZER',
@@ -533,6 +520,21 @@ export async function createMoment(
       preferences,
       momentStatus
     );
+    if (
+      momentStatus === 'ACTIVE' &&
+      body.businessSetup.familyCode === 'MARKETING_CAMPAIGNS' &&
+      body.companyId
+    ) {
+      const { insertReportingCadenceActivity, normalizeOperatingPreferences } = await import(
+        '../business/operating-service'
+      );
+      const normalized = normalizeOperatingPreferences(
+        body.businessSetup.familyCode,
+        preferences,
+        { userId: ctx.userId, displayName: 'Owner' }
+      );
+      await insertReportingCadenceActivity(client, ctx, momentId, body.companyId, normalized);
+    }
   }
 
   if (body.domainCode === 'GROUP' && body.groupSetup) {
@@ -676,6 +678,23 @@ export async function activateMomentDraft(
          WHERE moment_id = $1 AND status = 'DRAFT'`,
         [momentId]
       );
+      if (setup.rows[0].family_code === 'MARKETING_CAMPAIGNS' && setup.rows[0].company_id) {
+        const { insertReportingCadenceActivity, normalizeOperatingPreferences } = await import(
+          '../business/operating-service'
+        );
+        const normalized = normalizeOperatingPreferences(
+          'MARKETING_CAMPAIGNS',
+          setup.rows[0].preferences ?? {},
+          { userId: ctx.userId, displayName: 'Owner' }
+        );
+        await insertReportingCadenceActivity(
+          client,
+          ctx,
+          momentId,
+          setup.rows[0].company_id,
+          normalized
+        );
+      }
     }
   }
 

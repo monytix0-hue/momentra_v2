@@ -231,7 +231,17 @@ export async function assertCompanyMomentAccess(
 ): Promise<BusinessMomentScope> {
   const scope = await evaluateCompanyMomentAccess(client, ctx, momentId);
   if (!scope) {
-    throw new AppError(ErrorCode.GOVERNANCE_DENIED, 'Not a member of this business moment.', 403);
+    // Company-bound Moments keep the company-membership error the API contract documents.
+    const bound = await client.query<{ company_id: string | null }>(
+      `SELECT company_id FROM business.business_moment_context WHERE moment_id = $1`,
+      [momentId]
+    );
+    const isCompanyBound = bound.rows[0]?.company_id != null;
+    throw new AppError(
+      ErrorCode.GOVERNANCE_DENIED,
+      isCompanyBound ? 'Not an active company member.' : 'Not a member of this business moment.',
+      403
+    );
   }
   return scope;
 }

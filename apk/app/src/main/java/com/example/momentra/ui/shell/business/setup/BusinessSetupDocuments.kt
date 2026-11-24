@@ -185,7 +185,7 @@ object BusinessSetupDocuments {
                         "campaignPurpose", "Campaign purpose",
                         listOf("Leads", "Launch", "Awareness", "Sales", "Event", "Traffic"),
                     ),
-                    text("promotedBrand", "Promoted brand", "Optional"),
+                    text("promotedBrand", "Promoted brand / product", "Optional"),
                 ),
             ),
             section(
@@ -232,7 +232,7 @@ object BusinessSetupDocuments {
                     text("monthlyTarget", "Primary target", "120", helper = "Amount / count"),
                     choice(
                         "targetMetric", "Target unit",
-                        listOf("Leads", "Reach", "Clicks", "Sales"),
+                        listOf("Leads", "Reach", "Clicks", "Sales", "Client billing", "Custom"),
                     ),
                 ),
             ),
@@ -299,7 +299,7 @@ object BusinessSetupDocuments {
                     panelHeader("panelIdentity", "Identity"),
                     text("campaignName", "Campaign name", "Harbor & Loom launch"),
                     text(
-                        "brandName", "Promoted brand", "Harbor & Loom",
+                        "brandName", "Promoted brand / product", "Harbor & Loom",
                         helper = "Your company — not a client",
                     ),
                     text(
@@ -352,7 +352,10 @@ object BusinessSetupDocuments {
                         "conversionGoal", "Primary target", "Store visits / sales",
                         helper = "What success looks like",
                     ),
-                    text("targetMetric", "Target unit", "Leads"),
+                    choice(
+                        "targetMetric", "Target unit",
+                        listOf("Leads", "Reach", "Clicks", "Attributed sales", "Engagements", "Custom"),
+                    ),
                     text("supportingTarget", "Supporting target", "Optional secondary metric"),
                 ),
             ),
@@ -417,7 +420,7 @@ object BusinessSetupDocuments {
                 "basics", "Business Basics", "A home for this trading business.",
                 listOf(
                     panelHeader("panelIdentity", "Identity"),
-                    text("businessName", "Business name", "Northstar Trading"),
+                    text("businessName", "Brand name", "Northstar Trading"),
                     text(
                         "companyName", "Company name", "Northstar Trading",
                         helper = "Registered company name",
@@ -458,7 +461,11 @@ object BusinessSetupDocuments {
                     date("planMonth", "Month", "October 2026"),
                     text("monthlyBudget", "Monthly budget", "₹60,00,000", helper = "Amount"),
                     text("monthlyTarget", "Monthly sales target", "₹90,00,000", helper = "Amount"),
-                    text("targetMetric", "How the target is measured", "Revenue"),
+                                        choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf("Revenue", "Orders", "Count"),
+                    ),
                 ),
             ),
             section(
@@ -521,7 +528,7 @@ object BusinessSetupDocuments {
                 "basics", "Business Basics", "A home for this distribution business.",
                 listOf(
                     panelHeader("panelIdentity", "Identity"),
-                    text("businessName", "Business name", "Metro Distribution"),
+                    text("businessName", "Brand name", "Metro Distribution"),
                     text(
                         "companyName", "Company name", "Metro Distribution",
                         helper = "Registered company name",
@@ -562,7 +569,11 @@ object BusinessSetupDocuments {
                     date("planMonth", "Month", "October 2026"),
                     text("monthlyBudget", "Monthly budget", "₹60,00,000", helper = "Amount"),
                     text("monthlyTarget", "Monthly sales target", "₹90,00,000", helper = "Amount"),
-                    text("targetMetric", "How the target is measured", "Revenue"),
+                                        choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf("Revenue", "Orders", "Count"),
+                    ),
                 ),
             ),
             section(
@@ -666,7 +677,11 @@ object BusinessSetupDocuments {
                     date("planMonth", "Month", "October 2026"),
                     text("monthlyBudget", "Monthly budget", "₹8,40,000", helper = "Amount"),
                     text("monthlyTarget", "Monthly sales target", "₹12,00,000", helper = "Amount"),
-                    text("targetMetric", "How the target is measured", "Revenue"),
+                                        choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf("Revenue", "Orders", "Count"),
+                    ),
                 ),
             ),
             section(
@@ -770,7 +785,11 @@ object BusinessSetupDocuments {
                     date("planMonth", "Month", "October 2026"),
                     text("monthlyBudget", "Monthly budget", "₹5,20,000", helper = "Amount"),
                     text("monthlyTarget", "Monthly sales target", "₹6,50,000", helper = "Amount"),
-                    text("targetMetric", "How the target is measured", "Revenue"),
+                                        choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf("Revenue", "Orders", "Count"),
+                    ),
                 ),
             ),
             section(
@@ -850,7 +869,7 @@ object BusinessSetupDocuments {
                 "basics", "Business Basics", "A home for this salon & spa.",
                 listOf(
                     panelHeader("panelIdentity", "Identity"),
-                    text("serviceName", "Business name", "BrightCare"),
+                    text("serviceName", "Brand name", "BrightCare"),
                     text(
                         "companyName", "Company name", "BrightCare",
                         helper = "Registered company name",
@@ -894,7 +913,11 @@ object BusinessSetupDocuments {
                         "monthlyChargeTarget", "Monthly charge target", "₹6,50,000",
                         helper = "Amount",
                     ),
-                    text("targetMetric", "How the target is measured", "Revenue"),
+                                        choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf("Revenue", "Appointments", "Count"),
+                    ),
                 ),
             ),
             section(
@@ -956,7 +979,7 @@ object BusinessSetupDocuments {
                 "basics", "Business Basics", "A home for this plant.",
                 listOf(
                     panelHeader("panelIdentity", "Identity"),
-                    text("businessName", "Business name", "Forge & Form"),
+                    text("businessName", "Brand name", "Forge & Form"),
                     text("companyName", "Company name", "Forge & Form", helper = "Registered company name"),
                     text("gstin", "GSTIN", "27AAFCF4321M1Z6", helper = "15-digit GSTIN, if you have one"),
                     choice("currency", "Currency", CURRENCY_OPTIONS),
@@ -994,7 +1017,16 @@ object BusinessSetupDocuments {
                     date("planMonth", "Month", "October 2026"),
                     text("monthlyBudget", "Monthly budget", "₹42,00,000", helper = "Amount"),
                     text("monthlyTarget", "Monthly sales target", "₹65,00,000", helper = "Amount"),
-                    text("targetMetric", "How the target is measured", "Revenue"),
+                                        choice(
+                        "targetMetric",
+                        "How the target is measured",
+                        listOf(
+                            "Invoiced value (or accepted job units)",
+                            "Production output",
+                            "Delivery count",
+                            "Orders",
+                        ),
+                    ),
                 ),
             ),
             section(
@@ -1058,7 +1090,7 @@ object BusinessSetupDocuments {
             section(
                 "basics", "Business Basics", "A home for this job-order shop.",
                 listOf(
-                    text("businessName", "Business name", "Forge & Form"),
+                    text("businessName", "Brand name", "Forge & Form"),
                     text("companyName", "Company name", "Forge & Form", helper = "Registered company name"),
                     text("gstin", "GSTIN", "27AAFCF4321M1Z6", helper = "15-digit GSTIN, if you have one"),
                     choice("currency", "Currency", CURRENCY_OPTIONS),

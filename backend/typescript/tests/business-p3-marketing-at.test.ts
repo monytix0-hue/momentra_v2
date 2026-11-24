@@ -86,6 +86,90 @@ describe('Marketing v5.1 AT-01–AT-25', () => {
     assert.equal(own.has('COLLECTION'), false);
   });
 
+  it('Own hub: 8 core write tiles + chrome support/utilities; tagline; AN-P01', () => {
+    const view = projectOperatingMoment({
+      familyCode: 'MARKETING_CAMPAIGNS',
+      prefs: prefs('OWN_BUSINESS_CAMPAIGN'),
+      role: 'OWNER_ADMIN',
+      events: [
+        posted('inv', 'INVOICE', {
+          amount: '50000',
+          paymentRelevance: 'RECEIVABLE',
+          paymentStatus: 'PENDING',
+        }),
+        posted('col', 'COLLECTION', {
+          amount: '10000',
+          paymentRelevance: 'RECEIVABLE',
+          paymentStatus: 'COLLECTED',
+        }),
+      ],
+    });
+
+    assert.equal(view.quickAdds.length, 8);
+    const coreCodes = view.quickAdds.map((q) => q.code);
+    for (const code of ['ACTIVITY', 'PROGRESS', 'SPEND', 'PAYMENT', 'REVISION', 'APPROVAL', 'UPDATE', 'RESULT']) {
+      assert.ok(coreCodes.includes(code), `missing core ${code}`);
+    }
+    assert.equal(coreCodes.includes('INVOICE'), false);
+    assert.equal(coreCodes.includes('COLLECTION'), false);
+
+    assert.equal(view.tagline, 'Plan. Launch. Measure.');
+    assert.ok(view.quickAddHub);
+    const groups = Object.fromEntries(view.quickAddHub!.groups.map((g) => [g.id, g]));
+    assert.equal(groups.CORE?.tiles.length, 8);
+    assert.equal(groups.CORE?.tiles.find((t) => t.code === 'ACTIVITY')?.subtitle, 'Task · brief · due');
+    assert.equal(groups.CORE?.tiles.find((t) => t.code === 'REVISION')?.subtitle, 'Versioned revise');
+
+    const supportCodes = new Set(groups.SUPPORT?.tiles.map((t) => t.code) ?? []);
+    for (const code of ['VENDORS_CREATORS', 'VENDOR_RATES', 'CHANNELS_TEAMS', 'INVITE_QR', 'ISSUE']) {
+      assert.ok(supportCodes.has(code), `missing support ${code}`);
+    }
+    assert.equal(groups.SUPPORT?.tiles.every((t) => t.chromeOnly === true && t.kind === 'NAV'), true);
+    assert.equal(groups.SUPPORT?.tiles.find((t) => t.code === 'ISSUE')?.mapsTo, 'UPDATE');
+
+    const utilCodes = new Set(groups.UTILITIES?.tiles.map((t) => t.code) ?? []);
+    assert.ok(utilCodes.has('HOLD'));
+    assert.ok(utilCodes.has('TRANSFER'));
+    assert.equal(groups.UTILITIES?.tiles.every((t) => t.chromeOnly === true && t.kind === 'NAV'), true);
+
+    const moneyMoving = view.boards.life.find((s) => s.code === 'L3');
+    const moneyHistory = view.boards.memory.find((s) => s.code === 'ME2');
+    assert.equal(moneyMoving?.rows.some((r) => r.eventType === 'INVOICE' || r.eventType === 'COLLECTION'), false);
+    assert.equal(moneyHistory?.rows.some((r) => r.eventType === 'INVOICE' || r.eventType === 'COLLECTION'), false);
+    assert.equal(view.boards.moments.find((s) => s.code === 'M1')?.displayCode, 'AN-M01');
+    assert.equal(view.boards.life.find((s) => s.code === 'L1')?.displayCode, 'AN-L01');
+
+    const attention = view.pulseMetrics?.find((g) => g.code === 'ATTENTION');
+    const target = view.pulseMetrics?.find((g) => g.code === 'TARGET_BUDGET');
+    assert.equal(attention?.displayCode, 'AN-P01');
+    assert.equal(target?.displayCode, 'AN-P02');
+
+    const matrix = coverageMatrix('MARKETING_CAMPAIGNS', 'OWN_BUSINESS_CAMPAIGN');
+    assert.equal(matrix.find((w) => w.widgetId === 'P04')?.displayCode, 'AN-P01');
+    assert.equal(matrix.find((w) => w.widgetId === 'P01')?.displayCode, 'AN-P02');
+    assert.equal(matrix.find((w) => w.widgetId === 'M01')?.displayCode, 'AN-M01');
+
+    const bundle = projectWidgetsFromProjection({ projection: view, events: [] });
+    const needsAttention = bundle.widgets.find((w) => w.widgetId === 'P04');
+    const targetWidget = bundle.widgets.find((w) => w.widgetId === 'P01');
+    assert.equal(needsAttention?.displayCode, 'AN-P01');
+    assert.equal(targetWidget?.displayCode, 'AN-P02');
+    assert.equal(needsAttention?.widgetId, 'P04');
+    assert.equal(targetWidget?.widgetId, 'P01');
+  });
+
+  it('Client projection has no Own hub chrome and no Own tagline', () => {
+    const view = projectOperatingMoment({
+      familyCode: 'MARKETING_CAMPAIGNS',
+      prefs: prefs('CLIENT_CAMPAIGN'),
+      role: 'OWNER_ADMIN',
+      events: [],
+    });
+    assert.equal(view.quickAdds.length, 10);
+    assert.equal(view.quickAddHub, null);
+    assert.equal(view.tagline, null);
+  });
+
   it('AT-03 Own attributed sales are observational — not accounting revenue', () => {
     const events = [
       posted('r1', 'RESULT', {
@@ -333,6 +417,44 @@ describe('Marketing v5.1 AT-01–AT-25', () => {
     const p02 = bundle.widgets.find((w) => w.widgetId === 'P02')!;
     assert.ok(p02.sourceEventIds.includes('inv1'));
     assert.ok(!p02.sourceEventIds.includes('inv2'));
+  });
+
+  it('clientCampaignPostActivatePulseSeed', () => {
+    const asOf = new Date('2026-11-15T00:00:00.000Z');
+    const view = projectOperatingMoment({
+      familyCode: 'MARKETING_CAMPAIGNS',
+      prefs: prefs('CLIENT_CAMPAIGN', { identityName: 'Brightline', reportingCadence: 'WEEKLY' }),
+      role: 'OWNER_ADMIN',
+      events: [],
+      asOf,
+    });
+    assert.equal(view.budget?.configured, true);
+    assert.equal(view.target?.configured, true);
+    assert.equal(view.title, 'Brightline');
+    assert.equal(view.partyName, 'Northstar');
+    assert.deepEqual(view.life?.channels, ['Search Ads']);
+    const targetBudget = (view.pulseMetrics ?? []).find((group) => group.code === 'TARGET_BUDGET');
+    assert.ok(targetBudget);
+    assert.match(String(targetBudget?.metrics.find((tile) => tile.key === 'budget')?.value ?? ''), /5,?00,?000|500000/);
+    assert.match(String(targetBudget?.metrics.find((tile) => tile.key === 'target')?.value ?? ''), /^300/);
+    const progress = String(targetBudget?.metrics.find((tile) => tile.key === 'progress')?.value ?? '');
+    assert.match(progress, /^0(\s*(LEADS|INR))?$/);
+    const activity = (view.pulseMetrics ?? []).find((group) => group.code === 'ACTIVITY');
+    assert.equal(activity?.metrics.find((tile) => tile.key === 'records')?.value, '0');
+    const codes = (view.quickAdds ?? []).map((row) => row.code);
+    assert.equal(codes.length, 10);
+    for (const required of ['INVOICE', 'COLLECTION', 'RESULT', 'SPEND']) {
+      assert.ok(codes.includes(required), `missing quick add ${required}`);
+    }
+    const bundle = projectWidgetsFromProjection({ projection: view, events: [] });
+    assert.equal(bundle.marketingContract?.count, 17);
+    for (const id of MARKETING_WIDGET_IDS) {
+      assert.ok(bundle.widgets.some((w) => w.widgetId === id), `missing widget ${id}`);
+    }
+    const results = bundle.widgets.find((w) => w.widgetId === 'MKT-RESULTS')!;
+    assert.notEqual(results.coverage, 'UNAVAILABLE');
+    assert.equal(results.metrics[0]?.coverage, 'ZERO');
+    assert.equal(results.metrics[0]?.value, 0);
   });
 
   it('AT-25 incomplete historical coverage → UNAVAILABLE not zero', () => {

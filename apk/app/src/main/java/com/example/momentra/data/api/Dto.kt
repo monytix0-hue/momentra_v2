@@ -1369,6 +1369,8 @@ data class OperatingBoardSectionDto(
     val coverage: String? = null,
     val metrics: List<OperatingBoardMetricDto> = emptyList(),
     val why: String? = null,
+    /** Figma AN-* section code when present (marketing). */
+    val displayCode: String? = null,
 )
 
 data class OperatingBoardsDto(
@@ -1383,6 +1385,26 @@ data class OperatingQuickAddDto(
     val needsAmount: Boolean = false,
 )
 
+data class OperatingQuickAddHubTileDto(
+    val code: String = "",
+    val label: String = "",
+    val subtitle: String? = null,
+    val kind: String = "WRITE",
+    val chromeOnly: Boolean = false,
+    val needsAmount: Boolean = false,
+    val mapsTo: String? = null,
+)
+
+data class OperatingQuickAddHubGroupDto(
+    val id: String = "",
+    val title: String = "",
+    val tiles: List<OperatingQuickAddHubTileDto> = emptyList(),
+)
+
+data class OperatingQuickAddHubDto(
+    val groups: List<OperatingQuickAddHubGroupDto> = emptyList(),
+)
+
 data class OperatingProjectionDto(
     val retired: Boolean = false,
     @SerializedName("companyId") val companyId: String? = null,
@@ -1391,6 +1413,8 @@ data class OperatingProjectionDto(
     val subtypeLabel: String? = null,
     val title: String? = null,
     val partyName: String? = null,
+    /** Marketing Own identity line (Figma “Plan. Launch. Measure.”). */
+    val tagline: String? = null,
     val role: String? = null,
     val financeVisible: Boolean = false,
     val currency: String? = null,
@@ -1409,6 +1433,8 @@ data class OperatingProjectionDto(
     val memory: OperatingMemoryDto? = null,
     val boards: OperatingBoardsDto? = null,
     val quickAdds: List<OperatingQuickAddDto> = emptyList(),
+    /** Own Business Campaign hub groups (core + chrome support/utilities). */
+    val quickAddHub: OperatingQuickAddHubDto? = null,
     val gstTracking: String? = null,
     val gstRegistration: String? = null,
     val gstState: String? = null,
@@ -1426,6 +1452,59 @@ data class OperatingPulseMetricGroupDto(
     val code: String = "",
     val metrics: List<OperatingBoardMetricDto> = emptyList(),
     val why: String? = null,
+    val displayCode: String? = null,
+)
+
+/** Callers: ApiService.getBusinessMomentWidgets + OperatingMomentScreens. P4 widget contracts. */
+data class WidgetsProjectionDto(
+    val momentId: String = "",
+    val familyCode: String = "",
+    val subtype: String = "",
+    val currency: String = "",
+    val role: String = "",
+    val financeVisible: Boolean = false,
+    val postingComplete: Boolean = true,
+    val residualIncomplete: Boolean = false,
+    val widgets: List<OperatingWidgetDto> = emptyList(),
+)
+
+data class OperatingWidgetDto(
+    val widgetId: String = "",
+    val screen: String = "",
+    val title: String = "",
+    val financeOnly: Boolean = false,
+    val formula: String = "",
+    val metrics: List<OperatingWidgetMetricDto> = emptyList(),
+    val sourceEventIds: List<String> = emptyList(),
+    val coverage: String = "UNAVAILABLE",
+    val why: String? = null,
+    /** Figma AN-* display code when present (marketing). */
+    val displayCode: String? = null,
+)
+
+data class OperatingWidgetMetricDto(
+    val key: String = "",
+    val label: String = "",
+    val value: Any? = null,
+    val unit: String? = null,
+    val coverage: String = "UNAVAILABLE",
+)
+
+data class WidgetSourcesDto(
+    val widgetId: String = "",
+    val formula: String = "",
+    val coverage: String = "UNAVAILABLE",
+    val reconciledTotal: Any? = null,
+    val sources: List<WidgetSourceRowDto> = emptyList(),
+)
+
+data class WidgetSourceRowDto(
+    val sourceEventId: String = "",
+    val eventType: String = "",
+    val title: String = "",
+    val amount: String? = null,
+    val occurredAt: String = "",
+    val ledgerStatus: String? = null,
 )
 
 /** Callers: ApiService.getBusinessMomentWidgets + OperatingMomentScreens. P4 widget contracts. */
@@ -2069,6 +2148,13 @@ data class MediaUploadCompleteResultDto(
     @SerializedName("uploadId") val uploadId: String,
     @SerializedName("mediaId") val mediaId: String,
     val status: String,
+    @SerializedName("downloadUrl") val downloadUrl: String? = null,
+)
+
+/** Result of company logo media complete — callers: BusinessSliceRepository.uploadCompanyLogo. */
+data class CompanyLogoUploadResult(
+    val mediaId: String,
+    val downloadUrl: String? = null,
 )
 
 data class AttachExpenseMediaBody(

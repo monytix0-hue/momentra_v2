@@ -75,84 +75,93 @@ fun BusinessGuidedCreateContent(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scroll)
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 24.dp)
+                // Room for sticky Continue + footnote so preview doesn't hide them.
+                .padding(bottom = 120.dp),
         ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Close,
-                contentDescription = "Close",
-                tint = Color.White,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clickable(role = Role.Button, onClick = onBack)
-                    .padding(10.dp),
-            )
-        }
-
-        Text(
-            text = "${BusinessGuidedCreateSpecs.QUESTION_LINE_1}\n${BusinessGuidedCreateSpecs.QUESTION_LINE_2}",
-            color = Color(0xFFF1F5F9),
-            fontSize = 32.sp,
-            lineHeight = 40.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = PlusJakartaSans,
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = BusinessGuidedCreateSpecs.SUBTITLE,
-            color = Color(0xFFA7A7AE),
-            fontSize = 14.sp,
-            lineHeight = 22.sp,
-            fontFamily = PlusJakartaSans,
-        )
-        Spacer(Modifier.height(20.dp))
-
-        BusinessGuidedCreateSpecs.options.chunked(2).forEach { row ->
             Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.End,
             ) {
-                row.forEach { option ->
-                    BusinessChoiceCard(
-                        option = option,
-                        selected = option.id == selectedId,
-                        emerald = emerald,
-                        onClick = { selectedId = option.id },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = "Close",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clickable(role = Role.Button, onClick = onBack)
+                        .padding(10.dp),
+                )
             }
-            Spacer(Modifier.height(10.dp))
-        }
 
-        Spacer(Modifier.height(8.dp))
-        PreviewCard(option = selected, emerald = emerald)
-        Spacer(Modifier.height(24.dp))
+            Text(
+                text = "${BusinessGuidedCreateSpecs.QUESTION_LINE_1}\n${BusinessGuidedCreateSpecs.QUESTION_LINE_2}",
+                color = Color(0xFFF1F5F9),
+                fontSize = 32.sp,
+                lineHeight = 40.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = BusinessGuidedCreateSpecs.SUBTITLE,
+                color = Color(0xFFA7A7AE),
+                fontSize = 14.sp,
+                lineHeight = 22.sp,
+                fontFamily = PlusJakartaSans,
+            )
+            Spacer(Modifier.height(20.dp))
 
-        BusinessContinueButton(
-            label = BusinessGuidedCreateSpecs.CONTINUE_LABEL,
-            enabled = !submitting,
-            onClick = { onContinue(selected) },
-        )
-        if (error != null) {
+            BusinessGuidedCreateSpecs.options.chunked(2).forEach { row ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    row.forEach { option ->
+                        BusinessChoiceCard(
+                            option = option,
+                            selected = option.id == selectedId,
+                            emerald = emerald,
+                            onClick = { selectedId = option.id },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+
             Spacer(Modifier.height(8.dp))
-            Text(error, color = BusinessAppStateTokens.ErrorRing, fontSize = 12.sp)
+            PreviewCard(option = selected, emerald = emerald)
+            Spacer(Modifier.height(16.dp))
         }
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = BusinessGuidedCreateSpecs.FOOTNOTE,
-            color = Color(0xFFA7A7AE),
-            fontSize = 12.sp,
-            modifier = Modifier.fillMaxWidth(),
-            fontFamily = PlusJakartaSans,
-        )
-        Spacer(Modifier.height(24.dp))
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(BusinessAppStateTokens.Page)
+                .padding(horizontal = 24.dp)
+                .padding(top = 12.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (error != null) {
+                Text(error, color = BusinessAppStateTokens.ErrorRing, fontSize = 12.sp)
+            }
+            BusinessContinueButton(
+                label = BusinessGuidedCreateSpecs.CONTINUE_LABEL,
+                enabled = !submitting,
+                onClick = { onContinue(selected) },
+            )
+            Text(
+                text = BusinessGuidedCreateSpecs.FOOTNOTE,
+                color = Color(0xFFA7A7AE),
+                fontSize = 12.sp,
+                modifier = Modifier.fillMaxWidth(),
+                fontFamily = PlusJakartaSans,
+            )
         }
     }
 }

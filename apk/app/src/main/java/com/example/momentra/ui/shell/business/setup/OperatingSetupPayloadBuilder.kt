@@ -196,7 +196,8 @@ object OperatingSetupPayloadBuilder {
         if (purpose.isNotEmpty()) prefs["offering"] = purpose
 
         (mapManufacturingTargetMetric(prefs["targetMetric"])
-            ?: mapMarketingTargetMetric(prefs["targetMetric"]))
+            ?: mapMarketingTargetMetric(prefs["targetMetric"])
+            ?: mapCommerceTargetMetric(prefs["targetMetric"]))
             ?.let { prefs["targetMetric"] = it }
         if (positiveAmount(prefs["monthlyTarget"]) == null) {
             val target = firstNonEmpty(
@@ -451,12 +452,26 @@ object OperatingSetupPayloadBuilder {
         return when (raw.lowercase()) {
             "leads" -> "LEADS"
             "reach" -> "REACH"
-            "clicks" -> "ENGAGEMENT"
-            "sales" -> "REVENUE"
+            "clicks", "engagements" -> "ENGAGEMENT"
+            "sales", "attributed sales" -> "REVENUE"
+            "client billing" -> "CLIENT_BILLING"
+            "custom", "count" -> "CUSTOM_COUNT"
             else -> {
                 val code = raw.uppercase().replace(" ", "_")
                 code.ifEmpty { null }
             }
+        }
+    }
+
+    /** Trading / retail / restaurant / service chip labels → closed metrics. */
+    fun mapCommerceTargetMetric(value: Any?): String? {
+        val raw = stringValue(value)
+        if (raw.isEmpty()) return null
+        return when (raw.lowercase()) {
+            "revenue" -> "REVENUE"
+            "orders", "order" -> "ORDERS"
+            "count", "custom", "appointments", "appointment" -> "CUSTOM_COUNT"
+            else -> null
         }
     }
 
@@ -546,5 +561,35 @@ object OperatingSetupPayloadBuilder {
         is String -> value.trim()
         is Number -> value.toString()
         else -> value.toString().trim()
+    }
+}
+
+/**
+ * Prefers an already-linked company over creating a second one during HeroCard logo upload.
+ * Callers: MomentCreateViewModel.uploadSetupLogo, BusinessSetupShell DRAFT ensure.
+ * [resolveForUpload] is the decision uploadSetupLogo uses before ensureSetupCompany.
+ * Strings only — no data files. User: Dual company + round-2 unit coverage for resolve+create.
+ */
+sealed class SetupLogoCompanyDecision {
+    data class UseExisting(val companyId: String) : SetupLogoCompanyDecision()
+    data object WouldCreate : SetupLogoCompanyDecision()
+}
+
+object SetupLogoCompanyResolver {
+    fun preferExisting(passedCompanyId: String?, momentLinkedCompanyId: String?): String? =
+        passedCompanyId?.takeIf { it.isNotBlank() }
+            ?: momentLinkedCompanyId?.takeIf { it.isNotBlank() }
+
+    /** Resolve+create decision used by uploadSetupLogo (passed → linked → WouldCreate). */
+    fun resolveForUpload(
+        passedCompanyId: String?,
+        momentLinkedCompanyId: String?,
+    ): SetupLogoCompanyDecision {
+        val existing = preferExisting(passedCompanyId, momentLinkedCompanyId)
+        return if (existing != null) {
+            SetupLogoCompanyDecision.UseExisting(existing)
+        } else {
+            SetupLogoCompanyDecision.WouldCreate
+        }
     }
 }

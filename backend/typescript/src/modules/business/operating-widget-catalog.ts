@@ -276,6 +276,49 @@ const INDUSTRY_EXTRA: WidgetDefinition[] = [
     currencyPolicy: 'NA',
   }),
   def({
+    widgetId: 'DD-ATTENTION',
+    screen: 'PULSE',
+    title: 'Distribution Attention',
+    familyCodes: ['TRADING_DISTRIBUTION'],
+    subtypes: ['DISTRIBUTION_DEALERSHIP'],
+    eligibleEventTypes: ['ACTIVITY', 'APPROVAL', 'ISSUE', 'ORDER', 'SHIPMENT', 'DELIVERY'],
+    financeOnly: false,
+    formula: 'Dealership ATT-* cards — routes, fulfilment, overdue; null when no eligible events',
+    currencyPolicy: 'NA',
+  }),
+  def({
+    widgetId: 'DD-GST',
+    screen: 'PULSE',
+    title: 'GST Position',
+    familyCodes: ['TRADING_DISTRIBUTION'],
+    subtypes: ['DISTRIBUTION_DEALERSHIP'],
+    eligibleEventTypes: ['SALE', 'PURCHASE', 'INVOICE', 'RETURN'],
+    financeOnly: true,
+    formula: 'GST snapshots from posted sales/purchases; UNAVAILABLE when gstTracking off or no snapshots',
+  }),
+  def({
+    widgetId: 'DD-COMMITMENTS',
+    screen: 'MOMENTS',
+    title: 'Open Commitments',
+    familyCodes: ['TRADING_DISTRIBUTION'],
+    subtypes: ['DISTRIBUTION_DEALERSHIP'],
+    eligibleEventTypes: ['ORDER', 'SHIPMENT', 'DELIVERY', 'CUSTOMER_ORDER'],
+    financeOnly: true,
+    formula: 'Open dealership orders and in-flight fulfilment; missing coverage ≠ zero AR',
+  }),
+  def({
+    widgetId: 'DD-PEOPLE',
+    screen: 'MOMENTS',
+    title: 'People & Network',
+    familyCodes: ['TRADING_DISTRIBUTION'],
+    subtypes: ['DISTRIBUTION_DEALERSHIP'],
+    eligibleEventTypes: [],
+    financeOnly: false,
+    formula: 'Setup participants, routes, dealer network from prefs',
+    currencyPolicy: 'NA',
+    periodPolicy: 'ALL_TIME',
+  }),
+  def({
     widgetId: 'RT-SALES',
     screen: 'MOMENTS',
     title: 'Sales & Orders',
@@ -390,7 +433,32 @@ export const MARKETING_WIDGET_IDS = [
   'ME01', 'ME02', 'ME03', 'ME04',
 ] as const;
 
-/** Board section codes use M1/L1/ME1; map to Figma AN-* frame labels. */
+/**
+ * Figma AN-* section codes for Marketing Pulse/Moments/Life/Memory.
+ * Pulse follows Harbor & Loom / Brightline visual order (Needs Attention first),
+ * not the evaluation widgetId number. Evaluation keeps P01/M01/… unchanged.
+ */
+const MARKETING_DISPLAY_CODES: Record<string, string> = {
+  P04: 'AN-P01', // Needs Attention
+  P01: 'AN-P02', // Target & Budget
+  P03: 'AN-P03', // Payment Readiness
+  P02: 'AN-P04', // Finance
+  P05: 'AN-P05', // Activity
+  M01: 'AN-M01',
+  M02: 'AN-M02',
+  M03: 'AN-M03',
+  M04: 'AN-M04',
+  L01: 'AN-L01',
+  L02: 'AN-L02',
+  L03: 'AN-L03',
+  L04: 'AN-L04',
+  ME01: 'AN-ME01',
+  ME02: 'AN-ME02',
+  ME03: 'AN-ME03',
+  ME04: 'AN-ME04',
+};
+
+/** Board section codes use M1/L1/ME1; map to the same AN-* frame labels. */
 const MARKETING_BOARD_DISPLAY_CODES: Record<string, string> = {
   M1: 'AN-M01',
   M2: 'AN-M02',
@@ -406,7 +474,7 @@ const MARKETING_BOARD_DISPLAY_CODES: Record<string, string> = {
   ME4: 'AN-ME04',
 };
 
-/** Pulse metric group codes → Figma AN-P0x (Harbor visual order). */
+/** Pulse metric group codes → Figma AN-P0x (same visual order as widgets). */
 const MARKETING_PULSE_GROUP_DISPLAY_CODES: Record<string, string> = {
   ATTENTION: 'AN-P01',
   TARGET_BUDGET: 'AN-P02',
@@ -414,6 +482,10 @@ const MARKETING_PULSE_GROUP_DISPLAY_CODES: Record<string, string> = {
   FINANCE: 'AN-P04',
   ACTIVITY: 'AN-P05',
 };
+
+export function marketingWidgetDisplayCode(widgetId: string): string | null {
+  return MARKETING_DISPLAY_CODES[widgetId] ?? null;
+}
 
 export function marketingBoardDisplayCode(sectionCode: string): string | null {
   return MARKETING_BOARD_DISPLAY_CODES[sectionCode] ?? null;
@@ -428,6 +500,10 @@ export function widgetsForSubtype(familyCode: string, subtype: string): WidgetDe
     if (!w.familyCodes.includes(familyCode)) return false;
     if (w.subtypes === '*') return true;
     return w.subtypes.includes(subtype);
+  }).map((w) => {
+    if (familyCode !== 'MARKETING_CAMPAIGNS') return w;
+    const displayCode = marketingWidgetDisplayCode(w.widgetId);
+    return displayCode ? { ...w, displayCode } : w;
   });
 }
 
@@ -438,6 +514,7 @@ export function widgetById(widgetId: string): WidgetDefinition | undefined {
 export function coverageMatrix(familyCode: string, subtype: string) {
   return widgetsForSubtype(familyCode, subtype).map((w) => ({
     widgetId: w.widgetId,
+    displayCode: w.displayCode ?? null,
     screen: w.screen,
     title: w.title,
     eligibleEventTypes: w.eligibleEventTypes,

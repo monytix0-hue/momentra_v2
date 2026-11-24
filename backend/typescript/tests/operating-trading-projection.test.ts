@@ -113,6 +113,25 @@ const BOARD_SECTIONS = [
 /** The six Pulse surfaces, which carry their own tile groups. */
 const PULSE_SECTIONS = ['TARGET_BUDGET', 'FINANCE', 'PAYMENT_READINESS', 'ATTENTION', 'ACTIVITY', 'GST'];
 
+/**
+ * The eighteen TRADING_WHOLESALE View-all sheet codes (Figma TRD-SHEET · View all · …).
+ * Matches client `TRADING_SHEET_STATES` / `TradingSheetState`.
+ */
+const VIEW_ALL_BOARD_CODES = [
+  'orders',
+  'stock',
+  'network',
+  'M4',
+  'L1',
+  'L2',
+  'L3',
+  'L4',
+  'ME1',
+  'ME2',
+  'fulfilment',
+  'ME4',
+];
+
 function busyEvents(): OperatingEventRow[] {
   return [
     event('buy', 'PURCHASE', {
@@ -210,6 +229,38 @@ describe('structured board metrics for both verticals', () => {
     });
   }
 
+  it('TRADING_WHOLESALE: all 18 View-all surfaces resolve with tiles (and lists when busy)', () => {
+    const view = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: prefs('TRADING_WHOLESALE'),
+      role: 'OWNER_ADMIN',
+      events: busyEvents(),
+      asOf: AS_OF,
+    });
+    const byCode = new Map(
+      [...view.boards.moments, ...view.boards.life, ...view.boards.memory].map((section) => [section.code, section])
+    );
+    for (const code of PULSE_SECTIONS) {
+      const group = (view.pulseMetrics ?? []).find((row) => row.code === code);
+      assert.ok(group, `missing pulse surface ${code}`);
+      assert.ok(group.metrics.length >= 2, `${code} needs tiles`);
+    }
+    assert.ok(Array.isArray(view.attention));
+    assert.ok(Array.isArray(view.paymentReadiness));
+    assert.ok(Array.isArray(view.activity));
+    assert.ok((view.activity ?? []).length > 0, 'busy moment should expose activity rows for ACTIVITY sheet');
+    for (const code of VIEW_ALL_BOARD_CODES) {
+      const section = byCode.get(code);
+      assert.ok(section, `missing view-all board ${code}`);
+      assert.ok(
+        Array.isArray(section.metrics) && section.metrics.length >= 2,
+        `${code} should expose at least two tiles`
+      );
+      assert.ok(Array.isArray(section.rows), `${code} rows must be an array`);
+    }
+    assert.equal(PULSE_SECTIONS.length + VIEW_ALL_BOARD_CODES.length, 18);
+  });
+
   it('reports a missing measurement as Not recorded rather than zero', () => {
     const unconfigured = { ...prefs('TRADING_WHOLESALE'), monthlyBudget: '', monthlyTarget: '' };
     const view = projectOperatingMoment({
@@ -225,6 +276,31 @@ describe('structured board metrics for both verticals', () => {
     assert.equal(target?.metrics.find((tile) => tile.key === 'target')?.value, 'Not recorded');
     assert.equal(target?.metrics.find((tile) => tile.key === 'progress')?.value, 'Not recorded');
     assert.match(String(target?.why ?? ''), /target and budget/i);
+  });
+
+  it('post-activate Pulse surfaces setup budget/target with zero events', () => {
+    const view = projectOperatingMoment({
+      familyCode: 'TRADING_DISTRIBUTION',
+      prefs: prefs('TRADING_WHOLESALE'),
+      role: 'OWNER_ADMIN',
+      events: [],
+      asOf: AS_OF,
+    });
+    assert.equal(view.budget?.configured, true);
+    assert.equal(view.target?.configured, true);
+    const targetBudget = (view.pulseMetrics ?? []).find((group) => group.code === 'TARGET_BUDGET');
+    assert.ok(targetBudget);
+    assert.match(String(targetBudget?.metrics.find((tile) => tile.key === 'budget')?.value ?? ''), /5,?00,?000|500000/);
+    assert.match(String(targetBudget?.metrics.find((tile) => tile.key === 'target')?.value ?? ''), /10,?00,?000|1000000/);
+    const progress = String(targetBudget?.metrics.find((tile) => tile.key === 'progress')?.value ?? '');
+    assert.match(progress, /^0(\s*INR)?$|^₹0$/);
+    const activity = (view.pulseMetrics ?? []).find((group) => group.code === 'ACTIVITY');
+    assert.equal(activity?.metrics.find((tile) => tile.key === 'records')?.value, '0');
+    const codes = (view.quickAdds ?? []).map((row) => row.code);
+    for (const required of ['SALE', 'PURCHASE', 'COLLECTION', 'PAYMENT', 'BUDGET', 'UPDATE', 'STOCK', 'ORDER']) {
+      assert.ok(codes.includes(required), `missing quick add ${required}`);
+    }
+    assert.ok(codes.length >= 12, `expected ≥12 trading quick adds, got ${codes.length}`);
   });
 
   it('badges rows with the Figma status chips', () => {

@@ -75,9 +75,9 @@ fun ContextEmptyExperience(
     onCompanyActivated: (com.example.momentra.domain.CompanySummary) -> Unit = {},
     onMomentCreated: (String, String, String?, String) -> Unit = { _, _, _, _ -> },
     onJoinGroupCode: (String) -> Unit = {},
-    /** Opens the business company-creation flow (NoCompany setup state). */
+    /** Opens CREATE → guided business selection → setup shell (NoCompany). */
     onCreateBusiness: () -> Unit = {},
-    /** Opens the company join-code sheet (NoCompany setup state). */
+    /** Unused — company join sheet removed; kept for call-site compatibility. */
     onJoinCompany: () -> Unit = {},
     /** Moves the shell to another bottom destination (kit "Back to Pulse" CTAs). */
     onSelectDestination: (BottomDestination) -> Unit = {},

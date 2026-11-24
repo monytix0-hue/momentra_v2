@@ -37,6 +37,11 @@ export type WidgetDefinition = {
   periodPolicy: 'AS_OF_RANGE' | 'CAMPAIGN_WINDOW' | 'ALL_TIME';
   currencyPolicy: 'MOMENT_CURRENCY' | 'NA';
   historicalRule: string;
+  /**
+   * Figma section code for clients (e.g. AN-P01). Evaluation keeps `widgetId` (P01).
+   * Set for marketing presentation; omit when the industry has no AN-* frame.
+   */
+  displayCode?: string | null;
 };
 
 export type WidgetInstance = WidgetDefinition & {
@@ -73,7 +78,7 @@ export function num(value: string | number | null | undefined): number {
 }
 
 export function money(value: number): string {
-  return value.toFixed(4);
+  return value.toFixed(2);
 }
 
 /**

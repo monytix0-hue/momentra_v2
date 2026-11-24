@@ -187,6 +187,8 @@ struct OperatingBoardSectionPayload: Decodable, Identifiable {
     let metrics: [OperatingBoardMetricPayload]?
     /// The Figma `Why: …` footnote.
     let why: String?
+    /// Figma AN-* section code when present (marketing).
+    let displayCode: String?
     var id: String { code }
 }
 
@@ -196,11 +198,45 @@ struct OperatingBoardsPayload: Decodable {
     let memory: [OperatingBoardSectionPayload]?
 }
 
+struct OperatingQuickAddHubTilePayload: Decodable, Identifiable {
+    let code: String
+    let label: String
+    let subtitle: String?
+    let kind: String?
+    let chromeOnly: Bool?
+    let needsAmount: Bool?
+    let mapsTo: String?
+    var id: String { code }
+}
+
+struct OperatingQuickAddHubGroupPayload: Decodable, Identifiable {
+    let id: String
+    let title: String
+    let tiles: [OperatingQuickAddHubTilePayload]?
+
+    enum CodingKeys: String, CodingKey { case id, title, tiles }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedId = try c.decodeIfPresent(String.self, forKey: .id)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let decodedTitle = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
+        id = (decodedId?.isEmpty == false) ? decodedId! : decodedTitle
+        title = decodedTitle
+        tiles = try c.decodeIfPresent([OperatingQuickAddHubTilePayload].self, forKey: .tiles)
+    }
+}
+
+struct OperatingQuickAddHubPayload: Decodable {
+    let groups: [OperatingQuickAddHubGroupPayload]?
+}
+
 /// One group of quantified tiles per Pulse surface (V099+).
 struct OperatingPulseMetricGroupPayload: Decodable, Identifiable {
     let code: String
     let metrics: [OperatingBoardMetricPayload]?
     let why: String?
+    /// Figma AN-* display code when present (marketing).
+    let displayCode: String?
     var id: String { code }
 }
 
@@ -229,6 +265,8 @@ struct OperatingWidgetPayload: Decodable, Identifiable {
     let sourceEventIds: [String]?
     let coverage: String?
     let why: String?
+    /// Figma AN-* display code when present (marketing).
+    let displayCode: String?
     var id: String { widgetId }
 }
 
@@ -299,6 +337,8 @@ struct OperatingProjectionPayload: Decodable {
     let subtypeLabel: String?
     let title: String?
     let partyName: String?
+    /// Marketing Own identity line (Figma “Plan. Launch. Measure.”).
+    let tagline: String?
     let role: String?
     let financeVisible: Bool?
     let currency: String?
@@ -317,6 +357,8 @@ struct OperatingProjectionPayload: Decodable {
     let memory: OperatingMemoryPayload?
     let boards: OperatingBoardsPayload?
     let quickAdds: [OperatingQuickAddPayload]?
+    /// Own Business Campaign hub groups (core + chrome support/utilities).
+    let quickAddHub: OperatingQuickAddHubPayload?
     let gstTracking: String?
     let gstRegistration: String?
     let gstState: String?

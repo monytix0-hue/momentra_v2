@@ -224,7 +224,8 @@ enum OperatingSetupPayloadBuilder {
             : stringValue(prefs["campaignPurpose"])
         if !purpose.isEmpty { prefs["offering"] = purpose }
         if let metric = mapManufacturingTargetMetric(prefs["targetMetric"])
-            ?? mapMarketingTargetMetric(prefs["targetMetric"]) {
+            ?? mapMarketingTargetMetric(prefs["targetMetric"])
+            ?? mapCommerceTargetMetric(prefs["targetMetric"]) {
             prefs["targetMetric"] = metric
         }
         if positiveAmount(prefs["monthlyTarget"]) == nil {
@@ -480,11 +481,25 @@ enum OperatingSetupPayloadBuilder {
         switch raw.lowercased() {
         case "leads": return "LEADS"
         case "reach": return "REACH"
-        case "clicks": return "ENGAGEMENT"
-        case "sales": return "REVENUE"
+        case "clicks", "engagements": return "ENGAGEMENT"
+        case "sales", "attributed sales": return "REVENUE"
+        case "client billing": return "CLIENT_BILLING"
+        case "custom", "count": return "CUSTOM_COUNT"
         default:
             let code = raw.uppercased().replacingOccurrences(of: " ", with: "_")
             return code.isEmpty ? nil : code
+        }
+    }
+
+    /// Trading / retail / restaurant / service chip labels → closed metrics.
+    static func mapCommerceTargetMetric(_ value: Any?) -> String? {
+        let raw = stringValue(value)
+        if raw.isEmpty { return nil }
+        switch raw.lowercased() {
+        case "revenue": return "REVENUE"
+        case "orders", "order": return "ORDERS"
+        case "count", "custom", "appointments", "appointment": return "CUSTOM_COUNT"
+        default: return nil
         }
     }
 

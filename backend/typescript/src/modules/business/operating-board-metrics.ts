@@ -521,6 +521,8 @@ export interface OperatingPulseMetricGroup {
   code: 'TARGET_BUDGET' | 'FINANCE' | 'PAYMENT_READINESS' | 'ATTENTION' | 'ACTIVITY' | 'GST';
   metrics: OperatingBoardMetric[];
   why: string | null;
+  /** Figma AN-P0x label for marketing Pulse (evaluation code stays `code`). */
+  displayCode?: string | null;
 }
 
 /**

@@ -37,10 +37,11 @@ async function buildContext(
 
 function canUseDevAuth(): boolean {
   if (config.isProduction) return false;
-  const allow =
-    process.env.ALLOW_DEV_AUTH === '1' ||
-    process.env.ALLOW_DEV_AUTH === 'true' ||
-    config.allowDevAuth;
+  // An explicit runtime disable must win over the value captured at boot, otherwise
+  // tests that flip ALLOW_DEV_AUTH=0 still take the dev bypass.
+  const explicit = process.env.ALLOW_DEV_AUTH?.trim().toLowerCase();
+  if (explicit === '0' || explicit === 'false') return false;
+  const allow = explicit === '1' || explicit === 'true' || config.allowDevAuth;
   return !config.firebase.projectId || allow;
 }
 

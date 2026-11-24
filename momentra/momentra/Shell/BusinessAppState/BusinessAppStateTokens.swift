@@ -7,30 +7,44 @@ import SwiftUI
 ///
 /// Keep in lockstep with `BusinessAppStateTokens.kt` on Android.
 enum BusinessAppStateAccent: String, CaseIterable {
-    /// Trading / default — emerald teal `#10B981`.
+    /// System emerald / success chrome `#10B981` (not trading amber).
     case emerald
+    /// Trading / Distribution — TRD-v12 amber `#F59E0B`.
+    case amber
     /// Retail Empty (Rose) `#F43F5E`.
     case rose
     /// RST Food Empty (Flame) `#EA580C`.
     case flame
     /// View All (Cyan) `#06B6D4`.
     case cyan
+    /// Client Campaign indigo `#6366F1`.
+    case indigo
+    /// Own Business Campaign magenta `#D946EF`.
+    case magenta
 
     var color: Color {
         switch self {
-        case .emerald: return BusinessTokens.Colors.tradingAccent
+        case .emerald: return BusinessTokens.Colors.signalPositive
+        case .amber: return BusinessTokens.Colors.tradingAccent
         case .rose: return BusinessTokens.Colors.retailAccent
         case .flame: return BusinessTokens.Colors.restaurantAccent
         case .cyan: return BusinessTokens.Colors.signalInfo
+        case .indigo: return BusinessTokens.Colors.marketingAccent
+        case .magenta: return BusinessTokens.Colors.marketingOwnAccent
         }
     }
 
-    /// Retail → Rose, Restaurant → Flame; everything else → Emerald.
+    /// Trading wholesale → Emerald; Distribution dealership → Flame (`#EA580C`); Retail → Rose;
+    /// Client Campaign → Indigo; Own Business Campaign → Magenta; else Emerald.
     /// ViewAll screens pass `.cyan` explicitly at the call site.
     static func forTypeCode(_ momentTypeCode: String?) -> BusinessAppStateAccent {
         switch momentTypeCode?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "TRADING_WHOLESALE": return .emerald
+        case "DISTRIBUTION_DEALERSHIP": return .flame
         case "RETAIL_STORE": return .rose
         case "RESTAURANT_FOOD": return .flame
+        case "CLIENT_CAMPAIGN": return .indigo
+        case "OWN_BUSINESS_CAMPAIGN": return .magenta
         default: return .emerald
         }
     }
@@ -63,9 +77,13 @@ enum BusinessAppStateVertical: String, CaseIterable {
 /// Surface ramp shared by every app-state variant. Color values alias `BusinessTokens` where matched.
 enum BusinessAppStateTokens {
     // MARK: Palette primitives (alias BusinessTokens)
-    static let emerald = BusinessTokens.Colors.tradingAccent
+    /// System emerald — success toast / positive signals (stays `#10B981`).
+    static let emerald = BusinessTokens.Colors.signalPositive
     static let emeraldDeep = BusinessTokens.Colors.ctaStart
     static let emeraldBright = BusinessTokens.Colors.ctaEnd
+    /// Trading moment amber (TRD-v12).
+    static let tradingAmber = BusinessTokens.Colors.tradingAccent
+    static let tradingFlame = BusinessTokens.Colors.tradingAccentDeep
     static let errorRing = BusinessTokens.Colors.signalDanger
     static let warning = BusinessTokens.Colors.signalWarning
 
@@ -208,8 +226,14 @@ enum BusinessAppStateTokens {
     static let toastPadHorizontal: CGFloat = 14
     static let toastPadVertical: CGFloat = 12
     static let toastLabelSize: CGFloat = 12.5
-    static let successToastFill = emerald.opacity(0.16)
-    static let successToastStroke = emerald.opacity(0.45)
+    static let toastTitleSize: CGFloat = 13.5
+    static let toastSubtitleSize: CGFloat = 11.5
+    static let setupActivatedFill = Color(hex: "#16120E").opacity(0.96)
+    static let setupActivatedStroke = BusinessTokens.Colors.restaurantAccent.opacity(0.45)
+    static let setupActivatedCheck = BusinessTokens.Colors.restaurantAccent
+    static let successToastFill = Color(hex: "#0B1F18").opacity(0.94)
+    static let successToastStroke = emerald.opacity(0.55)
+    static let successToastCheck = emerald
     static let queueToastFill = Color(red: 38 / 255, green: 46 / 255, blue: 61 / 255).opacity(0.92)
     static let queueToastStroke = emerald.opacity(0.35)
     static let errorToastFill = errorRing.opacity(0.16)

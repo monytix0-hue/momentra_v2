@@ -209,9 +209,13 @@ enum BusinessSetupDocumentKit {
             Binding(
                 get: { text },
                 set: { newValue in
-                    text = forceUppercase
-                        ? BusinessSetupDateFormatting.forceUppercaseInput(newValue)
-                        : newValue
+                    if forceUppercase {
+                        text = BusinessSetupDateFormatting.forceUppercaseInput(newValue)
+                    } else if BusinessSetupAmountFormatting.isAmountHelper(helper) {
+                        text = BusinessSetupAmountFormatting.formatIndianAmount(newValue)
+                    } else {
+                        text = newValue
+                    }
                 }
             )
         }
@@ -412,42 +416,96 @@ enum BusinessSetupDocumentKit {
                 }
             }
             .sheet(isPresented: $showPicker) {
-                BusinessGlassSheetPanel {
-                    NavigationStack {
-                        DatePicker("", selection: $draftDate, displayedComponents: .date)
-                            .datePickerStyle(.graphical)
-                            .labelsHidden()
-                            .padding()
-                            .navigationTitle(label)
-                            .navigationBarTitleDisplayMode(.inline)
-                            .toolbar {
-                                ToolbarItem(placement: .cancellationAction) {
-                                    Button("Cancel") { showPicker = false }
-                                }
-                                if allowClear {
-                                    ToolbarItem(placement: .destructiveAction) {
-                                        Button("Clear") {
-                                            text = ""
-                                            showPicker = false
-                                        }
-                                    }
-                                }
-                                ToolbarItem(placement: .confirmationAction) {
-                                    Button("OK") {
-                                        text = BusinessSetupDateFormatting.toStorage(from: draftDate, mode: mode)
+                // Solid calendar backing — glass panel is too transparent to read days.
+                let calendarSurface = Color(hex: "#101623")
+                NavigationStack {
+                    DatePicker("", selection: $draftDate, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                        .padding()
+                        .navigationTitle(label)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") { showPicker = false }
+                            }
+                            if allowClear {
+                                ToolbarItem(placement: .destructiveAction) {
+                                    Button("Clear") {
+                                        text = ""
                                         showPicker = false
                                     }
                                 }
                             }
-                            .toolbarBackground(.hidden, for: .navigationBar)
-                            .toolbarColorScheme(.dark, for: .navigationBar)
-                    }
-                    .scrollContentBackground(.hidden)
-                    .toolbarBackground(.hidden, for: .navigationBar)
-                    .background(Color.clear)
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("OK") {
+                                    text = BusinessSetupDateFormatting.toStorage(from: draftDate, mode: mode)
+                                    showPicker = false
+                                }
+                            }
+                        }
+                        .toolbarBackground(calendarSurface, for: .navigationBar)
+                        .toolbarColorScheme(.dark, for: .navigationBar)
                 }
-                .businessGlassBottomSheet(detents: [.medium, .large])
+                .scrollContentBackground(.hidden)
+                .background(calendarSurface.ignoresSafeArea())
+                .presentationDetents([.medium, .large])
+                .presentationCornerRadius(BusinessAppStateTokens.cardRadius)
+                .presentationDragIndicator(.visible)
                 .preferredColorScheme(.dark)
+            }
+        }
+    }
+
+    struct PickerRow: View {
+        let theme: BusinessSetupTheme
+        let label: String
+        let value: String
+        var placeholder: String = "Select"
+        var helper: String = ""
+        var error: String? = nil
+        var onTap: () -> Void = {}
+
+        private var showError: Bool { BusinessSetupFieldChrome.hasError(error) }
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(theme.label)
+                Button(action: onTap) {
+                    HStack {
+                        Text(value.isEmpty ? placeholder : value)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(
+                                value.isEmpty ? theme.hint : BusinessTokens.Colors.textPrimary
+                            )
+                        Spacer()
+                        Text("▼")
+                            .font(.system(size: 12))
+                            .foregroundStyle(theme.hint)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 44)
+                    .background(theme.inset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(
+                                showError ? BusinessTokens.Colors.signalDanger : theme.accent.opacity(0.12),
+                                lineWidth: 1
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+                if showError, let error {
+                    Text(error)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(BusinessTokens.Colors.signalDanger)
+                } else if !helper.isEmpty {
+                    Text(helper)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(theme.hint)
+                }
             }
         }
     }

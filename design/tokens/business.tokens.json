@@ -94,7 +94,40 @@
         "label": { "$type": "color", "$value": "#C7D1E0", "$extensions": { "figma": "Obsidian row label" } },
         "hint": { "$type": "color", "$value": "#94A4B8", "$extensions": { "figma": "Obsidian muted" } },
         "value": { "$type": "color", "$value": "#F1F5F9", "$extensions": { "figma": "TRD-QA input values" } },
-        "whyBody": { "$type": "color", "$value": "#CFEFF6", "$extensions": { "figma": "TRD-QA WHY body" } }
+        "whyBody": { "$type": "color", "$value": "#CFEFF6", "$extensions": { "figma": "TRD-QA WHY body" } },
+        "screens": {
+          "pulse": {
+            "canvas": { "$type": "color", "$value": "#090D16", "$extensions": { "figma": "TRD-PULSE-v12 5:15203" } },
+            "surface": { "$type": "color", "$value": "#111827", "$extensions": { "figma": "TRD-PULSE-v12 pulse card" } },
+            "heroStart": { "$type": "color", "$value": "#6EE7B7" },
+            "heroEnd": { "$type": "color", "$value": "#10B981" }
+          },
+          "moments": {
+            "canvas": { "$type": "color", "$value": "#090D16", "$extensions": { "figma": "TRD-MOMENTS-v12 5:15516" } },
+            "surface": { "$type": "color", "$value": "#151D2E" },
+            "heroStart": { "$type": "color", "$value": "#34D399" },
+            "heroEnd": { "$type": "color", "$value": "#10B981" }
+          },
+          "life": {
+            "canvas": { "$type": "color", "$value": "#090D16", "$extensions": { "figma": "TRD-LIFE-v12 5:15807" } },
+            "surface": { "$type": "color", "$value": "#151D2E" },
+            "heroStart": { "$type": "color", "$value": "#34D399" },
+            "heroEnd": { "$type": "color", "$value": "#10B981" }
+          },
+          "memory": {
+            "canvas": { "$type": "color", "$value": "#090D16", "$extensions": { "figma": "TRD-MEMORY-v12 5:16107" } },
+            "surface": { "$type": "color", "$value": "#151D2E" },
+            "heroStart": { "$type": "color", "$value": "#10B981" },
+            "heroEnd": { "$type": "color", "$value": "#059669" }
+          },
+          "quickAdd": {
+            "canvas": { "$type": "color", "$value": "#090D16", "$extensions": { "figma": "TRD-QA-v12" } },
+            "surface": { "$type": "color", "$value": "#151D2E" },
+            "sheetSurface": { "$type": "color", "$value": "#101623" },
+            "heroStart": { "$type": "color", "$value": "#10B981" },
+            "heroEnd": { "$type": "color", "$value": "#059669" }
+          }
+        }
       },
         "manufacturing": {
         "canvas": { "$type": "color", "$value": "#18181B", "$extensions": { "figma": "MFG-PULSE-v12 2396:29655 canvas gradient end" } },

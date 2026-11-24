@@ -55,9 +55,19 @@ Setup smoke (Figma v6 parity):
 - [ ] Date fields open calendar / month picker (not free-text only)
 - [ ] Currency is a dropdown with INR default across all 9 setups
 - [ ] GSTIN types in capitals (keyboard + paste)
-- [ ] Business bottom sheets on **iOS and APK** (DateRow, Manage when Business, View-all) show **frosted** glass panel (blur/material + translucent tint ~0.55) with soft scrim (~0.35) — setup/home UI faintly visible through panel edges, emerald stroke; **not** a solid black/opaque card
-- [ ] No double black wash on View-all or Manage (Business); Personal/Group Manage chrome unchanged
-- [ ] Setup fullscreen covers stay opaque gradient
+- [ ] Business bottom sheets on **iOS and APK** (DateRow, Manage when Business, View-all) show glass + dim scrim; setup fullscreen covers stay opaque gradient
+
+### Brand name label, live hero title, logo, keyboard (all 9 setups)
+
+- [ ] Trading, Distribution, Consumer Service, Manufacturing, Job order show **Brand name** (not “Business name”)
+- [ ] Retail Store still says **Store name**, Restaurant still says **Restaurant name**, Marketing still says **Campaign name**
+- [ ] Marketing’s second field reads **Promoted brand / product**
+- [ ] Typing in Brand name updates the hero to `{name} Setup` on every keystroke
+- [ ] Clearing Brand name restores the Figma placeholder hero title
+- [ ] Editing Company name alone leaves the hero title unchanged
+- [ ] Tapping the hero circle opens the image picker; after upload the circle shows the logo
+- [ ] Keyboard has a Done affordance and closes on scroll; sticky CTAs stay tappable while it is open
+- [ ] Reopening a draft saved before this change still shows the saved name under **Brand name**
 
 ### Job order (`MADE_TO_ORDER` / `5:55863`)
 
@@ -66,6 +76,12 @@ Setup smoke (Figma v6 parity):
 - [ ] CTA is **Activate Moment**; secondary **Save draft** works
 - [ ] Budget/target/channels live under Business Basics; invalid GSTIN highlights `gstin`
 - [ ] Discard draft removes DRAFT moment
+
+### Hero logo + live title (all 9 setups)
+- [ ] Changing Business Basics primary name updates hero title immediately to `{name} Setup`
+- [ ] Clearing the name restores the Figma placeholder hero title
+- [ ] Tapping hero logo opens image picker; after successful upload the circle shows the logo (not buildings/`▣`)
+- [ ] Save draft persists `logoMediaId`; reopen still has logo when URL/preview available
 
 ### Retail Store (`5:80797`) — five sections (no Catalogue/Network)
 
@@ -91,6 +107,10 @@ Setup smoke (Figma v6 parity):
 
 ### Trading Wholesale (`5:18833`) — five sections (no Catalogue/Network)
 
+- [ ] After **Start this business**: animated ✓ toast **Moment activated** (~2.5s) then Pulse (`5:15203`)
+- [ ] Trading hub uses TRD-v12 amber `#F59E0B` / flame `#EA580C` on canvas `#090D16` (Pulse / Moments / Life / Memory / Quick Adds)
+- [ ] Pulse shows Target & budget from setup prefs; other groups honest (`Not recorded` / zeros) until Quick Adds
+- [ ] Moments / Life / Memory boards render section cards; Quick Adds shows catalog tile grid (≥12)
 - [ ] Hero **Northstar Trading Setup**; CTA **Start this business**
 - [ ] Sections: Basics → People & Roles → Channels & Plan → GST → Review only
 - [ ] Basics: business name, company, GSTIN, currency, start/end, description, location
@@ -110,6 +130,14 @@ Setup smoke (Figma v6 parity):
 - [ ] **Save draft** creates or patches DRAFT; reopen restores prefs
 - [ ] **Discard draft** in header when status is DRAFT
 - [ ] Activate missing budget/target highlights those fields; invalid GSTIN with tracking Yes highlights GSTIN; Save draft still succeeds
+- [ ] Activate → toast **Distribution is live** (~2.5s) then Pulse (DST-PULSE-v12)
+- [ ] Pulse hero: eyebrow DISTRIBUTION, moment title, entity pills, FY chip, **Books open** when applicable; flame canvas `#0F172A` / accent `#EA580C`
+- [ ] Pulse quick strip: Sale · Purchase · Collection · Payment → CREATE with code selected
+- [ ] Pulse cards: `pulseMetrics` groups + `DD-ATTENTION` / `DD-GST`; **View all ›** on Attention; missing ≠ `0` / `₹0` (Not recorded / Unavailable)
+- [ ] Moments: Routes live / People chips; `DD-COMMITMENTS`, `DD-ORDERS`, `DD-STOCK`, `DD-PEOPLE` + board sections
+- [ ] Life: Today header; L01–L04; due/overdue chips only from `paymentReadiness`
+- [ ] Memory: closed-period chips; sticky **Generate Business Story** (stub toast, no second ledger)
+- [ ] Hub CREATE: **Source. Move. Settle.** search, Core / Support / Utilities groups; Dispatch / Record Sale CTAs
 
 ### Client Campaign (`5:33148`) — five sections (no Network)
 
@@ -121,6 +149,13 @@ Setup smoke (Figma v6 parity):
 - [ ] Roles: Owner / Admin / Campaign Lead / Finance / Approver
 - [ ] **Save draft** / **Discard draft**; reopen restores prefs
 - [ ] Activate missing budget or startDate highlights those fields; missing client highlights `clientName`; bad GSTIN with tracking Yes highlights GSTIN
+- [ ] Activate → toast **Campaign is live** with animated ✓ (~2.75s) then Pulse (`5:29386`)
+- [ ] Pulse indigo chrome; tagline **Plan. Launch. Measure.**; widgets Needs Attention → Target & Budget → Payment Readiness → Finance → Activity
+- [ ] Fresh activate (prefs only) shows budget/target identity; empty Attention honesty
+- [ ] Moments (`5:29681`): Campaign Overview / People / Channels & Network / Open Commitments / Campaign Results
+- [ ] Life (`5:29935`): Current Campaign / Channel Activity / Money Moving / People Today
+- [ ] Memory (`5:30195`): Monthly History / Money History / People & Activity / Patterns & Decisions
+- [ ] CREATE Quick Adds hub (`64:16631`): 10 Client tiles incl. Invoice + Collection; Saving → Saved confirm; indigo capture chrome
 
 ### Own Business Campaign (`5:38325`) — five sections (no Network)
 

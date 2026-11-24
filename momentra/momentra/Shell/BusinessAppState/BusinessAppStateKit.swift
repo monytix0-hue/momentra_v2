@@ -537,15 +537,115 @@ struct AppStateIconButton: View {
     }
 }
 
-/// Figma Toaster & Banner system (2:1375) — success capture confirmation.
-struct AppStateSuccessToast: View {
-    var text: String = "₹12,450 added to today's sales"
+/// Figma Operating toaster — Setup activated after business moment activate (`5:63174` / `2:1375`).
+struct AppStateSetupActivatedToast: View {
+    var title: String = BusinessSetupActivateToastCopy.defaultTitle
+    var subtitle: String
+    var onDismiss: () -> Void = {}
+    @State private var pulse = false
+    @State private var progress: CGFloat = 1
 
     var body: some View {
-        AppStateSystemToast(
-            text: text,
-            fill: BusinessAppStateTokens.successToastFill,
-            stroke: BusinessAppStateTokens.successToastStroke
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(BusinessAppStateTokens.setupActivatedCheck.opacity(0.22))
+                    Circle()
+                        .stroke(BusinessAppStateTokens.setupActivatedCheck, lineWidth: 1.5)
+                    Text("✓")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(BusinessAppStateTokens.setupActivatedCheck)
+                }
+                .frame(width: pulse ? 24 : 22, height: pulse ? 24 : 22)
+                .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: pulse)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: BusinessAppStateTokens.toastTitleSize, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text(subtitle)
+                        .font(.system(size: BusinessAppStateTokens.toastSubtitleSize, weight: .medium))
+                        .foregroundStyle(BusinessAppStateTokens.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Button(action: onDismiss) {
+                    Text("Pulse ›")
+                        .font(.system(size: BusinessAppStateTokens.toastSubtitleSize, weight: .semibold))
+                        .foregroundStyle(BusinessAppStateTokens.setupActivatedCheck)
+                }
+                .buttonStyle(.plain)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.08))
+                    Capsule()
+                        .fill(BusinessAppStateTokens.setupActivatedCheck)
+                        .frame(width: geo.size.width * progress)
+                }
+            }
+            .frame(height: 2)
+        }
+        .padding(.horizontal, BusinessAppStateTokens.toastPadHorizontal)
+        .padding(.vertical, BusinessAppStateTokens.toastPadVertical)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: BusinessAppStateTokens.toastRadius, style: .continuous)
+                .fill(BusinessAppStateTokens.setupActivatedFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: BusinessAppStateTokens.toastRadius, style: .continuous)
+                .stroke(BusinessAppStateTokens.setupActivatedStroke, lineWidth: 1)
+        )
+        .onAppear {
+            pulse = true
+            progress = 1
+            withAnimation(.linear(duration: 2.75)) {
+                progress = 0
+            }
+        }
+    }
+}
+
+/// Figma Toaster & Banner system (2:1375) — success capture / Moment activated.
+struct AppStateSuccessToast: View {
+    var text: String = "Moment activated"
+    var showCheck: Bool = true
+    @State private var pulse = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if showCheck {
+                ZStack {
+                    Circle()
+                        .fill(BusinessAppStateTokens.successToastCheck.opacity(0.22))
+                    Circle()
+                        .stroke(BusinessAppStateTokens.successToastCheck, lineWidth: 1.5)
+                    Text("✓")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(BusinessAppStateTokens.successToastCheck)
+                }
+                .frame(width: pulse ? 24 : 22, height: pulse ? 24 : 22)
+                .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: pulse)
+                .onAppear { pulse = true }
+            }
+            Text(text)
+                .font(.system(size: BusinessAppStateTokens.toastLabelSize, weight: .semibold))
+                .foregroundStyle(.white)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, BusinessAppStateTokens.toastPadHorizontal)
+        .padding(.vertical, BusinessAppStateTokens.toastPadVertical)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: BusinessAppStateTokens.toastRadius, style: .continuous)
+                .fill(BusinessAppStateTokens.successToastFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: BusinessAppStateTokens.toastRadius, style: .continuous)
+                .stroke(BusinessAppStateTokens.successToastStroke, lineWidth: 1)
         )
     }
 }

@@ -439,4 +439,96 @@ class OperatingSetupPayloadBuilderTest {
     }
 
 
+    // Behaviour: logoMediaId preference must survive draft build (HeroCard).
+    // Existing: this file. User: Verify preference pass-through for logoMediaId.
+    @Test
+    fun logoMediaIdPassesThroughOnDraft() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Northstar",
+                "companyName" to "Northstar",
+                "logoMediaId" to "media-logo-1",
+            ),
+            momentTypeCode = "TRADING_WHOLESALE",
+            title = "Northstar",
+            activating = false,
+        )
+        assertNull(result.validationError)
+        assertEquals("media-logo-1", result.preferences["logoMediaId"])
+    }
+
+    // Behaviour: prefer existing linked company id — single-company logo path.
+    // Module: SetupLogoCompanyResolver. User: missing unit coverage for uploadSetupLogo path.
+    @Test
+    fun preferExistingLinkedCompanyOverCreating() {
+        assertEquals(
+            "company-a",
+            SetupLogoCompanyResolver.preferExisting("company-a", "company-b"),
+        )
+        assertEquals(
+            "company-a",
+            SetupLogoCompanyResolver.preferExisting(null, "company-a"),
+        )
+        assertEquals(
+            "company-a",
+            SetupLogoCompanyResolver.preferExisting("  ", "company-a"),
+        )
+        assertNull(SetupLogoCompanyResolver.preferExisting(null, null))
+    }
+
+    // Behaviour: uploadSetupLogo resolve+create decision (pure path used before ensureSetupCompany).
+    @Test
+    fun mapsTargetMetricChipLabels() {
+        assertEquals("CLIENT_BILLING", OperatingSetupPayloadBuilder.mapMarketingTargetMetric("Client billing"))
+        assertEquals("CUSTOM_COUNT", OperatingSetupPayloadBuilder.mapMarketingTargetMetric("Custom"))
+        assertEquals("REVENUE", OperatingSetupPayloadBuilder.mapMarketingTargetMetric("Attributed sales"))
+        assertEquals("ENGAGEMENT", OperatingSetupPayloadBuilder.mapMarketingTargetMetric("Engagements"))
+        assertEquals("CUSTOM_COUNT", OperatingSetupPayloadBuilder.mapCommerceTargetMetric("Count"))
+        assertEquals("CUSTOM_COUNT", OperatingSetupPayloadBuilder.mapCommerceTargetMetric("Appointments"))
+        assertEquals("REVENUE", OperatingSetupPayloadBuilder.mapCommerceTargetMetric("Revenue"))
+        assertEquals("ORDERS", OperatingSetupPayloadBuilder.mapCommerceTargetMetric("Orders"))
+    }
+
+    @Test
+    fun tradingTargetMetricChipStoredAsClosedCode() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Northstar",
+                "companyName" to "Northstar",
+                "channels" to "Wholesale",
+                "monthlyBudget" to "6000000",
+                "monthlyTarget" to "9000000",
+                "targetMetric" to "Count",
+            ),
+            momentTypeCode = "TRADING_WHOLESALE",
+            title = "Northstar",
+            activating = false,
+        )
+        assertEquals("CUSTOM_COUNT", result.preferences["targetMetric"])
+    }
+
+    // Module: SetupLogoCompanyResolver.resolveForUpload. No ViewModel fake harness in this worktree.
+    @Test
+    fun resolveForUploadCoversPassedLinkedAndWouldCreate() {
+        assertEquals(
+            SetupLogoCompanyDecision.UseExisting("company-a"),
+            SetupLogoCompanyResolver.resolveForUpload("company-a", "company-b"),
+        )
+        assertEquals(
+            SetupLogoCompanyDecision.UseExisting("company-a"),
+            SetupLogoCompanyResolver.resolveForUpload(null, "company-a"),
+        )
+        assertEquals(
+            SetupLogoCompanyDecision.UseExisting("company-a"),
+            SetupLogoCompanyResolver.resolveForUpload("  ", "company-a"),
+        )
+        assertEquals(
+            SetupLogoCompanyDecision.WouldCreate,
+            SetupLogoCompanyResolver.resolveForUpload(null, null),
+        )
+        assertEquals(
+            SetupLogoCompanyDecision.WouldCreate,
+            SetupLogoCompanyResolver.resolveForUpload("  ", "  "),
+        )
+    }
 }

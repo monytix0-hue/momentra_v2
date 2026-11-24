@@ -263,9 +263,11 @@ export async function completeUpload(
   ctx: RequestContext,
   uploadId: string,
   body: z.infer<typeof uploadCompleteSchema>
-): Promise<{ uploadId: string; mediaId: string; status: string }> {
-  const pending = await client.query<{ object_key: string }>(
-    `SELECT object_key FROM platform.media_upload
+): Promise<{ uploadId: string; mediaId: string; status: string; downloadUrl: string | null }> {
+  // Callers: router.ts POST /media/uploads/:uploadId/complete → clients decode downloadUrl.
+  // Existing completeUpload only — no parallel pipeline. Row fields: bucket, object_key.
+  const pending = await client.query<{ object_key: string; bucket: string | null }>(
+    `SELECT object_key, bucket FROM platform.media_upload
      WHERE media_upload_id = $1 AND user_id = $2 AND status = 'PENDING'`,
     [uploadId, ctx.userId]
   );
@@ -290,7 +292,8 @@ export async function completeUpload(
   if (!updated.rows[0]) {
     throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Upload intent not found or already completed.', 404);
   }
-  return { uploadId, mediaId: uploadId, status: 'READY' };
+  const downloadUrl = await trySignedDownloadUrl(pending.rows[0].bucket, pending.rows[0].object_key);
+  return { uploadId, mediaId: uploadId, status: 'READY', downloadUrl };
 }
 
 /** Signed GET URL for a private media object (default SIGNED_DOWNLOAD_TTL_SEC). */

@@ -14,24 +14,40 @@ import com.example.momentra.ui.theme.generated.BusinessTokens
  * Keep in lockstep with `BusinessAppStateTokens.swift` on iOS.
  */
 enum class BusinessAppStateAccent(val color: Color) {
-    /** Trading / default — emerald teal `#10B981`. */
-    Emerald(BusinessTokens.Colors.TRADINGAccent),
+    /** System emerald / success chrome `#10B981` (not trading amber). */
+    Emerald(BusinessTokens.Colors.SignalPositive),
+    /** Trading / Distribution — TRD-v12 amber `#F59E0B`. */
+    Amber(BusinessTokens.Colors.TRADINGAccent),
     /** Retail Empty (Rose) `#F43F5E`. */
     Rose(BusinessTokens.Colors.RETAILAccent),
     /** RST Food Empty (Flame) `#EA580C`. */
     Flame(BusinessTokens.Colors.RESTAURANTAccent),
     /** View All (Cyan) `#06B6D4`. */
     Cyan(BusinessTokens.Colors.SignalInfo),
+    /** Client Campaign indigo `#6366F1`. */
+    Indigo(BusinessTokens.Colors.MARKETINGAccent),
+    /** Own Business Campaign magenta `#D946EF`. */
+    Magenta(BusinessTokens.Colors.MARKETING_OWNAccent),
     ;
 
     companion object {
         /**
          * Resolve the accent for an operating moment subtype code.
          *
-         * Retail → Rose, Restaurant → Flame; everything else → Emerald.
+         * Trading wholesale → Emerald; Distribution dealership → Flame (`#EA580C`); Retail → Rose;
+         * Client Campaign → Indigo; Own Business Campaign → Magenta; Services/MFG → Emerald.
          * ViewAll screens pass [Cyan] explicitly at the call site.
          */
-        fun forTypeCode(momentTypeCode: String?): BusinessAppStateAccent = Emerald
+        fun forTypeCode(momentTypeCode: String?): BusinessAppStateAccent =
+            when (momentTypeCode?.trim()?.uppercase()) {
+                "TRADING_WHOLESALE" -> Emerald
+                "DISTRIBUTION_DEALERSHIP" -> Flame
+                "RETAIL_STORE" -> Rose
+                "RESTAURANT_FOOD" -> Flame
+                "CLIENT_CAMPAIGN" -> Indigo
+                "OWN_BUSINESS_CAMPAIGN" -> Magenta
+                else -> Emerald
+            }
     }
 }
 
@@ -76,9 +92,13 @@ enum class BusinessAppStateVertical {
  */
 object BusinessAppStateTokens {
     // Palette primitives (alias BusinessTokens)
-    val Emerald = BusinessTokens.Colors.TRADINGAccent
+    /** System emerald — success toast / positive signals (stays `#10B981`). */
+    val Emerald = BusinessTokens.Colors.SignalPositive
     val EmeraldDeep = BusinessTokens.Colors.CtaStart
     val EmeraldBright = BusinessTokens.Colors.CtaEnd
+    /** Trading moment amber (TRD-v12). */
+    val TradingAmber = BusinessTokens.Colors.TRADINGAccent
+    val TradingFlame = BusinessTokens.Colors.TRADINGAccentDeep
     val ErrorRing = BusinessTokens.Colors.SignalDanger
     val Warning = BusinessTokens.Colors.SignalWarning
 
@@ -215,8 +235,14 @@ object BusinessAppStateTokens {
     val ToastPadHorizontal = 14.dp
     val ToastPadVertical = 12.dp
     val ToastLabelSize = 12.5f
-    val SuccessToastFill = Emerald.copy(alpha = 0.16f)
-    val SuccessToastStroke = Emerald.copy(alpha = 0.45f)
+    val ToastTitleSize = 13.5f
+    val ToastSubtitleSize = 11.5f
+    val SetupActivatedFill = Color(0xFF16120E).copy(alpha = 0.96f)
+    val SetupActivatedStroke = BusinessTokens.Colors.RESTAURANTAccent.copy(alpha = 0.45f)
+    val SetupActivatedCheck = BusinessTokens.Colors.RESTAURANTAccent
+    val SuccessToastFill = Color(0xFF0B1F18).copy(alpha = 0.94f)
+    val SuccessToastStroke = Emerald.copy(alpha = 0.55f)
+    val SuccessToastCheck = Emerald
     val QueueToastFill = Color(0xFF262E3D).copy(alpha = 0.92f)
     val QueueToastStroke = Emerald.copy(alpha = 0.35f)
     val ErrorToastFill = ErrorRing.copy(alpha = 0.16f)

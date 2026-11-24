@@ -179,14 +179,15 @@ function projectOne(
     coverage = cov;
   } else if (def.widgetId === 'MKT-RESULTS') {
     const measured = marketingProgress(events, p.target?.metric || 'LEADS');
-    const unavailable = measured.coverage === 'N/A';
+    const targetSeeded = p.target?.configured === true && eligible.length === 0 && measured.coverage === 'N/A';
+    const unavailable = measured.coverage === 'N/A' && !targetSeeded;
     const cov = resolveCoverage({
-      eligibleCount: unavailable ? 0 : eligible.length,
-      measuredValue: unavailable ? null : measured.progress,
+      eligibleCount: unavailable ? 0 : targetSeeded ? 1 : eligible.length,
+      measuredValue: unavailable ? null : targetSeeded ? 0 : measured.progress,
     });
-    metrics = [metric('progress', 'Progress', unavailable ? null : measured.progress, cov)];
+    metrics = [metric('progress', 'Progress', unavailable ? null : targetSeeded ? 0 : measured.progress, cov)];
     coverage = cov;
-    why = unavailable ? 'Result coverage is N/A (mixed units or empty).' : null;
+    why = unavailable ? 'Result coverage is N/A (mixed units or empty).' : targetSeeded ? null : null;
   } else if (def.widgetId === 'MKT-ATTRIBUTION') {
     const sales = attributedSalesTotal(events);
     const cov = resolveCoverage({
@@ -198,6 +199,49 @@ function projectOne(
     metrics = [metric('attributedSales', 'Attributed sales', sales == null ? null : money(sales), cov)];
     coverage = cov;
     why = 'Observational only — never booked as accounting revenue.';
+  } else if (def.widgetId === 'DD-GST') {
+    if (financeBlocked || p.gstTracking !== 'YES') {
+      metrics = [
+        metric('tax', 'Tax', null, 'UNAVAILABLE'),
+        metric('registration', 'Registration', p.gstRegistration || null, 'UNAVAILABLE'),
+        metric('state', 'Business state', p.gstState || null, 'UNAVAILABLE'),
+      ];
+      coverage = 'UNAVAILABLE';
+      why = 'GST tracking is off for this moment, so tax is not computed on new records.';
+    } else if (p.gstPosition) {
+      const pos = p.gstPosition;
+      metrics = [
+        metric('output', 'Output GST', pos.outputGst ?? null, 'COMPLETE'),
+        metric('input', 'Input GST', pos.inputGst ?? null, 'COMPLETE'),
+        metric('net', 'Net', pos.difference ?? null, 'COMPLETE'),
+        metric('records', 'Taxed records', eligible.length, eligible.length === 0 ? 'PARTIAL' : 'COMPLETE', 'count'),
+      ];
+      coverage = eligible.length === 0 ? 'PARTIAL' : 'COMPLETE';
+      why = eligible.length === 0 ? 'GST is tracked but no taxed records are posted yet.' : null;
+    } else {
+      metrics = [
+        metric('tax', 'Tax', null, 'UNAVAILABLE'),
+        metric('registration', 'Registration', p.gstRegistration || null, 'PARTIAL'),
+      ];
+      coverage = 'PARTIAL';
+      why = 'GST is tracked; post sales or purchases to build a position.';
+    }
+  } else if (def.widgetId === 'DD-PEOPLE') {
+    const peopleCount = p.participants?.length ?? 0;
+    const channelCount = p.life?.channels?.length ?? 0;
+    const peopleCov: CoverageStatus = peopleCount > 0 ? 'COMPLETE' : 'PARTIAL';
+    metrics = [
+      metric('people', 'People', peopleCount, peopleCov, 'count'),
+      metric('channels', 'Channels', channelCount, channelCount > 0 ? 'COMPLETE' : 'PARTIAL', 'count'),
+      metric('dealers', 'Network', peopleCount, peopleCov, 'count'),
+    ];
+    coverage = peopleCount > 0 || channelCount > 0 ? 'PARTIAL' : 'UNAVAILABLE';
+    why =
+      peopleCount === 0
+        ? 'Add people in setup or invite routes to see your network here.'
+        : channelCount === 0
+          ? 'Select channels in setup to label routes and dealers.'
+          : null;
   } else if (def.eligibleEventTypes.length === 0) {
     metrics = [metric('configured', 'Configured', 1, 'COMPLETE', 'flag')];
     coverage = 'COMPLETE';

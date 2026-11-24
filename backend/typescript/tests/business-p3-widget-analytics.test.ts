@@ -187,6 +187,14 @@ describe('P3.1 Trading / Wholesale', () => {
 });
 
 describe('P3.2 Distribution / Dealership', () => {
+  it('lists DST pulse and moments widget IDs in coverage matrix', () => {
+    const matrix = coverageMatrix('TRADING_DISTRIBUTION', 'DISTRIBUTION_DEALERSHIP');
+    const ids = matrix.map((w) => w.widgetId);
+    for (const id of ['DD-ATTENTION', 'DD-GST', 'DD-COMMITMENTS', 'DD-PEOPLE', 'DD-ORDERS', 'DD-STOCK']) {
+      assert.ok(ids.includes(id), `missing ${id}`);
+    }
+  });
+
   it('exposes dealership-specific order/stock widgets', () => {
     const projection = projectOperatingMoment({
       familyCode: 'TRADING_DISTRIBUTION',
@@ -206,10 +214,21 @@ describe('P3.2 Distribution / Dealership', () => {
     });
     assert.ok(bundle.widgets.some((w) => w.widgetId === 'DD-ORDERS'));
     assert.ok(bundle.widgets.some((w) => w.widgetId === 'DD-STOCK'));
+    assert.ok(bundle.widgets.some((w) => w.widgetId === 'DD-ATTENTION'));
+    assert.ok(bundle.widgets.some((w) => w.widgetId === 'DD-GST'));
+    assert.ok(bundle.widgets.some((w) => w.widgetId === 'DD-COMMITMENTS'));
+    assert.ok(bundle.widgets.some((w) => w.widgetId === 'DD-PEOPLE'));
     assert.equal(
       bundle.widgets.find((w) => w.widgetId === 'P02')?.metrics.find((m) => m.key === 'sales')?.value,
       '2000.0000'
     );
+    for (const w of bundle.widgets.filter((row) => row.widgetId.startsWith('DD-'))) {
+      for (const m of w.metrics) {
+        if (m.coverage === 'UNAVAILABLE') {
+          assert.equal(m.value, null, `${w.widgetId}.${m.key} must not invent zero`);
+        }
+      }
+    }
   });
 });
 

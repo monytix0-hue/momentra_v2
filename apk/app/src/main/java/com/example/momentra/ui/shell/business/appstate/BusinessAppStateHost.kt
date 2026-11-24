@@ -16,12 +16,13 @@ import com.example.momentra.ui.shell.business.create.BusinessGuidedCreateContent
 import com.example.momentra.ui.shell.business.setup.BusinessSetupFamily
 import com.example.momentra.ui.shell.business.setup.BusinessSetupShell
 import com.example.momentra.ui.shell.components.MomentraFullscreenDialog
+import com.example.momentra.ui.shell.empty.business.BusinessSetupBottomSheet
 
 /**
  * Renders the correct Obsidian AppState body for the current Business shell slot.
  *
- * CREATE empty/setup mounts guided business selection (`2:1514`), then the setup shell
- * as a full-screen dialog (not a bottom sheet). Keep in lockstep with iOS.
+ * CREATE empty/setup opens guided business selection (`2:1514`) as a bottom sheet,
+ * then the setup shell as a full-screen dialog. Keep in lockstep with iOS.
  */
 @Composable
 fun BusinessAppStateHost(
@@ -62,18 +63,31 @@ fun BusinessAppStateHost(
             )
         }
         showGuidedCreate -> {
-            BusinessGuidedCreateContent(
-                onBack = onCreateBack,
-                onContinue = { option ->
-                    createViewModel.clearError()
-                    setupTypeCode = option.momentTypeCode
-                    setupFamily = BusinessSetupFamily.forFamilyCode(option.familyCode)
-                },
-                submitting = createState.submitting,
-                error = createState.error,
+            // Hub empty stays under the sheet so dismiss returns to CREATE chrome.
+            BusinessAppStateHubBody(
+                accent = accent,
+                vertical = vertical,
+                onPrimary = onPrimary,
+                onSecondary = onOpenQuickAdds,
+                onBackToPulse = onBackToPulse,
                 modifier = modifier,
             )
-            setupFamily?.let { family ->
+            if (setupFamily == null) {
+                BusinessSetupBottomSheet(onDismiss = onCreateBack) {
+                    BusinessGuidedCreateContent(
+                        onBack = onCreateBack,
+                        onContinue = { option ->
+                            createViewModel.clearError()
+                            setupTypeCode = option.momentTypeCode
+                            setupFamily = BusinessSetupFamily.forFamilyCode(option.familyCode)
+                        },
+                        submitting = createState.submitting,
+                        error = createState.error,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            } else {
+                val family = setupFamily!!
                 MomentraFullscreenDialog(
                     onDismissRequest = {
                         setupFamily = null

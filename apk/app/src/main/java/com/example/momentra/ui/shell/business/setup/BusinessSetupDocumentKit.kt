@@ -1,5 +1,6 @@
 package com.example.momentra.ui.shell.business.setup
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,8 +12,10 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,6 +35,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DatePicker
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,7 +48,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -62,25 +73,29 @@ object BusinessSetupDocumentKit {
         eyebrow: String,
         title: String,
         subtitle: String,
+        logoBitmap: ImageBitmap? = null,
+        logoUrl: String? = null,
+        logoUploading: Boolean = false,
+        onLogoClick: (() -> Unit)? = null,
         modifier: Modifier = Modifier,
     ) {
         Column(
             modifier = modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(20.dp))
                 .background(
                     Brush.linearGradient(
                         listOf(theme.canvasTop.copy(alpha = 0.95f), theme.surface.copy(alpha = 0.88f)),
                     ),
                 )
-                .border(1.dp, theme.accent.copy(alpha = 0.28f), RoundedCornerShape(24.dp))
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .border(1.dp, theme.accent.copy(alpha = 0.28f), RoundedCornerShape(20.dp))
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Box(
                     modifier = Modifier
-                        .size(140.dp)
+                        .size(96.dp)
                         .background(
                             Brush.radialGradient(
                                 listOf(
@@ -92,15 +107,51 @@ object BusinessSetupDocumentKit {
                             CircleShape,
                         ),
                 )
+                val logoClick = onLogoClick
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
+                        .size(56.dp)
                         .clip(CircleShape)
                         .background(theme.inset)
-                        .border(1.5.dp, theme.accent.copy(alpha = 0.45f), CircleShape),
+                        .border(1.5.dp, theme.accent.copy(alpha = 0.45f), CircleShape)
+                        .then(
+                            if (logoClick != null) {
+                                Modifier
+                                    .semantics {
+                                        contentDescription = "Upload logo"
+                                        role = Role.Button
+                                    }
+                                    .clickable(onClick = logoClick)
+                            } else {
+                                Modifier
+                            },
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("▣", color = theme.accent, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                    when {
+                        logoUploading -> {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(28.dp),
+                                color = theme.accent,
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                        logoBitmap != null -> {
+                            Image(
+                                bitmap = logoBitmap,
+                                contentDescription = "Upload logo",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
+                        // No Coil / remote image helper on classpath — glyph for blank or remote URL.
+                        !logoUrl.isNullOrBlank() -> {
+                            Text("▣", color = theme.accent, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        else -> {
+                            Text("▣", color = theme.accent, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
             Text(
@@ -114,14 +165,14 @@ object BusinessSetupDocumentKit {
             Text(
                 text = title,
                 color = BusinessTokens.Colors.TextPrimary,
-                fontSize = 28.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = PlusJakartaSans,
             )
             Text(
                 text = subtitle,
                 color = theme.hint,
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = PlusJakartaSans,
             )
@@ -142,9 +193,9 @@ object BusinessSetupDocumentKit {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
                 .background(theme.surface.copy(alpha = 0.88f))
-                .border(1.dp, theme.accent.copy(alpha = 0.18f), RoundedCornerShape(18.dp))
-                .padding(15.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .border(1.dp, theme.accent.copy(alpha = 0.18f), RoundedCornerShape(14.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
                 text = "Kind of business",
@@ -162,7 +213,7 @@ object BusinessSetupDocumentKit {
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .height(80.dp)
+                            .height(56.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .background(theme.surface.copy(alpha = 0.95f))
                             .border(
@@ -178,7 +229,7 @@ object BusinessSetupDocumentKit {
                         Text(
                             text = "◈",
                             color = if (isOn) BusinessTokens.Colors.TextPrimary else theme.hint,
-                            fontSize = 20.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
                             fontFamily = PlusJakartaSans,
                         )
@@ -190,7 +241,7 @@ object BusinessSetupDocumentKit {
                             fontFamily = PlusJakartaSans,
                             textAlign = TextAlign.Center,
                             maxLines = 2,
-                            modifier = Modifier.padding(top = 6.dp),
+                            modifier = Modifier.padding(top = 2.dp),
                         )
                     }
                 }
@@ -210,25 +261,25 @@ object BusinessSetupDocumentKit {
         Column(
             modifier = modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(theme.surface.copy(alpha = 0.78f))
-                .border(1.dp, theme.accent.copy(alpha = 0.18f), RoundedCornerShape(20.dp))
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .border(1.dp, theme.accent.copy(alpha = 0.18f), RoundedCornerShape(16.dp))
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "%02d".format(index),
                     color = theme.accent,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Black,
                     fontFamily = PlusJakartaSans,
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = title,
                         color = BusinessTokens.Colors.TextPrimary,
-                        fontSize = 18.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PlusJakartaSans,
                     )
@@ -236,7 +287,7 @@ object BusinessSetupDocumentKit {
                         Text(
                             text = subtitle,
                             color = theme.hint,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             fontFamily = PlusJakartaSans,
                         )
@@ -260,6 +311,7 @@ object BusinessSetupDocumentKit {
         forceUppercase: Boolean = false,
     ) {
         val showError = BusinessSetupFieldChrome.hasError(error)
+        val focusManager = LocalFocusManager.current
         Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 text = label,
@@ -288,9 +340,13 @@ object BusinessSetupDocumentKit {
                 BasicTextField(
                     value = value,
                     onValueChange = { raw ->
-                        onValueChange(
-                            if (forceUppercase) BusinessSetupDateFormatting.forceUppercaseInput(raw) else raw,
-                        )
+                        val next = when {
+                            forceUppercase -> BusinessSetupDateFormatting.forceUppercaseInput(raw)
+                            BusinessSetupAmountFormatting.isAmountHelper(helper) ->
+                                BusinessSetupAmountFormatting.formatIndianAmount(raw)
+                            else -> raw
+                        }
+                        onValueChange(next)
                     },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
@@ -298,6 +354,14 @@ object BusinessSetupDocumentKit {
                             KeyboardCapitalization.Characters
                         } else {
                             KeyboardCapitalization.None
+                        },
+                        imeAction = BusinessSetupFieldInputPolicy.imeAction(),
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            if (BusinessSetupFieldInputPolicy.CLEAR_FOCUS_ON_SUBMIT) {
+                                focusManager.clearFocus()
+                            }
                         },
                     ),
                     textStyle = TextStyle(
@@ -342,7 +406,7 @@ object BusinessSetupDocumentKit {
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             fontFamily = PlusJakartaSans,
-            modifier = modifier.padding(top = 4.dp),
+            modifier = modifier.padding(top = 2.dp),
         )
     }
 
@@ -563,59 +627,130 @@ object BusinessSetupDocumentKit {
             val state = rememberDatePickerState(
                 initialSelectedDateMillis = SetupDateTimeUtils.localDateToMillis(initial),
             )
+            // Solid calendar backing (#101623) — glass sheets are too transparent to read days.
+            val calendarSurface = Color(0xFF101623)
             BusinessGlassModalBottomSheet(onDismissRequest = { showPicker = false }) {
-                Text(
-                    text = label,
-                    color = theme.label,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = PlusJakartaSans,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                )
-                DatePicker(
-                    state = state,
-                    colors = androidx.compose.material3.DatePickerDefaults.colors(
-                        containerColor = Color.Transparent,
-                        titleContentColor = theme.label,
-                        headlineContentColor = BusinessTokens.Colors.TextPrimary,
-                        weekdayContentColor = theme.hint,
-                        subheadContentColor = theme.hint,
-                        yearContentColor = BusinessTokens.Colors.TextPrimary,
-                        currentYearContentColor = theme.accent,
-                        selectedYearContentColor = Color.White,
-                        selectedYearContainerColor = theme.accent.copy(alpha = 0.55f),
-                        dayContentColor = BusinessTokens.Colors.TextPrimary,
-                        selectedDayContentColor = Color.White,
-                        selectedDayContainerColor = theme.accent.copy(alpha = 0.70f),
-                        // Callers: DatePicker in this sheet (~L575). No alternate date kit.
-                        // Reads/writes: none — UI colors only. Unblocks :app:compileDebugKotlin.
-                        // User: "OpenAPI and platform builds remain green."
-                        todayContentColor = theme.accent,
-                        todayDateBorderColor = theme.accent.copy(alpha = 0.70f),
-                        disabledDayContentColor = theme.hint.copy(alpha = 0.40f),
-                    ),
-                )
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.End,
+                        .background(calendarSurface),
                 ) {
-                    if (allowClear) {
-                        TextButton(onClick = {
-                            onValueChange("")
-                            showPicker = false
-                        }) { Text("Clear") }
-                    }
-                    TextButton(onClick = { showPicker = false }) { Text("Cancel") }
-                    TextButton(onClick = {
-                        state.selectedDateMillis?.let { millis ->
-                            val picked = SetupDateTimeUtils.millisToLocalDate(millis)
-                            onValueChange(BusinessSetupDateFormatting.toStorage(picked, mode))
+                    Text(
+                        text = label,
+                        color = theme.label,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = PlusJakartaSans,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
+                    DatePicker(
+                        state = state,
+                        colors = androidx.compose.material3.DatePickerDefaults.colors(
+                            containerColor = calendarSurface,
+                            titleContentColor = theme.label,
+                            headlineContentColor = BusinessTokens.Colors.TextPrimary,
+                            weekdayContentColor = theme.hint,
+                            subheadContentColor = theme.hint,
+                            yearContentColor = BusinessTokens.Colors.TextPrimary,
+                            currentYearContentColor = theme.accent,
+                            selectedYearContentColor = Color.White,
+                            selectedYearContainerColor = theme.accent.copy(alpha = 0.55f),
+                            dayContentColor = BusinessTokens.Colors.TextPrimary,
+                            selectedDayContentColor = Color.White,
+                            selectedDayContainerColor = theme.accent.copy(alpha = 0.70f),
+                            todayContentColor = theme.accent,
+                            todayDateBorderColor = theme.accent.copy(alpha = 0.70f),
+                            disabledDayContentColor = theme.hint.copy(alpha = 0.40f),
+                        ),
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        if (allowClear) {
+                            TextButton(onClick = {
+                                onValueChange("")
+                                showPicker = false
+                            }) { Text("Clear") }
                         }
-                        showPicker = false
-                    }) { Text("OK") }
+                        TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+                        TextButton(onClick = {
+                            state.selectedDateMillis?.let { millis ->
+                                val picked = SetupDateTimeUtils.millisToLocalDate(millis)
+                                onValueChange(BusinessSetupDateFormatting.toStorage(picked, mode))
+                            }
+                            showPicker = false
+                        }) { Text("OK") }
+                    }
                 }
+            }
+        }
+    }
+
+    @Composable
+    fun PickerRow(
+        theme: BusinessSetupTheme,
+        label: String,
+        value: String,
+        onClick: () -> Unit,
+        modifier: Modifier = Modifier,
+        placeholder: String = "Select",
+        helper: String = "",
+        error: String? = null,
+    ) {
+        val showError = BusinessSetupFieldChrome.hasError(error)
+        Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = label,
+                color = theme.label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = PlusJakartaSans,
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(theme.inset)
+                    .border(
+                        1.dp,
+                        if (showError) BusinessTokens.Colors.SignalDanger else theme.accent.copy(alpha = 0.12f),
+                        RoundedCornerShape(12.dp),
+                    )
+                    .clickable(onClick = onClick)
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = value.ifBlank { placeholder },
+                    color = if (value.isBlank()) theme.hint else BusinessTokens.Colors.TextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = PlusJakartaSans,
+                    modifier = Modifier.weight(1f),
+                )
+                Text("▼", color = theme.hint, fontSize = 12.sp)
+            }
+            if (showError) {
+                Text(
+                    text = error.orEmpty(),
+                    color = BusinessTokens.Colors.SignalDanger,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = PlusJakartaSans,
+                )
+            } else if (helper.isNotBlank()) {
+                Text(
+                    text = helper,
+                    color = theme.hint,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Normal,
+                    fontFamily = PlusJakartaSans,
+                )
             }
         }
     }
@@ -916,11 +1051,11 @@ object BusinessSetupDocumentKit {
         onSaveDraft: (() -> Unit)? = null,
         onScheduleLater: (() -> Unit)? = null,
     ) {
-        Column(modifier = modifier.fillMaxWidth().background(theme.canvas)) {
+        Column(modifier = modifier.fillMaxWidth().background(theme.canvas).imePadding()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(24.dp)
+                    .height(16.dp)
                     .background(
                         Brush.verticalGradient(
                             listOf(theme.canvas.copy(alpha = 0f), theme.canvas),
@@ -930,7 +1065,7 @@ object BusinessSetupDocumentKit {
             Column(
                 modifier = Modifier
                     .padding(horizontal = 20.dp)
-                    .padding(bottom = 16.dp)
+                    .padding(bottom = 12.dp)
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {

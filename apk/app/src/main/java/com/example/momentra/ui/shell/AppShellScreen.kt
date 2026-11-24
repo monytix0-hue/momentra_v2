@@ -55,7 +55,7 @@ import kotlinx.coroutines.delay
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
 import com.example.momentra.data.local.AppPreferences
-import com.example.momentra.data.local.PendingCompanyJoinInvite
+import com.example.momentra.data.local.OfflineOutbox
 import com.example.momentra.data.local.PendingJoinInvite
 import com.example.momentra.data.local.PendingDeepLink
 import com.example.momentra.data.repository.AccountRepository
@@ -79,10 +79,6 @@ import com.example.momentra.ui.shell.tour.rememberTourTargetRegistry
 import com.example.momentra.ui.shell.components.ContextSwitcher
 import com.example.momentra.ui.shell.components.EditMomentSetupHost
 import com.example.momentra.ui.shell.components.ManageMomentSheet
-import com.example.momentra.ui.shell.business.appstate.BusinessGlassSheetChrome
-import com.example.momentra.ui.shell.business.appstate.BusinessGlassModalBottomSheet
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateViewAllSheet
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
 import com.example.momentra.ui.shell.components.MomentSwitcher
 import com.example.momentra.ui.shell.components.MomentraFullscreenDialog
 import com.example.momentra.ui.shell.components.MomentraTopBar
@@ -92,17 +88,54 @@ import com.example.momentra.ui.shell.components.MomentraTopBarConfig
 import com.example.momentra.ui.shell.components.ShellBottomNavigation
 import com.example.momentra.ui.shell.components.label
 import com.example.momentra.ui.shell.empty.ContextEmptyExperience
-import com.example.momentra.data.local.OfflineOutbox
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateHost
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateToast
-import com.example.momentra.ui.shell.business.appstate.BusinessAppStateToastHost
 import com.example.momentra.ui.shell.empty.GroupCreateFlow
+import com.example.momentra.ui.shell.empty.business.BusinessCreateFlow
 import com.example.momentra.ui.shell.empty.group.GroupCreatePhase
 import com.example.momentra.ui.shell.empty.group.GroupJoinConfirmSheet
 import com.example.momentra.ui.shell.empty.group.GroupJoinQrScanner
+import com.example.momentra.ui.shell.business.shared.BusinessActiveTheme
 import com.example.momentra.ui.shell.momentswitcher.MomentSwitcherDirectory
 import com.example.momentra.ui.shell.momentswitcher.businessMomentSwitcherSpec
 import com.example.momentra.ui.shell.momentswitcher.groupMomentSwitcherSpec
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateToast
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateToastHost
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateBody
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateLoadingBody
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStatePhase
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateScreen
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateSpecs
+import com.example.momentra.ui.shell.business.appstate.BusinessAppStateViewAllSheet
+import com.example.momentra.ui.shell.business.shared.BusinessExpenseSheet
+import com.example.momentra.ui.shell.business.shared.BusinessGapQuickAddSheet
+import com.example.momentra.ui.shell.business.shared.BusinessInvoiceSheet
+import com.example.momentra.ui.shell.business.shared.BusinessMembersSheet
+import com.example.momentra.ui.shell.business.gap.BusinessActivationSuccess
+import com.example.momentra.ui.shell.business.gap.BusinessCompanyPulseScreen
+import com.example.momentra.ui.shell.business.gap.BusinessFinanceScreen
+import com.example.momentra.ui.shell.business.gap.BusinessGapHost
+import com.example.momentra.ui.shell.business.gap.BusinessGapPage
+import com.example.momentra.ui.shell.business.gap.BusinessLocationFlow
+import com.example.momentra.ui.shell.business.gap.BusinessMilestoneSettingsScreen
+import com.example.momentra.ui.shell.business.gap.BusinessMomentsDirectory
+import com.example.momentra.ui.shell.business.gap.BusinessMomentsSettingsScreen
+import com.example.momentra.ui.shell.business.gap.BusinessVisibilitySettingsScreen
+import com.example.momentra.ui.shell.business.gap.PendingBusinessActivation
+import com.example.momentra.ui.shell.business.gap.VendorOperationsScreen
+import com.example.momentra.ui.shell.business.shared.BusinessMomentFamilyConfig
+import com.example.momentra.ui.shell.business.shared.BusinessQuickAddKind
+import com.example.momentra.ui.shell.business.shared.OperatingChromeState
+import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
+import com.example.momentra.ui.shell.business.shared.OperatingMomentPage
+import com.example.momentra.ui.shell.business.shared.OperatingProjectionCache
+import com.example.momentra.ui.shell.business.shared.OperatingTab
+import com.example.momentra.ui.shell.business.shared.resolveOperatingCompanyId
+import com.example.momentra.ui.shell.business.shared.BusinessRevenueSheet
+import com.example.momentra.ui.shell.business.shared.BusinessKhataHomeSheet
+import com.example.momentra.ui.shell.business.shared.BusinessRecentActivityFlow
+import com.example.momentra.ui.shell.business.ops.OpsColors
+import com.example.momentra.ui.shell.business.runway.RunwayColors
+import com.example.momentra.ui.shell.business.teamops.components.TeamOpsColors
 import com.example.momentra.ui.shell.group.shared.GroupBudgetSheet
 import com.example.momentra.ui.shell.group.shared.GroupCollabKind
 import com.example.momentra.ui.shell.group.shared.GroupCollabSheet
@@ -193,7 +226,6 @@ fun AppShellScreen(
     val tourRegistry = rememberTourTargetRegistry()
 
     var pendingGroupJoinCode by remember { mutableStateOf<String?>(null) }
-    var pendingCompanyJoinCode by remember { mutableStateOf<String?>(null) }
     var inboxOpen by remember { mutableStateOf(false) }
     var storyMomentId by remember { mutableStateOf<String?>(null) }
     var unreadNotificationCount by remember { mutableIntStateOf(0) }
@@ -245,15 +277,6 @@ fun AppShellScreen(
         }
     }
 
-    LaunchedEffect(state.identity?.userId) {
-        if (state.identity?.userId == null) return@LaunchedEffect
-        prefs.getPendingCompanyJoinCode()?.let { PendingCompanyJoinInvite.hydrate(it) }
-        PendingCompanyJoinInvite.code.collect { offered ->
-            if (offered.isNullOrBlank()) return@collect
-            val code = PendingCompanyJoinInvite.consume(prefs) ?: return@collect
-            pendingCompanyJoinCode = code
-        }
-    }
 
     LaunchedEffect(state.identity?.userId) {
         if (state.identity?.userId == null) return@LaunchedEffect
@@ -310,6 +333,12 @@ fun AppShellScreen(
     var experienceGapQa by remember { mutableStateOf<ExperienceQuickAddKind?>(null) }
     var purchaseGapQa by remember { mutableStateOf<PurchaseQuickAddKind?>(null) }
     var livingGapQa by remember { mutableStateOf<LivingQuickAddKind?>(null) }
+    var businessGapQa by remember { mutableStateOf<BusinessQuickAddKind?>(null) }
+    var businessExpenseSheetOpen by remember { mutableStateOf(false) }
+    var businessRevenueSheetOpen by remember { mutableStateOf(false) }
+    var businessInvoiceSheetOpen by remember { mutableStateOf(false) }
+    var businessKhataSheetOpen by remember { mutableStateOf(false) }
+    var businessMembersSheetOpen by remember { mutableStateOf(false) }
     var lifeOpsQa by remember { mutableStateOf<LifeOpsQuickAddKind?>(null) }
     LaunchedEffect(lifeOpsQa) {
         lifeOpsQa?.let { kind ->
@@ -318,16 +347,17 @@ fun AppShellScreen(
     }
     var recentActivityOpen by remember { mutableStateOf(false) }
     var groupRecentActivityOpen by remember { mutableStateOf(false) }
+    var teamRecentActivityOpen by remember { mutableStateOf(false) }
+    var businessRecentActivityOpen by remember { mutableStateOf(false) }
+    var businessAttentionViewAllOpen by remember { mutableStateOf(false) }
+    var businessAttentionFilter by remember { mutableStateOf("All") }
     var newMomentOpen by remember { mutableStateOf(false) }
+    var businessGap by remember { mutableStateOf<BusinessGapPage?>(null) }
+    var businessLocation by remember { mutableStateOf<com.example.momentra.data.api.LocationItemDto?>(null) }
+    var pendingActivation by remember { mutableStateOf<PendingBusinessActivation?>(null) }
     var groupCreatePhase by remember { mutableStateOf(GroupCreatePhase.CHOOSER) }
     var preferGroupCreateFlow by remember { mutableStateOf(false) }
-    // Callers: openNewMoment (Business +), ShellDestinationContent useOperatingHub gate.
-    // Separates Create New Moment from Add Operating Event (CREATE tab Quick Add).
-    // User: "Separate Create New Business Moment from Add Operating Event."
-    var preferBusinessCreateFlow by remember { mutableStateOf(false) }
     var showManageMoment by remember { mutableStateOf(false) }
-    var businessAttentionViewAllOpen by remember { mutableStateOf(false) }
-    var businessAttentionFilter by remember { mutableStateOf("Open") }
     var editSetupOpen by remember { mutableStateOf(false) }
     var topChromeExpanded by remember { mutableStateOf(true) }
     var showJoinQrScanner by remember { mutableStateOf(false) }
@@ -343,6 +373,9 @@ fun AppShellScreen(
         state.selectedMomentTypeCode,
     ).primary
     val lifeOpsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val openBusinessCreateMoment: () -> Unit = {
+        newMomentOpen = true
+    }
     val openNewMoment: () -> Unit = {
         when (state.selectedContext) {
             AppContext.PERSONAL -> {
@@ -353,11 +386,7 @@ fun AppShellScreen(
                 preferGroupCreateFlow = true
                 shellViewModel.selectBottomDestination(BottomDestination.CREATE)
             }
-            // Create New Moment — never Quick Add, even when a Moment is already selected.
-            AppContext.BUSINESS -> {
-                preferBusinessCreateFlow = true
-                shellViewModel.selectBottomDestination(BottomDestination.CREATE)
-            }
+            AppContext.BUSINESS -> openBusinessCreateMoment()
             else -> shellViewModel.selectBottomDestination(BottomDestination.CREATE)
         }
     }
@@ -460,6 +489,20 @@ fun AppShellScreen(
             tourController.onSignal(TourSignal.OPENED_CREATE_TAB)
         }
     }
+    LaunchedEffect(
+        state.bottomDestination,
+        state.selectedContext,
+        state.selectedMomentId,
+        state.selectedMomentTypeCode,
+    ) {
+        if (state.selectedContext != AppContext.BUSINESS) return@LaunchedEffect
+        val typeCode = state.selectedMomentTypeCode
+            ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.momentTypeCode
+        val operating = OperatingMomentCatalog.kindForTypeCode(typeCode) != null &&
+            !OperatingMomentCatalog.isRetired(typeCode)
+        if (!operating) return@LaunchedEffect
+        OperatingChromeState.clearTransientUi()
+    }
 
     TourHost(
         controller = tourController,
@@ -471,29 +514,44 @@ fun AppShellScreen(
             shellViewModel.selectBottomDestination(dest)
         },
     ) {
+    val businessCreateVisible = newMomentOpen && state.selectedContext == AppContext.BUSINESS
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ShellTokens.SurfaceContent),
+            .background(if (businessCreateVisible) Color(0xFF111113) else ShellTokens.SurfaceContent),
     ) {
-        state.offlineNotice?.let { notice ->
-            val failed = OfflineOutbox.failedMessage()
-            val pending = OfflineOutbox.pendingCount()
-            val businessToast = if (state.selectedContext == AppContext.BUSINESS) {
+        val activateToast = state.businessSuccessToast
+        LaunchedEffect(activateToast) {
+            if (activateToast != null) {
+                delay(2_750)
+                shellViewModel.clearBusinessSuccessToast()
+            }
+        }
+        val businessToast: BusinessAppStateToast? = when {
+            activateToast != null && state.selectedContext == AppContext.BUSINESS ->
+                BusinessAppStateToast.SetupActivated(
+                    title = activateToast.title,
+                    subtitle = activateToast.subtitle,
+                )
+            state.selectedContext == AppContext.BUSINESS && state.offlineNotice != null -> {
+                val failed = OfflineOutbox.failedMessage()
+                val pending = OfflineOutbox.pendingCount()
                 when {
                     failed != null -> BusinessAppStateToast.Error(code = "SYNC_TIMEOUT_504")
                     pending > 0 -> BusinessAppStateToast.OfflineQueue(queuedCount = pending)
                     else -> null
                 }
-            } else {
-                null
             }
-            if (businessToast != null) {
-                BusinessAppStateToastHost(
-                    toast = businessToast,
-                    onRetry = { shellViewModel.selectContext(state.selectedContext) },
-                )
-            } else {
+            else -> null
+        }
+        if (businessToast != null) {
+            BusinessAppStateToastHost(
+                toast = businessToast,
+                onRetry = { shellViewModel.selectContext(state.selectedContext) },
+                onDismiss = { shellViewModel.clearBusinessSuccessToast() },
+            )
+        } else {
+            state.offlineNotice?.let { notice ->
                 Text(
                     text = notice,
                     color = Color.White,
@@ -512,7 +570,7 @@ fun AppShellScreen(
             (groupMomentDirectoryOpen || groupDirectoryHome)
         val businessDirectoryVisible = state.selectedContext == AppContext.BUSINESS &&
             businessMomentDirectoryOpen
-        if (!groupDirectoryVisible && !businessDirectoryVisible) {
+        if (!groupDirectoryVisible && !businessDirectoryVisible && !businessCreateVisible) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -603,20 +661,19 @@ fun AppShellScreen(
                         onSettings = {
                             if (state.selectedMomentId != null) showManageMoment = true
                         },
-                        onInvite = when (state.selectedContext) {
-                            AppContext.GROUP -> {
-                                { groupInviteSheetOpen = true }
-                            }
-                            // Business: same invite affordance as Group; V4 no-op until rebuild.
-                            AppContext.BUSINESS -> {
-                                { }
-                            }
-                            else -> null
+                        onInvite = if (state.selectedContext == AppContext.GROUP) {
+                            { groupInviteSheetOpen = true }
+                        } else {
+                            null
                         },
                         useDirectorySelector = state.selectedContext == AppContext.GROUP ||
                             state.selectedContext == AppContext.BUSINESS,
                         startExpanded = false,
-                        participantNames = emptyList(),
+                        participantNames = if (state.selectedContext == AppContext.BUSINESS) {
+                            OperatingChromeState.participantNames
+                        } else {
+                            emptyList()
+                        },
                         onOpenDirectory = {
                             if (state.selectedContext == AppContext.BUSINESS) {
                                 businessMomentDirectoryOpen = true
@@ -651,9 +708,27 @@ fun AppShellScreen(
                 .align(Alignment.CenterHorizontally)
                 .momentraMaxWidth(shellWindow.contentMaxWidth),
         ) {
-            val operatingCompanyId = state.selectedCompany?.companyId
-                ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.companyId
-            ShellDestinationContent(
+            val operatingCompanyId = resolveOperatingCompanyId(
+                state.selectedCompany?.companyId,
+                state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.companyId,
+                state.selectedMomentId?.let { OperatingProjectionCache.peek(it)?.companyId },
+            )
+            if (businessCreateVisible) {
+                BusinessCreateFlow(
+                    companyId = state.selectedCompany?.companyId,
+                    ownerName = state.identity?.displayName.orEmpty(),
+                    onCreateBack = { newMomentOpen = false },
+                    onMomentCreated = { id, title, momentTypeCode, status ->
+                        newMomentOpen = false
+                        pendingActivation = PendingBusinessActivation(id, title, momentTypeCode, status)
+                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .navigationBarsPadding(),
+                )
+            } else {
+                ShellDestinationContent(
                     context = state.selectedContext,
                     destination = state.bottomDestination,
                     content = state.contextContent,
@@ -694,12 +769,9 @@ fun AppShellScreen(
                     onMomentCreated = { id, title, momentTypeCode, status ->
                         groupCreatePhase = GroupCreatePhase.CHOOSER
                         preferGroupCreateFlow = false
-                        preferBusinessCreateFlow = false
                         shellViewModel.onMomentCreated(id, title, momentTypeCode, status)
                         tourController.onSignal(TourSignal.MOMENT_CREATED)
                     },
-                    preferBusinessCreateFlow = preferBusinessCreateFlow,
-                    onPreferBusinessCreateFlow = { preferBusinessCreateFlow = it },
                     onJoinGroupCode = { code -> pendingGroupJoinCode = code },
                     preferGroupCreateFlow = preferGroupCreateFlow,
                     onPreferGroupCreateFlow = { preferGroupCreateFlow = it },
@@ -712,7 +784,12 @@ fun AppShellScreen(
                     onAddExpense = {
                         when (state.selectedContext) {
                             AppContext.GROUP -> if (!groupViewerReadOnly) groupExpenseSheetOpen = true
-                            AppContext.BUSINESS -> Unit
+                            AppContext.BUSINESS -> {
+                                val operating = OperatingMomentCatalog.kindForTypeCode(state.selectedMomentTypeCode) != null &&
+                                    !OperatingMomentCatalog.isRetired(state.selectedMomentTypeCode)
+                                if (operating) shellViewModel.selectBottomDestination(BottomDestination.CREATE)
+                                else businessExpenseSheetOpen = true
+                            }
                             else -> openMoneyQa(MoneyQuickAddKind.MASTER_EXPENSE)
                         }
                     },
@@ -755,22 +832,44 @@ fun AppShellScreen(
                             livingGapQa = kind
                         }
                     },
-                    onBusinessQuickAdd = { },
-                    onAddRevenue = { },
-                    onAddInvoice = { },
-                    onAddMembers = { },
+                    onBusinessQuickAdd = { kind ->
+                        val typeCode = state.selectedMomentTypeCode
+                            ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.momentTypeCode
+                        val operating = OperatingMomentCatalog.kindForTypeCode(typeCode) != null &&
+                            !OperatingMomentCatalog.isRetired(typeCode)
+                        val code = typeCode.orEmpty().uppercase()
+                        val isRunway = code.contains("RUNWAY")
+                        val isOps = code.contains("OPERATIONS") && !code.contains("TEAM")
+                        when {
+                            kind == BusinessQuickAddKind.KHATA -> businessKhataSheetOpen = true
+                            operating && (
+                                kind == BusinessQuickAddKind.EXPENSE ||
+                                    kind == BusinessQuickAddKind.SPEND_ENTRY
+                                ) -> shellViewModel.selectBottomDestination(BottomDestination.CREATE)
+                            kind == BusinessQuickAddKind.EXPENSE ||
+                                kind == BusinessQuickAddKind.SPEND_ENTRY -> businessExpenseSheetOpen = true
+                            isRunway -> businessGapQa = kind
+                            isOps -> businessGapQa = kind
+                            kind == BusinessQuickAddKind.REVENUE ||
+                                kind == BusinessQuickAddKind.INVOICE -> businessGapQa = kind
+                            else -> businessGapQa = kind
+                        }
+                    },
+                    onAddRevenue = { businessRevenueSheetOpen = true },
+                    onAddInvoice = { businessInvoiceSheetOpen = true },
+                    onAddMembers = { businessMembersSheetOpen = true },
                     onOpenQuickAdd = { shellViewModel.selectBottomDestination(BottomDestination.CREATE) },
                     onOpenMoments = { shellViewModel.selectBottomDestination(BottomDestination.MOMENTS) },
-                    onViewBusinessReport = { },
-                    onOpenBusinessFinance = { },
-                    onOpenVendor = { },
+                    onViewBusinessReport = { businessGap = BusinessGapPage.Finance },
+                    onOpenBusinessFinance = { businessGap = BusinessGapPage.Finance },
+                    onOpenVendor = { businessGap = BusinessGapPage.Vendor },
                     onLifeOpsQuickAdd = { openLifeOpsQa(it) },
                     onMoneyQuickAdd = { openMoneyQa(it) },
                     onViewAllActivity = { recentActivityOpen = true },
                     onPersonalActivityChanged = { shellViewModel.refreshVisiblePersonalTab() },
                     onViewAllGroupActivity = { groupRecentActivityOpen = true },
-                    onViewAllTeamActivity = { },
-                    onViewAllBusinessActivity = { },
+                    onViewAllTeamActivity = { teamRecentActivityOpen = true },
+                    onViewAllBusinessActivity = { businessRecentActivityOpen = true },
                     onViewAllBusinessAttention = { businessAttentionViewAllOpen = true },
                     onSelectMoment = shellViewModel::selectMoment,
                     onOpenCompletedMoments = {
@@ -778,6 +877,7 @@ fun AppShellScreen(
                         groupMomentDirectoryOpen = true
                     },
                 )
+            }
             // One spec-driven switcher serves both contexts (Figma 2678:37791).
             val businessSwitcher = state.selectedContext == AppContext.BUSINESS
             MomentSwitcherDirectory(
@@ -836,6 +936,41 @@ fun AppShellScreen(
                     .fillMaxSize()
                     .statusBarsPadding(),
             )
+            BusinessGapHost(
+                page = businessGap,
+                companyId = state.selectedCompany?.companyId,
+                companyName = state.selectedCompany?.displayName.orEmpty(),
+                moments = state.moments,
+                location = businessLocation,
+                onLocation = { businessLocation = it },
+                onPage = { businessGap = it },
+                onClose = { businessGap = null },
+                onSelectMoment = { moment ->
+                    shellViewModel.selectMoment(moment.momentId)
+                    shellViewModel.selectBottomDestination(BottomDestination.PULSE)
+                    businessGap = null
+                },
+                onCreateMoment = {
+                    businessGap = null
+                    openNewMoment()
+                },
+                onBackToSettings = {
+                    businessGap = null
+                },
+            )
+            pendingActivation?.let { pending ->
+                BusinessActivationSuccess(title = pending.title) {
+                    newMomentOpen = false
+                    shellViewModel.onMomentCreated(
+                        pending.momentId,
+                        pending.title,
+                        pending.momentTypeCode,
+                        pending.status,
+                    )
+                    tourController.onSignal(TourSignal.MOMENT_CREATED)
+                    pendingActivation = null
+                }
+            }
         }
         if (personalQaMomentId != null && state.selectedContext == AppContext.PERSONAL) {
             moneyQa?.let { kind ->
@@ -1040,10 +1175,6 @@ fun AppShellScreen(
                     showJoinQrScanner = false
                     pendingGroupJoinCode = code
                 },
-                onCompanyCode = { code ->
-                    showJoinQrScanner = false
-                    pendingCompanyJoinCode = code
-                },
                 onDismiss = { showJoinQrScanner = false },
             )
         }
@@ -1089,6 +1220,78 @@ fun AppShellScreen(
                 },
             )
         }
+        if (state.selectedMomentId != null && state.selectedContext == AppContext.BUSINESS) {
+            businessGapQa?.let { kind ->
+                BusinessGapQuickAddSheet(
+                    theme = BusinessActiveTheme.forTypeCode(state.selectedMomentTypeCode),
+                    kind = kind,
+                    visible = true,
+                    momentId = state.selectedMomentId,
+                    onDismiss = { businessGapQa = null },
+                    onSaved = {
+                        businessGapQa = null
+                        shellViewModel.refreshVisibleBusinessTab()
+                    },
+                    onExpense = {
+                        val operating = OperatingMomentCatalog.kindForTypeCode(state.selectedMomentTypeCode) != null &&
+                            !OperatingMomentCatalog.isRetired(state.selectedMomentTypeCode)
+                        if (operating) {
+                            shellViewModel.selectBottomDestination(BottomDestination.CREATE)
+                        } else {
+                            businessExpenseSheetOpen = true
+                        }
+                    },
+                    onRevenue = { businessRevenueSheetOpen = true },
+                    onInvoice = { businessInvoiceSheetOpen = true },
+                )
+            }
+            BusinessExpenseSheet(
+                momentId = state.selectedMomentId!!,
+                visible = businessExpenseSheetOpen,
+                onDismiss = { businessExpenseSheetOpen = false },
+                onSaved = {
+                    shellViewModel.refreshVisibleBusinessTab()
+                    tourController.showWhereToLook(TourWhereToLook.forBusinessGeneric("Expense saved"))
+                },
+            )
+            BusinessRevenueSheet(
+                momentId = state.selectedMomentId!!,
+                visible = businessRevenueSheetOpen,
+                onDismiss = { businessRevenueSheetOpen = false },
+                onSaved = { shellViewModel.refreshVisibleBusinessTab() },
+            )
+            BusinessInvoiceSheet(
+                momentId = state.selectedMomentId!!,
+                visible = businessInvoiceSheetOpen,
+                onDismiss = { businessInvoiceSheetOpen = false },
+                onSaved = { shellViewModel.refreshVisibleBusinessTab() },
+                shopName = state.selectedCompany?.displayName
+                    ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.title
+                    ?: "",
+            )
+            val khataCompanyId = state.selectedCompany?.companyId
+                ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.companyId
+                ?: ""
+            if (khataCompanyId.isNotBlank()) {
+                BusinessKhataHomeSheet(
+                    momentId = state.selectedMomentId!!,
+                    companyId = khataCompanyId,
+                    shopName = state.selectedCompany?.displayName
+                        ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.title
+                        ?: "",
+                    visible = businessKhataSheetOpen,
+                    onDismiss = { businessKhataSheetOpen = false },
+                    onEntrySaved = { shellViewModel.refreshVisibleBusinessTab() },
+                )
+            }
+        }
+        if (state.selectedCompany != null && state.selectedContext == AppContext.BUSINESS) {
+            BusinessMembersSheet(
+                companyId = state.selectedCompany!!.companyId,
+                visible = businessMembersSheetOpen,
+                onDismiss = { businessMembersSheetOpen = false },
+            )
+        }
         lifeOpsQa?.let { kind ->
             val momentId = personalQaMomentId
             if (momentId != null) {
@@ -1128,6 +1331,39 @@ fun AppShellScreen(
             onDismiss = { recentActivityOpen = false },
             onChanged = { shellViewModel.refreshVisiblePersonalTab() },
         )
+        BusinessRecentActivityFlow(
+            momentId = state.selectedMomentId,
+            visible = teamRecentActivityOpen,
+            onDismiss = { teamRecentActivityOpen = false },
+            accent = BusinessActiveTheme.forTypeCode(state.selectedMomentTypeCode).accent,
+            subtitle = "Team updates, polls, memories, and other events.",
+        )
+        BusinessRecentActivityFlow(
+            momentId = state.selectedMomentId,
+            visible = businessRecentActivityOpen,
+            onDismiss = { businessRecentActivityOpen = false },
+            accent = when {
+                (state.selectedMomentTypeCode ?: "").uppercase().contains("RUNWAY") -> RunwayColors.Amber
+                else -> OpsColors.IndigoLight
+            },
+            subtitle = when {
+                (state.selectedMomentTypeCode ?: "").uppercase().contains("RUNWAY") ->
+                    "Spend, revenue, and financial events."
+                else -> "Deliveries, vendors, issues, and ops events."
+            },
+        )
+        if (businessAttentionViewAllOpen) {
+            BusinessAppStateViewAllSheet(
+                accent = BusinessAppStateAccent.forTypeCode(state.selectedMomentTypeCode),
+                selectedFilter = businessAttentionFilter,
+                onSelectFilter = { businessAttentionFilter = it },
+                onClose = { businessAttentionViewAllOpen = false },
+                onShowAll = {
+                    businessAttentionViewAllOpen = false
+                    businessAttentionFilter = "All"
+                },
+            )
+        }
         GroupRecentActivityFlow(
             momentId = state.selectedMomentId,
             visible = groupRecentActivityOpen,
@@ -1136,25 +1372,15 @@ fun AppShellScreen(
             momentTypeCode = state.selectedMomentTypeCode
                 ?: state.moments.firstOrNull { it.momentId == state.selectedMomentId }?.momentTypeCode,
         )
-
-        if (businessAttentionViewAllOpen) {
-            BusinessAppStateViewAllSheet(
-                accent = BusinessAppStateAccent.Cyan,
-                selectedFilter = businessAttentionFilter,
-                onSelectFilter = { businessAttentionFilter = it },
-                onClose = { businessAttentionViewAllOpen = false },
-                onShowAll = { businessAttentionViewAllOpen = false },
-            )
-        }
-
         if (showManageMoment) {
             val momentId = state.selectedMomentId
             if (momentId != null) {
-                val manageIsBusiness = state.selectedContext == AppContext.BUSINESS
-                if (manageIsBusiness) {
-                    BusinessGlassModalBottomSheet(
-                        onDismissRequest = { showManageMoment = false },
-                    ) {
+                ModalBottomSheet(
+                    onDismissRequest = { showManageMoment = false },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = Color(0xFF1A1628),
+                    dragHandle = null,
+                ) {
                     ManageMomentSheet(
                         momentId = momentId,
                         momentTitle = state.selectedMomentTitle ?: "Moment",
@@ -1185,46 +1411,6 @@ fun AppShellScreen(
                             shellViewModel.onMomentCreated(momentId = newId, title = title)
                         },
                     )
-                    }
-                } else {
-                    ModalBottomSheet(
-                        onDismissRequest = { showManageMoment = false },
-                        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                        containerColor = Color(0xFF1A1628),
-                        scrimColor = Color.Black.copy(alpha = 0.32f),
-                        dragHandle = null,
-                    ) {
-                    ManageMomentSheet(
-                        momentId = momentId,
-                        momentTitle = state.selectedMomentTitle ?: "Moment",
-                        domain = state.selectedContext,
-                        currentUserId = identity.userId,
-                        companyId = state.selectedCompany?.companyId
-                            ?: state.moments.firstOrNull { it.momentId == momentId }?.companyId,
-                        onDismiss = { showManageMoment = false },
-                        onEditSetup = {
-                            showManageMoment = false
-                            editSetupOpen = true
-                        },
-                        onLifecycleChanged = {
-                            shellViewModel.reloadCurrentContext()
-                        },
-                        onCompleted = {
-                            val completedId = state.selectedMomentId
-                            showManageMoment = false
-                            storyMomentId = completedId
-                            shellViewModel.reloadCurrentContext()
-                        },
-                        onLeft = {
-                            showManageMoment = false
-                            shellViewModel.clearSelectedMomentAfterLeave()
-                        },
-                        onDuplicated = { newId, title ->
-                            showManageMoment = false
-                            shellViewModel.onMomentCreated(momentId = newId, title = title)
-                        },
-                    )
-                    }
                 }
             }
         }
@@ -1289,6 +1475,11 @@ fun AppShellScreen(
                 )
             }
         }
+        LaunchedEffect(OperatingChromeState.previewStoryId) {
+            val id = OperatingChromeState.previewStoryId ?: return@LaunchedEffect
+            storyMomentId = id
+            OperatingChromeState.previewStoryId = null
+        }
         if (storyMomentId != null) {
             val momentId = storyMomentId
             if (momentId != null) {
@@ -1303,14 +1494,18 @@ fun AppShellScreen(
         if (editSetupOpen) {
             val momentId = state.selectedMomentId
             if (momentId != null) {
-                MomentraFullscreenDialog(onDismissRequest = { editSetupOpen = false }) {
+                ModalBottomSheet(
+                    onDismissRequest = { editSetupOpen = false },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = Color(0xFF0C0F15),
+                    dragHandle = null,
+                ) {
                     EditMomentSetupHost(
                         context = state.selectedContext,
                         momentId = momentId,
                         momentTitle = state.selectedMomentTitle.orEmpty(),
                         momentTypeCode = state.selectedMomentTypeCode,
                         companyId = state.moments.firstOrNull { it.momentId == momentId }?.companyId,
-                        editingMomentStatus = state.moments.firstOrNull { it.momentId == momentId }?.status,
                         onClose = { editSetupOpen = false },
                         onSaved = {
                             editSetupOpen = false
@@ -1322,31 +1517,34 @@ fun AppShellScreen(
                 }
             }
         }
-        ShellBottomNavigation(
-            selected = state.bottomDestination,
-            onSelect = {
-                newMomentOpen = false
-                groupMomentDirectoryOpen = false
-                businessMomentDirectoryOpen = false
-                if (it == BottomDestination.CREATE && state.selectedContext == AppContext.GROUP) {
-                    groupCreatePhase = GroupCreatePhase.CHOOSER
-                    preferGroupCreateFlow = false
-                }
-                // Bottom CREATE with a selected Moment = Quick Add, not guided create.
-                if (it == BottomDestination.CREATE && state.selectedContext == AppContext.BUSINESS) {
-                    preferBusinessCreateFlow = false
-                }
-                if (it != BottomDestination.CREATE) {
-                    preferBusinessCreateFlow = false
-                }
-                shellViewModel.selectBottomDestination(it)
-            },
-            accent = momentAccent,
-            createLabel = if (state.selectedContext == AppContext.PERSONAL) "Add" else BottomDestination.CREATE.label,
-            // Personal / Group / Business share default bottom-nav tokens.
-            unselected = ShellTokens.BottomUnselected,
-            barBackground = ShellTokens.BottomBarBackground,
-        )
+        if (!businessCreateVisible) {
+            ShellBottomNavigation(
+                selected = state.bottomDestination,
+                onSelect = {
+                    newMomentOpen = false
+                    groupMomentDirectoryOpen = false
+                    businessMomentDirectoryOpen = false
+                    if (it == BottomDestination.CREATE && state.selectedContext == AppContext.GROUP) {
+                        groupCreatePhase = GroupCreatePhase.CHOOSER
+                        preferGroupCreateFlow = false
+                    }
+                    shellViewModel.selectBottomDestination(it)
+                },
+                accent = momentAccent,
+                createLabel = if (state.selectedContext == AppContext.PERSONAL) "Add" else BottomDestination.CREATE.label,
+                // TRD/DST-PULSE-v12: slate idle icons on the vertical canvas bar.
+                unselected = if (state.selectedContext == AppContext.BUSINESS) {
+                    ShellTokens.BusinessBottomUnselected
+                } else {
+                    ShellTokens.BottomUnselected
+                },
+                barBackground = if (state.selectedContext == AppContext.BUSINESS) {
+                    ShellTokens.businessBottomBarBackground(state.selectedMomentTypeCode)
+                } else {
+                    ShellTokens.BottomBarBackground
+                },
+            )
+        }
     }
 
     if (state.life360Open) {
@@ -1444,6 +1642,23 @@ private fun shouldShowMomentSwitcher(
     return show
 }
 
+private fun businessErrorScreen(destination: BottomDestination): BusinessAppStateScreen = when (destination) {
+    BottomDestination.PULSE -> BusinessAppStateScreen.Pulse
+    BottomDestination.MOMENTS -> BusinessAppStateScreen.Moments
+    BottomDestination.LIFE -> BusinessAppStateScreen.Life
+    BottomDestination.MEMORY -> BusinessAppStateScreen.Memory
+    BottomDestination.CREATE -> BusinessAppStateScreen.Hub
+}
+
+/** Loading label for the Business app-state skeleton body. */
+private fun businessLoadingLabel(destination: BottomDestination): String = when (destination) {
+    BottomDestination.PULSE -> "Loading Pulse\u2026"
+    BottomDestination.MOMENTS -> "Loading Moments\u2026"
+    BottomDestination.LIFE -> "Loading Life\u2026"
+    BottomDestination.MEMORY -> "Loading Memory\u2026"
+    BottomDestination.CREATE -> "Loading Quick adds\u2026"
+}
+
 @Composable
 private fun ShellDestinationContent(
     context: AppContext,
@@ -1476,8 +1691,6 @@ private fun ShellDestinationContent(
     onJoinGroupCode: (String) -> Unit = {},
     preferGroupCreateFlow: Boolean = false,
     onPreferGroupCreateFlow: (Boolean) -> Unit = {},
-    preferBusinessCreateFlow: Boolean = false,
-    onPreferBusinessCreateFlow: (Boolean) -> Unit = {},
     groupCreatePhase: GroupCreatePhase = GroupCreatePhase.CHOOSER,
     onGroupCreatePhase: (GroupCreatePhase) -> Unit = {},
     onOpenGroupCreateTab: () -> Unit = {},
@@ -1501,8 +1714,7 @@ private fun ShellDestinationContent(
     onExperienceQuickAdd: (ExperienceQuickAddKind) -> Unit = {},
     onPurchaseQuickAdd: (PurchaseQuickAddKind) -> Unit = {},
     onLivingQuickAdd: (LivingQuickAddKind) -> Unit = {},
-    onBusinessQuickAdd: () -> Unit = {},
-    onOpenCompanySettings: () -> Unit = {},
+    onBusinessQuickAdd: (BusinessQuickAddKind) -> Unit = {},
     /** Moves the shell to another bottom destination (kit "Back to Pulse" CTAs). */
     onSelectDestination: (BottomDestination) -> Unit = {},
     onAddRevenue: () -> Unit = {},
@@ -1524,96 +1736,69 @@ private fun ShellDestinationContent(
     onSelectMoment: (String) -> Unit = {},
     onOpenCompletedMoments: (() -> Unit)? = null,
 ) {
-    if (context == AppContext.BUSINESS) {
-        when (content) {
-            is ShellContentState.Error -> {
-                if (content.code == "UNAUTHORIZED" || content.message.contains("UNAUTHENTICATED", ignoreCase = true)) {
-                    LaunchedEffect(Unit) { onSessionExpired() }
-                }
-            }
-            else -> Unit
-        }
-        // P4 completion: Create New Moment (preferBusinessCreateFlow / no moment) → AppState.
-        // Ready + selected Moment + Pulse/Moments/Life/Memory/CREATE(Quick Add) → operating hub.
-        val creatingNewMoment = preferBusinessCreateFlow && destination == BottomDestination.CREATE
-        val useOperatingHub = content is ShellContentState.Ready &&
-            hasCompany &&
-            !selectedMomentId.isNullOrBlank() &&
-            !creatingNewMoment
-        if (!useOperatingHub) {
-            BusinessAppStateHost(
-                destination = destination,
-                content = content,
-                hasCompany = hasCompany,
-                momentTypeCode = selectedMomentTypeCode,
-                onRetry = onRetry,
-                onPrimary = onCreateMoment,
-                onSecondary = {
-                    onPreferBusinessCreateFlow(false)
-                    onSelectDestination(BottomDestination.CREATE)
-                },
-                onCreateBusiness = onCreateMoment,
-                onJoinCompany = onOpenCompanySettings,
-                onOpenQuickAdds = {
-                    onPreferBusinessCreateFlow(false)
-                    onSelectDestination(BottomDestination.CREATE)
-                },
-                onBackToPulse = {
-                    onPreferBusinessCreateFlow(false)
-                    onSelectDestination(BottomDestination.PULSE)
-                },
-                onCreateBack = {
-                    onPreferBusinessCreateFlow(false)
-                    onCreateBack()
-                },
-                companyId = companyId,
-                onMomentCreated = { id, title, type, status ->
-                    onPreferBusinessCreateFlow(false)
-                    onMomentCreated(id, title, type, status)
-                },
-            )
-            return
-        }
-        com.example.momentra.ui.shell.business.shared.OperatingMomentPage(
-            momentId = selectedMomentId,
-            momentTypeCode = selectedMomentTypeCode,
-            momentTitle = selectedMomentTitle,
-            tab = com.example.momentra.ui.shell.business.shared.operatingTabFor(destination),
-            refreshToken = businessTabRefreshToken,
-            onCreateMoment = onCreateMoment,
-            onOpenQuickAdd = {
-                onPreferBusinessCreateFlow(false)
-                onSelectDestination(BottomDestination.CREATE)
-            },
-            onViewAllAttention = onViewAllBusinessAttention,
-        )
-        return
-    }
+    // Business renders the shared Figma app-state kit (node 2666:29489) for its
+    // loading / offline / error surfaces. Personal, Group and Circle keep the generic panels.
+    val businessAppState = context == AppContext.BUSINESS
+    val businessAccent = BusinessAppStateAccent.forTypeCode(selectedMomentTypeCode)
 
     when (content) {
         ShellContentState.Loading, ShellContentState.Idle -> {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MomentraBrandColors.Cta)
+            if (businessAppState) {
+                BusinessAppStateLoadingBody(
+                    label = businessLoadingLabel(destination),
+                    accent = businessAccent,
+                )
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = MomentraBrandColors.Cta)
+                }
             }
         }
         ShellContentState.Offline -> {
-            EmptyPanel(
-                title = "You're offline",
-                body = "Check your connection and try again.",
-                actionLabel = "Retry",
-                onAction = onRetry,
-            )
+            if (businessAppState) {
+                BusinessAppStateBody(
+                    spec = BusinessAppStateSpecs.spec(
+                        BusinessAppStateScreen.Offline,
+                        BusinessAppStatePhase.Error,
+                    ),
+                    accent = businessAccent,
+                    onPrimary = onRetry,
+                    onSecondary = onRetry,
+                )
+            } else {
+                EmptyPanel(
+                    title = "You're offline",
+                    body = "Check your connection and try again.",
+                    actionLabel = "Retry",
+                    onAction = onRetry,
+                )
+            }
         }
         is ShellContentState.Error -> {
             if (content.code == "UNAUTHORIZED" || content.message.contains("UNAUTHENTICATED", ignoreCase = true)) {
                 LaunchedEffect(Unit) { onSessionExpired() }
+                if (businessAppState) {
+                    return
+                }
             }
-            EmptyPanel(
-                title = "We couldn't load your moments",
-                body = content.message,
-                actionLabel = "Retry",
-                onAction = onRetry,
-            )
+            if (businessAppState) {
+                BusinessAppStateBody(
+                    spec = BusinessAppStateSpecs.spec(
+                        businessErrorScreen(destination),
+                        BusinessAppStatePhase.Error,
+                    ),
+                    accent = businessAccent,
+                    onPrimary = onRetry,
+                    onSecondary = onOpenQuickAdd,
+                )
+            } else {
+                EmptyPanel(
+                    title = "We couldn't load your moments",
+                    body = content.message,
+                    actionLabel = "Retry",
+                    onAction = onRetry,
+                )
+            }
         }
         ShellContentState.Forbidden -> {
             EmptyPanel(
@@ -1640,7 +1825,7 @@ private fun ShellDestinationContent(
                 onMomentCreated = onMomentCreated,
                 onJoinGroupCode = onJoinGroupCode,
                 onCreateBusiness = { onSelectDestination(BottomDestination.CREATE) },
-                onJoinCompany = { onOpenCompanySettings() },
+                onJoinCompany = { onSelectDestination(BottomDestination.CREATE) },
                 onSelectDestination = onSelectDestination,
                 groupCreatePhase = groupCreatePhase,
                 onGroupCreatePhase = onGroupCreatePhase,
@@ -1755,6 +1940,42 @@ private fun ShellDestinationContent(
                                 viewerReadOnly = viewerReadOnly,
                             )
                         }
+                    }
+                }
+                context == AppContext.BUSINESS && destination == BottomDestination.CREATE -> {
+                    if (selectedMomentId != null) {
+                        val quickAddType = BusinessMomentFamilyConfig.selectedQuickAddTypeCode(
+                            selectedMomentId,
+                            moments,
+                            selectedMomentTypeCode,
+                        )
+                        OperatingMomentPage(
+                            momentId = selectedMomentId,
+                            momentTypeCode = quickAddType,
+                            momentTitle = selectedMomentTitle,
+                            tab = OperatingTab.QUICK_ADD,
+                            refreshToken = businessTabRefreshToken,
+                            companyId = companyId,
+                            onCreateMoment = onCreateMoment,
+                            onOpenQuickAdd = onOpenQuickAdd,
+                            onQuickAddCode = { code ->
+                                selectedMomentId?.let { BusinessMomentFamilyConfig.setPendingQuickAdd(it, code) }
+                                onOpenQuickAdd()
+                            },
+                        )
+                    } else {
+                        ContextEmptyExperience(
+                            context = context,
+                            destination = destination,
+                            experience = experience,
+                            moments = moments,
+                            hasCompany = hasCompany,
+                            companyId = companyId,
+                            onCreateMoment = onCreateMoment,
+                            onCreateBack = onCreateBack,
+                            onCompanyActivated = onCompanyActivated,
+                            onMomentCreated = onMomentCreated,
+                        )
                     }
                 }
                 else -> {
@@ -1979,6 +2200,79 @@ private fun ShellDestinationContent(
                                     onOpenQuickAdd = onAddMemory,
                                 )
                             }
+                        }
+                        context == AppContext.BUSINESS && destination == BottomDestination.PULSE -> {
+                            val businessTypeCode = selectedMomentTypeCode
+                                ?: moments.firstOrNull { it.momentId == selectedMomentId }?.momentTypeCode
+                            OperatingMomentPage(
+                                momentId = selectedMomentId,
+                                momentTypeCode = businessTypeCode,
+                                momentTitle = selectedMomentTitle,
+                                tab = OperatingTab.PULSE,
+                                refreshToken = businessTabRefreshToken,
+                                companyId = companyId,
+                                onCreateMoment = onCreateMoment,
+                                onOpenQuickAdd = onOpenQuickAdd,
+                                onViewAllAttention = onViewAllBusinessAttention,
+                                onQuickAddCode = { code ->
+                                    selectedMomentId?.let { BusinessMomentFamilyConfig.setPendingQuickAdd(it, code) }
+                                    onOpenQuickAdd()
+                                },
+                            )
+                        }
+                        context == AppContext.BUSINESS && destination == BottomDestination.MOMENTS -> {
+                            val businessTypeCode = selectedMomentTypeCode
+                                ?: moments.firstOrNull { it.momentId == selectedMomentId }?.momentTypeCode
+                            OperatingMomentPage(
+                                momentId = selectedMomentId,
+                                momentTypeCode = businessTypeCode,
+                                momentTitle = selectedMomentTitle,
+                                tab = OperatingTab.MOMENTS,
+                                refreshToken = businessTabRefreshToken,
+                                companyId = companyId,
+                                onCreateMoment = onCreateMoment,
+                                onOpenQuickAdd = onOpenQuickAdd,
+                                onQuickAddCode = { code ->
+                                    selectedMomentId?.let { BusinessMomentFamilyConfig.setPendingQuickAdd(it, code) }
+                                    onOpenQuickAdd()
+                                },
+                            )
+                        }
+                        context == AppContext.BUSINESS && destination == BottomDestination.LIFE -> {
+                            val businessTypeCode = selectedMomentTypeCode
+                                ?: moments.firstOrNull { it.momentId == selectedMomentId }?.momentTypeCode
+                            OperatingMomentPage(
+                                momentId = selectedMomentId,
+                                momentTypeCode = businessTypeCode,
+                                momentTitle = selectedMomentTitle,
+                                tab = OperatingTab.LIFE,
+                                refreshToken = businessTabRefreshToken,
+                                companyId = companyId,
+                                onCreateMoment = onCreateMoment,
+                                onOpenQuickAdd = onOpenQuickAdd,
+                                onQuickAddCode = { code ->
+                                    selectedMomentId?.let { BusinessMomentFamilyConfig.setPendingQuickAdd(it, code) }
+                                    onOpenQuickAdd()
+                                },
+                            )
+                        }
+                        context == AppContext.BUSINESS && destination == BottomDestination.MEMORY -> {
+                            val businessTypeCode = selectedMomentTypeCode
+                                ?: moments.firstOrNull { it.momentId == selectedMomentId }?.momentTypeCode
+                            OperatingMomentPage(
+                                momentId = selectedMomentId,
+                                momentTypeCode = businessTypeCode,
+                                momentTitle = selectedMomentTitle,
+                                tab = OperatingTab.MEMORY,
+                                refreshToken = businessTabRefreshToken,
+                                companyId = companyId,
+                                onCreateMoment = onCreateMoment,
+                                onOpenQuickAdd = onOpenQuickAdd,
+                                onQuickAddCode = { code ->
+                                    selectedMomentId?.let { BusinessMomentFamilyConfig.setPendingQuickAdd(it, code) }
+                                    onOpenQuickAdd()
+                                },
+                            )
                         }
                         context == AppContext.PERSONAL && (
                             destination == BottomDestination.LIFE ||

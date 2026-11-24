@@ -410,7 +410,7 @@ object BusinessAppStateSpecs {
             AppStateRow("Invite team (optional)", "Step 3"),
         ),
         primaryLabel = "Create business",
-        secondaryLabel = "Join with invite code",
+        secondaryLabel = null,
     )
 
     private fun offline(phase: BusinessAppStatePhase): AppStateSpec = AppStateSpec(

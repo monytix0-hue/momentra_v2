@@ -8,6 +8,7 @@ import com.example.momentra.data.api.RedeemGroupInviteResultDto
 import com.example.momentra.data.local.AppPreferences
 import com.example.momentra.data.local.OfflineOutbox
 import com.example.momentra.data.realtime.SseClient
+import com.example.momentra.data.repository.BusinessSliceRepository
 import com.example.momentra.data.repository.GroupSliceRepository
 import com.example.momentra.data.repository.MeGateway
 import com.example.momentra.domain.AppContext
@@ -30,6 +31,13 @@ import com.example.momentra.ui.shell.perf.ShellPerf
 import com.example.momentra.ui.shell.personal.shared.PersonalTabDataCache
 import com.example.momentra.ui.shell.personal.shared.loadPersonalPulseTab
 import com.example.momentra.ui.shell.personal.shared.resolvePreferredPersonalMoment
+import com.example.momentra.ui.shell.business.appstate.BusinessSetupActivatedToast
+import com.example.momentra.ui.shell.business.appstate.BusinessSetupActivateToastCopy
+import com.example.momentra.ui.shell.business.shared.BusinessTabDataCache
+import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
+import com.example.momentra.ui.shell.business.shared.businessRefreshPrefetchesPulse
+import com.example.momentra.ui.shell.business.shared.invalidateBusinessPulseLoad
+import com.example.momentra.ui.shell.business.shared.prefetchBusinessTabs
 import com.example.momentra.ui.shell.group.shared.GroupTabDataCache
 import com.example.momentra.ui.shell.group.shared.prefetchGroupTabs
 import com.google.firebase.auth.FirebaseAuth
@@ -85,6 +93,8 @@ data class AppShellUiState(
     val ttcsMs: Long? = null,
     /** Shown while the shell is on cached data or quick adds are waiting to sync. */
     val offlineNotice: String? = null,
+    /** Business activate Operating toaster (Figma animated ✓ → Pulse). */
+    val businessSuccessToast: BusinessSetupActivatedToast? = null,
 )
 
 enum class BootstrapStatus { IDLE, CACHED, REFRESHING, READY, ERROR }
@@ -98,6 +108,7 @@ class AppShellViewModel(
     private val meRepository: MeGateway,
     private val prefs: AppPreferences? = null,
     private val groupRepository: GroupSliceRepository = GroupSliceRepository(),
+    private val businessRepository: BusinessSliceRepository = BusinessSliceRepository(),
     private val sseClient: SseClient = SseClient(),
 ) : ViewModel() {
 
@@ -107,6 +118,7 @@ class AppShellViewModel(
     private var loadJob: Job? = null
     private var bootstrapRefreshJob: Job? = null
     private var groupPrefetchJob: Job? = null
+    private var businessPrefetchJob: Job? = null
     private var sseCollectJob: Job? = null
     private var preferredPersonalMomentId: String? = null
     /** True after the user picks a Business moment or company in this process. */
@@ -174,10 +186,12 @@ class AppShellViewModel(
         loadJob?.cancel()
         bootstrapRefreshJob?.cancel()
         groupPrefetchJob?.cancel()
+        businessPrefetchJob?.cancel()
         preferredPersonalMomentId = null
         personalDeepLinkHold = false
         PersonalTabDataCache.clear()
         GroupTabDataCache.clear()
+        BusinessTabDataCache.clear()
         _state.value.identity?.userId?.let { meRepository.clearBootstrapCache(it) }
         bootstrap = null
         _state.value = AppShellUiState()
@@ -870,6 +884,17 @@ class AppShellViewModel(
         if (ctx == AppContext.PERSONAL) {
             preferredPersonalMomentId = momentId
         }
+        val resolvedType = (momentTypeCode ?: _state.value.selectedMomentTypeCode)
+            ?.trim()
+            ?.uppercase()
+        val activateToast = if (ctx == AppContext.BUSINESS && status.equals("ACTIVE", ignoreCase = true)) {
+            BusinessSetupActivatedToast(
+                title = BusinessSetupActivateToastCopy.DEFAULT_TITLE,
+                subtitle = BusinessSetupActivateToastCopy.subtitle(title, resolvedType),
+            )
+        } else {
+            null
+        }
         _state.update {
             val existingIdx = it.moments.indexOfFirst { m -> m.momentId == momentId }
             val updatedMoments = if (existingIdx >= 0) {
@@ -899,6 +924,7 @@ class AppShellViewModel(
                 selectedMomentByContext = it.selectedMomentByContext + (ctx to momentId),
                 moments = updatedMoments,
                 groupMomentDirectoryHome = false,
+                businessSuccessToast = activateToast ?: it.businessSuccessToast,
             )
         }
         reloadCurrentContext(preserveMomentId = momentId)
@@ -907,6 +933,10 @@ class AppShellViewModel(
             AppContext.BUSINESS -> refreshVisibleBusinessTab()
             else -> Unit
         }
+    }
+
+    fun clearBusinessSuccessToast() {
+        _state.update { it.copy(businessSuccessToast = null) }
     }
 
     fun redeemGroupInvite(
@@ -1057,20 +1087,34 @@ class AppShellViewModel(
     }
 
     fun refreshVisibleBusinessTab(forcePrefetch: Boolean = false) {
+        val momentId = _state.value.selectedMomentId
+        val typeCode = _state.value.selectedMomentTypeCode
+        if (!momentId.isNullOrBlank()) {
+            invalidateBusinessPulseLoad(momentId)
+        }
         _state.update { it.copy(businessTabRefreshToken = it.businessTabRefreshToken + 1) }
+        val prefetch = businessRefreshPrefetchesPulse(forcePrefetch)
+        if (prefetch) {
+            prefetchBusinessTabsFor(momentId, typeCode)
+        }
         ShellPerf.instant(
             "scoped_refresh_business",
             mapOf(
                 "token" to _state.value.businessTabRefreshToken,
+                "invalidated" to !momentId.isNullOrBlank(),
+                "prefetch" to prefetch,
                 "force" to forcePrefetch,
             ),
         )
     }
 
+    /** Warm bundled pulse cache so Business tabs paint without spinners. */
     private fun prefetchBusinessTabsFor(momentId: String?, momentTypeCode: String? = _state.value.selectedMomentTypeCode) {
-        // Business V4 wipe: no tab prefetch until operating UI returns.
-        @Suppress("UNUSED_PARAMETER")
-        val ignored = momentId to momentTypeCode
+        if (momentId.isNullOrBlank()) return
+        businessPrefetchJob?.cancel()
+        businessPrefetchJob = viewModelScope.launch {
+            prefetchBusinessTabs(businessRepository, momentId, momentTypeCode)
+        }
     }
 
     fun exitCreateDestination() {
@@ -1212,30 +1256,6 @@ class AppShellViewModel(
         return pool.firstOrNull { it.companyId == bootDefaultId }
     }
 
-
-    private fun looksLikeBusinessMomentType(code: String): Boolean {
-        if (code.isEmpty()) return false
-        return code.contains("MARKETING") ||
-            code.contains("CAMPAIGN") ||
-            code.contains("TRADING") ||
-            code.contains("WHOLESALE") ||
-            code.contains("DISTRIBUTION") ||
-            code.contains("DEALERSHIP") ||
-            code.contains("RETAIL") ||
-            code.contains("STORE") ||
-            code.contains("RESTAURANT") ||
-            code.contains("FOOD") ||
-            code.contains("SERVICE") ||
-            code.contains("CONSUMER") ||
-            code.contains("MANUFACTURING") ||
-            code.contains("PRODUCTION") ||
-            code.contains("MADE_TO_ORDER") ||
-            code.contains("RUNWAY") ||
-            code.contains("TEAM_OPS") ||
-            code.contains("OPERATIONS") ||
-            code.startsWith("BIZ_")
-    }
-
     /** A missing moment stays in this context only when its type belongs here. Blank types stay for optimistic creates. */
     private fun momentTypeFitsContext(context: AppContext, momentTypeCode: String?): Boolean {
         val code = momentTypeCode?.trim()?.uppercase().orEmpty()
@@ -1251,7 +1271,8 @@ class AppShellViewModel(
             code.startsWith("FUTURE_") ||
             code.startsWith("LIFESTYLE") ||
             code.startsWith("RELATIONSHIP")
-        val business = looksLikeBusinessMomentType(code)
+        val business = OperatingMomentCatalog.kindForTypeCode(code) != null ||
+            OperatingMomentCatalog.isRetired(code)
         return when (context) {
             AppContext.PERSONAL -> personal
             AppContext.GROUP -> !personal && !business

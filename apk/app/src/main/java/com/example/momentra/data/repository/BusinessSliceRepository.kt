@@ -29,6 +29,7 @@ import com.example.momentra.data.api.BusinessRevenueListDto
 import com.example.momentra.data.api.CreateBusinessExpenseBody
 import com.example.momentra.data.api.CreateBusinessExpenseResultDto
 import com.example.momentra.data.api.ExpenseAttachmentDto
+import com.example.momentra.data.api.CompanyLogoUploadResult
 import com.example.momentra.data.api.MediaUploadCompleteBody
 import com.example.momentra.data.api.MediaUploadIntentBody
 import kotlinx.coroutines.Dispatchers
@@ -449,13 +450,17 @@ class BusinessSliceRepository(
         intent.uploadId
     }.recoverCatching { e -> throw mapError(e) }
 
-    /** Upload a company logo and return the completed media id. */
+    /**
+     * Upload a company logo via existing media pipeline.
+     * Callers: MomentCreateViewModel.uploadSetupLogo (BusinessSetupShell).
+     * Returns mediaId + optional downloadUrl from complete.
+     */
     suspend fun uploadCompanyLogo(
         companyId: String,
         bytes: ByteArray,
         contentType: String = "image/jpeg",
         idempotencyKey: String = UUID.randomUUID().toString(),
-    ): Result<String> = runCatching {
+    ): Result<CompanyLogoUploadResult> = runCatching {
         val intent = api.createMediaUploadIntent(
             idempotencyKey = idempotencyKey,
             body = MediaUploadIntentBody(
@@ -476,11 +481,15 @@ class BusinessSliceRepository(
             client.newCall(putReq).execute().use { it.isSuccessful }
         }
         if (!putOk) error("Failed to upload media bytes to storage")
-        api.completeMediaUpload(
+        val completed = api.completeMediaUpload(
             uploadId = intent.uploadId,
             idempotencyKey = UUID.randomUUID().toString(),
             body = MediaUploadCompleteBody(storageKey = storageKey),
-        ).data.mediaId
+        ).data
+        CompanyLogoUploadResult(
+            mediaId = completed.mediaId,
+            downloadUrl = completed.downloadUrl,
+        )
     }.recoverCatching { e -> throw mapError(e) }
 
     suspend fun createRevenue(

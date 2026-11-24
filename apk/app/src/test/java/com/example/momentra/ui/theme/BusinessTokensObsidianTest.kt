@@ -22,8 +22,12 @@ class BusinessTokensObsidianTest {
     }
 
     @Test
-    fun tradingAccentIsEmerald() {
+    fun tradingAccentIsTrdV12Emerald() {
         assertEquals(0xFF10B981.toInt(), BusinessTokens.Colors.TRADINGAccent.toArgb())
+        assertEquals(0xFF059669.toInt(), BusinessTokens.Colors.TRADINGAccentDeep.toArgb())
+        assertEquals(0xFF05070B.toInt(), BusinessTokens.Colors.TRADINGCanvas.toArgb())
+        assertEquals(0xFF111827.toInt(), BusinessTokens.Colors.TRADINGPulseSurface.toArgb())
+        assertEquals(0xFF151D2E.toInt(), BusinessTokens.Colors.TRADINGMomentsSurface.toArgb())
     }
 
     @Test

@@ -182,7 +182,7 @@ enum BusinessSetupDocuments {
                 text("agencyOperatingBudget", "Agency operating", "₹50,000", helper: "Optional"),
                 panelHeader("panelTargets", "Targets"),
                 text("monthlyTarget", "Primary target", "120", helper: "Amount / count"),
-                choice("targetMetric", "Target unit", ["Leads", "Reach", "Clicks", "Sales"]),
+                choice("targetMetric", "Target unit", ["Leads", "Reach", "Clicks", "Sales", "Client billing", "Custom"]),
             ]),
             section("gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.", [
                 panelHeader("panelTracking", "Tracking"),
@@ -288,7 +288,9 @@ enum BusinessSetupDocuments {
                 date("planMonth", "Month", "October 2026"),
                 text("monthlyBudget", "Monthly budget", "₹50,000", helper: "Amount"),
                 text("conversionGoal", "Primary target", "Store visits / sales", helper: "What success looks like"),
-                text("targetMetric", "Target unit", "Leads"),
+                choice("targetMetric", "Target unit", [
+                    "Leads", "Reach", "Clicks", "Attributed sales", "Engagements", "Custom",
+                ]),
                 text("supportingTarget", "Supporting target", "Optional secondary metric"),
             ]),
             section("gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.", [
@@ -383,7 +385,7 @@ enum BusinessSetupDocuments {
                 date("planMonth", "Month", "October 2026"),
                 text("monthlyBudget", "Monthly budget", "₹60,00,000", helper: "Amount"),
                 text("monthlyTarget", "Monthly sales target", "₹90,00,000", helper: "Amount"),
-                text("targetMetric", "How the target is measured", "Revenue"),
+                choice("targetMetric", "How the target is measured", ["Revenue", "Orders", "Count"]),
             ]),
             section("gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.", [
                 panelHeader("panelTracking", "Tracking"),
@@ -474,7 +476,7 @@ enum BusinessSetupDocuments {
                 date("planMonth", "Month", "October 2026"),
                 text("monthlyBudget", "Monthly budget", "₹60,00,000", helper: "Amount"),
                 text("monthlyTarget", "Monthly sales target", "₹90,00,000", helper: "Amount"),
-                text("targetMetric", "How the target is measured", "Revenue"),
+                choice("targetMetric", "How the target is measured", ["Revenue", "Orders", "Count"]),
             ]),
             section("gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.", [
                 panelHeader("panelTracking", "Tracking"),
@@ -567,7 +569,7 @@ enum BusinessSetupDocuments {
                 date("planMonth", "Month", "October 2026"),
                 text("monthlyBudget", "Monthly budget", "₹8,40,000", helper: "Amount"),
                 text("monthlyTarget", "Monthly sales target", "₹12,00,000", helper: "Amount"),
-                text("targetMetric", "How the target is measured", "Revenue"),
+                choice("targetMetric", "How the target is measured", ["Revenue", "Orders", "Count"]),
             ]),
             section("gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.", [
                 panelHeader("panelTracking", "Tracking"),
@@ -658,7 +660,7 @@ enum BusinessSetupDocuments {
                 date("planMonth", "Month", "October 2026"),
                 text("monthlyBudget", "Monthly budget", "₹5,20,000", helper: "Amount"),
                 text("monthlyTarget", "Monthly sales target", "₹6,50,000", helper: "Amount"),
-                text("targetMetric", "How the target is measured", "Revenue"),
+                choice("targetMetric", "How the target is measured", ["Revenue", "Orders", "Count"]),
             ]),
             section(
                 "network",
@@ -761,7 +763,7 @@ enum BusinessSetupDocuments {
                 date("planMonth", "Month", "October 2026"),
                 text("monthlyBudget", "Monthly budget", "₹3,20,000", helper: "Amount"),
                 text("monthlyChargeTarget", "Monthly charge target", "₹6,50,000", helper: "Amount"),
-                text("targetMetric", "How the target is measured", "Revenue"),
+                choice("targetMetric", "How the target is measured", ["Revenue", "Appointments", "Count"]),
             ]),
             section("gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.", [
                 panelHeader("panelTracking", "Tracking"),
@@ -855,7 +857,12 @@ enum BusinessSetupDocuments {
                 date("planMonth", "Month", "October 2026"),
                 text("monthlyBudget", "Monthly budget", "₹42,00,000", helper: "Amount"),
                 text("monthlyTarget", "Monthly sales target", "₹65,00,000", helper: "Amount"),
-                text("targetMetric", "How the target is measured", "Revenue"),
+                choice("targetMetric", "How the target is measured", [
+                    "Invoiced value (or accepted job units)",
+                    "Production output",
+                    "Delivery count",
+                    "Orders",
+                ]),
             ]),
             section("gst", "GST & Tax Details", "Set up GST once to make buying and selling easier.", [
                 panelHeader("panelTracking", "Tracking"),

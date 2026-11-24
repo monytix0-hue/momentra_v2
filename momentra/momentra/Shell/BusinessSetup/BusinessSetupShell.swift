@@ -20,6 +20,7 @@ struct BusinessSetupShell: View {
     @State private var draftMomentId: String?
     @State private var draftMomentStatus: String?
     @State private var draftSavedMessage: String?
+    @State private var showGstStatePicker = false
 
     init(
         family: BusinessSetupFamily,
@@ -181,6 +182,21 @@ struct BusinessSetupShell: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showGstStatePicker) {
+            SetupStatePickerSheet(
+                theme: theme,
+                selected: values["gstState"] ?? "",
+                onPick: { state in
+                    values["gstState"] = state.name
+                    fieldErrors["gstState"] = nil
+                    showGstStatePicker = false
+                },
+                onCancel: { showGstStatePicker = false }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .preferredColorScheme(.dark)
+        }
         .onAppear {
             if !didSeed {
                 reseeds(for: typeCode, priorTitle: initialTitle)
@@ -248,15 +264,36 @@ struct BusinessSetupShell: View {
         case .panelHeader(let title):
             BusinessSetupDocumentKit.PanelHeader(theme: theme, title: title)
         case .text:
-            BusinessSetupDocumentKit.FieldRow(
-                theme: theme,
-                label: field.label,
-                placeholder: field.placeholder,
-                text: binding(for: field.key),
-                helper: field.helper,
-                error: fieldErrors[field.key],
-                forceUppercase: field.key == "gstin"
-            )
+            if field.key == "gstState" {
+                let selected = values[field.key] ?? ""
+                let code = IndiaStateCatalog.codeOf(selected)
+                let display: String = {
+                    if selected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "" }
+                    if !code.isEmpty {
+                        return "\(IndiaStateCatalog.displayName(selected)) · \(code)"
+                    }
+                    return selected
+                }()
+                BusinessSetupDocumentKit.PickerRow(
+                    theme: theme,
+                    label: field.label,
+                    value: display,
+                    placeholder: field.placeholder.isEmpty ? "Select state" : field.placeholder,
+                    helper: field.helper,
+                    error: fieldErrors[field.key],
+                    onTap: { showGstStatePicker = true }
+                )
+            } else {
+                BusinessSetupDocumentKit.FieldRow(
+                    theme: theme,
+                    label: field.label,
+                    placeholder: field.placeholder,
+                    text: binding(for: field.key),
+                    helper: field.helper,
+                    error: fieldErrors[field.key],
+                    forceUppercase: field.key == "gstin"
+                )
+            }
         case .choice(let options):
             if field.key == "currency" {
                 BusinessSetupDocumentKit.CurrencyDropdown(

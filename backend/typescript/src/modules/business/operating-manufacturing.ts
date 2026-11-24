@@ -74,7 +74,7 @@ function num(value: string | number | null | undefined): number {
 }
 
 function money(value: number): string {
-  return value.toFixed(4);
+  return value.toFixed(2);
 }
 
 function fail(message: string): { ok: false; message: string } {

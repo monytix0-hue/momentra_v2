@@ -3,7 +3,6 @@ package com.example.momentra.ui.shell.business.setup
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -37,7 +36,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.data.api.CompanyInviteDto
+import com.example.momentra.ui.shell.empty.group.InviteSendChannelRow
 import com.example.momentra.ui.shell.empty.group.generateInviteQrBitmap
+import com.example.momentra.ui.shell.empty.group.inviteMessage
+import com.example.momentra.ui.shell.empty.group.sendInviteSms
+import com.example.momentra.ui.shell.empty.group.sendInviteWhatsApp
+import com.example.momentra.ui.shell.empty.group.shareInviteLink
+import com.example.momentra.ui.shell.empty.group.shareInviteQr
 import com.example.momentra.ui.theme.generated.BusinessTokens
 import kotlinx.coroutines.launch
 
@@ -53,7 +58,7 @@ object CompanyInviteLink {
 }
 
 /**
- * Business-themed invite block with Group-style code / QR / share mechanics.
+ * Business-themed invite block with Group-style code / QR / Messages / WhatsApp share.
  * Keep in lockstep with `BusinessSetupInviteSection.swift`.
  * When [embedded] is true (People & Roles), content renders without an outer SectionCard.
  */
@@ -64,9 +69,13 @@ fun BusinessSetupInviteSection(
     mintInvite: suspend (String) -> CompanyInviteDto?,
     modifier: Modifier = Modifier,
     embedded: Boolean = true,
+    inviteTitle: String = "this business",
+    /** Creates/links a company when setup has none yet (draft path). */
+    resolveCompanyId: (suspend () -> String?)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var resolvedCompanyId by remember(companyId) { mutableStateOf(companyId) }
     var invite by remember { mutableStateOf<CompanyInviteDto?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -77,12 +86,31 @@ fun BusinessSetupInviteSection(
     val displayPath = code?.let { CompanyInviteLink.displayPath(it) }
     val copyText = displayPath
     val qrPayload = code?.let { CompanyInviteLink.qrPayload(it) }
+    val message = displayPath?.let { inviteMessage(inviteTitle, it) }.orEmpty()
 
-    fun mint() {
-        val id = companyId?.takeIf { it.isNotBlank() } ?: return
+    fun mint(forCompanyId: String) {
         scope.launch {
             loading = true
             error = null
+            val minted = mintInvite(forCompanyId)
+            invite = minted
+            if (minted == null) error = "Couldn’t create invite. Try again."
+            loading = false
+        }
+    }
+
+    fun ensureAndMint() {
+        scope.launch {
+            loading = true
+            error = null
+            val id = resolvedCompanyId?.takeIf { it.isNotBlank() }
+                ?: resolveCompanyId?.invoke()?.also { resolvedCompanyId = it }
+            if (id.isNullOrBlank()) {
+                error = "Add a business name above, then create an invite."
+                loading = false
+                return@launch
+            }
+            resolvedCompanyId = id
             val minted = mintInvite(id)
             invite = minted
             if (minted == null) error = "Couldn’t create invite. Try again."
@@ -91,7 +119,10 @@ fun BusinessSetupInviteSection(
     }
 
     LaunchedEffect(companyId) {
-        if (!companyId.isNullOrBlank() && invite == null) mint()
+        if (!companyId.isNullOrBlank()) {
+            resolvedCompanyId = companyId
+            if (invite == null) mint(companyId)
+        }
     }
 
     LaunchedEffect(qrPayload) {
@@ -104,14 +135,6 @@ fun BusinessSetupInviteSection(
         }
 
         when {
-            companyId.isNullOrBlank() -> {
-                Text(
-                    text = "Activate to mint an invite for your new company, or open setup after create.",
-                    color = theme.hint,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
             invite != null && displayPath != null -> {
                 Row(
                     modifier = Modifier
@@ -178,34 +201,47 @@ fun BusinessSetupInviteSection(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                InviteSendChannelRow(
+                    enabled = !loading && message.isNotBlank(),
+                    accent = theme.accent,
+                    onMessages = { sendInviteSms(context, phone = null, message = message) },
+                    onWhatsApp = { sendInviteWhatsApp(context, phone = null, message = message) },
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     OutlineAction(theme, "Share QR", Modifier.weight(1f)) {
+                        val link = displayPath
                         val payload = qrPayload ?: return@OutlineAction
                         val full = generateInviteQrBitmap(payload, 512)
-                        val send = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, copyText)
-                        }
-                        context.startActivity(Intent.createChooser(send, "Share invite"))
+                        shareInviteQr(context, full, link)
                         full.recycle()
                     }
                     OutlineAction(theme, "Share link", Modifier.weight(1f)) {
-                        val send = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, copyText)
-                        }
-                        context.startActivity(Intent.createChooser(send, "Share invite"))
+                        shareInviteLink(context, message.ifBlank { displayPath })
                     }
                 }
             }
             else -> {
+                Text(
+                    text = if (resolvedCompanyId.isNullOrBlank() && resolveCompanyId == null) {
+                        "Add a business name above, then create an invite for your team."
+                    } else {
+                        "Create a link and QR so teammates can join this company."
+                    },
+                    color = theme.hint,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(theme.accent)
-                        .clickable(enabled = !loading) { mint() },
+                        .clickable(enabled = !loading) { ensureAndMint() },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
                 ) {
@@ -240,7 +276,7 @@ fun BusinessSetupInviteSection(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "Share a link or QR so teammates can join this company.",
+                text = "Share a link, QR, Messages, or WhatsApp so teammates can join.",
                 color = theme.hint,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
@@ -252,7 +288,7 @@ fun BusinessSetupInviteSection(
             theme = theme,
             index = 99,
             title = "Invite your team",
-            subtitle = "Share a link or QR so teammates can join this company.",
+            subtitle = "Share a link, QR, Messages, or WhatsApp so teammates can join.",
             modifier = modifier,
         ) {
             body()

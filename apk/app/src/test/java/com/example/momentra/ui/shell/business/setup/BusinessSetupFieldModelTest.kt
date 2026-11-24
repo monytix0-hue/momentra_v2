@@ -1,6 +1,7 @@
 package com.example.momentra.ui.shell.business.setup
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -492,5 +493,109 @@ class BusinessSetupFieldModelTest {
         }
     }
 
+    @Test
+    fun noDocumentLabelsItsPrimaryFieldBusinessName() {
+        listOf(
+            "CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN", "TRADING_WHOLESALE",
+            "DISTRIBUTION_DEALERSHIP", "RETAIL_STORE", "RESTAURANT_FOOD",
+            "CONSUMER_SERVICE", "STANDARD_PRODUCTION", "MADE_TO_ORDER",
+        ).forEach { code ->
+            val labels = BusinessSetupDocuments.spec(code).sections
+                .flatMap { it.fields }
+                .map { it.label }
+            assertFalse("$code still says Business name", labels.contains("Business name"))
+        }
+    }
 
+    @Test
+    fun theFiveSharedNameFieldsAreLabelledBrandName() {
+        listOf(
+            "TRADING_WHOLESALE",
+            "DISTRIBUTION_DEALERSHIP",
+            "CONSUMER_SERVICE",
+            "STANDARD_PRODUCTION",
+            "MADE_TO_ORDER",
+        ).forEach { code ->
+            val spec = BusinessSetupDocuments.spec(code)
+            val primary = spec.sections.flatMap { it.fields }
+                .first { it.key == spec.defaultTitleKey }
+            assertEquals("$code primary field label", "Brand name", primary.label)
+        }
+    }
+
+    @Test
+    fun brandNameRelabelKeepsTheStoredKey() {
+        assertEquals("businessName", BusinessSetupDocuments.spec("TRADING_WHOLESALE").defaultTitleKey)
+        assertEquals("businessName", BusinessSetupDocuments.spec("DISTRIBUTION_DEALERSHIP").defaultTitleKey)
+        assertEquals("serviceName", BusinessSetupDocuments.spec("CONSUMER_SERVICE").defaultTitleKey)
+        assertEquals("businessName", BusinessSetupDocuments.spec("STANDARD_PRODUCTION").defaultTitleKey)
+        assertEquals("businessName", BusinessSetupDocuments.spec("MADE_TO_ORDER").defaultTitleKey)
+    }
+
+    @Test
+    fun unrenamedNameFieldsKeepTheirDistinctLabels() {
+        assertEquals(
+            "Campaign name",
+            BusinessSetupDocuments.spec("CLIENT_CAMPAIGN").sections.flatMap { it.fields }
+                .first { it.key == "campaignName" }.label,
+        )
+        assertEquals(
+            "Campaign name",
+            BusinessSetupDocuments.spec("OWN_BUSINESS_CAMPAIGN").sections.flatMap { it.fields }
+                .first { it.key == "campaignName" }.label,
+        )
+        assertEquals(
+            "Store name",
+            BusinessSetupDocuments.spec("RETAIL_STORE").sections.flatMap { it.fields }
+                .first { it.key == "storeName" }.label,
+        )
+        assertEquals(
+            "Restaurant name",
+            BusinessSetupDocuments.spec("RESTAURANT_FOOD").sections.flatMap { it.fields }
+                .first { it.key == "outletName" }.label,
+        )
+    }
+
+    @Test
+    fun marketingPromotedBrandIsDistinctFromBrandName() {
+        listOf("CLIENT_CAMPAIGN", "OWN_BUSINESS_CAMPAIGN").forEach { code ->
+            val labels = BusinessSetupDocuments.spec(code).sections
+                .flatMap { it.fields }
+                .map { it.label }
+            assertTrue("$code missing promoted-brand / product", labels.contains("Promoted brand / product"))
+            assertFalse("$code still has the ambiguous label", labels.contains("Promoted brand"))
+        }
+    }
+
+    @Test
+    fun allNineTargetMetricsAreChoiceChips() {
+        val expected = mapOf(
+            "CLIENT_CAMPAIGN" to listOf("Leads", "Reach", "Clicks", "Sales", "Client billing", "Custom"),
+            "OWN_BUSINESS_CAMPAIGN" to listOf("Leads", "Reach", "Clicks", "Attributed sales", "Engagements", "Custom"),
+            "TRADING_WHOLESALE" to listOf("Revenue", "Orders", "Count"),
+            "DISTRIBUTION_DEALERSHIP" to listOf("Revenue", "Orders", "Count"),
+            "RETAIL_STORE" to listOf("Revenue", "Orders", "Count"),
+            "RESTAURANT_FOOD" to listOf("Revenue", "Orders", "Count"),
+            "CONSUMER_SERVICE" to listOf("Revenue", "Appointments", "Count"),
+            "STANDARD_PRODUCTION" to listOf(
+                "Invoiced value (or accepted job units)",
+                "Production output",
+                "Delivery count",
+                "Orders",
+            ),
+            "MADE_TO_ORDER" to listOf(
+                "Invoiced value (or accepted job units)",
+                "Production output",
+                "Delivery count",
+                "Orders",
+            ),
+        )
+        expected.forEach { (code, options) ->
+            val kind = BusinessSetupDocuments.spec(code).sections
+                .flatMap { it.fields }
+                .first { it.key == "targetMetric" }
+                .kind as BusinessSetupFieldSpec.Kind.Choice
+            assertEquals(code, options, kind.options)
+        }
+    }
 }

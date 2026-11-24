@@ -76,8 +76,8 @@ describe('S9-QH transaction CRUD', () => {
       amount: '250.00',
       currencyCode: 'INR',
       merchantName: 'Detail Cafe',
-      categoryCode: 'FOOD',
-      subcategoryCode: 'CAFE',
+      categoryCode: 'SHOPPING',
+      subcategoryCode: 'SHOPPING',
     });
     assert.equal(create.status, 201, JSON.stringify(create.body));
     const expenseId = create.body.data.expenseId;
@@ -87,7 +87,7 @@ describe('S9-QH transaction CRUD', () => {
       .set('X-Dev-Firebase-Uid', uid);
     assert.equal(get.status, 200, JSON.stringify(get.body));
     assert.equal(get.body.data.expenseId, expenseId);
-    assert.equal(get.body.data.subcategoryCode, 'CAFE');
+    assert.equal(get.body.data.subcategoryCode, 'SHOPPING');
     assert.ok(Array.isArray(get.body.data.attachmentIds));
   });
 
@@ -116,7 +116,8 @@ describe('S9-QH transaction CRUD', () => {
       .send({
         amount: '150.00',
         merchantName: 'After',
-        subcategoryCode: 'GROCERIES',
+        categoryCode: 'SHOPPING',
+        subcategoryCode: 'SHOPPING',
         paymentMethodCode: 'UPI',
         effectiveAt: newEffectiveAt,
       });
