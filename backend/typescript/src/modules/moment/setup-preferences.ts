@@ -4,7 +4,14 @@ import {
   BUSINESS_SETUP_CATALOG,
   type BusinessSetupFamilyCode,
 } from '../business/setup-service';
-import { isLegacyBusinessFamily, isOperatingFamily, normalizeOperatingPreferences } from '../business/operating-catalog';
+export { BUSINESS_SETUP_CATALOG, type BusinessSetupFamilyCode };
+import {
+  expandOperatingPreferencesForUi,
+  isLegacyBusinessFamily,
+  isOperatingFamily,
+  normalizeOperatingPreferences,
+  OperatingSetupFieldError,
+} from '../business/operating-catalog';
 import {
   PERSONAL_SETUP_CATALOG,
   type PersonalSetupSystemCode,
@@ -104,7 +111,7 @@ export function validateAndMergeBusinessPreferences(
   }
   if (isOperatingFamily(familyCode)) {
     try {
-      return normalizeOperatingPreferences(
+      const closed = normalizeOperatingPreferences(
         familyCode,
         input,
         creator ?? {
@@ -112,8 +119,13 @@ export function validateAndMergeBusinessPreferences(
           displayName: 'Owner',
         },
         options
-      ) as unknown as Record<string, unknown>;
+      );
+      // Persist closed operating keys plus Figma UI aliases so GET /setup prefills exact keys.
+      return expandOperatingPreferencesForUi(closed);
     } catch (err) {
+      if (err instanceof OperatingSetupFieldError) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, err.message, 400, { fields: err.fields });
+      }
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
         err instanceof Error ? err.message : 'Invalid operating setup.',

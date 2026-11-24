@@ -1350,11 +1350,10 @@ export const updateBusinessSetupDraftSchema = z
 export type UpdateBusinessSetupDraftInput = z.infer<typeof updateBusinessSetupDraftSchema>;
 
 /**
- * Save the six-section setup document while the moment is still a draft.
+ * Save the six-section setup document for a DRAFT or ACTIVE business moment.
  *
- * A draft is incomplete by definition, so the payload is normalised leniently — every
- * unanswered field is stored empty. Activation (`activateMomentDraft`) keeps its own strict
- * path through `activateBusinessSetup`, so an incomplete document can never go live.
+ * DRAFT writes normalise leniently (half-filled documents). ACTIVE writes keep
+ * strict required-field guards so go-live edits cannot wipe required plan fields.
  */
 export async function updateBusinessSetupDraft(
   client: PoolClient,
@@ -1383,9 +1382,11 @@ export async function updateBusinessSetupDraft(
             bss.family_code, bmc.company_id
      FROM core.moment m
      LEFT JOIN business.business_system_setup bss
-       ON bss.moment_id = m.moment_id AND bss.status = 'DRAFT'
+       ON bss.moment_id = m.moment_id AND bss.status IN ('DRAFT', 'ACTIVE')
      LEFT JOIN business.business_moment_context bmc ON bmc.moment_id = m.moment_id
-     WHERE m.moment_id = $1`,
+     WHERE m.moment_id = $1
+     ORDER BY CASE bss.status WHEN 'ACTIVE' THEN 0 WHEN 'DRAFT' THEN 1 ELSE 2 END
+     LIMIT 1`,
     [momentId]
   );
   const found = row.rows[0];
@@ -1395,18 +1396,23 @@ export async function updateBusinessSetupDraft(
   if (found.domain_code !== 'BUSINESS') {
     throw new AppError(ErrorCode.VALIDATION_FAILED, 'Only business setups can be saved this way.', 400);
   }
-  if (found.status !== 'DRAFT') {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, 'Only DRAFT moments can be saved as a draft.', 409);
+  if (found.status !== 'DRAFT' && found.status !== 'ACTIVE') {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      'Only DRAFT or ACTIVE business moments can update setup preferences.',
+      409
+    );
   }
   const familyCode = found.family_code;
   if (!familyCode) {
     throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Business setup not found.', 404);
   }
+  const isDraft = found.status === 'DRAFT';
   const preferences = validateAndMergeBusinessPreferences(
     familyCode as Parameters<typeof validateAndMergeBusinessPreferences>[0],
     body.preferences,
     { userId: ctx.userId, displayName: 'Owner' },
-    { draft: true }
+    { draft: isDraft }
   );
   const title =
     body.title ?? (String(preferences.identityName ?? '').trim() || found.title);
@@ -1427,7 +1433,7 @@ export async function updateBusinessSetupDraft(
     momentId,
     setupId,
     title,
-    status: 'DRAFT',
+    status: found.status,
     version: parseInt(updated.rows[0]!.version, 10),
     momentTypeCode: syncedType ?? String(preferences.subtype ?? ''),
     preferences: syncedType ? { ...preferences, subtype: syncedType } : preferences,
@@ -1498,6 +1504,13 @@ export async function getDomainSetupPrefill(
     );
     familyCode = setup.rows[0]?.family_code ?? null;
     preferences = setup.rows[0]?.preferences ?? {};
+    // Expand closed prefs → Figma keys (+ choice labels) for setup shell prefill.
+    if (Object.keys(preferences).length > 0) {
+      const { expandOperatingPreferencesForUi } = await import(
+        '../business/operating-catalog'
+      );
+      preferences = expandOperatingPreferencesForUi(preferences, { forUi: true });
+    }
     companyId = setup.rows[0]?.company_id ?? null;
     if (!companyId) {
       const bmc = await client.query<{ company_id: string }>(

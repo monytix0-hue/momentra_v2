@@ -221,7 +221,66 @@ enum GroupActivityPresentation {
             guard item.id != parent.id else { return false }
             return isVoided(item.activityCode) || isUpdated(item.activityCode)
         }
-        return GroupActivityTreeNode(item: parent, children: children)
+        // PATCH appends GROUP_*_UPDATED; keep RECORDED as the nest parent but surface the
+        // latest update's title/amount so Pulse doesn't look like the edit never saved.
+        return GroupActivityTreeNode(
+            item: applyLatestUpdate(to: parent, children: children),
+            children: children
+        )
+    }
+
+    static func applyLatestUpdate(
+        to parent: APIClient.ActivityItemPayload,
+        children: [APIClient.ActivityItemPayload]
+    ) -> APIClient.ActivityItemPayload {
+        guard let latestUpdate = children.last(where: { isUpdated($0.activityCode) }) else {
+            return parent
+        }
+        let trimmedTitle = latestUpdate.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let mergedPayload: APIClient.ActivityItemPayload.ActivityPayload?
+        if let updatePayload = latestUpdate.activityPayload {
+            if let base = parent.activityPayload {
+                mergedPayload = APIClient.ActivityItemPayload.ActivityPayload(
+                    expenseId: base.expenseId ?? updatePayload.expenseId,
+                    incomeId: base.incomeId ?? updatePayload.incomeId,
+                    activityId: base.activityId ?? updatePayload.activityId,
+                    contributionId: base.contributionId ?? updatePayload.contributionId,
+                    amount: updatePayload.amount ?? base.amount,
+                    currencyCode: updatePayload.currencyCode ?? base.currencyCode,
+                    lifestyleContext: base.lifestyleContext ?? updatePayload.lifestyleContext,
+                    description: base.description ?? updatePayload.description,
+                    merchantName: base.merchantName ?? updatePayload.merchantName,
+                    categoryCode: base.categoryCode ?? updatePayload.categoryCode,
+                    subcategoryCode: base.subcategoryCode ?? updatePayload.subcategoryCode,
+                    financialAccountId: base.financialAccountId ?? updatePayload.financialAccountId,
+                    paymentMethodCode: base.paymentMethodCode ?? updatePayload.paymentMethodCode,
+                    participantId: base.participantId ?? updatePayload.participantId,
+                    status: base.status ?? updatePayload.status,
+                    wellbeingRating: base.wellbeingRating ?? updatePayload.wellbeingRating,
+                    source: base.source ?? updatePayload.source,
+                    planningItemId: base.planningItemId ?? updatePayload.planningItemId,
+                    revenueId: base.revenueId ?? updatePayload.revenueId,
+                    invoiceId: base.invoiceId ?? updatePayload.invoiceId,
+                    invoiceNumber: base.invoiceNumber ?? updatePayload.invoiceNumber,
+                    totalAmount: base.totalAmount ?? updatePayload.totalAmount,
+                    issueId: base.issueId ?? updatePayload.issueId,
+                    severity: base.severity ?? updatePayload.severity,
+                    updateId: base.updateId ?? updatePayload.updateId,
+                    approvalRequestId: base.approvalRequestId ?? updatePayload.approvalRequestId
+                )
+            } else {
+                mergedPayload = updatePayload
+            }
+        } else {
+            mergedPayload = parent.activityPayload
+        }
+        return APIClient.ActivityItemPayload(
+            activityCode: parent.activityCode,
+            title: trimmedTitle.isEmpty ? parent.title : trimmedTitle,
+            occurredAt: parent.occurredAt,
+            activityPayload: mergedPayload,
+            actorDisplayName: parent.actorDisplayName
+        )
     }
 
     private static func latestOccurredAtMillis(_ node: GroupActivityTreeNode) -> TimeInterval {

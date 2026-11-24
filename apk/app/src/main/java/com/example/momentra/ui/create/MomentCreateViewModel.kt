@@ -21,6 +21,8 @@ import com.example.momentra.data.repository.MomentLifecycleRepository
 import com.example.momentra.domain.CreateMomentOutcome
 import com.example.momentra.ui.shell.business.setup.BusinessSetupDocuments
 import com.example.momentra.ui.shell.business.setup.OperatingSetupPayloadBuilder
+import com.example.momentra.ui.shell.business.setup.SetupLogoCompanyDecision
+import com.example.momentra.ui.shell.business.setup.SetupLogoCompanyResolver
 import com.example.momentra.ui.shell.empty.personal.PersonalSetupCatalog
 import com.example.momentra.ui.shell.empty.personal.PersonalSetupKind
 import com.example.momentra.ui.setup.SetupPreferenceFilter
@@ -34,6 +36,13 @@ import java.util.UUID
 data class MomentCreateUiState(
     val submitting: Boolean = false,
     val error: String? = null,
+)
+
+/** Result of HeroCard logo upload — callers: BusinessSetupShell. */
+data class SetupLogoUploadResult(
+    val companyId: String,
+    val mediaId: String,
+    val downloadUrl: String?,
 )
 
 class MomentCreateViewModel(
@@ -110,10 +119,11 @@ class MomentCreateViewModel(
             val momentTypeCode = subtype?.takeIf { it.isNotBlank() } ?: familyCode
             val resolvedTitle = title?.takeIf { it.isNotBlank() } ?: "Business"
             val activating = status == "ACTIVE"
+            // logoMediaId is HeroCard-owned (not a document field) — keep it on Save/Activate.
             val allowedKeys = BusinessSetupDocuments.spec(momentTypeCode)
                 .sections
                 .flatMap { section -> section.fields.map { it.key } }
-                .toSet()
+                .toSet() + "logoMediaId"
             val filtered = SetupPreferenceFilter.filterToCatalogKeys(preferences, allowedKeys)
             val built = OperatingSetupPayloadBuilder.build(
                 preferences = filtered,
@@ -154,6 +164,7 @@ class MomentCreateViewModel(
                 )
                 return@launch
             }
+            val draftKey = "business:$momentTypeCode:${resolvedCompanyId ?: "moment"}:$resolvedTitle"
             repository.createBusinessMoment(
                 companyId = resolvedCompanyId,
                 familyCode = familyCode,
@@ -161,6 +172,7 @@ class MomentCreateViewModel(
                 title = resolvedTitle,
                 preferences = prefsForApi,
                 status = status,
+                idempotencyKey = draftKey,
             ).fold(
                 onSuccess = { dto ->
                     if (activating) {
@@ -308,6 +320,58 @@ class MomentCreateViewModel(
             editingMomentId = momentId,
         )
     }.getOrNull()
+
+    /**
+     * Ensures company (creating draft linkage when needed), uploads logo, patches profileJson.logoMediaId.
+     * Callers: BusinessSetupShell post-pick upload. Reuses BusinessSliceRepository.uploadCompanyLogo.
+     * Prefers the company already linked to [momentId] so DRAFT create + logo upload never spawn two companies.
+     */
+    suspend fun uploadSetupLogo(
+        companyId: String?,
+        momentId: String?,
+        companyName: String,
+        bytes: ByteArray,
+        contentType: String = "image/jpeg",
+    ): Result<SetupLogoUploadResult> = runCatching {
+        val momentLinked = momentId
+            ?.takeIf { it.isNotBlank() }
+            ?.let { getDomainSetupPrefill(it)?.companyId }
+        val resolvedCompanyId = when (
+            val decision = SetupLogoCompanyResolver.resolveForUpload(companyId, momentLinked)
+        ) {
+            is SetupLogoCompanyDecision.UseExisting -> decision.companyId
+            SetupLogoCompanyDecision.WouldCreate -> ensureSetupCompany(
+                momentId = momentId ?: error("Could not create company for logo"),
+                companyName = companyName,
+            )
+        }
+        if (resolvedCompanyId.isNullOrBlank()) {
+            error("Could not create company for logo")
+        }
+        val uploaded = BusinessSliceRepository().uploadCompanyLogo(
+            companyId = resolvedCompanyId,
+            bytes = bytes,
+            contentType = contentType,
+        ).getOrThrow()
+        val mediaId = uploaded.mediaId
+        val company = ApiClient.apiService.getCompany(resolvedCompanyId).data
+        val expectedVersion = (company["version"] as? Number)?.toLong()
+            ?: (company["version"] as? String)?.toLongOrNull()
+            ?: error("Company version missing")
+        ApiClient.apiService.patchCompany(
+            companyId = resolvedCompanyId,
+            idempotencyKey = UUID.randomUUID().toString(),
+            body = mapOf(
+                "expectedVersion" to expectedVersion,
+                "profileJson" to mapOf("logoMediaId" to mediaId),
+            ),
+        )
+        SetupLogoUploadResult(
+            companyId = resolvedCompanyId,
+            mediaId = mediaId,
+            downloadUrl = uploaded.downloadUrl,
+        )
+    }
 
     private suspend fun ensureBusinessCompany(
         companyId: String?,
@@ -496,10 +560,8 @@ class MomentCreateViewModel(
         masterSeeds: List<OperatingSetupPayloadBuilder.MasterSeed> = emptyList(),
         onSuccess: (CreateMomentOutcome) -> Unit,
     ) {
-        // The document cancels its debounce when §06 is pressed, so the last edits are written
-        // here before the status flips: activation must not promote a draft one keystroke behind
-        // the screen. An ACTIVE moment has no draft row to patch, so this runs only for a draft.
-        if (activateAfter && preferences.isNotEmpty()) {
+        // Persist setup preferences for DRAFT (pre-activate) and ACTIVE (edit reopen) moments.
+        if (preferences.isNotEmpty()) {
             repository.updateBusinessSetupDraft(
                 momentId = momentId,
                 preferences = preferences,

@@ -5,6 +5,7 @@ import { AppError, ErrorCode } from '../../platform/errors/errors';
 import { insertAudit, insertDomainEventAndOutbox } from '../../platform/events/outbox';
 import * as momentService from '../moment/service';
 import {
+  expandOperatingPreferencesForUi,
   OPERATING_FAMILIES,
   type OperatingFamilyCode,
 } from './operating-catalog';
@@ -136,7 +137,7 @@ export async function activateBusinessSetup(
     normalized.subtype
   );
   const title = body.title ?? normalized.identityName;
-  const preferences = normalized as unknown as Record<string, unknown>;
+  const preferences = expandOperatingPreferencesForUi(normalized);
 
   const moment = await momentService.createMoment(client, ctx, {
     domainCode: 'BUSINESS',

@@ -15,6 +15,7 @@ import {
   OPERATING_FAMILIES,
   OperatingSetupFieldError,
   applyOperatingSetupAliases,
+  expandOperatingPreferencesForUi,
   normalizeOperatingPreferences,
   type OperatingFamilyCode,
 } from '../src/modules/business/operating-catalog';
@@ -51,6 +52,22 @@ const DOCUMENT_KEYS = [
 ];
 
 describe('business setup draft preferences', () => {
+  // Module: normalizeOperatingPreferences — logoMediaId must not be stripped.
+  // Existing: this file. User: Verify preference pass-through for logoMediaId.
+  it('passes logoMediaId through normalize (HeroCard preference)', () => {
+    const prefs = normalizeOperatingPreferences(
+      'TRADING_DISTRIBUTION',
+      {
+        subtype: 'TRADING_WHOLESALE',
+        identityName: 'Northstar',
+        logoMediaId: 'media-logo-1',
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(prefs.logoMediaId, 'media-logo-1');
+  });
+
   it('accepts a half-filled document without forcing budget or target', () => {
     const prefs = normalizeOperatingPreferences(
       'TRADING_DISTRIBUTION',
@@ -767,4 +784,186 @@ describe('business setup draft preferences', () => {
       /Client/i
     );
   });
+
+  it('stores Job-order (MADE_TO_ORDER) quote policy on draft and activate', () => {
+    const draft = normalizeOperatingPreferences(
+      'MANUFACTURING_PRODUCTION',
+      {
+        subtype: 'MADE_TO_ORDER',
+        identityName: 'Forge & Form',
+        quoteValidity: '15 days · expired quotes revise, never invoice',
+        specificationTemplate: 'Drawing · material · tolerance · finish',
+        orderApproval: 'No approval required',
+        jobOnConfirm: 'Open job manually after confirm',
+        productsBomNote: 'Skip for now · never forced',
+        targetMetric: 'Invoiced value (or accepted job units)',
+        priceIncludesGst: 'Prices include GST',
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(draft.subtype, 'MADE_TO_ORDER');
+    assert.equal(draft.quoteValidity, '15 days · expired quotes revise, never invoice');
+    assert.equal(draft.specificationTemplate, 'Drawing · material · tolerance · finish');
+    assert.equal(draft.orderApproval, 'No approval required');
+    assert.equal(draft.jobOnConfirm, 'NO');
+    assert.equal(draft.productsBomNote, 'Skip for now · never forced');
+    assert.equal(draft.targetMetric, 'REVENUE');
+    assert.equal(draft.salePriceIncludesGst, 'YES');
+    assert.equal(draft.planMonth, '');
+
+    const active = normalizeOperatingPreferences(
+      'MANUFACTURING_PRODUCTION',
+      {
+        subtype: 'MADE_TO_ORDER',
+        identityName: 'Forge & Form',
+        partyName: 'Forge & Form Pvt Ltd',
+        monthlyBudget: '900000',
+        monthlyTarget: '1800000',
+        channels: ['Direct B2B', 'Job work'],
+        targetMetric: 'Production output',
+        quoteValidity: '30 days · expired quotes revise, never invoice',
+        jobOnConfirm: 'Accepted order opens a job with target qty',
+        gstTracking: 'NOT_NOW',
+      },
+      creator
+    );
+    assert.equal(active.targetMetric, 'PRODUCTION_OUTPUT');
+    assert.equal(active.quoteValidity, '30 days · expired quotes revise, never invoice');
+    assert.equal(active.jobOnConfirm, 'YES');
+  });
+
+  it('keeps planMonth for non-MTO subtypes and marketing extras', () => {
+    const trading = normalizeOperatingPreferences(
+      'TRADING_DISTRIBUTION',
+      {
+        subtype: 'TRADING_WHOLESALE',
+        businessName: 'Northstar',
+        companyName: 'Northstar Co',
+        planMonth: '2026-10',
+        monthlyBudget: '250000',
+        monthlyTarget: '500000',
+        channels: ['Wholesale'],
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(trading.planMonth, '2026-10');
+    assert.equal(trading.startDate, '2026-10-01');
+
+    const client = normalizeOperatingPreferences(
+      'MARKETING_CAMPAIGNS',
+      {
+        subtype: 'CLIENT_CAMPAIGN',
+        campaignName: 'Diwali Push',
+        clientName: 'Acme',
+        monthlyBudget: '100000',
+        monthlyTarget: '50',
+        startDate: '2026-11-01',
+        clientContact: 'Riya · 98765',
+        billingBasis: 'Retainer',
+        offerType: 'Performance',
+        supportingTarget: 'Reach 2L',
+        promotedProducts: 'SKU-A, SKU-B',
+        campaignPurpose: 'Launch awareness',
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(client.clientContact, 'Riya · 98765');
+    assert.equal(client.billingBasis, 'Retainer');
+    assert.equal(client.offerType, 'Performance');
+    assert.equal(client.supportingTarget, 'Reach 2L');
+    assert.equal(client.promotedProducts, 'SKU-A, SKU-B');
+    assert.equal(client.offering, 'Launch awareness');
+  });
+
+  it('expands closed prefs to Figma keys for all 9 subtypes', () => {
+    const cases: Array<{
+      family: OperatingFamilyCode;
+      subtype: string;
+      identityKey: string;
+      partyKey: string;
+    }> = [
+      { family: 'TRADING_DISTRIBUTION', subtype: 'TRADING_WHOLESALE', identityKey: 'businessName', partyKey: 'companyName' },
+      { family: 'TRADING_DISTRIBUTION', subtype: 'DISTRIBUTION_DEALERSHIP', identityKey: 'businessName', partyKey: 'companyName' },
+      { family: 'RETAIL_CONSUMER', subtype: 'RETAIL_STORE', identityKey: 'storeName', partyKey: 'companyName' },
+      { family: 'RETAIL_CONSUMER', subtype: 'RESTAURANT_FOOD', identityKey: 'outletName', partyKey: 'companyName' },
+      { family: 'RETAIL_CONSUMER', subtype: 'CONSUMER_SERVICE', identityKey: 'serviceName', partyKey: 'companyName' },
+      { family: 'MANUFACTURING_PRODUCTION', subtype: 'STANDARD_PRODUCTION', identityKey: 'businessName', partyKey: 'companyName' },
+      { family: 'MANUFACTURING_PRODUCTION', subtype: 'MADE_TO_ORDER', identityKey: 'businessName', partyKey: 'companyName' },
+      { family: 'MARKETING_CAMPAIGNS', subtype: 'CLIENT_CAMPAIGN', identityKey: 'campaignName', partyKey: 'clientName' },
+      { family: 'MARKETING_CAMPAIGNS', subtype: 'OWN_BUSINESS_CAMPAIGN', identityKey: 'campaignName', partyKey: 'brandName' },
+    ];
+
+    for (const c of cases) {
+      const closed = normalizeOperatingPreferences(
+        c.family,
+        {
+          subtype: c.subtype,
+          identityName: 'Alpha',
+          partyName: 'Beta',
+          monthlyBudget: '100000',
+          monthlyTarget: '200000',
+          channels: c.family === 'MARKETING_CAMPAIGNS' ? undefined : ['Online'],
+          startDate: c.family === 'MARKETING_CAMPAIGNS' ? '2026-11-01' : undefined,
+          gstTracking: 'YES',
+          gstRegistration: 'REGULAR',
+          salePriceIncludesGst: 'YES',
+          targetMetric: 'REVENUE',
+          currency: 'INR',
+          participants: [{ displayName: 'Asha', role: 'CONTRIBUTOR' }],
+          planMonth: '2026-11',
+        },
+        creator,
+        { draft: true }
+      );
+      const stored = expandOperatingPreferencesForUi(closed);
+      assert.equal(stored[c.identityKey], 'Alpha', `${c.subtype} identity alias`);
+      assert.equal(stored[c.partyKey], 'Beta', `${c.subtype} party alias`);
+      assert.equal(stored.identityName, 'Alpha');
+      assert.equal(stored.gstTracking, 'YES', `${c.subtype} keeps closed GST code on storage expand`);
+      assert.equal(stored.planMonth, '2026-11');
+      assert.ok(String(stored.teamMembers ?? '').includes('Asha'));
+
+      const ui = expandOperatingPreferencesForUi(closed, { forUi: true });
+      assert.equal(ui.gstTracking, 'Yes', `${c.subtype} UI GST label`);
+      assert.equal(ui.gstRegistration, 'Regular');
+      assert.equal(ui.salePriceIncludesGst, 'Prices include GST');
+      assert.equal(ui.targetMetric, 'Revenue');
+      assert.equal(ui.currency, 'INR · Indian Rupee (₹)');
+      assert.equal(ui[c.identityKey], 'Alpha');
+    }
+  });
+
+  it('validateAndMerge dual-writes Figma keys while keeping closed codes', () => {
+    const merged = validateAndMergeBusinessPreferences(
+      'TRADING_DISTRIBUTION',
+      {
+        subtype: 'TRADING_WHOLESALE',
+        businessName: 'Northstar Trading',
+        companyName: 'Northstar',
+        monthlyBudget: '250000',
+        monthlyTarget: '500000',
+        channels: ['Wholesale'],
+        gstTracking: 'Yes',
+        gstRegistration: 'Regular',
+        salePriceIncludesGst: 'Prices include GST',
+        targetMetric: 'Revenue',
+        planMonth: '2026-10',
+        teamMembers: 'Asha | Sam',
+        roles: 'Contributor | Team Member',
+      },
+      creator,
+      { draft: true }
+    );
+    assert.equal(merged.identityName, 'Northstar Trading');
+    assert.equal(merged.businessName, 'Northstar Trading');
+    assert.equal(merged.companyName, 'Northstar');
+    assert.equal(merged.gstTracking, 'YES');
+    assert.equal(merged.targetMetric, 'REVENUE');
+    assert.equal(merged.planMonth, '2026-10');
+    assert.ok(String(merged.teamMembers ?? '').length > 0);
+  });
+
 });
