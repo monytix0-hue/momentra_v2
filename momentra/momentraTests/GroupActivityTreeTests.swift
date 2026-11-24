@@ -104,6 +104,37 @@ final class GroupActivityTreeTests: XCTestCase {
         XCTAssertTrue(GroupActivityPresentation.nodeHasVoidChild(tree[0]))
     }
 
+    func testParentSurfacesLatestUpdatedAmountAndTitle() throws {
+        let recorded = activity(
+            code: "GROUP_EXPENSE_RECORDED",
+            title: "Lunch",
+            occurredAt: "2026-09-10T10:00:00Z",
+            amount: "100.0000",
+            expenseId: "e1"
+        )
+        let firstUpdate = activity(
+            code: "GROUP_EXPENSE_UPDATED",
+            title: "Brunch",
+            occurredAt: "2026-09-10T11:00:00Z",
+            amount: "120.0000",
+            expenseId: "e1"
+        )
+        let latestUpdate = activity(
+            code: "GROUP_EXPENSE_UPDATED",
+            title: "Dinner",
+            occurredAt: "2026-09-10T12:00:00Z",
+            amount: "250.0000",
+            expenseId: "e1"
+        )
+
+        let tree = GroupActivityPresentation.activityTree(from: [recorded, firstUpdate, latestUpdate])
+        let expenseNode = try XCTUnwrap(tree.first { $0.item.activityPayload?.expenseId == "e1" })
+        XCTAssertEqual(expenseNode.item.activityCode, "GROUP_EXPENSE_RECORDED")
+        XCTAssertEqual(expenseNode.item.title, "Dinner")
+        XCTAssertEqual(GroupActivityPresentation.amountLabel(for: expenseNode.item), "₹250")
+        XCTAssertEqual(expenseNode.children.count, 2)
+    }
+
     private func activity(
         code: String,
         title: String = "Item",
