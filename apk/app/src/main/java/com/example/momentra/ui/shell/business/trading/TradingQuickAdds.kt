@@ -128,7 +128,11 @@ fun TradingQuickAddHub(
     var sheet by remember { mutableStateOf<TradingSheet?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var approvalOpen by remember { mutableStateOf(false) }
-    val theme = remember { com.example.momentra.ui.shell.business.shared.OperatingV12Theme.trading() }
+    val theme = remember {
+        com.example.momentra.ui.shell.business.shared.OperatingV12Theme.tradingForScreen(
+            com.example.momentra.ui.shell.business.shared.OperatingTab.QUICK_ADD,
+        )
+    }
     LaunchedEffect(OperatingChromeState.quickAddHint) {
         val hint = OperatingChromeState.quickAddHint?.uppercase() ?: return@LaunchedEffect
         when (hint.lowercase()) {

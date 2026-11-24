@@ -54,7 +54,7 @@ fun TradingActive(
     modifier: Modifier = Modifier,
 ) {
     var sheet by remember { mutableStateOf<TradingSheetState?>(null) }
-    val theme = remember { OperatingV12Theme.trading() }
+    val theme = remember(tab) { OperatingV12Theme.tradingForScreen(tab) }
     val openCapture: (String) -> Unit = { code ->
         OperatingChromeState.quickAddHint = code.lowercase()
         onOpenQuickAdd()
@@ -63,7 +63,8 @@ fun TradingActive(
         sheet = tradingSheetForPulseOrBoard(code)
     }
 
-    Box(modifier.fillMaxSize().background(TradeBg)) {
+    // Per-tab canvas from trading.screens.* tokens (Pulse/Moments/Life/Memory/Quick Add).
+    Box(modifier.fillMaxSize().background(theme.canvas)) {
         if (tab == OperatingTab.QUICK_ADD) {
             TradingQuickAddHub(model, onRecord, onDecide, companyId = companyId)
         } else if (tab == OperatingTab.PULSE && !model.hasUsefulPulseChrome()) {
@@ -82,7 +83,7 @@ fun TradingActive(
             Column(
                 Modifier
                     .fillMaxSize()
-                    .background(TradeBg)
+                    .background(theme.canvas)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
