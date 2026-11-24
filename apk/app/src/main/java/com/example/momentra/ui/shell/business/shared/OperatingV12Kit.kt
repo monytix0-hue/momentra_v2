@@ -42,6 +42,7 @@ import com.example.momentra.data.api.OperatingBoardMetricDto
 import com.example.momentra.data.api.OperatingBoardSectionDto
 import com.example.momentra.data.api.OperatingProjectionDto
 import com.example.momentra.ui.theme.PlusJakartaSans
+import com.example.momentra.ui.theme.generated.BusinessTokens
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -126,17 +127,52 @@ data class OperatingV12Theme(
         get() = verticalKey == "madeToOrder"
 
     companion object {
-        fun trading() = OperatingV12Theme(
-            accent = Color(0xFF10B981),
-            canvas = Color(0xFF090D16),
-            // TRD-PULSE-v12 Hero Header — soft `#6EE7B7` → accent `#10B981`
-            heroStart = Color(0xFF6EE7B7),
-            heroEnd = Color(0xFF10B981),
-            label = "Trading",
-            partyNoun = "Buyers",
-            motionLine = "Source. Sell. Collect.",
-            isTrading = true,
-            verticalKey = "trading",
+        fun trading() = tradingForScreen(OperatingTab.PULSE)
+
+        /** Per-tab Trading emerald palette from `color.domain.trading.screens.*` tokens. */
+        fun tradingForScreen(tab: OperatingTab): OperatingV12Theme {
+            val c = BusinessTokens.Colors
+            val (canvas, surface, heroStart, heroEnd) = when (tab) {
+                OperatingTab.PULSE -> ScreenPalette(
+                    c.TRADINGPulseCanvas, c.TRADINGPulseSurface,
+                    c.TRADINGPulseHeroStart, c.TRADINGPulseHeroEnd,
+                )
+                OperatingTab.MOMENTS -> ScreenPalette(
+                    c.TRADINGMomentsCanvas, c.TRADINGMomentsSurface,
+                    c.TRADINGMomentsHeroStart, c.TRADINGMomentsHeroEnd,
+                )
+                OperatingTab.LIFE -> ScreenPalette(
+                    c.TRADINGLifeCanvas, c.TRADINGLifeSurface,
+                    c.TRADINGLifeHeroStart, c.TRADINGLifeHeroEnd,
+                )
+                OperatingTab.MEMORY -> ScreenPalette(
+                    c.TRADINGMemoryCanvas, c.TRADINGMemorySurface,
+                    c.TRADINGMemoryHeroStart, c.TRADINGMemoryHeroEnd,
+                )
+                OperatingTab.QUICK_ADD -> ScreenPalette(
+                    c.TRADINGQuickAddCanvas, c.TRADINGQuickAddSurface,
+                    c.TRADINGQuickAddHeroStart, c.TRADINGQuickAddHeroEnd,
+                )
+            }
+            return OperatingV12Theme(
+                accent = c.TRADINGAccent,
+                canvas = canvas,
+                heroStart = heroStart,
+                heroEnd = heroEnd,
+                label = "Trading",
+                partyNoun = "Buyers",
+                motionLine = "Source. Sell. Collect.",
+                isTrading = true,
+                verticalKey = "trading",
+                surface = surface,
+            )
+        }
+
+        private data class ScreenPalette(
+            val canvas: Color,
+            val surface: Color,
+            val heroStart: Color,
+            val heroEnd: Color,
         )
 
         fun distribution() = OperatingV12Theme(
@@ -228,22 +264,30 @@ data class OperatingV12Theme(
         get() = verticalKey == "marketingOwn"
 }
 
-/** Compact money: `₹9.4L`, `₹86K`, `₹1.8Cr` (Figma uses uppercase `K`). Counts keep their raw text. */
+/**
+ * Money display for populated boards.
+ * Default [grouped]: Indian commas + max 2 decimals (`₹9,40,000`, `₹86,000.50`).
+ * [compact] kept for rare L/K/Cr shorthand call sites.
+ */
 object OperatingV12Money {
-    fun compact(raw: String?, currency: String?): String {
+    fun parse(raw: String?, currency: String? = null): Double? {
         val value = raw?.trim().orEmpty()
-        if (value.isEmpty()) return "—"
+        if (value.isEmpty()) return null
         val code = (currency ?: "INR").uppercase()
-        if (!value.uppercase().contains(code) && !value.startsWith("₹") && value.toDoubleOrNull() == null) {
-            return value
-        }
         val numeric = value
             .replace(code, "", ignoreCase = true)
             .replace("₹", "")
             .replace(",", "")
+            .replace("−", "-")
             .trim()
-        val amount = numeric.toDoubleOrNull() ?: return value
-        return compact(amount, code)
+        return numeric.toDoubleOrNull()
+    }
+
+    fun compact(raw: String?, currency: String?): String {
+        val value = raw?.trim().orEmpty()
+        if (value.isEmpty()) return "—"
+        val amount = parse(value, currency) ?: return value
+        return compact(amount, currency)
     }
 
     fun compact(amount: Double, currency: String?): String {
@@ -261,16 +305,59 @@ object OperatingV12Money {
         }
     }
 
-    fun number(raw: String?): Double? = raw?.trim()?.toDoubleOrNull()
-
-    fun amount(raw: String?, currency: String?): String {
-        if (raw.isNullOrBlank()) return "—"
-        if (raw.toDoubleOrNull() == null) return raw
-        return compact(raw, currency)
+    fun grouped(amount: Double, currency: String?): String {
+        val code = (currency ?: "INR").uppercase()
+        val symbol = if (code == "INR") "₹" else "$code "
+        val sign = if (amount < 0) "−" else ""
+        val magnitude = abs(amount)
+        return symbol + sign + indianGroupedNumber(magnitude)
     }
 
+    /** Indian grouping (`##,##,###.##`) with at most 2 fraction digits — JVM-locale independent. */
+    internal fun indianGroupedNumber(magnitude: Double): String {
+        val hasFraction = abs(magnitude - magnitude.toLong().toDouble()) > 1e-9
+        val scaled = if (hasFraction) {
+            String.format(Locale.US, "%.2f", magnitude)
+        } else {
+            String.format(Locale.US, "%.0f", magnitude)
+        }
+        val parts = scaled.split('.', limit = 2)
+        val intPart = parts[0]
+        val frac = parts.getOrNull(1)
+        val grouped = buildString {
+            val digits = intPart
+            if (digits.length <= 3) {
+                append(digits)
+            } else {
+                val last3 = digits.takeLast(3)
+                var rest = digits.dropLast(3)
+                val chunks = ArrayList<String>()
+                while (rest.length > 2) {
+                    chunks.add(0, rest.takeLast(2))
+                    rest = rest.dropLast(2)
+                }
+                if (rest.isNotEmpty()) chunks.add(0, rest)
+                append(chunks.joinToString(","))
+                append(',')
+                append(last3)
+            }
+        }
+        return if (frac != null) "$grouped.$frac" else grouped
+    }
+
+    fun grouped(raw: String?, currency: String?): String {
+        val value = raw?.trim().orEmpty()
+        if (value.isEmpty()) return "—"
+        val amount = parse(value, currency) ?: return value
+        return grouped(amount, currency)
+    }
+
+    fun number(raw: String?): Double? = parse(raw)
+
+    fun amount(raw: String?, currency: String?): String = grouped(raw, currency)
+
     fun tile(metric: OperatingBoardMetricDto, currency: String?): String {
-        val text = compact(metric.value, currency)
+        val text = grouped(metric.value, currency)
         val unit = metric.unit?.takeIf { it.isNotBlank() && !it.equals("count", ignoreCase = true) }
         return if (unit == null) text else "$text $unit"
     }
@@ -563,10 +650,10 @@ fun OperatingV12QuickActions(
     data class Action(val code: String, val icon: Int, val label: String, val cyan: Boolean)
     // DST/TRD-PULSE-v12: thin vector icons (not emoji); Sale carries the selected accent dot.
     val actions = listOf(
-        Action("SALE", R.drawable.ic_rest_tile_sale, "Sale", false),
-        Action("PURCHASE", R.drawable.ic_rest_tile_purchase, "Purchase", true),
-        Action("COLLECTION", R.drawable.ic_rest_tile_collection, "Collection", false),
-        Action("PAYMENT", R.drawable.ic_rest_tile_payment, "Payment", false),
+        Action("SALE", TradingChromeIcons.pulseActionDrawable("SALE"), "Sale", false),
+        Action("PURCHASE", TradingChromeIcons.pulseActionDrawable("PURCHASE"), "Purchase", true),
+        Action("COLLECTION", TradingChromeIcons.pulseActionDrawable("COLLECTION"), "Collection", false),
+        Action("PAYMENT", TradingChromeIcons.pulseActionDrawable("PAYMENT"), "Payment", false),
     )
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         actions.forEachIndexed { index, action ->
