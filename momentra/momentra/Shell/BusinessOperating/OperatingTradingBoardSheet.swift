@@ -14,6 +14,19 @@ struct OperatingSheetTheme {
     var negative: Color = Color(hex: "#F87171")
 
     static let trading = OperatingSheetTheme()
+
+    static let distribution = OperatingSheetTheme(
+        accent: BusinessTokens.Colors.distributionAccent,
+        accentSoft: BusinessTokens.Colors.distributionAccentSoft,
+        canvas: Color(hex: "#13203A"),
+        surface: Color(hex: "#13203A"),
+        inset: Color(hex: "#24365A"),
+        border: Color(hex: "#2A3D63"),
+        ink: .white,
+        body: BusinessTokens.Colors.distributionHint,
+        warning: Color(hex: "#F59E0B"),
+        negative: Color(hex: "#F87171")
+    )
 }
 
 /// Shared View-all bottom sheet chrome for Trading (Figma TRD-SHEET).
@@ -160,6 +173,7 @@ struct TradingBoardSheet: View {
     var theme: OperatingSheetTheme = .trading
     var onDismiss: () -> Void
     var onFooterAction: ((String) -> Void)?
+    var onOpenRow: ((OperatingActivityPayload) -> Void)? = nil
 
     private var spec: OperatingSheetSpec { state.spec }
     private var section: OperatingBoardSectionPayload? { model.sectionByCode(spec.code) }
@@ -302,6 +316,10 @@ struct TradingBoardSheet: View {
                     amount: row.amount,
                     badge: row.badge
                 )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onOpenRow?(row)
+                }
             }
         }
     }

@@ -1,4 +1,6 @@
+import PhotosUI
 import SwiftUI
+import UIKit
 
 /// Shared atoms for Business setup documents. Theme-driven Obsidian chrome (rknf setup frames).
 enum BusinessSetupDocumentKit {
@@ -7,6 +9,11 @@ enum BusinessSetupDocumentKit {
         let eyebrow: String
         let title: String
         let subtitle: String
+        var logoImage: UIImage? = nil
+        var logoUploading: Bool = false
+        var onLogoSelected: ((PhotosPickerItem) -> Void)? = nil
+
+        @State private var logoItem: PhotosPickerItem?
 
         var body: some View {
             VStack(alignment: .leading, spacing: 16) {
@@ -26,15 +33,7 @@ enum BusinessSetupDocumentKit {
                         )
                         .frame(width: 140, height: 140)
                         .blur(radius: 8)
-                    Circle()
-                        .fill(theme.inset)
-                        .frame(width: 72, height: 72)
-                        .overlay(
-                            Circle().stroke(theme.accent.opacity(0.45), lineWidth: 1.5)
-                        )
-                    Image(systemName: "building.2.fill")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundStyle(theme.accent)
+                    logoBadge
                 }
                 .frame(maxWidth: .infinity)
 
@@ -66,6 +65,46 @@ enum BusinessSetupDocumentKit {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .stroke(theme.accent.opacity(0.28), lineWidth: 1)
             )
+            .onChange(of: logoItem) { _, item in
+                guard let item else { return }
+                onLogoSelected?(item)
+            }
+        }
+
+        @ViewBuilder
+        private var logoBadge: some View {
+            let badge = ZStack {
+                Circle()
+                    .fill(theme.inset)
+                    .frame(width: 72, height: 72)
+                    .overlay(
+                        Circle().stroke(theme.accent.opacity(0.45), lineWidth: 1.5)
+                    )
+                if logoUploading {
+                    ProgressView()
+                        .tint(theme.accent)
+                } else if let logoImage {
+                    Image(uiImage: logoImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 72, height: 72)
+                        .clipShape(Circle())
+                        .accessibilityLabel("Upload logo")
+                } else {
+                    Image(systemName: "building.2.fill")
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundStyle(theme.accent)
+                        .accessibilityLabel("Upload logo")
+                }
+            }
+            .accessibilityAddTraits(.isButton)
+
+            if onLogoSelected != nil {
+                PhotosPicker(selection: $logoItem, matching: .images) { badge }
+                    .buttonStyle(.plain)
+            } else {
+                badge
+            }
         }
     }
 
@@ -183,6 +222,15 @@ enum BusinessSetupDocumentKit {
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(BusinessTokens.Colors.textPrimary)
                     .textInputAutocapitalization(forceUppercase ? .characters : .sentences)
+                    .keyboardType(
+                        BusinessSetupAmountFormatting.isAmountHelper(helper)
+                            ? .decimalPad
+                            : .default
+                    )
+                    .submitLabel(BusinessSetupFieldInputPolicy.submitLabel)
+                    .onSubmit {
+                        BusinessSetupFieldInputPolicy.resignKeyboard()
+                    }
                     .padding(.horizontal, 14)
                     .frame(height: 44)
                     .background(theme.inset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))

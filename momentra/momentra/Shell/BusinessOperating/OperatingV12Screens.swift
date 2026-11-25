@@ -78,7 +78,9 @@ struct OperatingV12PulseScreen: View {
             }
             OperatingV12Why(
                 text: group?.why
-                    ?? "open orders, deliveries/receipts due, collections/payments due, issues — never conflate delivery with settlement.",
+                    ?? (theme.verticalKey == "distribution"
+                        ? "unexecuted PO/SO, inbound receipts, outward deliveries, AR/AP — never conflate goods move with settlement."
+                        : "open orders, deliveries/receipts due, collections/payments due, issues — never conflate delivery with settlement."),
                 tone: .white
             )
         }
@@ -410,7 +412,11 @@ struct OperatingV12MomentsScreen: View {
                 title: theme.isMadeToOrder ? "Current Jobs" : (theme.isManufacturing ? "Work Orders & Commitments" : "Orders & Commitments"),
                 subtitle: theme.isMadeToOrder
                     ? "Confirmed jobs · commitment only · not revenue"
-                    : (theme.isManufacturing ? "Plant work orders · commitment only" : "Open buyer & supplier orders · commitment only"),
+                    : (theme.isManufacturing
+                        ? "Plant work orders · commitment only"
+                        : (theme.verticalKey == "distribution"
+                            ? "Open dealer & supplier orders · commitment only"
+                            : "Open buyer & supplier orders · commitment only")),
                 keys: ["openOrders", "inTransit", "netSales"],
                 onViewAll: onViewAll, onOpenRow: onOpenRow
             )
@@ -428,7 +434,11 @@ struct OperatingV12MomentsScreen: View {
                 title: theme.isMadeToOrder ? "Job Operations" : "Stock & Products",
                 subtitle: theme.isMadeToOrder
                     ? "WIP against open jobs · materials & FG"
-                    : (theme.isManufacturing ? "Material · WIP · finished goods" : "Physical movements · warehouse + routes"),
+                    : (theme.isManufacturing
+                        ? "Material · WIP · finished goods"
+                        : (theme.verticalKey == "distribution"
+                            ? "Inbound receipts · outward deliveries · routes"
+                            : "Physical movements · warehouse + routes")),
                 keys: ["onHand", "stockMoves", "low"],
                 onViewAll: onViewAll, onOpenRow: onOpenRow
             )
@@ -436,7 +446,9 @@ struct OperatingV12MomentsScreen: View {
                 OperatingV12SectionCard(
                     model: model, theme: theme, code: "network",
                     title: "People & Network",
-                    subtitle: "Bound suppliers, buyers & routes",
+                    subtitle: theme.verticalKey == "distribution"
+                        ? "Bound suppliers, dealers & channels"
+                        : "Bound suppliers, buyers & routes",
                     keys: ["buyers", "suppliers", "channels"],
                     onViewAll: onViewAll, onOpenRow: onOpenRow
                 )
@@ -515,7 +527,11 @@ struct OperatingV12LifeScreen: View {
                     : (theme.isManufacturing ? "Orders / Buyers" : (theme.isTrading ? "Buyers & Channels" : "Dealers & Channels")),
                 subtitle: theme.isMadeToOrder
                     ? "Attributed work by customer and channel"
-                    : (theme.isManufacturing ? "Attributed plant sales by buyer and channel" : "Channel / territory mix · this month"),
+                    : (theme.isManufacturing
+                        ? "Attributed plant sales by buyer and channel"
+                        : (theme.verticalKey == "distribution"
+                            ? "Dealer / channel mix · principals & routes"
+                            : "Channel / territory mix · this month")),
                 keys: ["channels", "buyers", "sales"],
                 onViewAll: onViewAll, onOpenRow: onOpenRow
             )
@@ -624,30 +640,56 @@ struct OperatingV12MemoryScreen: View {
     }
 
     private var storyCta: some View {
-        Button(action: onStory) {
-            VStack(alignment: .leading, spacing: 2) {
-                Image("qa_check")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 16, height: 16)
-                    .foregroundStyle(OperatingV12.deepInk)
-                    .padding(.bottom, 2)
-                Text("Generate Business Story")
-                    .font(.custom("PlusJakartaSans-ExtraBold", size: 15))
-                    .foregroundStyle(OperatingV12.deepInk)
-                Text("Eight pages from recorded activity · \(period) preselected")
-                    .font(.custom("PlusJakartaSans-Medium", size: 11))
-                    .foregroundStyle(OperatingV12.deepInk.opacity(0.8))
+        let dist = theme.verticalKey == "distribution"
+        let blurb = dist
+            ? "Turn verified procurement, deliveries and settlement into an 8-slide Story you can relive and share."
+            : "Turn this moment’s verified activity into an 8-slide Story you can relive and share."
+        let generateSub = dist
+            ? "8 slides · Dealers · Routes · Settlement · \(period) preselected"
+            : "Eight pages from recorded activity · \(period) preselected"
+        return VStack(alignment: .leading, spacing: 12) {
+            // Figma TRD/DST-STORY-STATE · Memory empty — Stories chip + generate when nothing saved yet.
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Stories")
+                    .font(.custom("PlusJakartaSans-Bold", size: 13))
+                    .foregroundStyle(theme.accent)
+                Text("No stories yet")
+                    .font(.custom("PlusJakartaSans-ExtraBold", size: 18))
+                    .foregroundStyle(Color.white)
+                Text(blurb)
+                    .font(.custom("PlusJakartaSans-Medium", size: 12))
+                    .foregroundStyle(Color.white.opacity(0.7))
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.accent)
+            .background(Color.white.opacity(0.06))
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .shadow(color: theme.accent.opacity(0.35), radius: 12, y: 4)
+
+            Button(action: onStory) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Image("qa_check")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 16, height: 16)
+                        .foregroundStyle(OperatingV12.deepInk)
+                        .padding(.bottom, 2)
+                    Text("GENERATE STORY")
+                        .font(.custom("PlusJakartaSans-ExtraBold", size: 15))
+                        .foregroundStyle(OperatingV12.deepInk)
+                    Text(generateSub)
+                        .font(.custom("PlusJakartaSans-Medium", size: 11))
+                        .foregroundStyle(OperatingV12.deepInk.opacity(0.8))
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(theme.accent)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .shadow(color: theme.accent.opacity(0.35), radius: 12, y: 4)
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
     }
 }
 
@@ -671,7 +713,8 @@ struct OperatingV12SectionCard: View {
             section: section, keys: keys, limit: columns, currency: model.currency
         )
         let rows = Array((section?.rows ?? []).prefix(3))
-        let cardFill = theme.isTrading ? theme.surface : OperatingV12.surface
+        // Trading + Distribution both use per-tab screens.* surface tokens.
+        let cardFill = (theme.isTrading || theme.verticalKey == "distribution") ? theme.surface : OperatingV12.surface
         let gridColumns = ordered.count == 2 ? 2 : columns
 
         return OperatingV12Card(theme: theme, fill: cardFill) {

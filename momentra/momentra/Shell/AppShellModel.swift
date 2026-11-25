@@ -175,6 +175,24 @@ final class AppShellModel: ObservableObject {
                 "scopeId": String((event.scopeId ?? "").prefix(8)),
             ]
         )
+        var codes: [String] = []
+        if let p = event.projection, !p.isEmpty { codes.append(p.uppercased()) }
+        for code in event.projections ?? [] where !code.isEmpty {
+            codes.append(code.uppercased())
+        }
+        // Prefer projection codes over USER scopeId (SSE is often USER-scoped).
+        if codes.contains(where: { $0.hasPrefix("BUSINESS_") }) {
+            if selectedContext == .business {
+                refreshVisibleBusinessTab()
+                return
+            }
+        }
+        if codes.contains(where: { $0.hasPrefix("GROUP_") }) {
+            if selectedContext == .group {
+                refreshVisibleGroupTab()
+                return
+            }
+        }
         if let scopeId = event.scopeId, !scopeId.isEmpty, scopeId == selectedMomentId {
             switch selectedContext {
             case .personal: refreshVisiblePersonalTab()

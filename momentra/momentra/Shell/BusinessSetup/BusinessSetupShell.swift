@@ -1,4 +1,6 @@
+import PhotosUI
 import SwiftUI
+import UIKit
 
 /// Chrome + subtype chips + active setup document. Activate → `submitBusinessSetup`.
 struct BusinessSetupShell: View {
@@ -21,6 +23,10 @@ struct BusinessSetupShell: View {
     @State private var draftMomentStatus: String?
     @State private var draftSavedMessage: String?
     @State private var showGstStatePicker = false
+    @State private var linkedCompanyId: String?
+    @State private var logoImage: UIImage?
+    @State private var logoUploading = false
+    @State private var logoError: String?
 
     init(
         family: BusinessSetupFamily,
@@ -46,6 +52,7 @@ struct BusinessSetupShell: View {
         _typeCode = State(initialValue: code)
         _draftMomentId = State(initialValue: editingMomentId)
         _draftMomentStatus = State(initialValue: editingMomentStatus)
+        _linkedCompanyId = State(initialValue: companyId)
     }
 
     private var theme: BusinessSetupTheme { .forTypeCode(typeCode) }
@@ -64,6 +71,14 @@ struct BusinessSetupShell: View {
         let key = spec.defaultTitleKey
         let raw = values[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return !raw.isEmpty || !(initialTitle ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Live hero headline — updates as the business-name field changes (Android parity).
+    private var heroTitleLive: String {
+        let typed = values[spec.defaultTitleKey]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let seed = initialTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let name = typed.isEmpty ? (seed.isEmpty ? nil : seed) : typed
+        return BusinessSetupHeroTitle.format(name: name, placeholder: spec.heroTitle)
     }
 
     private var setupInProgress: Bool {
@@ -85,9 +100,19 @@ struct BusinessSetupShell: View {
                     BusinessSetupDocumentKit.HeroCard(
                         theme: theme,
                         eyebrow: spec.eyebrow,
-                        title: spec.heroTitle,
-                        subtitle: spec.heroSubtitle
+                        title: heroTitleLive,
+                        subtitle: spec.heroSubtitle,
+                        logoImage: logoImage,
+                        logoUploading: logoUploading,
+                        onLogoSelected: { item in
+                            Task { await handleLogoPick(item) }
+                        }
                     )
+                    if let logoError, !logoError.isEmpty {
+                        Text(logoError)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(BusinessTokens.Colors.signalDanger)
+                    }
                     if setupInProgress {
                         Text("Setup in progress")
                             .font(.system(size: 11, weight: .semibold))
@@ -119,7 +144,7 @@ struct BusinessSetupShell: View {
                             if section.id == "people" {
                                 BusinessSetupInviteSection(
                                     theme: theme,
-                                    companyId: companyId,
+                                    companyId: linkedCompanyId ?? companyId,
                                     embedded: true
                                 ) { id in
                                     await createModel.mintCompanyInvite(companyId: id)
@@ -153,6 +178,7 @@ struct BusinessSetupShell: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
             }
+            .scrollDismissesKeyboard(BusinessSetupFieldInputPolicy.scrollDismissesKeyboard)
 
             VStack(spacing: 8) {
                 if let draftSavedMessage {
@@ -403,6 +429,10 @@ struct BusinessSetupShell: View {
         for (key, value) in values where !value.isEmpty {
             if seeded.keys.contains(key) { seeded[key] = value }
         }
+        if let logoId = values["logoMediaId"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !logoId.isEmpty {
+            seeded["logoMediaId"] = logoId
+        }
         values = seeded
     }
 
@@ -416,16 +446,17 @@ struct BusinessSetupShell: View {
     private func activate() {
         fieldErrors = [:]
         draftSavedMessage = nil
+        let company = linkedCompanyId ?? companyId
         createModel.submitBusinessSetup(
             kind: kind,
-            companyId: companyId,
+            companyId: company,
             preferences: preferencesPayload(),
             title: titleValue,
             subtype: typeCode,
             editingMomentId: draftMomentId,
             editingMomentStatus: draftMomentStatus,
             status: "ACTIVE",
-            companyName: (companyId?.isEmpty != false) ? titleValue : nil,
+            companyName: (company?.isEmpty != false) ? titleValue : nil,
             onSuccess: onCreated,
             onFieldErrors: { errors in
                 fieldErrors = errors
@@ -438,6 +469,7 @@ struct BusinessSetupShell: View {
         draftSavedMessage = nil
         fieldErrors = [:]
         let existingId = draftMomentId
+        let company = linkedCompanyId ?? companyId
         if let existingId,
            (draftMomentStatus ?? "").caseInsensitiveCompare("DRAFT") == .orderedSame {
             Task {
@@ -454,14 +486,14 @@ struct BusinessSetupShell: View {
         } else {
             createModel.submitBusinessSetup(
                 kind: kind,
-                companyId: companyId,
+                companyId: company,
                 preferences: preferencesPayload(),
                 title: titleValue,
                 subtype: typeCode,
                 editingMomentId: draftMomentId,
                 editingMomentStatus: draftMomentStatus,
                 status: "DRAFT",
-                companyName: (companyId?.isEmpty != false) ? titleValue : nil,
+                companyName: (company?.isEmpty != false) ? titleValue : nil,
                 onSuccess: { outcome in
                     savingDraft = false
                     draftMomentId = outcome.momentId
@@ -471,6 +503,112 @@ struct BusinessSetupShell: View {
                 onFieldErrors: { _ in }
             )
         }
+    }
+
+    private func handleLogoPick(_ item: PhotosPickerItem) async {
+        guard let picked = await decodeSetupLogo(item) else {
+            await MainActor.run { logoError = "Could not open that photo" }
+            return
+        }
+        await MainActor.run {
+            logoImage = picked.image
+            logoError = nil
+            logoUploading = true
+        }
+        let ensured = await ensureDraftMomentForLogo()
+        guard let ensured else {
+            await MainActor.run {
+                logoUploading = false
+                logoError = "Could not upload logo"
+            }
+            return
+        }
+        if let company = ensured.companyId, !company.isEmpty {
+            await MainActor.run { linkedCompanyId = company }
+        }
+        let companyName: String = await MainActor.run {
+            values["companyName"]?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                ?? values[spec.defaultTitleKey]?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                ?? initialTitle?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                ?? spec.heroTitle
+        }
+        let companyIdForUpload = await MainActor.run { linkedCompanyId ?? ensured.companyId }
+        let result = await createModel.uploadSetupLogo(
+            companyId: companyIdForUpload,
+            momentId: ensured.momentId,
+            companyName: companyName,
+            bytes: picked.bytes
+        )
+        await MainActor.run {
+            logoUploading = false
+            switch result {
+            case .success(let uploaded):
+                linkedCompanyId = uploaded.companyId
+                values["logoMediaId"] = uploaded.mediaId
+                logoError = nil
+            case .failure:
+                logoError = "Could not upload logo"
+            }
+        }
+    }
+
+    /// Prefer in-session DRAFT create when draftMomentId is null so upload can complete
+    /// without forcing Save draft first. Lockstep with Android `ensureDraftMomentForLogo`.
+    private func ensureDraftMomentForLogo() async -> (momentId: String, companyId: String?)? {
+        if let existing = draftMomentId?.trimmingCharacters(in: .whitespacesAndNewlines), !existing.isEmpty {
+            let linked = await createModel.getDomainSetupPrefill(momentId: existing)?.companyId
+            let company = SetupLogoCompanyResolver.preferExisting(
+                passedCompanyId: linkedCompanyId ?? companyId,
+                momentLinkedCompanyId: linked
+            )
+            return (existing, company)
+        }
+        if createModel.state.submitting { return nil }
+
+        let prefs = await MainActor.run { preferencesPayload() }
+        let title = await MainActor.run { titleValue }
+        let company = await MainActor.run { linkedCompanyId ?? companyId }
+        let status = await MainActor.run { draftMomentStatus }
+
+        let momentId: String? = await withCheckedContinuation { continuation in
+            var resumed = false
+            createModel.submitBusinessSetup(
+                kind: kind,
+                companyId: company,
+                preferences: prefs,
+                title: title,
+                subtype: typeCode,
+                editingMomentId: nil,
+                editingMomentStatus: status,
+                status: "DRAFT",
+                companyName: (company?.isEmpty != false) ? title : nil,
+                onSuccess: { outcome in
+                    guard !resumed else { return }
+                    resumed = true
+                    continuation.resume(returning: outcome.momentId)
+                },
+                onFieldErrors: { _ in
+                    guard !resumed else { return }
+                    resumed = true
+                    continuation.resume(returning: nil)
+                }
+            )
+            // Fail-safe if submit no-ops (already submitting) without callbacks.
+            Task {
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                guard !resumed else { return }
+                resumed = true
+                continuation.resume(returning: nil)
+            }
+        }
+        guard let momentId else { return nil }
+        let linked = await createModel.getDomainSetupPrefill(momentId: momentId)?.companyId
+        await MainActor.run {
+            draftMomentId = momentId
+            draftMomentStatus = "DRAFT"
+            if let linked, !linked.isEmpty { linkedCompanyId = linked }
+        }
+        return (momentId, linked)
     }
 
     private func loadDraftPreferences(momentId: String) async {
@@ -493,4 +631,32 @@ private extension String {
         let t = trimmingCharacters(in: .whitespacesAndNewlines)
         return t.isEmpty ? nil : t
     }
+}
+
+private struct SetupLogoPick {
+    let image: UIImage
+    let bytes: Data
+}
+
+/// Mirror of Android `decodeSetupLogo` — JPEG bytes + preview image, max edge 1600.
+private func decodeSetupLogo(_ item: PhotosPickerItem) async -> SetupLogoPick? {
+    guard let data = try? await item.loadTransferable(type: Data.self),
+          let image = UIImage(data: data) else { return nil }
+    let largest = max(image.size.width, image.size.height)
+    let scaled: UIImage
+    if largest <= 1600 {
+        scaled = image
+    } else {
+        let ratio = 1600 / largest
+        let size = CGSize(
+            width: max(1, image.size.width * ratio),
+            height: max(1, image.size.height * ratio)
+        )
+        let renderer = UIGraphicsImageRenderer(size: size)
+        scaled = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+    }
+    guard let bytes = scaled.jpegData(compressionQuality: 0.85) else { return nil }
+    return SetupLogoPick(image: scaled, bytes: bytes)
 }

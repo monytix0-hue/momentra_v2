@@ -114,7 +114,8 @@ struct BusinessSetupCatalogEntry {
 enum BusinessSetupCatalog {
     static func forKind(_ kind: BusinessSetupKind) -> BusinessSetupCatalogEntry {
         let spec = BusinessSetupDocuments.spec(for: kind.subtype)
-        let keys = Set(spec.sections.flatMap { $0.fields.map(\.key) })
+        // logoMediaId is HeroCard-owned (not a document field) — keep it on Save/Activate.
+        let keys = Set(spec.sections.flatMap { $0.fields.map(\.key) }).union(["logoMediaId"])
         return BusinessSetupCatalogEntry(
             familyCode: kind.familyCode,
             title: kind.title,

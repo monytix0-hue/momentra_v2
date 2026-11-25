@@ -107,6 +107,56 @@ struct OperatingV12Theme {
             surface: surface
         )
     }
+
+    static func distribution() -> OperatingV12Theme { distributionForScreen(.pulse) }
+
+    static func distributionForScreen(_ tab: OperatingHubTab) -> OperatingV12Theme {
+        let c = BusinessTokens.Colors.self
+        let canvas: Color
+        let surface: Color
+        let heroStart: Color
+        let heroEnd: Color
+        switch tab {
+        case .pulse:
+            canvas = c.distributionPulseCanvas; surface = c.distributionPulseSurface
+            heroStart = c.distributionPulseHeroStart; heroEnd = c.distributionPulseHeroEnd
+        case .moments:
+            canvas = c.distributionMomentsCanvas; surface = c.distributionMomentsSurface
+            heroStart = c.distributionMomentsHeroStart; heroEnd = c.distributionMomentsHeroEnd
+        case .life:
+            canvas = c.distributionLifeCanvas; surface = c.distributionLifeSurface
+            heroStart = c.distributionLifeHeroStart; heroEnd = c.distributionLifeHeroEnd
+        case .memory:
+            canvas = c.distributionMemoryCanvas; surface = c.distributionMemorySurface
+            heroStart = c.distributionMemoryHeroStart; heroEnd = c.distributionMemoryHeroEnd
+        case .quickAdd:
+            canvas = c.distributionQuickAddCanvas; surface = c.distributionQuickAddSurface
+            heroStart = c.distributionQuickAddHeroStart; heroEnd = c.distributionQuickAddHeroEnd
+        }
+        return OperatingV12Theme(
+            accent: c.distributionAccent,
+            canvas: canvas,
+            heroStart: heroStart,
+            heroEnd: heroEnd,
+            label: "Distribution",
+            partyNoun: "Dealers",
+            motionLine: "Source. Move. Settle.",
+            isTrading: false,
+            verticalKey: "distribution",
+            surface: surface,
+            canvasTop: c.distributionCanvasTop,
+            inset: c.distributionInset,
+            softLink: c.distributionAccentSoft
+        )
+    }
+
+    static func forSubtype(_ subtype: String?, tab: OperatingHubTab) -> OperatingV12Theme {
+        let code = subtype?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() ?? ""
+        if code == DistributionDealershipHub.typeCode {
+            return distributionForScreen(tab)
+        }
+        return tradingForScreen(tab)
+    }
 }
 
 enum OperatingV12Date {
@@ -166,7 +216,7 @@ enum OperatingV12Date {
 enum OperatingV12Metric {
     static func value(section: OperatingBoardSectionPayload?, key: String, currency: String?) -> String? {
         guard let metric = section?.metrics?.first(where: { $0.key == key }) else { return nil }
-        return OperatingV12Money.amount(metric.value, currency: currency)
+        return OperatingV12Money.tile(metric, currency: currency)
     }
 }
 
@@ -208,7 +258,10 @@ extension OperatingProjectionPayload {
     }
 }
 
-private func v12Font(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+// Callers: OperatingV12Hub.swift (L133+) and views in this kit.
+// Must be module-internal — Hub is a separate file from this kit.
+// User: "'v12Font' is inaccessible due to 'private' protection level"
+func v12Font(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
     let name: String
     switch weight {
     case .black, .heavy: name = "PlusJakartaSans-ExtraBold"
@@ -371,7 +424,7 @@ struct OperatingV12TileGrid: View {
                         ForEach(row) { metric in
                             OperatingV12Tile(
                                 label: metric.label,
-                                value: OperatingV12Money.amount(metric.value, currency: currency),
+                                value: OperatingV12Money.tile(metric, currency: currency),
                                 tone: OperatingV12.tone(metric.tone, key: metric.key, accent: theme.accent),
                                 fill: fill
                             )
@@ -593,6 +646,62 @@ struct OperatingV12PulseHero: View {
                 .shadow(color: theme.accent.opacity(0.35), radius: 6, y: 2)
                 .padding(16)
         }
+    }
+}
+
+/// Figma `TRD-HUB-v11` Hub Hero (`5:16497`) — Trading Quick Adds only.
+struct OperatingV12HubHero: View {
+    let model: OperatingProjectionPayload
+    let theme: OperatingV12Theme
+
+    private var business: String {
+        let t = model.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return t.isEmpty ? theme.label : t
+    }
+
+    private var meta: String {
+        let fy = OperatingV12Date.fiscalYear(model.startDate)
+        let currency = model.currency ?? "INR"
+        let gst = model.gstTracking?.caseInsensitiveCompare("YES") == .orderedSame ? "GST on" : "GST off"
+        return "\(business) · \(fy) · \(currency) · \(gst)"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("QUICK ADDS · v11.1")
+                .font(v12Font(11, weight: .bold))
+                .foregroundStyle(OperatingV12.cyan)
+                .tracking(1.2)
+            Text("Quick Adds")
+                .font(v12Font(28, weight: .bold))
+                .foregroundStyle(.white)
+            Text(theme.motionLine)
+                .font(v12Font(16, weight: .bold))
+                .foregroundStyle(theme.accent)
+            Text(meta)
+                .font(v12Font(12, weight: .medium))
+                .foregroundStyle(Color(hex: "#94A3B8"))
+            Text("Dispatch moves goods on a route; Record Sale raises the buyer invoice.")
+                .font(v12Font(11, weight: .medium))
+                .foregroundStyle(Color(hex: "#94A3B8"))
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(hex: "#151D2E"))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.12))
+                .frame(height: 1)
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(OperatingV12.cyan.opacity(0.25), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: Color.black.opacity(0.6), radius: 12, y: 8)
+        .shadow(color: theme.accent.opacity(0.12), radius: 40, y: 0)
+        .shadow(color: OperatingV12.cyan.opacity(0.18), radius: 20, y: 0)
     }
 }
 

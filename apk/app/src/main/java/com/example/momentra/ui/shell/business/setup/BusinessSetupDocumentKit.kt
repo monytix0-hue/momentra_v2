@@ -28,6 +28,7 @@ import com.example.momentra.ui.setup.SetupDateTimeUtils
 import com.example.momentra.ui.shell.business.appstate.BusinessGlassModalBottomSheet
 import com.example.momentra.ui.shell.business.appstate.BusinessGlassSheetChrome
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -354,6 +355,11 @@ object BusinessSetupDocumentKit {
                             KeyboardCapitalization.Characters
                         } else {
                             KeyboardCapitalization.None
+                        },
+                        keyboardType = if (BusinessSetupAmountFormatting.isAmountHelper(helper)) {
+                            KeyboardType.Decimal
+                        } else {
+                            KeyboardType.Text
                         },
                         imeAction = BusinessSetupFieldInputPolicy.imeAction(),
                     ),

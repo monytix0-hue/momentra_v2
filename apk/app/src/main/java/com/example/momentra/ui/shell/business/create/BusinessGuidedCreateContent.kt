@@ -1,5 +1,6 @@
 package com.example.momentra.ui.shell.business.create
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -31,11 +33,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.momentra.R
 import com.example.momentra.ui.shell.business.appstate.AppStateGlow
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateTokens
 import com.example.momentra.ui.theme.PlusJakartaSans
@@ -79,12 +84,22 @@ fun BusinessGuidedCreateContent(
                 // Room for sticky Continue + footnote so preview doesn't hide them.
                 .padding(bottom = 120.dp),
         ) {
+            // Figma "Brand and dismiss" (`2:1521`) — logo left, close right.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp, bottom = 8.dp),
-                horizontalArrangement = Arrangement.End,
+                    .height(52.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                Image(
+                    painter = painterResource(R.drawable.momentra_topbar_logo),
+                    contentDescription = "Momentra",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .width(118.dp)
+                        .height(40.dp),
+                )
                 Icon(
                     imageVector = Icons.Outlined.Close,
                     contentDescription = "Close",
@@ -96,6 +111,7 @@ fun BusinessGuidedCreateContent(
                 )
             }
 
+            Spacer(modifier = Modifier.height(20.dp))
             Text(
                 text = "${BusinessGuidedCreateSpecs.QUESTION_LINE_1}\n${BusinessGuidedCreateSpecs.QUESTION_LINE_2}",
                 color = Color(0xFFF1F5F9),
@@ -159,6 +175,8 @@ fun BusinessGuidedCreateContent(
                 text = BusinessGuidedCreateSpecs.FOOTNOTE,
                 color = Color(0xFFA7A7AE),
                 fontSize = 12.sp,
+                lineHeight = 18.sp,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
                 fontFamily = PlusJakartaSans,
             )

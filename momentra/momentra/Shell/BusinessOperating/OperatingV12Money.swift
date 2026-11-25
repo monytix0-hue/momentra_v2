@@ -64,10 +64,23 @@ enum OperatingV12Money {
     static func number(_ raw: String?) -> Double? { parse(raw) }
 
     static func tile(_ metric: OperatingBoardMetricPayload, currency: String?) -> String {
-        let text = grouped(metric.value, currency: currency)
+        let isCount = (metric.unit ?? "").caseInsensitiveCompare("count") == .orderedSame
+        let text: String
+        if isCount {
+            let raw = metric.value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if raw.isEmpty {
+                text = "—"
+            } else if let amount = parse(raw, currency: currency) {
+                text = indianGroupedNumber(abs(amount))
+            } else {
+                text = raw
+            }
+        } else {
+            text = grouped(metric.value, currency: currency)
+        }
         if let unit = metric.unit?.trimmingCharacters(in: .whitespacesAndNewlines),
            !unit.isEmpty,
-           unit.caseInsensitiveCompare("count") != .orderedSame {
+           !isCount {
             return "\(text) \(unit)"
         }
         return text

@@ -304,7 +304,9 @@ struct OwnMarketingWidgetCards: View {
                     return "\(m.label ?? m.key ?? "metric"): \(valueText)"
                 }.joined(separator: " · ")
                 OwnSectionCard(
-                    displayCode: OwnMarketingHub.displayCode(w.widgetId, serverDisplayCode: w.displayCode),
+                    // Callers: OwnMarketing widgets ForEach (~L307). displayCode(widgetId:serverDisplayCode:).
+                    // User: "Missing argument label 'widgetId:' in call"
+                    displayCode: OwnMarketingHub.displayCode(widgetId: w.widgetId, serverDisplayCode: w.displayCode),
                     title: OwnMarketingHub.displayTitle(widgetId: w.widgetId, serverTitle: w.title ?? ""),
                     detail: (!financeVisible && w.financeOnly == true)
                         ? "Finance redacted for your role"

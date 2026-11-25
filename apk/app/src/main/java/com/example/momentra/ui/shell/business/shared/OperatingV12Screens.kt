@@ -116,7 +116,11 @@ private fun attentionCard(
         }
         OperatingV12Why(
             text = group?.why
-                ?: "open orders, deliveries/receipts due, collections/payments due, issues — never conflate delivery with settlement.",
+                ?: if (theme.verticalKey == "distribution") {
+                    "unexecuted PO/SO, inbound receipts, outward deliveries, AR/AP — never conflate goods move with settlement."
+                } else {
+                    "open orders, deliveries/receipts due, collections/payments due, issues — never conflate delivery with settlement."
+                },
             tone = Color.White,
         )
     }
@@ -479,6 +483,7 @@ fun OperatingV12MomentsScreen(
         val ordersSub = when {
             theme.isMadeToOrder -> "Confirmed jobs · commitment only · not revenue"
             theme.isManufacturing -> "Plant work orders · commitment only"
+            theme.verticalKey == "distribution" -> "Open dealer & supplier orders · commitment only"
             else -> "Open buyer & supplier orders · commitment only"
         }
         sectionCard(model, theme, "orders", ordersTitle, ordersSub,
@@ -504,13 +509,19 @@ fun OperatingV12MomentsScreen(
         val stockSub = when {
             theme.isMadeToOrder -> "WIP against open jobs · materials & FG"
             theme.isManufacturing -> "Material · WIP · finished goods"
+            theme.verticalKey == "distribution" -> "Inbound receipts · outward deliveries · routes"
             else -> "Physical movements · warehouse + routes"
         }
         sectionCard(model, theme, "stock", stockTitle, stockSub,
             listOf("onHand", "stockMoves", "low"), emptyMap(), onViewAll, onOpenRow)
         if (!theme.isManufacturing) {
+            val networkSub = if (theme.verticalKey == "distribution") {
+                "Bound suppliers, dealers & channels"
+            } else {
+                "Bound suppliers, buyers & routes"
+            }
             sectionCard(
-                model, theme, "network", "People & Network", "Bound suppliers, buyers & routes",
+                model, theme, "network", "People & Network", networkSub,
                 listOf("buyers", "suppliers", "channels"), emptyMap(), onViewAll, onOpenRow,
             )
         }
@@ -583,6 +594,7 @@ fun OperatingV12LifeScreen(
         val lifeL2Sub = when {
             theme.isMadeToOrder -> "Attributed work by customer and channel"
             theme.isManufacturing -> "Attributed plant sales by buyer and channel"
+            theme.verticalKey == "distribution" -> "Dealer / channel mix · principals & routes"
             else -> "Channel / territory mix · this month"
         }
         sectionCard(
@@ -665,30 +677,62 @@ fun OperatingV12MemoryScreen(
 
 @Composable
 private fun storyCta(theme: OperatingV12Theme, period: String, onStory: () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .shadow(12.dp, RoundedCornerShape(18.dp), ambientColor = theme.accent.copy(alpha = 0.35f), spotColor = theme.accent.copy(alpha = 0.35f))
-            .clip(RoundedCornerShape(18.dp))
-            .background(theme.accent)
-            .clickable(onClick = onStory)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_business_empty_sparkline),
-            contentDescription = null,
-            tint = OperatingV12.deepInk,
-            modifier = Modifier.padding(bottom = 2.dp),
-        )
-        Text("Generate Business Story", color = OperatingV12.deepInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Black, fontSize = 15.sp)
-        Text(
-            "Eight pages from recorded activity · $period preselected",
-            color = OperatingV12.deepInk.copy(alpha = 0.8f),
-            fontFamily = PlusJakartaSans,
-            fontWeight = FontWeight.Medium,
-            fontSize = 11.sp,
-        )
+    val dist = theme.verticalKey == "distribution"
+    val blurb = if (dist) {
+        "Turn verified procurement, deliveries and settlement into an 8-slide Story you can relive and share."
+    } else {
+        "Turn this moment’s verified activity into an 8-slide Story you can relive and share."
+    }
+    val generateSub = if (dist) {
+        "8 slides · Dealers · Routes · Settlement · $period preselected"
+    } else {
+        "Eight pages from recorded activity · $period preselected"
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Figma TRD/DST-STORY-STATE · Memory empty stories
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color.White.copy(alpha = 0.06f))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Stories", color = theme.accent, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text("No stories yet", color = Color.White, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+            Text(
+                blurb,
+                color = Color.White.copy(alpha = 0.7f),
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+            )
+        }
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .shadow(12.dp, RoundedCornerShape(18.dp), ambientColor = theme.accent.copy(alpha = 0.35f), spotColor = theme.accent.copy(alpha = 0.35f))
+                .clip(RoundedCornerShape(18.dp))
+                .background(theme.accent)
+                .clickable(onClick = onStory)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_business_empty_sparkline),
+                contentDescription = null,
+                tint = OperatingV12.deepInk,
+                modifier = Modifier.padding(bottom = 2.dp),
+            )
+            Text("GENERATE STORY", color = OperatingV12.deepInk, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Black, fontSize = 15.sp)
+            Text(
+                generateSub,
+                color = OperatingV12.deepInk.copy(alpha = 0.8f),
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+            )
+        }
     }
 }
 

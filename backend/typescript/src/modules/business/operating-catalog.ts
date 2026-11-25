@@ -45,6 +45,7 @@ import { normalizeGstState, gstStateCodeOf } from './operating-gst-states';
 import { validateGstin } from './operating-gstin';
 import type { OperatingMasterRecord } from './operating-masters';
 import { applyTradingBoardMetrics, tradingPulseMetrics } from './operating-board-metrics';
+import { computeTradingFacts } from './trading-facts';
 import {
   channelCoverage,
   isMarketingSubtype,
@@ -316,7 +317,7 @@ export const OPERATING_FAMILIES: OperatingFamily[] = [
         code: 'TRADING_WHOLESALE',
         label: 'Trading / Wholesale',
         partyLabel: 'Business',
-        quickAdds: ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK', 'ORDER', 'SHIPMENT', 'RETURN'],
+        quickAdds: ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'TARGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK', 'ORDER', 'SHIPMENT', 'RETURN'],
         targetMetrics: ['REVENUE', 'ORDERS', 'CUSTOM_COUNT'],
         requiresChannel: false,
       },
@@ -324,7 +325,7 @@ export const OPERATING_FAMILIES: OperatingFamily[] = [
         code: 'DISTRIBUTION_DEALERSHIP',
         label: 'Distribution / Dealership',
         partyLabel: 'Principal',
-        quickAdds: ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK', 'ORDER', 'SHIPMENT', 'DELIVERY', 'RETURN'],
+        quickAdds: ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'BUDGET', 'TARGET', 'UPDATE', 'ISSUE', 'APPROVAL', 'STOCK', 'ORDER', 'SHIPMENT', 'DELIVERY', 'RETURN'],
         targetMetrics: ['REVENUE', 'ORDERS', 'CUSTOM_COUNT'],
         requiresChannel: false,
       },
@@ -1526,6 +1527,11 @@ export interface OperatingMaster {
   billingState?: string | null;
   deliveryState?: string | null;
   gstin?: string | null;
+  /** Optional commercial fields on UPDATE/SKU captures — projected for EVENT masters. */
+  code?: string | null;
+  sellPrice?: string | null;
+  mrp?: string | null;
+  purchasePrice?: string | null;
 }
 
 export interface OperatingProjection {
@@ -2093,6 +2099,11 @@ function companyMasters(
       billingState: row.master.billingState ?? null,
       deliveryState: row.master.deliveryState ?? null,
       gstin: row.master.gstin ?? null,
+      // Same commercial fields as MASTER rows so LOV prefill can load unit price / GST.
+      code: row.master.code ?? null,
+      sellPrice: row.master.sellPrice ?? null,
+      mrp: row.master.mrp ?? null,
+      purchasePrice: row.master.purchasePrice ?? null,
       status: 'ACTIVE',
     });
   }
@@ -2262,11 +2273,26 @@ export function projectOperatingMoment(args: {
   const visibleReadiness = ownCampaign
     ? paymentReadiness.filter((row) => row.relevance !== 'RECEIVABLE')
     : paymentReadiness;
-  const finance = financeTotals(pulseEvents, visible, continuity);
+  const finance = tradingReady
+    ? tradingFinanceTotals(pulseEvents, visible)
+    : financeTotals(pulseEvents, visible, continuity);
   if (ownCampaign && finance) {
     finance.sales = '0.0000';
     finance.received = '0.0000';
     finance.outstanding = '0.0000';
+  }
+  if (tradingReady && finance) {
+    const bundle = computeTradingFacts({
+      events: pulseEvents,
+      financeVisible: visible,
+    });
+    // Align continuity AR/AP with M05/M09 when known (missing stays null).
+    if (!bundle.metrics.M05.missing && bundle.metrics.M05.value != null) {
+      continuity.receivable = money(bundle.metrics.M05.value);
+    }
+    if (!bundle.metrics.M09.missing && bundle.metrics.M09.value != null) {
+      continuity.payable = money(bundle.metrics.M09.value);
+    }
   }
   if (args.familyCode === 'MARKETING_CAMPAIGNS' && finance) {
     finance.eligibleCost = money(spent);
@@ -2521,6 +2547,25 @@ function netPostedSales(events: OperatingEventRow[]): number {
   return Math.max(0, grossSales - returned);
 }
 
+/** Trading/Distribution finance from shared M01–M18 (missing metrics → 0 string only when recorded). */
+function tradingFinanceTotals(
+  events: OperatingEventRow[],
+  visible: boolean
+): OperatingFinanceTotals | null {
+  if (!visible) return null;
+  const bundle = computeTradingFacts({ events, financeVisible: visible });
+  const m = bundle.metrics;
+  const orZero = (id: keyof typeof m) => money(m[id].missing || m[id].value == null ? 0 : m[id].value!);
+  return {
+    sales: orZero('M03'),
+    received: orZero('M04'),
+    outstanding: orZero('M05'),
+    payable: orZero('M09'),
+    eligibleCost: orZero('M07'),
+    cashPaid: orZero('M08'),
+  };
+}
+
 function financeTotals(
   events: OperatingEventRow[],
   visible: boolean,
@@ -2652,7 +2697,7 @@ type WidgetLabels = {
   me3: string;
 };
 
-function widgetLabels(familyCode: string): WidgetLabels {
+function widgetLabels(familyCode: string, subtype?: string): WidgetLabels {
   if (familyCode === 'MARKETING_CAMPAIGNS') {
     return {
       m1: 'Campaign Moment',
@@ -2664,11 +2709,13 @@ function widgetLabels(familyCode: string): WidgetLabels {
     };
   }
   if (familyCode === 'TRADING_DISTRIBUTION') {
+    // Story v3 §06: Dist emphasis only — same M01–M18 facts as Trading (T17).
+    const dist = (subtype ?? '').toUpperCase() === 'DISTRIBUTION_DEALERSHIP';
     return {
       m1: 'Business Moment',
-      m3: 'Trade Network',
+      m3: dist ? 'Dealers & Channels' : 'Trade Network',
       l1: 'Current Business',
-      l2: 'Buyers & Channels',
+      l2: dist ? 'Dealers & Channels' : 'Buyers & Channels',
       l4: 'People & Activity',
       me3: 'People & Patterns',
     };
@@ -2728,7 +2775,7 @@ function operatingBoards(args: {
   asOf: Date;
 }): OperatingProjection['boards'] {
   const { familyCode, prefs, events, pulseEvents, visible } = args;
-  const labels = widgetLabels(familyCode);
+  const labels = widgetLabels(familyCode, args.subtype);
   const currency = prefs.currency;
   const section = (code: string, title: string, types: string[]) =>
     eventSection(code, title, events, types, visible, currency);
@@ -3114,10 +3161,15 @@ function familyMomentSections(
     ];
   }
   if (familyCode === 'TRADING_DISTRIBUTION') {
+    const dist = subtype.toUpperCase() === 'DISTRIBUTION_DEALERSHIP';
     return [
       section('orders', 'Orders & Commitments', ['ORDER', 'CUSTOMER_ORDER', 'SHIPMENT']),
-      section('stock', 'Stock & Products', ['STOCK', 'PURCHASE', 'SALE']),
-      textSection('network', 'People & Network', network),
+      section(
+        'stock',
+        dist ? 'Stock · inbound & outward' : 'Stock & Products',
+        ['STOCK', 'PURCHASE', 'SALE']
+      ),
+      textSection('network', dist ? 'People · Dealers & Channels' : 'People & Network', network),
       section('commitments', 'Open Commitments', ['ORDER', 'PURCHASE', 'SALE', 'SHIPMENT']),
     ];
   }

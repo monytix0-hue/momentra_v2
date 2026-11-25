@@ -580,7 +580,18 @@ v1Router.post('/companies/:companyId/operating-masters', requireIdempotencyKey, 
     const data = await withDb((client) =>
       operatingMasters.createOperatingMaster(client, ctx, param(req.params.companyId), body)
     );
-    res.status(201).json(commandEnvelope(data, ctx.correlationId, { resourceVersion: data.version }));
+    const masterHints = ['business.pulse', 'business.operating', 'business.moments'] as const;
+    publishProjectionUpdated(
+      ctx.userId,
+      masterHints.map((h) => h.toUpperCase().replace('.', '_')),
+      ctx.correlationId
+    );
+    res.status(201).json(
+      commandEnvelope(data, ctx.correlationId, {
+        resourceVersion: data.version,
+        projectionHints: toProjectionHints([...masterHints], 'refresh'),
+      })
+    );
   } catch (e) {
     next(e);
   }
@@ -602,7 +613,18 @@ v1Router.patch(
           body
         )
       );
-      res.json(commandEnvelope(data, ctx.correlationId, { resourceVersion: data.version }));
+      const masterHints = ['business.pulse', 'business.operating', 'business.moments'] as const;
+      publishProjectionUpdated(
+        ctx.userId,
+        masterHints.map((h) => h.toUpperCase().replace('.', '_')),
+        ctx.correlationId
+      );
+      res.json(
+        commandEnvelope(data, ctx.correlationId, {
+          resourceVersion: data.version,
+          projectionHints: toProjectionHints([...masterHints], 'refresh'),
+        })
+      );
     } catch (e) {
       next(e);
     }
@@ -625,7 +647,18 @@ v1Router.delete(
           body.expectedVersion
         )
       );
-      res.json(commandEnvelope(data, ctx.correlationId, { resourceVersion: data.version }));
+      const masterHints = ['business.pulse', 'business.operating', 'business.moments'] as const;
+      publishProjectionUpdated(
+        ctx.userId,
+        masterHints.map((h) => h.toUpperCase().replace('.', '_')),
+        ctx.correlationId
+      );
+      res.json(
+        commandEnvelope(data, ctx.correlationId, {
+          resourceVersion: data.version,
+          projectionHints: toProjectionHints([...masterHints], 'refresh'),
+        })
+      );
     } catch (e) {
       next(e);
     }
@@ -1662,6 +1695,174 @@ v1Router.get('/business/moments/:momentId/gst/returns', async (req, res, next) =
   }
 });
 
+/** Trading Story v3 — options / preview jobs / save (Memory → P1–P8). */
+v1Router.get('/business/moments/:momentId/story/options', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const { getTradingStoryOptions } = await import('../../modules/story/trading-story-v3');
+    const data = await withDb((client) =>
+      getTradingStoryOptions(client, ctx, param(req.params.momentId))
+    );
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post(
+  '/business/moments/:momentId/stories/preview',
+  requireIdempotencyKey,
+  async (req, res, next) => {
+    try {
+      const ctx = req.requestContext!;
+      const { startTradingStoryPreview } = await import('../../modules/story/trading-story-v3');
+      const body = (req.body ?? {}) as {
+        startDate?: string;
+        endDate?: string;
+        detail?: 'SUMMARY' | 'DETAILED';
+        includeGst?: boolean;
+        includeRegister?: boolean;
+      };
+      const data = await withDb((client) =>
+        startTradingStoryPreview(client, ctx, param(req.params.momentId), {
+          startDate: String(body.startDate ?? ''),
+          endDate: String(body.endDate ?? ''),
+          detail: body.detail,
+          includeGst: body.includeGst,
+          includeRegister: body.includeRegister,
+        })
+      );
+      res.json(commandEnvelope(data, ctx.correlationId));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+v1Router.get('/business/story-jobs/:jobId', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const { getTradingStoryJob } = await import('../../modules/story/trading-story-v3');
+    const data = getTradingStoryJob(param(req.params.jobId));
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/business/story-previews/:previewId', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const { getTradingStoryPreview } = await import('../../modules/story/trading-story-v3');
+    const data = getTradingStoryPreview(param(req.params.previewId));
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post(
+  '/business/story-previews/:previewId/save',
+  requireIdempotencyKey,
+  async (req, res, next) => {
+    try {
+      const ctx = req.requestContext!;
+      const { saveTradingStoryPreview } = await import('../../modules/story/trading-story-v3');
+      const data = saveTradingStoryPreview(param(req.params.previewId));
+      res.json(commandEnvelope(data, ctx.correlationId));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+v1Router.get('/business/moments/:momentId/stories/saved', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const { listSavedTradingStories } = await import('../../modules/story/trading-story-v3');
+    const data = await withDb((client) =>
+      listSavedTradingStories(client, ctx, param(req.params.momentId))
+    );
+    res.json(projectionEnvelope({ items: data }, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.get('/business/stories/:storyId', async (req, res, next) => {
+  try {
+    const ctx = req.requestContext!;
+    const { getSavedTradingStory } = await import('../../modules/story/trading-story-v3');
+    const data = getSavedTradingStory(param(req.params.storyId));
+    res.json(projectionEnvelope(data, ctx.correlationId, { status: 'OK' }));
+  } catch (e) {
+    next(e);
+  }
+});
+
+v1Router.post(
+  '/business/stories/:storyId/regenerate',
+  requireIdempotencyKey,
+  async (req, res, next) => {
+    try {
+      const ctx = req.requestContext!;
+      const { getSavedTradingStory, startTradingStoryPreview } = await import(
+        '../../modules/story/trading-story-v3'
+      );
+      const prior = getSavedTradingStory(param(req.params.storyId));
+      const data = await withDb((client) =>
+        startTradingStoryPreview(client, ctx, prior.preview.momentId, {
+          startDate: prior.preview.period.start,
+          endDate: prior.preview.period.end,
+          detail: prior.preview.detail,
+          includeGst: prior.preview.includeGst,
+        })
+      );
+      res.json(commandEnvelope(data, ctx.correlationId));
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+v1Router.post(
+  '/business/stories/:storyId/export',
+  requireIdempotencyKey,
+  async (req, res, next) => {
+    try {
+      const ctx = req.requestContext!;
+      const { getSavedTradingStory } = await import('../../modules/story/trading-story-v3');
+      const saved = getSavedTradingStory(param(req.params.storyId));
+      // Redacted share pack — no GSTIN / phone / bank by default (contract §10).
+      const pages = saved.preview.pages.map((p) => ({
+        pageId: p.pageId,
+        title: p.title,
+        hero: p.hero,
+        cards: p.cards,
+        narrative: p.narrative,
+        state: p.state,
+      }));
+      res.json(
+        commandEnvelope(
+          {
+            storyId: saved.storyId,
+            version: saved.version,
+            watermark: saved.watermark,
+            format: 'json-redacted',
+            pages,
+            redactions: ['gstin', 'phone', 'bank'],
+          },
+          ctx.correlationId
+        )
+      );
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+const OPERATING_PROJECTION_HINTS = ['business.pulse', 'business.operating', 'business.moments'] as const;
+
 v1Router.post('/business/moments/:momentId/operating-events', requireIdempotencyKey, async (req, res, next) => {
   try {
     const ctx = req.requestContext!;
@@ -1684,7 +1885,16 @@ v1Router.post('/business/moments/:momentId/operating-events', requireIdempotency
         return { result: r, resourceId: r.eventId };
       },
     });
-    res.status(201).json(commandEnvelope(result, ctx.correlationId));
+    publishProjectionUpdated(
+      ctx.userId,
+      OPERATING_PROJECTION_HINTS.map((h) => h.toUpperCase().replace('.', '_')),
+      ctx.correlationId
+    );
+    res.status(201).json(
+      commandEnvelope(result, ctx.correlationId, {
+        projectionHints: toProjectionHints([...OPERATING_PROJECTION_HINTS], 'refresh'),
+      })
+    );
   } catch (e) {
     next(e);
   }
@@ -1716,7 +1926,16 @@ v1Router.patch(
           return { result: r, resourceId: r.eventId };
         },
       });
-      res.json(commandEnvelope(result, ctx.correlationId));
+      publishProjectionUpdated(
+        ctx.userId,
+        OPERATING_PROJECTION_HINTS.map((h) => h.toUpperCase().replace('.', '_')),
+        ctx.correlationId
+      );
+      res.json(
+        commandEnvelope(result, ctx.correlationId, {
+          projectionHints: toProjectionHints([...OPERATING_PROJECTION_HINTS], 'refresh'),
+        })
+      );
     } catch (e) {
       next(e);
     }
@@ -1749,7 +1968,16 @@ v1Router.post(
           return { result: r, resourceId: r.eventId };
         },
       });
-      res.status(201).json(commandEnvelope(result, ctx.correlationId));
+      publishProjectionUpdated(
+        ctx.userId,
+        OPERATING_PROJECTION_HINTS.map((h) => h.toUpperCase().replace('.', '_')),
+        ctx.correlationId
+      );
+      res.status(201).json(
+        commandEnvelope(result, ctx.correlationId, {
+          projectionHints: toProjectionHints([...OPERATING_PROJECTION_HINTS], 'refresh'),
+        })
+      );
     } catch (e) {
       next(e);
     }

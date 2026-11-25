@@ -1,54 +1,40 @@
 package com.example.momentra.ui.shell.business.trading
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.momentra.R
 import com.example.momentra.data.api.OperatingProjectionDto
-import androidx.compose.runtime.LaunchedEffect
-import com.example.momentra.ui.shell.business.shared.OperatingCaptureDraft
-import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
-import com.example.momentra.ui.shell.business.shared.OperatingChromeState
-import com.example.momentra.ui.shell.business.shared.OperatingMomentCatalog
-import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
 import com.example.momentra.ui.shell.business.mto.MtoCaptureCopy
 import com.example.momentra.ui.shell.business.mto.MtoToastHost
 import com.example.momentra.ui.shell.business.mto.MtoToastKind
 import com.example.momentra.ui.shell.business.mto.MtoToastSpec
+import com.example.momentra.ui.shell.business.shared.BusinessMomentFamilyConfig
+import com.example.momentra.ui.shell.business.shared.OperatingCaptureDraft
+import com.example.momentra.ui.shell.business.shared.OperatingCaptureSheet
+import com.example.momentra.ui.shell.business.shared.OperatingChromeState
+import com.example.momentra.ui.shell.business.shared.OperatingSheetScrim
+import com.example.momentra.ui.shell.business.shared.OperatingTab
+import com.example.momentra.ui.shell.business.shared.OperatingV12HubScreen
+import com.example.momentra.ui.shell.business.shared.OperatingV12Theme
 import com.example.momentra.ui.theme.PlusJakartaSans
-import kotlinx.coroutines.launch
 
 data class TradingEventDraft(
     val eventType: String,
@@ -76,6 +62,7 @@ data class TradingEventDraft(
     val masterPriceIncludesGst: String? = null,
     val masterSalePriceIncludesGst: String? = null,
     val masterPurchasePriceIncludesGst: String? = null,
+    val masterPurchasePrice: String? = null,
     val masterGstEffectiveFrom: String? = null,
     val masterHsn: String? = null,
     val masterGstRegistration: String? = null,
@@ -86,35 +73,33 @@ data class TradingEventDraft(
     val lines: List<com.example.momentra.data.api.OperatingLineBody>? = null,
 )
 
+/** Titles match Figma TRD-QA sheet headers. */
 private enum class TradingSheet(
     val title: String,
     val eventType: String,
-    val needsAmount: Boolean,
-    val needsChannel: Boolean,
-    val needsParty: Boolean,
-    val paymentStatus: String?,
 ) {
-    // Titles match Figma TRD-QA-01…12 sheet headers.
-    SALE("Record Sale", "SALE", true, true, false, null),
-    PURCHASE("Record Purchase", "PURCHASE", true, false, true, null),
-    SPEND("Record Expense", "SPEND", true, false, false, null),
-    PAYMENT("Record Payment", "PAYMENT", true, false, true, "PENDING"),
-    COLLECTION("Record Collection", "COLLECTION", true, true, false, "PENDING"),
-    BUDGET("Budget / Target Revision", "BUDGET", true, false, false, null),
-    UPDATE("Post Update / Issue", "UPDATE", false, false, false, null),
-    ISSUE("Post Update / Issue", "ISSUE", false, false, false, null),
-    STOCK("Stock Update", "STOCK", false, false, false, null),
-    ORDER("Order", "ORDER", false, false, false, null),
-    SHIPMENT("Delivery", "SHIPMENT", false, false, false, null),
-    RETURN("Return / Credit Note", "RETURN", true, false, false, null),
-    REIMBURSE("Approval / Reimbursement", "PAYMENT", true, false, true, "PENDING"),
-    PERSON("Add or invite person", "UPDATE", false, false, true, null),
-    ROLE("Add or invite person", "UPDATE", false, false, true, null),
-    INVITE("Add or invite person", "UPDATE", false, false, true, null),
-    SUPPLIER("Add Supplier", "UPDATE", false, false, true, null),
-    HOLD("Hold a record", "ORDER", false, false, false, null),
-    TRANSFER("Transfer stock", "STOCK", false, false, false, null),
-    REPRINT("Reprint a document", "SALE", false, false, false, null),
+    SALE("Record Sale", "SALE"),
+    PURCHASE("Record Purchase", "PURCHASE"),
+    SPEND("Record Expense", "SPEND"),
+    PAYMENT("Record Payment", "PAYMENT"),
+    COLLECTION("Record Collection", "COLLECTION"),
+    BUDGET("Budget / Target Revision", "BUDGET"),
+    TARGET("Budget / Target Revision", "TARGET"),
+    UPDATE("Post Update / Issue", "UPDATE"),
+    ISSUE("Post Update / Issue", "ISSUE"),
+    STOCK("Stock Update", "STOCK"),
+    ORDER("Order", "ORDER"),
+    SHIPMENT("Delivery", "SHIPMENT"),
+    DELIVERY("Delivery", "DELIVERY"),
+    RETURN("Return / Credit Note", "RETURN"),
+    REIMBURSE("Approval / Reimbursement", "PAYMENT"),
+    PERSON("Add or invite person", "UPDATE"),
+    ROLE("Add or invite person", "UPDATE"),
+    INVITE("Add or invite person", "UPDATE"),
+    SUPPLIER("Add Supplier", "UPDATE"),
+    HOLD("Hold a record", "ORDER"),
+    TRANSFER("Transfer stock", "STOCK"),
+    REPRINT("Reprint a document", "SALE"),
 }
 
 @Composable
@@ -122,48 +107,56 @@ fun TradingQuickAddHub(
     model: OperatingProjectionDto,
     onRecord: suspend (TradingEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
-    companyId: String? = null,
+    @Suppress("UNUSED_PARAMETER") companyId: String? = null,
+    momentId: String? = null,
 ) {
     val allowed = model.quickAdds.map { it.code }.toSet()
     var sheet by remember { mutableStateOf<TradingSheet?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var approvalOpen by remember { mutableStateOf(false) }
-    val theme = remember {
-        com.example.momentra.ui.shell.business.shared.OperatingV12Theme.tradingForScreen(
-            com.example.momentra.ui.shell.business.shared.OperatingTab.QUICK_ADD,
-        )
+    val theme = remember { OperatingV12Theme.tradingForScreen(OperatingTab.QUICK_ADD) }
+
+    fun resolveSheet(code: String): TradingSheet? {
+        val hint = code.uppercase()
+        return TradingSheet.entries.firstOrNull { it.captureMode == hint || it.name == hint }
+            ?: when (hint) {
+                "SHIPMENT", "DELIVERY" -> TradingSheet.SHIPMENT
+                "STOCK" -> TradingSheet.STOCK
+                "BUDGET", "TARGET" -> TradingSheet.BUDGET
+                "SALE" -> TradingSheet.SALE
+                "PURCHASE" -> TradingSheet.PURCHASE
+                "COLLECTION" -> TradingSheet.COLLECTION
+                "PAYMENT" -> TradingSheet.PAYMENT
+                "SPEND", "EXPENSE" -> TradingSheet.SPEND
+                "ORDER" -> TradingSheet.ORDER
+                "UPDATE", "ISSUE" -> TradingSheet.UPDATE
+                "RETURN" -> TradingSheet.RETURN
+                "REPRINT" -> TradingSheet.REPRINT
+                "HOLD" -> TradingSheet.HOLD
+                "TRANSFER" -> TradingSheet.TRANSFER
+                "APPROVAL", "REIMBURSE" -> null // handled via approvalOpen
+                else -> null
+            }
+    }
+
+    fun openFromCode(code: String) {
+        if (code.equals("APPROVAL", ignoreCase = true) || code.equals("REIMBURSE", ignoreCase = true)) {
+            approvalOpen = true
+        } else {
+            sheet = resolveSheet(code) ?: TradingSheet.UPDATE
+        }
+    }
+
+    LaunchedEffect(momentId) {
+        val pending = momentId?.let { BusinessMomentFamilyConfig.consumePendingQuickAdd(it) }
+        if (!pending.isNullOrBlank()) openFromCode(pending)
     }
     LaunchedEffect(OperatingChromeState.quickAddHint) {
-        val hint = OperatingChromeState.quickAddHint?.uppercase() ?: return@LaunchedEffect
-        when (hint.lowercase()) {
-            "approval" -> {
-                approvalOpen = true
-                OperatingChromeState.quickAddHint = null
-                return@LaunchedEffect
-            }
-            else -> {
-                sheet = TradingSheet.entries.firstOrNull { it.captureMode == hint || it.name == hint }
-                    ?: when (hint.lowercase()) {
-                        "shipment", "delivery" -> TradingSheet.SHIPMENT
-                        "stock" -> TradingSheet.STOCK
-                        "budget" -> TradingSheet.BUDGET
-                        "sale" -> TradingSheet.SALE
-                        "purchase" -> TradingSheet.PURCHASE
-                        "collection" -> TradingSheet.COLLECTION
-                        "payment" -> TradingSheet.PAYMENT
-                        "spend", "expense" -> TradingSheet.SPEND
-                        "order" -> TradingSheet.ORDER
-                        "update", "issue" -> TradingSheet.UPDATE
-                        "return" -> TradingSheet.RETURN
-                        "reprint" -> TradingSheet.REPRINT
-                        "hold" -> TradingSheet.HOLD
-                        "transfer" -> TradingSheet.TRANSFER
-                        else -> null
-                    }
-            }
-        }
+        val hint = OperatingChromeState.quickAddHint ?: return@LaunchedEffect
         OperatingChromeState.quickAddHint = null
+        openFromCode(hint)
     }
+
     Box(Modifier.fillMaxSize()) {
         Column(
             Modifier
@@ -172,17 +165,10 @@ fun TradingQuickAddHub(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            com.example.momentra.ui.shell.business.shared.OperatingV12HubScreen(
+            OperatingV12HubScreen(
                 model = model,
                 theme = theme,
-                onCapture = { code ->
-                    if (code.equals("APPROVAL", ignoreCase = true)) {
-                        approvalOpen = true
-                    } else {
-                        sheet = TradingSheet.entries.firstOrNull { it.captureMode == code || it.eventType == code }
-                            ?: TradingSheet.UPDATE
-                    }
-                },
+                onCapture = { code -> openFromCode(code) },
                 onOpenMasters = { tabName -> OperatingChromeState.mastersOpen = tabName },
             )
             if (error != null) {
@@ -196,6 +182,7 @@ fun TradingQuickAddHub(
                 modifier = Modifier.clickable { approvalOpen = true }.padding(vertical = 4.dp),
             )
         }
+
         val createMaster: suspend (String, String, String?, String?) -> Unit = { kind, name, unit, conversion ->
             onRecord(
                 TradingEventDraft(
@@ -213,6 +200,24 @@ fun TradingQuickAddHub(
                 ),
             )
         }
+
+        suspend fun submitDraft(draft: TradingEventDraft, dismiss: () -> Unit) {
+            runCatching { onRecord(draft) }
+                .onSuccess {
+                    MtoToastHost.show(
+                        MtoToastSpec(
+                            kind = MtoToastKind.Saved,
+                            title = MtoCaptureCopy.SAVED_TOAST,
+                            body = "Changes recorded · ${model.title ?: "trading"} updated",
+                            actionLabel = "Done",
+                            accent = TradeBrand,
+                        ),
+                    )
+                    dismiss()
+                }
+                .onFailure { error = it.message ?: "Could not save" }
+        }
+
         val open = sheet
         if (open != null) {
             OperatingSheetScrim(
@@ -235,27 +240,10 @@ fun TradingQuickAddHub(
                     variant = "trading",
                     onDismiss = { sheet = null },
                     onSubmit = { draft ->
-                        runCatching { onRecord(draft.toTrading()) }
-                            .onSuccess {
-                                val entity = draft.title.ifBlank {
-                                    draft.counterpartyName.orEmpty()
-                                }.ifBlank { model.title ?: "this capture" }
-                                MtoToastHost.show(
-                                    MtoToastSpec(
-                                        kind = MtoToastKind.Saved,
-                                        title = MtoCaptureCopy.SAVED_TOAST,
-                                        body = "Changes recorded · $entity updated",
-                                        actionLabel = "Done",
-                                        accent = TradeBrand,
-                                    ),
-                                )
-                                sheet = null
-                            }
-                            .onFailure { error = it.message ?: "Could not save" }
+                        submitDraft(draft.toTrading()) { sheet = null }
                     },
                     onDecide = onDecide,
                     onCreateMaster = if ("UPDATE" in allowed) createMaster else null,
-                    companyId = companyId,
                 )
             }
         }
@@ -274,73 +262,33 @@ fun TradingQuickAddHub(
                     model = model,
                     variant = "trading",
                     onDismiss = { approvalOpen = false },
-                    onSubmit = {},
+                    onSubmit = { draft ->
+                        submitDraft(draft.toTrading()) { approvalOpen = false }
+                    },
                     onDecide = onDecide,
-                    companyId = companyId,
                 )
             }
         }
     }
 }
 
-
-
 private val TradingSheet.hubIcon: Int
     get() = when (this) {
-        TradingSheet.SALE, TradingSheet.SPEND -> R.drawable.qa_receipt
+        TradingSheet.SALE, TradingSheet.SPEND, TradingSheet.REPRINT -> R.drawable.qa_receipt
         TradingSheet.PURCHASE -> R.drawable.qa_wallet
         TradingSheet.PAYMENT, TradingSheet.REIMBURSE -> R.drawable.qa_credit_card
-        TradingSheet.COLLECTION -> R.drawable.qa_arrow_left_right
-        TradingSheet.BUDGET -> R.drawable.qa_budget
+        TradingSheet.COLLECTION, TradingSheet.RETURN -> R.drawable.qa_arrow_left_right
+        TradingSheet.BUDGET, TradingSheet.TARGET -> R.drawable.qa_budget
         TradingSheet.UPDATE -> R.drawable.qa_message
         TradingSheet.ISSUE -> R.drawable.qa_alert
-        TradingSheet.STOCK -> R.drawable.qa_package
-        TradingSheet.ORDER -> R.drawable.qa_clipboard
-        TradingSheet.SHIPMENT -> R.drawable.qa_shipment
-        TradingSheet.RETURN -> R.drawable.qa_arrow_left_right
+        TradingSheet.STOCK, TradingSheet.TRANSFER -> R.drawable.qa_package
+        TradingSheet.ORDER, TradingSheet.HOLD -> R.drawable.qa_clipboard
+        TradingSheet.SHIPMENT, TradingSheet.DELIVERY -> R.drawable.qa_shipment
         TradingSheet.PERSON -> R.drawable.qa_user_plus
         TradingSheet.ROLE -> R.drawable.qa_users
         TradingSheet.INVITE -> R.drawable.qa_qr
         TradingSheet.SUPPLIER -> R.drawable.qa_network
-        TradingSheet.HOLD -> R.drawable.qa_shield
-        TradingSheet.TRANSFER -> R.drawable.qa_truck
-        TradingSheet.REPRINT -> R.drawable.qa_receipt
     }
-
-@Composable
-private fun ActionCard(label: String, icon: Int, locked: String?, modifier: Modifier, onClick: () -> Unit) {
-    val ink = if (locked == null) TradeInk else TradeSecondary
-    Column(
-        modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(TradeCard)
-            .border(1.dp, TradeBorder, RoundedCornerShape(14.dp))
-            .clickable(enabled = locked == null, onClick = onClick)
-            .padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(painterResource(icon), contentDescription = null, tint = ink, modifier = Modifier.size(28.dp))
-        Text(label, color = ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, textAlign = TextAlign.Center)
-        if (locked != null) Text(locked, color = TradeSecondary, fontFamily = PlusJakartaSans, fontSize = 11.sp, textAlign = TextAlign.Center)
-    }
-}
-
-@Composable
-private fun HubChip(text: String, filled: Boolean) {
-    Text(
-        text,
-        color = if (filled) TradeBg else TradeSecondary,
-        fontFamily = PlusJakartaSans,
-        fontSize = 12.sp,
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(if (filled) TradeBrand else Color.Transparent)
-            .border(1.dp, if (filled) TradeBrand else TradeBorder, RoundedCornerShape(999.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-    )
-}
-
 
 private val TradingSheet.captureMode: String
     get() = when (this) {
@@ -350,11 +298,13 @@ private val TradingSheet.captureMode: String
         TradingSheet.PAYMENT -> "PAYMENT"
         TradingSheet.COLLECTION -> "COLLECTION"
         TradingSheet.BUDGET -> "BUDGET"
+        TradingSheet.TARGET -> "TARGET"
         TradingSheet.UPDATE -> "UPDATE"
         TradingSheet.ISSUE -> "ISSUE"
         TradingSheet.STOCK -> "STOCK"
         TradingSheet.ORDER -> "ORDER"
         TradingSheet.SHIPMENT -> "SHIPMENT"
+        TradingSheet.DELIVERY -> "DELIVERY"
         TradingSheet.RETURN -> "RETURN"
         TradingSheet.REIMBURSE -> "REIMBURSE"
         TradingSheet.PERSON -> "PERSON"
@@ -392,6 +342,7 @@ private fun OperatingCaptureDraft.toTrading() = TradingEventDraft(
     masterPriceIncludesGst = masterPriceIncludesGst,
     masterSalePriceIncludesGst = masterSalePriceIncludesGst,
     masterPurchasePriceIncludesGst = masterPurchasePriceIncludesGst,
+    masterPurchasePrice = masterPurchasePrice,
     masterGstEffectiveFrom = masterGstEffectiveFrom,
     masterHsn = masterHsn,
     masterGstRegistration = masterGstRegistration,

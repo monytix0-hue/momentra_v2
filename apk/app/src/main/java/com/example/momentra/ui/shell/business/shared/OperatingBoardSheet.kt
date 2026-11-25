@@ -397,8 +397,7 @@ fun OperatingSheetFrame(
         border = theme.border,
         topCorner = if (own) 20.dp else 24.dp,
     ) {
-        Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxWidth()) {
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -527,7 +526,6 @@ fun OperatingSheetFrame(
             }
             Column(
                 Modifier
-                    .weight(1f)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = edgePad)
                     .padding(top = if (own) 14.dp else 0.dp),
@@ -618,7 +616,6 @@ fun OperatingSheetFrame(
                     },
                 )
             }
-        }
         }
     }
 }

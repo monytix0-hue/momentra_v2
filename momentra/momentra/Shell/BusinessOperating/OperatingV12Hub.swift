@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// `TRD-HUB-v11` / Figma Quick Adds hub `5:16417` — mirrors Android `OperatingV12HubScreen`.
+/// `TRD-HUB-v11` / `DST-HUB-v11` — mirrors Android `OperatingV12HubScreen`.
 struct OperatingV12HubScreen: View {
     let model: OperatingProjectionPayload
     let theme: OperatingV12Theme
@@ -38,16 +38,39 @@ struct OperatingV12HubScreen: View {
         Set((model.quickAdds ?? []).map { $0.code.uppercased() })
     }
 
-    private var identity: String {
-        let title = model.title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-            ?? theme.label
-        let gstOn = model.gstTracking?.caseInsensitiveCompare("YES") == .orderedSame
-        return [
-            title,
-            OperatingV12Date.fiscalYear(model.startDate),
-            model.currency ?? "INR",
-            gstOn ? "GST on" : "GST off",
-        ].joined(separator: " · ")
+    private var isDistribution: Bool { theme.verticalKey == "distribution" }
+
+    /// DST-HUB-v11 Money group.
+    private var money: [Tile] {
+        [
+            Tile(id: "SALE", title: "Sale", subtitle: "Invoice · dealer · GST", requires: ["SALE"]),
+            Tile(id: "PURCHASE", title: "Purchase", subtitle: "Supplier · GRN", requires: ["PURCHASE"]),
+            Tile(id: "COLLECTION", title: "Collection", subtitle: "Allocate open AR", requires: ["COLLECTION"]),
+            Tile(id: "PAYMENT", title: "Payment", subtitle: "Settle open AP", requires: ["PAYMENT"]),
+            Tile(id: "SPEND", title: "Expense", subtitle: "Route · van · depot", requires: ["SPEND"]),
+        ]
+    }
+
+    /// DST-HUB-v11 Operations group.
+    private var operations: [Tile] {
+        [
+            Tile(id: "STOCK", title: "Stock", subtitle: "Adjust · count · batch", requires: ["STOCK"]),
+            Tile(id: "RETURN", title: "Return", subtitle: "Credit · goods outcome", requires: ["RETURN"]),
+            Tile(id: "ORDER", title: "Order", subtitle: "SO · PO commitment", requires: ["ORDER", "CUSTOMER_ORDER"]),
+            Tile(id: "SHIPMENT", title: "Delivery", subtitle: "Dispatch · POD", requires: ["SHIPMENT", "DELIVERY"]),
+            Tile(id: "BUDGET", title: "Budget", subtitle: "Versioned revise", requires: ["BUDGET"]),
+        ]
+    }
+
+    /// DST-HUB-v11 People group.
+    private var people: [Tile] {
+        [
+            Tile(id: "PRINCIPALS", title: "Principals & dealers", subtitle: "Principals · dealers · channels", master: "Principals"),
+            Tile(id: "CATALOGUE", title: "Catalogue & SKU", subtitle: "SKU · batch · price", master: "Catalogue"),
+            Tile(id: "LOCATIONS", title: "Warehouses & routes", subtitle: "Depots · beats", master: "Locations"),
+            Tile(id: "INVITE", title: "Invite & QR", subtitle: "Join · people · roles", master: "Invite"),
+            Tile(id: "UPDATE", title: "Update / Issue", subtitle: "Update · blocker · risk", requires: ["UPDATE", "ISSUE"]),
+        ]
     }
 
     private var core: [Tile] {
@@ -101,146 +124,83 @@ struct OperatingV12HubScreen: View {
         ]
     }
 
+    private var utilities: [Tile] {
+        [
+            Tile(id: "HOLD", title: "Hold", subtitle: "Freeze open order or DO", requires: ["ORDER", "CUSTOMER_ORDER"]),
+            Tile(id: "TRANSFER", title: "Transfer", subtitle: "Move stock between locations", requires: ["STOCK"]),
+            Tile(id: "REPRINT", title: "Reprint", subtitle: "Invoice · duplicate copy", requires: ["SALE"]),
+        ]
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            hubHero
-            searchBar
-            tileGrid(
-                title: "Core actions · \(filtered(core).count)",
-                trailing: "Tap to record",
-                tiles: filtered(core)
-            ) { tile in
-                onCapture(tile.id)
+            // Figma Hub Hero `5:16497` — Trading Quick Adds only.
+            if !isDistribution {
+                OperatingV12HubHero(model: model, theme: theme)
             }
-            tileGrid(
-                title: "Support & management · \(filtered(support).count)",
-                trailing: "Role-gated",
-                tiles: filtered(support)
-            ) { tile in
-                if let master = tile.master {
-                    onOpenMasters(master)
-                } else {
+            searchBar
+            if isDistribution {
+                tileGrid(
+                    title: "Money · \(filtered(money).count)",
+                    trailing: "Sale · settle · spend",
+                    tiles: filtered(money)
+                ) { tile in
+                    onCapture(tile.id)
+                }
+                tileGrid(
+                    title: "Operations · \(filtered(operations).count)",
+                    trailing: "Stock · order · delivery",
+                    tiles: filtered(operations)
+                ) { tile in
+                    onCapture(tile.id)
+                }
+                tileGrid(
+                    title: "People · \(filtered(people).count)",
+                    trailing: "Principals · catalogue · routes",
+                    tiles: filtered(people)
+                ) { tile in
+                    if let master = tile.master {
+                        onOpenMasters(master)
+                    } else {
+                        onCapture(tile.id)
+                    }
+                }
+                tileGrid(
+                    title: "Utilities · \(filtered(utilities).count)",
+                    trailing: "Hold · transfer · reprint",
+                    tiles: filtered(utilities)
+                ) { tile in
+                    onCapture(tile.id)
+                }
+            } else {
+                tileGrid(
+                    title: "Core actions · \(filtered(core).count)",
+                    trailing: "Tap to record",
+                    tiles: filtered(core)
+                ) { tile in
+                    onCapture(tile.id)
+                }
+                tileGrid(
+                    title: "Support & management · \(filtered(support).count)",
+                    trailing: "Role-gated",
+                    tiles: filtered(support)
+                ) { tile in
+                    if let master = tile.master {
+                        onOpenMasters(master)
+                    } else {
+                        onCapture(tile.id)
+                    }
+                }
+                tileGrid(
+                    title: "Utilities · \(filtered(utilities).count)",
+                    trailing: "Hold · transfer · reprint",
+                    tiles: filtered(utilities)
+                ) { tile in
                     onCapture(tile.id)
                 }
             }
             whyCard
         }
-    }
-
-    private var hubHero: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("QUICK ADDS · v11.1")
-                .font(v12Font(11, weight: .bold))
-                .foregroundStyle(OperatingV12.cyan)
-                .tracking(1.2)
-            Text("Quick Adds")
-                .font(v12Font(28, weight: .bold))
-                .foregroundStyle(.white)
-            Text(theme.motionLine)
-                .font(v12Font(16, weight: .bold))
-                .foregroundStyle(theme.accent)
-            Text(identity)
-                .font(v12Font(12, weight: .medium))
-                .foregroundStyle(OperatingV12.subtitle)
-            hubButton(
-                title: "Dispatch",
-                iconAsset: TradingChromeIcons.hubAsset("SHIPMENT"),
-                filled: true,
-                locked: heroLocked(["SHIPMENT", "DELIVERY"])
-            ) {
-                onCapture("SHIPMENT")
-            }
-            hubButton(
-                title: "Record Sale",
-                iconAsset: TradingChromeIcons.hubAsset("SALE"),
-                filled: false,
-                locked: heroLocked(["SALE"])
-            ) {
-                onCapture("SALE")
-            }
-            Text("Dispatch moves goods on a route; Record Sale raises the \(partySingular) invoice.")
-                .font(v12Font(11, weight: .medium))
-                .foregroundStyle(OperatingV12.subtitle)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(OperatingV12.surface)
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(OperatingV12.cyan.opacity(0.25), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: Color.black.opacity(0.6), radius: 12, y: 6)
-        .shadow(color: theme.accent.opacity(0.12), radius: 12, y: 4)
-    }
-
-    private var partySingular: String {
-        let noun = theme.partyNoun
-        if noun.lowercased().hasSuffix("s") { return String(noun.dropLast()).lowercased() }
-        return noun.lowercased()
-    }
-
-    private func heroLocked(_ codes: [String]) -> String? {
-        if allowed.isEmpty { return nil }
-        return codes.contains(where: { allowed.contains($0) }) ? nil : "Role locked"
-    }
-
-    private func hubButton(
-        title: String,
-        iconAsset: String,
-        filled: Bool,
-        locked: String?,
-        action: @escaping () -> Void
-    ) -> some View {
-        let enabled = locked == nil
-        return Button(action: action) {
-            HStack(spacing: 8) {
-                Image(iconAsset)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 16, height: 16)
-                    .foregroundStyle(
-                        !enabled ? OperatingV12.subtitle : (filled ? Color.white : theme.accent)
-                    )
-                Text(locked ?? title)
-                    .font(v12Font(15, weight: .bold))
-                    .foregroundStyle(
-                        !enabled ? OperatingV12.subtitle : (filled ? Color.white : OperatingV12.title)
-                    )
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 52)
-            .background(
-                Group {
-                    if !enabled {
-                        Color.white.opacity(0.04)
-                    } else if filled {
-                        theme.accent
-                    } else {
-                        Color.white.opacity(0.06)
-                    }
-                }
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(
-                        !enabled
-                            ? theme.accent.opacity(0.15)
-                            : (filled ? Color.clear : theme.accent.opacity(0.4)),
-                        lineWidth: 1
-                    )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(
-                color: filled && enabled ? theme.accent.opacity(0.5) : .clear,
-                radius: filled && enabled ? 20 : 0,
-                y: filled && enabled ? 4 : 0
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
     }
 
     private var searchBar: some View {
@@ -312,7 +272,7 @@ struct OperatingV12HubScreen: View {
                         }
                         if row.count < 3 {
                             ForEach(0..<(3 - row.count), id: \.self) { _ in
-                                Color.clear.frame(maxWidth: .infinity).frame(height: 112)
+                                Color.clear.frame(maxWidth: .infinity)
                             }
                         }
                     }
@@ -328,7 +288,9 @@ struct OperatingV12HubScreen: View {
             "Delivery = physical movement only",
             "Submit ≠ approval ≠ payment",
             "Stock changes only on receipt / dispatch",
-            "Supplier stock in → buyer dispatch out → route settles collections",
+            isDistribution
+                ? "Supplier stock in → dealer dispatch out → route settles collections"
+                : "Supplier stock in → buyer dispatch out → route settles collections",
         ]
         return VStack(alignment: .leading, spacing: 8) {
             Text("Why these tiles save differently")
@@ -349,12 +311,5 @@ struct OperatingV12HubScreen: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: OperatingV12.cyan.opacity(0.25), radius: 24, y: 8)
-    }
-}
-
-private extension String {
-    var nilIfEmpty: String? {
-        let t = trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.isEmpty ? nil : t
     }
 }

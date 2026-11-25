@@ -62,6 +62,8 @@ import com.example.momentra.ui.shell.business.appstate.AppStateGlassCard
 import com.example.momentra.ui.shell.business.appstate.AppStateSecondaryButton
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateAccent
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateTokens
+import com.example.momentra.ui.shell.business.distribution.DistributionActive
+import com.example.momentra.ui.shell.business.distribution.DistributionEventDraft
 import com.example.momentra.ui.shell.business.marketing.MarketingEventDraft
 import com.example.momentra.ui.shell.business.marketing.MarketingQuickAddHub
 import com.example.momentra.ui.shell.business.trading.TradingActive
@@ -141,7 +143,7 @@ fun OperatingMomentPage(
     val repo = remember { BusinessSliceRepository() }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(momentId, refreshToken, tick) {
+    LaunchedEffect(momentId, refreshToken, tick, OperatingChromeState.refresh) {
         loading = projection == null
         repo.getOperating(momentId).fold(
             onSuccess = {
@@ -178,11 +180,14 @@ fun OperatingMomentPage(
     val isDistribution = DistributionDealershipHub.isDistribution(typeCode)
     val isOwnMarketing = OwnMarketingHub.isOwn(typeCode)
     val isTradingWholesale = isTradingWholesaleHub(typeCode, model?.familyCode)
+    OperatingChromeState.distributionChrome = isDistribution && !isTradingWholesale
 
-    // Figma Trading V12 — never fall through to generic WidgetBlocks for trading.
-    if (isTradingWholesale) {
+    // Figma Trading / Distribution V12 — never fall through to generic WidgetBlocks.
+    if (isTradingWholesale || isDistribution) {
         when {
-            model != null -> {
+            model != null && isTradingWholesale -> {
+                OperatingChromeState.momentId = momentId
+                OperatingChromeState.distributionChrome = false
                 TradingActive(
                     model = model,
                     tab = tab,
@@ -206,6 +211,38 @@ fun OperatingMomentPage(
                         )
                     },
                     companyId = companyId,
+                    momentId = momentId,
+                    modifier = modifier,
+                )
+                return
+            }
+            model != null && isDistribution -> {
+                OperatingChromeState.momentId = momentId
+                OperatingChromeState.distributionChrome = true
+                DistributionActive(
+                    model = model,
+                    tab = tab,
+                    onOpenQuickAdd = onOpenQuickAdd,
+                    onRecord = { draft ->
+                        recordDistributionDraft(repo, momentId, draft).fold(
+                            onSuccess = {
+                                OperatingProjectionCache.invalidate(momentId)
+                                tick += 1
+                            },
+                            onFailure = { error = it.message },
+                        )
+                    },
+                    onDecide = { eventId, decision ->
+                        repo.decideOperatingEvent(momentId, eventId, decision).fold(
+                            onSuccess = {
+                                OperatingProjectionCache.invalidate(momentId)
+                                tick += 1
+                            },
+                            onFailure = { error = it.message },
+                        )
+                    },
+                    companyId = companyId,
+                    momentId = momentId,
                     modifier = modifier,
                 )
                 return
@@ -239,7 +276,6 @@ fun OperatingMomentPage(
                 return
             }
             else -> {
-                // Trading: never fall through to WidgetBlocks while projection is settling.
                 Box(modifier.fillMaxSize().background(palette.bg), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = palette.accent)
                 }
@@ -424,24 +460,28 @@ fun OperatingMomentPage(
                             model = model,
                             momentId = momentId,
                             onRecord = { draft ->
-                                recordClientMarketingDraft(repo, momentId, draft).fold(
-                                    onSuccess = {
-                                        confirm = "Saved ${draft.title}"
-                                        OperatingProjectionCache.invalidate(momentId)
-                                        tick += 1
-                                    },
-                                    onFailure = { error = it.message },
-                                )
+                                scope.launch {
+                                    recordClientMarketingDraft(repo, momentId, draft).fold(
+                                        onSuccess = {
+                                            confirm = "Saved ${draft.title}"
+                                            OperatingProjectionCache.invalidate(momentId)
+                                            tick += 1
+                                        },
+                                        onFailure = { error = it.message },
+                                    )
+                                }
                             },
                             onDecide = { eventId, decision ->
-                                repo.decideOperatingEvent(momentId, eventId, decision).fold(
-                                    onSuccess = {
-                                        confirm = "Decision saved"
-                                        OperatingProjectionCache.invalidate(momentId)
-                                        tick += 1
-                                    },
-                                    onFailure = { error = it.message },
-                                )
+                                scope.launch {
+                                    repo.decideOperatingEvent(momentId, eventId, decision).fold(
+                                        onSuccess = {
+                                            confirm = "Decision saved"
+                                            OperatingProjectionCache.invalidate(momentId)
+                                            tick += 1
+                                        },
+                                        onFailure = { error = it.message },
+                                    )
+                                }
                             },
                         )
                     }
@@ -1064,6 +1104,7 @@ private suspend fun recordTradingDraft(
             unit = draft.unit,
             conversionToBase = draft.conversionToBase,
             sellPrice = draft.unitPrice,
+            purchasePrice = draft.masterPurchasePrice,
             gstApplicable = draft.masterGstApplicable,
             gstClassification = draft.masterGstClassification,
             gstRate = draft.masterGstRate,
@@ -1080,3 +1121,50 @@ private suspend fun recordTradingDraft(
         )
     },
 )
+
+private suspend fun recordDistributionDraft(
+    repo: BusinessSliceRepository,
+    momentId: String,
+    draft: DistributionEventDraft,
+): Result<Unit> = repo.recordOperatingEvent(
+    momentId = momentId,
+    eventType = draft.eventType,
+    title = draft.title,
+    amount = draft.amount,
+    note = draft.note,
+    channelName = draft.channelName,
+    counterpartyName = draft.counterpartyName,
+    paymentStatus = draft.paymentStatus,
+    occurredAt = draft.occurredAt,
+    quantity = draft.quantity,
+    unit = draft.unit,
+    parentEventId = draft.parentEventId,
+    revisesEventId = draft.revisesEventId,
+    dueAt = draft.dueAt,
+    contract = draft.contract,
+    lines = draft.lines,
+    master = draft.masterKind?.let { kind ->
+        OperatingMasterBody(
+            kind = kind,
+            name = draft.title,
+            unit = draft.unit,
+            conversionToBase = draft.conversionToBase,
+            sellPrice = draft.unitPrice,
+            purchasePrice = draft.masterPurchasePrice,
+            gstApplicable = draft.masterGstApplicable,
+            gstClassification = draft.masterGstClassification,
+            gstRate = draft.masterGstRate,
+            priceIncludesGst = draft.masterPriceIncludesGst,
+            salePriceIncludesGst = draft.masterSalePriceIncludesGst,
+            purchasePriceIncludesGst = draft.masterPurchasePriceIncludesGst,
+            gstEffectiveFrom = draft.masterGstEffectiveFrom,
+            hsn = draft.masterHsn,
+            gstRegistration = draft.masterGstRegistration,
+            businessState = draft.masterBusinessState,
+            billingState = draft.masterBillingState,
+            deliveryState = draft.masterDeliveryState,
+            gstin = draft.masterGstin,
+        )
+    },
+)
+

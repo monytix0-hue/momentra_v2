@@ -47,19 +47,42 @@ fun OperatingV12HubScreen(
     onOpenMasters: (String) -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
-    val title = model.title.orEmpty().ifBlank { theme.label }
-    val gstOn = model.gstTracking.equals("YES", ignoreCase = true)
-    val identity = listOf(
-        title,
-        OperatingV12Date.fiscalYear(model.startDate),
-        model.currency ?: "INR",
-        if (gstOn) "GST on" else "GST off",
-    ).joinToString(" · ")
     // Empty capabilities ⇒ leave tiles open (projection still loading). Same honesty as Retail/MTO hubs.
     val allowed = model.quickAdds.map { it.code.uppercase() }.toSet()
 
     // MFG-HUB-v3 `2396:29892` — plant journey only. MTO mounts MadeToOrderQuickAddHub, never this grid.
     val plantHub = theme.verticalKey == "manufacturing"
+    val distHub = theme.verticalKey == "distribution"
+
+    // DST-HUB-v11 Figma groups: Money / Operations / People / Utilities.
+    val money = if (distHub) {
+        listOf(
+            HubTile("SALE", "Sale", "Invoice · dealer · GST", TradingChromeIcons.hubDrawable("SALE"), requires = listOf("SALE")),
+            HubTile("PURCHASE", "Purchase", "Supplier · GRN", TradingChromeIcons.hubDrawable("PURCHASE"), requires = listOf("PURCHASE")),
+            HubTile("COLLECTION", "Collection", "Allocate open AR", TradingChromeIcons.hubDrawable("COLLECTION"), requires = listOf("COLLECTION")),
+            HubTile("PAYMENT", "Payment", "Settle open AP", TradingChromeIcons.hubDrawable("PAYMENT"), requires = listOf("PAYMENT")),
+            HubTile("SPEND", "Expense", "Route · van · depot", TradingChromeIcons.hubDrawable("SPEND"), requires = listOf("SPEND")),
+        )
+    } else emptyList()
+    val operations = if (distHub) {
+        listOf(
+            HubTile("STOCK", "Stock", "Adjust · count · batch", TradingChromeIcons.hubDrawable("STOCK"), requires = listOf("STOCK")),
+            HubTile("RETURN", "Return", "Credit · goods outcome", TradingChromeIcons.hubDrawable("RETURN"), requires = listOf("RETURN")),
+            HubTile("ORDER", "Order", "SO · PO commitment", TradingChromeIcons.hubDrawable("ORDER"), requires = listOf("ORDER", "CUSTOMER_ORDER")),
+            HubTile("SHIPMENT", "Delivery", "Dispatch · POD", TradingChromeIcons.hubDrawable("SHIPMENT"), requires = listOf("SHIPMENT", "DELIVERY")),
+            HubTile("BUDGET", "Budget", "Versioned revise", TradingChromeIcons.hubDrawable("BUDGET"), requires = listOf("BUDGET")),
+        )
+    } else emptyList()
+    val people = if (distHub) {
+        listOf(
+            HubTile("PRINCIPALS", "Principals & dealers", "Principals · dealers · channels", TradingChromeIcons.hubDrawable("PRINCIPALS"), master = "Principals"),
+            HubTile("CATALOGUE", "Catalogue & SKU", "SKU · batch · price", TradingChromeIcons.hubDrawable("CATALOGUE"), master = "Catalogue"),
+            HubTile("LOCATIONS", "Warehouses & routes", "Depots · beats", TradingChromeIcons.hubDrawable("LOCATIONS"), master = "Locations"),
+            HubTile("INVITE", "Invite & QR", "Join · people · roles", TradingChromeIcons.hubDrawable("INVITE"), master = "Invite"),
+            HubTile("UPDATE", "Update / Issue", "Update · blocker · risk", TradingChromeIcons.hubDrawable("UPDATE"), requires = listOf("UPDATE", "ISSUE")),
+        )
+    } else emptyList()
+
     val core = if (plantHub) {
         listOf(
             HubTile("SALE", "Sale", "Invoice · buyer · GST", TradingChromeIcons.hubDrawable("SALE"), requires = listOf("SALE")),
@@ -90,20 +113,8 @@ fun OperatingV12HubScreen(
             }
             HubTile(id, title, subtitle, TradingChromeIcons.hubDrawable(id), requires = requires)
         }
-    } else {
-        listOf(
-            HubTile("SALE", "Sale", "Invoice · buyer · GST", TradingChromeIcons.hubDrawable("SALE"), requires = listOf("SALE")),
-            HubTile("PURCHASE", "Purchase", "Supplier · GRN", TradingChromeIcons.hubDrawable("PURCHASE"), requires = listOf("PURCHASE")),
-            HubTile("COLLECTION", "Collection", "Allocate open AR", TradingChromeIcons.hubDrawable("COLLECTION"), requires = listOf("COLLECTION")),
-            HubTile("PAYMENT", "Payment", "Settle open AP", TradingChromeIcons.hubDrawable("PAYMENT"), requires = listOf("PAYMENT")),
-            HubTile("SPEND", "Expense", "Route · van · depot", TradingChromeIcons.hubDrawable("SPEND"), requires = listOf("SPEND")),
-            HubTile("STOCK", "Stock", "Adjust · count · batch", TradingChromeIcons.hubDrawable("STOCK"), requires = listOf("STOCK")),
-            HubTile("ORDER", "Order", "SO · PO commitment", TradingChromeIcons.hubDrawable("ORDER"), requires = listOf("ORDER", "CUSTOMER_ORDER")),
-            HubTile("SHIPMENT", "Delivery", "Dispatch · POD", TradingChromeIcons.hubDrawable("SHIPMENT"), requires = listOf("SHIPMENT", "DELIVERY")),
-            HubTile("BUDGET", "Budget", "Versioned revise", TradingChromeIcons.hubDrawable("BUDGET"), requires = listOf("BUDGET")),
-        )
-    }
-    val support = listOf(
+    } else emptyList()
+    val support = if (distHub) emptyList() else listOf(
         HubTile(
             "PRINCIPALS",
             when {
@@ -157,8 +168,8 @@ fun OperatingV12HubScreen(
             null
         },
     ).filterNotNull()
-    val utilities = if (plantHub) {
-        listOf(
+    val utilities = when {
+        plantHub -> listOf(
             HubTile("REWORK", "Rework / Scrap", "Rework · scrap · job work", TradingChromeIcons.hubDrawable("UPDATE"), requires = listOf("STOCK")),
             HubTile("HOLD", "Hold", "Park work order", TradingChromeIcons.hubDrawable("HOLD"), requires = listOf("ORDER", "CUSTOMER_ORDER")),
             HubTile("TRANSFER", "WIP transfer", "Between lines · stores", TradingChromeIcons.hubDrawable("TRANSFER"), requires = listOf("STOCK")),
@@ -166,8 +177,12 @@ fun OperatingV12HubScreen(
             HubTile("RETURN", "Return", "Credit · goods outcome", TradingChromeIcons.hubDrawable("RETURN"), requires = listOf("RETURN")),
             HubTile("DELIVERY", "Delivery", "Dispatch · POD", TradingChromeIcons.hubDrawable("DELIVERY"), requires = listOf("DELIVERY", "SHIPMENT")),
         )
-    } else {
-        emptyList()
+        theme.isTrading || distHub -> listOf(
+            HubTile("HOLD", "Hold", "Freeze open order or DO", TradingChromeIcons.hubDrawable("HOLD"), requires = listOf("ORDER", "CUSTOMER_ORDER")),
+            HubTile("TRANSFER", "Transfer", "Move stock between locations", TradingChromeIcons.hubDrawable("TRANSFER"), requires = listOf("STOCK")),
+            HubTile("REPRINT", "Reprint", "Invoice · duplicate copy", TradingChromeIcons.hubDrawable("REPRINT"), requires = listOf("SALE")),
+        )
+        else -> emptyList()
     }
 
     fun filtered(tiles: List<HubTile>): List<HubTile> {
@@ -185,20 +200,38 @@ fun OperatingV12HubScreen(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        hubHero(theme, identity, allowed, onCapture)
+        // Figma Hub Hero `5:16497` — Trading Quick Adds only.
+        if (theme.isTrading) {
+            OperatingV12HubHero(model = model, theme = theme)
+        }
         searchBar(theme, query) { query = it }
-        tileGrid("Core actions · ${core.size}", "Tap to record", filtered(core), theme, ::lockedReason) { tile ->
-            onCapture(tile.id)
-        }
-        tileGrid("Support & management · ${support.size}", "Role-gated", filtered(support), theme, ::lockedReason) { tile ->
-            if (tile.master != null) onOpenMasters(tile.master) else onCapture(tile.id)
-        }
-        if (utilities.isNotEmpty()) {
-            tileGrid("Utilities · ${utilities.size}", "Hold · rework · reprint", filtered(utilities), theme, ::lockedReason) { tile ->
+        if (distHub) {
+            tileGrid("Money · ${filtered(money).size}", "Sale · settle · spend", filtered(money), theme, ::lockedReason) { tile ->
                 onCapture(tile.id)
             }
+            tileGrid("Operations · ${filtered(operations).size}", "Stock · order · delivery", filtered(operations), theme, ::lockedReason) { tile ->
+                onCapture(tile.id)
+            }
+            tileGrid("People · ${filtered(people).size}", "Principals · catalogue · routes", filtered(people), theme, ::lockedReason) { tile ->
+                if (tile.master != null) onOpenMasters(tile.master) else onCapture(tile.id)
+            }
+            tileGrid("Utilities · ${filtered(utilities).size}", "Hold · transfer · reprint", filtered(utilities), theme, ::lockedReason) { tile ->
+                onCapture(tile.id)
+            }
+        } else {
+            tileGrid("Core actions · ${core.size}", "Tap to record", filtered(core), theme, ::lockedReason) { tile ->
+                onCapture(tile.id)
+            }
+            tileGrid("Support & management · ${support.size}", "Role-gated", filtered(support), theme, ::lockedReason) { tile ->
+                if (tile.master != null) onOpenMasters(tile.master) else onCapture(tile.id)
+            }
+            if (utilities.isNotEmpty()) {
+                tileGrid("Utilities · ${utilities.size}", "Hold · rework · reprint", filtered(utilities), theme, ::lockedReason) { tile ->
+                    onCapture(tile.id)
+                }
+            }
         }
-        whyCard()
+        whyCard(distribution = distHub)
     }
 }
 
@@ -210,140 +243,6 @@ private data class HubTile(
     val master: String? = null,
     val requires: List<String> = emptyList(),
 )
-
-@Composable
-private fun hubHero(
-    theme: OperatingV12Theme,
-    identity: String,
-    allowed: Set<String>,
-    onCapture: (String) -> Unit,
-) {
-    fun heroLocked(vararg codes: String): String? {
-        if (allowed.isEmpty()) return null
-        return if (codes.any { it in allowed }) null else "Role locked"
-    }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .shadow(12.dp, RoundedCornerShape(24.dp), ambientColor = Color.Black.copy(alpha = 0.6f), spotColor = theme.accent.copy(alpha = 0.12f))
-            .clip(RoundedCornerShape(24.dp))
-            .background(OperatingV12.surface)
-            .border(1.dp, OperatingV12.cyan.copy(alpha = 0.25f), RoundedCornerShape(24.dp))
-            .padding(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text(
-            "QUICK ADDS · v11.1",
-            color = OperatingV12.cyan,
-            fontFamily = PlusJakartaSans,
-            fontWeight = FontWeight.Bold,
-            fontSize = 11.sp,
-            letterSpacing = 1.2.sp,
-        )
-        Text("Quick Adds", color = Color.White, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 28.sp)
-        Text(theme.motionLine, color = theme.accent, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        Text(identity, color = OperatingV12.subtitle, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Medium, fontSize = 12.sp)
-        if (theme.verticalKey == "manufacturing") {
-            hubButton("Record Production", TradingChromeIcons.hubDrawable("PRODUCTION"), filled = true, theme, locked = heroLocked("PRODUCTION")) {
-                onCapture("PRODUCTION")
-            }
-            hubButton("Record Sale", TradingChromeIcons.hubDrawable("SALE"), filled = false, theme, locked = heroLocked("SALE")) {
-                onCapture("SALE")
-            }
-            Text(
-                "Accepted production posts finished stock once. Sale raises the ${theme.partyNoun.lowercase().dropLast(1)} invoice — scrap never becomes sellable qty.",
-                color = OperatingV12.subtitle,
-                fontFamily = PlusJakartaSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 11.sp,
-            )
-        } else {
-            hubButton(
-                "Dispatch",
-                TradingChromeIcons.hubDrawable("SHIPMENT"),
-                filled = true,
-                theme,
-                locked = heroLocked("SHIPMENT", "DELIVERY"),
-            ) { onCapture("SHIPMENT") }
-            hubButton("Record Sale", TradingChromeIcons.hubDrawable("SALE"), filled = false, theme, locked = heroLocked("SALE")) {
-                onCapture("SALE")
-            }
-            Text(
-                "Dispatch moves goods on a route; Record Sale raises the ${theme.partyNoun.lowercase().dropLast(1)} invoice.",
-                color = OperatingV12.subtitle,
-                fontFamily = PlusJakartaSans,
-                fontWeight = FontWeight.Medium,
-                fontSize = 11.sp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun hubButton(
-    title: String,
-    icon: Int,
-    filled: Boolean,
-    theme: OperatingV12Theme,
-    locked: String? = null,
-    onClick: () -> Unit,
-) {
-    val enabled = locked == null
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(52.dp)
-            .shadow(
-                if (filled && enabled) 20.dp else 0.dp,
-                RoundedCornerShape(14.dp),
-                ambientColor = theme.accent.copy(alpha = 0.5f),
-                spotColor = theme.accent.copy(alpha = 0.5f),
-            )
-            .clip(RoundedCornerShape(14.dp))
-            .background(
-                when {
-                    !enabled -> Color.White.copy(alpha = 0.04f)
-                    filled -> theme.accent
-                    else -> Color.White.copy(alpha = 0.06f)
-                },
-            )
-            .border(
-                1.dp,
-                when {
-                    !enabled -> theme.accent.copy(alpha = 0.15f)
-                    filled -> Color.Transparent
-                    else -> theme.accent.copy(alpha = 0.4f)
-                },
-                RoundedCornerShape(14.dp),
-            )
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-    ) {
-        Icon(
-            painterResource(icon),
-            contentDescription = null,
-            tint = when {
-                !enabled -> OperatingV12.subtitle
-                filled -> Color.White
-                else -> theme.accent
-            },
-            modifier = Modifier.size(16.dp),
-        )
-        Text(
-            locked ?: title,
-            color = when {
-                !enabled -> OperatingV12.subtitle
-                filled -> Color.White
-                else -> OperatingV12.title
-            },
-            fontFamily = PlusJakartaSans,
-            fontWeight = FontWeight.Bold,
-            fontSize = 15.sp,
-        )
-    }
-}
 
 @Composable
 private fun searchBar(theme: OperatingV12Theme, query: String, onChange: (String) -> Unit) {
@@ -414,14 +313,18 @@ private fun tileGrid(
 }
 
 @Composable
-private fun whyCard() {
+private fun whyCard(distribution: Boolean = false) {
     val rules = listOf(
         "Sale ≠ receipt — cash lands only via Collection",
         "Order = commitment only, no stock or ledger move",
         "Delivery = physical movement only",
         "Submit ≠ approval ≠ payment",
         "Stock changes only on receipt / dispatch",
-        "Supplier stock in → buyer dispatch out → route settles collections",
+        if (distribution) {
+            "Supplier stock in → dealer dispatch out → route settles collections"
+        } else {
+            "Supplier stock in → buyer dispatch out → route settles collections"
+        },
     )
     Column(
         Modifier
