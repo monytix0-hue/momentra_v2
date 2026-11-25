@@ -50,7 +50,7 @@ export interface TradingFactsBundle {
   warnings: string[];
 }
 
-function num(value: string | null | undefined): number {
+function num(value: string | number | null | undefined): number {
   const n = Number(value ?? 0);
   return Number.isFinite(n) ? n : 0;
 }
