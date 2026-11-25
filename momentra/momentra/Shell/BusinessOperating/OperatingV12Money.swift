@@ -67,7 +67,7 @@ enum OperatingV12Money {
         let isCount = (metric.unit ?? "").caseInsensitiveCompare("count") == .orderedSame
         let text: String
         if isCount {
-            let raw = metric.value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let raw = metric.value.trimmingCharacters(in: .whitespacesAndNewlines)
             if raw.isEmpty {
                 text = "—"
             } else if let amount = parse(raw, currency: currency) {

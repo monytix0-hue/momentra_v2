@@ -225,6 +225,7 @@ fun TradingQuickAddHub(
                 accent = TradeBrand,
                 surface = TradeSheetSurface,
                 border = Color.White.copy(alpha = 0.08f),
+                expandFully = true,
             ) {
                 OperatingCaptureSheet(
                     title = open.title,
@@ -253,6 +254,7 @@ fun TradingQuickAddHub(
                 accent = TradeBrand,
                 surface = TradeSheetSurface,
                 border = Color.White.copy(alpha = 0.08f),
+                expandFully = true,
             ) {
                 OperatingCaptureSheet(
                     title = "Approval / Reimbursement",

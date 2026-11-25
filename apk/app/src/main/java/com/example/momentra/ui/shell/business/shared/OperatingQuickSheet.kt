@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -177,9 +178,11 @@ fun OperatingSheetScrim(
     border: Color = Color(0xFF2A2538),
     /** Top corner radius — Retail Figma sheets use 28. */
     topCorner: androidx.compose.ui.unit.Dp = 24.dp,
+    /** Trading / Dist capture needs the full sheet so payment + channel aren't clipped. */
+    expandFully: Boolean = false,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = expandFully)
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = topCorner, topEnd = topCorner)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -190,6 +193,7 @@ fun OperatingSheetScrim(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .then(if (expandFully) Modifier.fillMaxHeight(0.94f) else Modifier)
                 .navigationBarsPadding()
         ) {
             content()
@@ -661,12 +665,13 @@ fun OperatingCaptureSheet(
     }
 
     CompositionLocalProvider(LocalOperatingCaptureChrome provides captureChrome) {
-    Box(Modifier.fillMaxWidth()) {
-    // fill=false keeps the scroll body from expanding into empty space when the form is short.
-    Column(Modifier.fillMaxWidth()) {
+    Box(Modifier.fillMaxWidth().then(if (trading) Modifier.fillMaxHeight() else Modifier)) {
+    // Trading sheets get a bounded height from OperatingSheetScrim so weight+scroll works;
+    // other families keep wrap-content (fill=false) for short forms.
+    Column(Modifier.fillMaxWidth().then(if (trading) Modifier.fillMaxHeight() else Modifier)) {
         Column(
             Modifier
-                .weight(1f, fill = false)
+                .weight(1f, fill = trading)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 17.dp)
                 .padding(bottom = 8.dp),
@@ -1012,7 +1017,27 @@ private fun SaleServiceCapture(
         // Trading needs the same GST rate + Supply chips as retail — Save requires them when
         // gstTracking is on and taxMode is Inclusive/Exclusive (auto-set from business prefs).
         GstPriceFields(form, model, purchase = false)
-        if (!trading) {
+        // Channel sits above date/payment so it stays on the first scroll page (iOS parity).
+        if (trading) {
+            val setupChannels = channels.filter { it.isNotBlank() }
+            val hasChannelMasters = model.masters.orEmpty().any {
+                it.kind.equals("CHANNEL", true) && it.name.isNotBlank()
+            }
+            when {
+                setupChannels.isNotEmpty() -> {
+                    ChoiceBlock(
+                        "Channel (C · if enabled)",
+                        setupChannels,
+                        form.channel.ifBlank { setupChannels.first() },
+                    ) { form.channel = it }
+                }
+                hasChannelMasters -> {
+                    LovField("Channel (C · if enabled)", form.channel, "channel") {
+                        form.lovKind = "CHANNEL"
+                    }
+                }
+            }
+        } else {
             if (lovTrade) LovField(channelLabel, form.channel, "channel") { form.lovKind = "CHANNEL" }
             else if (channels.isNotEmpty()) ChoiceBlock(channelLabel, channels, form.channel) { form.channel = it }
             else EditField(channelLabel, form.channel, "Required when channel tracking is on") { form.channel = it }
@@ -1053,12 +1078,6 @@ private fun SaleServiceCapture(
         if (trading && form.choice.equals("Pay later", true)) {
             LovField("Customer (C · pay later)", form.party, "customer") { form.lovKind = "BUYER" }
             ReadField("Due date (C)", form.dueDateText, trailing = "Credit policy", dangerLabel = true) { form.dueDateOpen = true }
-        }
-        if (trading) {
-            val knownChannel = channels.isNotEmpty() || model.masters.orEmpty().any { it.kind.equals("CHANNEL", true) }
-            if (knownChannel) {
-                LovField("Channel (C · if enabled)", form.channel, "channel") { form.lovKind = "CHANNEL" }
-            }
         }
         if (lovTrade && itemizedSale) {
             // QA-04 — delivery status on itemised sale only (Trading + Distribution + wholesale).
@@ -5863,9 +5882,11 @@ private fun previewGst(form: CaptureForm): GstPreview? {
 @Composable
 private fun GstPriceFields(form: CaptureForm, model: OperatingProjectionDto, purchase: Boolean) {
     if (model.gstTracking != "YES") return
-    val included = "GST included in price"
-    val added = "GST added separately"
-    val blank = "Not configured"
+    val tradingChrome = OperatingCaptureChromeTokens.isOpsQa(LocalOperatingCaptureChrome.current)
+    // Short labels on trading sheets — long Figma copy wraps into a second row and hides Supply.
+    val included = if (tradingChrome) "GST included" else "GST included in price"
+    val added = if (tradingChrome) "GST added" else "GST added separately"
+    val blank = if (tradingChrome) "No GST" else "Not configured"
     val selected = when (form.taxMode) {
         "Inclusive" -> included
         "Exclusive" -> added

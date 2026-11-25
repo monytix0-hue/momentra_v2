@@ -341,6 +341,11 @@ enum OperatingSetupPayloadBuilder {
         for channel in channels {
             masters.append(MasterSeed(kind: "CHANNEL", name: channel))
         }
+        // Setup DC location → Warehouses & routes master (Locations tab).
+        let locationName = firstNonEmpty(prefs["location"], prefs["locality"])
+        if !locationName.isEmpty {
+            masters.append(MasterSeed(kind: "WAREHOUSE", name: locationName))
+        }
 
         if !activating {
             return Result(preferences: prefs, masterSeeds: masters, validationError: nil)

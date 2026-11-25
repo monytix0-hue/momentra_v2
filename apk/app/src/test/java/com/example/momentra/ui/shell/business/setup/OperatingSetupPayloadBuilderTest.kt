@@ -103,6 +103,10 @@ class OperatingSetupPayloadBuilderTest {
         assertEquals("NO", result.preferences["salePriceIncludesGst"])
         @Suppress("UNCHECKED_CAST")
         assertEquals(listOf("Counter", "Online"), result.preferences["channels"] as List<*>)
+        assertTrue(
+            result.masterSeeds.any { it.kind == "WAREHOUSE" && it.name == "Andheri West" },
+            "Setup location must seed a WAREHOUSE master for Locations tab",
+        )
         val status = OperatingSetupPayloadBuilder.planStatusMessage(result.preferences)
         assertTrue(status.first)
         assertEquals("Budget and sales target look good", status.second)
@@ -142,6 +146,26 @@ class OperatingSetupPayloadBuilderTest {
         assertEquals("9000000.0000", result.preferences["monthlyTarget"])
         assertEquals("OPERATIONS_LEAD", OperatingSetupPayloadBuilder.mapRole("Sales exec"))
         assertEquals("TEAM_MEMBER", OperatingSetupPayloadBuilder.mapRole("Sales rep"))
+    }
+
+    @Test
+    fun tradingLocationSeedsWarehouseMaster() {
+        val result = OperatingSetupPayloadBuilder.build(
+            preferences = mapOf(
+                "businessName" to "Pureborn",
+                "companyName" to "Pureborn",
+                "location" to "moosapet",
+                "channels" to "Retail buyers",
+                "monthlyBudget" to "1000",
+                "monthlySalesTarget" to "2000",
+            ),
+            momentTypeCode = "TRADING_WHOLESALE",
+            title = "Pureborn",
+            activating = false,
+        )
+        assertEquals("moosapet", result.preferences["location"])
+        assertTrue(result.masterSeeds.any { it.kind == "WAREHOUSE" && it.name == "moosapet" })
+        assertTrue(result.masterSeeds.any { it.kind == "CHANNEL" && it.name == "Retail buyers" })
     }
 
     @Test

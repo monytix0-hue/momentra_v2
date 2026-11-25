@@ -7,19 +7,22 @@ struct TradingCaptureLine: Identifiable, Equatable {
     var quantity: String
     var unit: String
     var unitPrice: String
+    var masterId: String?
 
     init(
         id: UUID = UUID(),
         itemName: String,
         quantity: String,
         unit: String = "pc",
-        unitPrice: String
+        unitPrice: String,
+        masterId: String? = nil
     ) {
         self.id = id
         self.itemName = itemName
         self.quantity = quantity
         self.unit = unit
         self.unitPrice = unitPrice
+        self.masterId = masterId
     }
 
     var lineTotal: Decimal? {
@@ -86,6 +89,8 @@ struct TradingCaptureDraft {
     var updateKind = "Update"
     var reprintKind = "Invoice"
     var remainingHint = ""
+    /// PRODUCT LOV master id for the pending itemized row (cleared when line is added).
+    var productMasterId: String? = nil
     var savedLines: [TradingCaptureLine] = []
 }
 
@@ -1158,12 +1163,14 @@ struct TradingCaptureForm: View {
                 itemName: name,
                 quantity: qty,
                 unit: draft.unit.ifBlankDefault("pc"),
-                unitPrice: draft.unitPrice
+                unitPrice: draft.unitPrice,
+                masterId: draft.productMasterId
             )
         )
         draft.itemName = ""
         draft.quantity = ""
         draft.unitPrice = ""
+        draft.productMasterId = nil
         syncAmountFromLines()
     }
 
@@ -1250,12 +1257,17 @@ struct TradingCaptureForm: View {
         switch kind.uppercased() {
         case "PRODUCT":
             draft.itemName = option.name
+            let id = option.id
+            draft.productMasterId = (id.hasPrefix("local-") || id.hasPrefix("seed-") || id.hasPrefix("channel-"))
+                ? nil
+                : id.nilIfBlank
             if let u = option.unit?.nilIfBlank { draft.unit = u }
             if draft.quantity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 draft.quantity = "1"
             }
             if let master = projection?.masters?.first(where: { $0.id == option.id }) {
                 applyProductMasterPrefill(master)
+                draft.productMasterId = master.id.nilIfBlank
             }
             if draft.title.isEmpty { draft.title = option.name }
             syncAmountFromLines()
@@ -1466,6 +1478,67 @@ struct TradingCaptureForm: View {
             }
         }
 
+        if mode.uppercased() == "SALE" {
+            let itemized = draft.entryMode.localizedCaseInsensitiveContains("Item")
+            let pendingName = draft.itemName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if itemized {
+                let hasLines = !draft.savedLines.isEmpty || !pendingName.isEmpty
+                if !hasLines {
+                    errors = ["Add at least one item."]
+                    return
+                }
+                func lineOk(name: String, quantity: String, unit: String, unitPrice: String) -> Bool {
+                    let qty = Decimal(string: quantity.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+                    let price = Decimal(string: BusinessSetupAmountFormatting.plainAmount(unitPrice)) ?? 0
+                    return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        && qty > 0
+                        && !unit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        && price > 0
+                }
+                let savedBad = draft.savedLines.contains {
+                    !lineOk(name: $0.itemName, quantity: $0.quantity, unit: $0.unit, unitPrice: $0.unitPrice)
+                }
+                let pendingBad = !pendingName.isEmpty && !lineOk(
+                    name: pendingName,
+                    quantity: draft.quantity.ifBlankDefault("1"),
+                    unit: draft.unit.ifBlankDefault("pc"),
+                    unitPrice: draft.unitPrice
+                )
+                if savedBad || pendingBad {
+                    errors = ["Each item needs a name, quantity, unit, and price."]
+                    return
+                }
+            } else {
+                let plain = BusinessSetupAmountFormatting.plainAmount(draft.amount)
+                if plain.isEmpty || (Decimal(string: plain) ?? 0) <= 0 {
+                    errors = ["Amount is required."]
+                    return
+                }
+            }
+            let channels = (projection?.life?.channels ?? []).filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            let hasChannelMasters = (projection?.masters ?? []).contains {
+                $0.kind.caseInsensitiveCompare("CHANNEL") == .orderedSame
+                    && !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            if (channels.isEmpty == false || hasChannelMasters),
+               draft.channel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                errors = ["Sales channel is required."]
+                return
+            }
+            let pay = draft.paymentChoice.lowercased()
+            let settled = pay == "received" || pay == "paid"
+            if !settled {
+                if draft.counterparty.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    errors = ["A named buyer is required when a balance remains."]
+                    return
+                }
+                if draft.dueAt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    errors = ["Due date is required when a balance remains."]
+                    return
+                }
+            }
+        }
+
         submitting = true
         defer { submitting = false }
 
@@ -1496,7 +1569,7 @@ struct TradingCaptureForm: View {
                 $0.quantity,
                 $0.unit,
                 BusinessSetupAmountFormatting.plainAmount($0.unitPrice).nilIfBlank,
-                nil,
+                $0.masterId,
                 taxOnWire ? taxModeWire : "NOT_CONFIGURED",
                 taxOnWire ? draft.gstRate.nilIfBlank : nil
             )
@@ -1508,7 +1581,7 @@ struct TradingCaptureForm: View {
                 draft.quantity.nilIfBlank ?? "1",
                 draft.unit.nilIfBlank,
                 BusinessSetupAmountFormatting.plainAmount(draft.unitPrice).nilIfBlank,
-                nil,
+                draft.productMasterId,
                 taxOnWire ? taxModeWire : "NOT_CONFIGURED",
                 taxOnWire ? draft.gstRate.nilIfBlank : nil
             ))
@@ -1524,9 +1597,13 @@ struct TradingCaptureForm: View {
 
         let contract: OperatingContractInput? = {
             var c = OperatingContractInput()
-            c.entryMode = draft.entryMode.nilIfBlank
-            c.paymentState = stickyPaymentChoice
-            c.receiptState = mode.uppercased() == "PURCHASE" ? draft.receiptState.nilIfBlank : nil
+            c.entryMode = Self.entryModeWire(draft.entryMode)
+            c.paymentState = Self.paymentStateWire(
+                choice: draft.paymentChoice,
+                mode: mode,
+                receiptState: draft.receiptState
+            )
+            c.receiptState = mode.uppercased() == "PURCHASE" ? Self.receiptStateWire(draft.receiptState) : nil
             c.receivedAmount = draft.receivedAmount.nilIfBlank
             c.stockAction = stockAction
             c.stockReason = stockReasonWire
@@ -1636,6 +1713,52 @@ struct TradingCaptureForm: View {
         case "not configured", "none": return "NOT_CONFIGURED"
         default: return draft.taxMode.nilIfBlank
         }
+    }
+
+    /// APK `buildDraft` — server only accepts QUICK | ITEMIZED.
+    private static func entryModeWire(_ label: String) -> String? {
+        let raw = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if raw.isEmpty { return nil }
+        if raw.contains("item") { return "ITEMIZED" }
+        if raw.contains("quick") { return "QUICK" }
+        if raw == "itemized" || raw == "itemised" { return "ITEMIZED" }
+        if raw == "quick" || raw == "quick amount" || raw == "quick sale" { return "QUICK" }
+        return nil
+    }
+
+    /// APK `buildDraft` — server only accepts RECEIVED | PART_PAID | PAY_LATER | PAID.
+    private static func paymentStateWire(choice: String, mode: String, receiptState: String) -> String? {
+        let raw = choice.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if mode.uppercased() == "PURCHASE" {
+            if raw == "paid" || raw == "received" { return "PAID" }
+            if raw.contains("part") { return "PART_PAID" }
+            if raw.contains("later") || raw.contains("pending") { return "PAY_LATER" }
+            // Fall back from receipt chips when paymentChoice was left default.
+            let receipt = receiptState.lowercased()
+            if receipt.contains("fully") || receipt.contains("received now") { return "PAID" }
+            if receipt.contains("part") { return "PART_PAID" }
+            return "PAY_LATER"
+        }
+        if raw == "received" || raw == "paid" || raw == "walk-in" || raw == "fully paid" {
+            return "RECEIVED"
+        }
+        if raw.contains("part") { return "PART_PAID" }
+        if raw.contains("later") || raw.contains("credit") || raw.contains("pending") {
+            return "PAY_LATER"
+        }
+        return raw.isEmpty ? nil : "PAY_LATER"
+    }
+
+    /// Server receiptState: RECEIVED | PART_RECEIVED | AWAITING.
+    private static func receiptStateWire(_ label: String) -> String? {
+        let raw = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if raw.isEmpty { return nil }
+        if raw.contains("fully") || raw == "received" || raw.contains("received now") {
+            return "RECEIVED"
+        }
+        if raw.contains("part") { return "PART_RECEIVED" }
+        if raw.contains("await") || raw.contains("later") { return "AWAITING" }
+        return nil
     }
 
     /// QA-04 itemized SALE — DELIVERED | PARTIAL | LATER

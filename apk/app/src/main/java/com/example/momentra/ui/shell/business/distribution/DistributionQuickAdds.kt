@@ -197,7 +197,7 @@ fun DistributionQuickAddHub(
         }
         val open = sheet
         if (open != null) {
-            OperatingSheetScrim(onDismiss = { sheet = null }, accent = DistBrand) {
+            OperatingSheetScrim(onDismiss = { sheet = null }, accent = DistBrand, expandFully = true) {
                 OperatingCaptureSheet(
                     title = open.title,
                     icon = open.hubIcon,
@@ -221,7 +221,7 @@ fun DistributionQuickAddHub(
             }
         }
         if (approvalOpen) {
-            OperatingSheetScrim(onDismiss = { approvalOpen = false }, accent = DistBrand) {
+            OperatingSheetScrim(onDismiss = { approvalOpen = false }, accent = DistBrand, expandFully = true) {
                 OperatingCaptureSheet(
                     title = "Review Approval",
                     icon = R.drawable.qa_shield,

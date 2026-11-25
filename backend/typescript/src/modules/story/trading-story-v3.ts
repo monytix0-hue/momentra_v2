@@ -348,15 +348,14 @@ async function loadMomentContext(
   events: OperatingEventRow[];
   gstAvailable: boolean;
 }> {
+  // Currency lives on business_system_setup.preferences — not business_moment_context.
   const moment = await client.query<{
     title: string;
     moment_type_code: string | null;
-    currency_code: string | null;
   }>(
-    `SELECT m.title, mt.code AS moment_type_code, bmc.currency_code
+    `SELECT m.title, mt.code AS moment_type_code
      FROM core.moment m
      LEFT JOIN core.moment_type mt ON mt.moment_type_id = m.moment_type_id
-     LEFT JOIN business.business_moment_context bmc ON bmc.moment_id = m.moment_id
      WHERE m.moment_id = $1`,
     [momentId]
   );
@@ -376,6 +375,16 @@ async function loadMomentContext(
   const subtype = (row.moment_type_code ?? '').toUpperCase();
   const mode: 'trading' | 'distribution' =
     subtype === 'DISTRIBUTION_DEALERSHIP' ? 'distribution' : 'trading';
+
+  const setup = await client.query<{ preferences: unknown }>(
+    `SELECT preferences FROM business.business_system_setup WHERE moment_id = $1 LIMIT 1`,
+    [momentId]
+  );
+  const prefs = (setup.rows[0]?.preferences ?? {}) as Record<string, unknown>;
+  const currency = storyCurrencyCode(prefs.currency);
+  const gstAvailable =
+    String(prefs.gstTracking ?? '').toUpperCase() === 'YES' ||
+    Boolean(prefs.gstin || prefs.gstRegistered || prefs.gstEnabled);
 
   const eventsQ = await client.query<{
     operating_event_id: string;
@@ -426,29 +435,29 @@ async function loadMomentContext(
       parentEventId: r.parent_event_id,
       counterpartyName: r.counterparty_name,
       channelName: r.channel_name,
-      currencyCode: r.currency_code ?? row.currency_code ?? 'INR',
+      currencyCode: r.currency_code ?? currency,
       dueAt: dueRaw == null ? null : String(dueRaw),
       contract,
       ledgerStatus: payload.ledgerStatus === 'SUPERSEDED' ? 'SUPERSEDED' : null,
     };
   });
 
-  const setup = await client.query<{ preferences: unknown }>(
-    `SELECT preferences FROM business.business_system_setup WHERE moment_id = $1 LIMIT 1`,
-    [momentId]
-  );
-  const prefs = (setup.rows[0]?.preferences ?? {}) as Record<string, unknown>;
-  const gstAvailable = Boolean(prefs.gstin || prefs.gstRegistered || prefs.gstEnabled);
-
   return {
     title: row.title,
     subtype,
     mode,
-    currency: row.currency_code ?? 'INR',
+    currency,
     timezone: 'Asia/Kolkata',
     events,
     gstAvailable,
   };
+}
+
+/** Prefs may store `INR` or display forms like `INR · Indian Rupee (₹)`. */
+function storyCurrencyCode(raw: unknown): string {
+  const text = String(raw ?? '').trim().toUpperCase();
+  const match = text.match(/^[A-Z]{3}/);
+  return match?.[0] ?? 'INR';
 }
 
 export async function getTradingStoryOptions(
