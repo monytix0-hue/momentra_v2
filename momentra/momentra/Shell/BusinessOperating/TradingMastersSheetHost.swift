@@ -108,6 +108,10 @@ struct TradingMastersSheetHost: View {
         projection?.title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank ?? "this moment"
     }
 
+    private var isDistribution: Bool {
+        (projection?.subtype ?? "").caseInsensitiveCompare("DISTRIBUTION_DEALERSHIP") == .orderedSame
+    }
+
     private var promoteFromEvent: Bool { (editing?.source ?? "") == "EVENT" }
     private var tableBacked: Bool { editing != nil && !promoteFromEvent }
 
@@ -184,9 +188,16 @@ struct TradingMastersSheetHost: View {
                 }
 
                 if tab == .invite {
-                    Text(tab.whyNote)
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color.white.opacity(0.6))
+                    BusinessInviteQrView(
+                        momentId: momentId,
+                        title: brand,
+                        viewerRole: projection?.role,
+                        companyIdHint: companyId ?? projection?.companyId,
+                        accent: accent,
+                        distribution: isDistribution,
+                        showIntroHeader: true,
+                        onError: { error = $0 }
+                    )
                 } else if companyId == nil {
                     Text("Masters need a company. This moment is not attached to one yet.")
                         .font(.system(size: 13))
@@ -519,10 +530,32 @@ struct TradingMastersSheetHost: View {
     private func reloadMasters() async {
         guard let companyId, !companyId.isEmpty else { return }
         do {
-            let payload = try await APIClient.shared.listOperatingMasters(
+            var payload = try await APIClient.shared.listOperatingMasters(
                 companyId: companyId,
                 momentId: momentId
             )
+            // Backfill setup DC location → WAREHOUSE when Locations is empty.
+            if tab == .locations {
+                let locKinds: Set<String> = ["WAREHOUSE", "LOCATION", "ROUTE"]
+                let hasLoc = payload.items.contains { locKinds.contains($0.kind.uppercased()) }
+                    || (projection?.masters ?? []).contains { locKinds.contains($0.kind.uppercased()) }
+                let setupLoc = projection?.location?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if !hasLoc, !setupLoc.isEmpty {
+                    var body = OperatingMasterCreateBody(kind: "WAREHOUSE", name: setupLoc)
+                    body.momentId = momentId
+                    _ = try? await APIClient.shared.createOperatingMaster(
+                        companyId: companyId,
+                        body: body,
+                        idempotencyKey: "setup-loc-\(momentId)-\(setupLoc.lowercased())"
+                    )
+                    if let again = try? await APIClient.shared.listOperatingMasters(
+                        companyId: companyId,
+                        momentId: momentId
+                    ) {
+                        payload = again
+                    }
+                }
+            }
             remote = payload.items
             error = nil
         } catch {

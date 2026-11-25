@@ -311,6 +311,11 @@ object OperatingSetupPayloadBuilder {
         for (channel in channels) {
             masters += MasterSeed(kind = "CHANNEL", name = channel)
         }
+        // Setup DC location → Warehouses & routes master (Locations tab).
+        val locationName = firstNonEmpty(prefs["location"], prefs["locality"])
+        if (locationName.isNotEmpty()) {
+            masters += MasterSeed(kind = "WAREHOUSE", name = locationName)
+        }
 
         if (!activating) {
             return Result(preferences = prefs, masterSeeds = masters, validationError = null)

@@ -278,6 +278,7 @@ fun OperatingChromeSheets(
             accent = theme.accent,
             surface = theme.surface,
             border = theme.border,
+            expandFully = true,
         ) {
             OperatingCaptureSheet(
                 title = "Edit ${reviseRow.eventType.lowercase().replaceFirstChar { it.titlecase() }}",

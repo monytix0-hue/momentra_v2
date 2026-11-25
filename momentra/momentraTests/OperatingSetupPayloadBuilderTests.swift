@@ -384,9 +384,29 @@ struct OperatingSetupPayloadBuilderTests {
         #expect(built.preferences["startDate"] as? String == "2026-10-01")
         #expect(built.preferences["salePriceIncludesGst"] as? String == "NO")
         #expect(built.preferences["channels"] as? [String] == ["Counter", "Online"])
+        #expect(built.masterSeeds.contains { $0.kind == "WAREHOUSE" && $0.name == "Andheri West" })
         let status = OperatingSetupPayloadBuilder.planStatusMessage(preferences: built.preferences)
         #expect(status.ok)
         #expect(status.message == "Budget and sales target look good")
+    }
+
+    @Test func tradingLocationSeedsWarehouseMaster() {
+        let built = OperatingSetupPayloadBuilder.build(
+            preferences: [
+                "businessName": "Pureborn",
+                "companyName": "Pureborn",
+                "location": "moosapet",
+                "channels": "Retail buyers",
+                "monthlyBudget": "1000",
+                "monthlySalesTarget": "2000",
+            ],
+            momentTypeCode: "TRADING_WHOLESALE",
+            title: "Pureborn",
+            activating: false
+        )
+        #expect(built.preferences["location"] as? String == "moosapet")
+        #expect(built.masterSeeds.contains { $0.kind == "WAREHOUSE" && $0.name == "moosapet" })
+        #expect(built.masterSeeds.contains { $0.kind == "CHANNEL" && $0.name == "Retail buyers" })
     }
 
     @Test func retailActivateMissingChannelsHighlightsChannels() {

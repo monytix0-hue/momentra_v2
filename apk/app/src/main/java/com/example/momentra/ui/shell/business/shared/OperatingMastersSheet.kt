@@ -150,7 +150,31 @@ internal fun OperatingMastersSheet(
             return@LaunchedEffect
         }
         repo.listMasters(companyId, momentId = context.momentId).fold(
-            onSuccess = { remote = it; error = null },
+            onSuccess = { listed ->
+                var next = listed
+                // Backfill setup DC location → WAREHOUSE when Locations is empty.
+                if (tab == OperatingMasterTab.Locations) {
+                    val locKinds = setOf("WAREHOUSE", "LOCATION", "ROUTE")
+                    val hasLoc = next.any { it.kind.uppercase() in locKinds } ||
+                        model.masters.orEmpty().any { it.kind.uppercase() in locKinds }
+                    val setupLoc = model.location?.trim().orEmpty()
+                    if (!hasLoc && setupLoc.isNotEmpty()) {
+                        // Idempotent: ignore duplicate / network — list again either way.
+                        repo.createMaster(
+                            companyId = companyId,
+                            body = OperatingMasterBody(
+                                kind = "WAREHOUSE",
+                                name = setupLoc,
+                                momentId = context.momentId,
+                            ),
+                        )
+                        next = repo.listMasters(companyId, momentId = context.momentId)
+                            .getOrElse { next }
+                    }
+                }
+                remote = next
+                error = null
+            },
             onFailure = { error = it.message },
         )
     }
