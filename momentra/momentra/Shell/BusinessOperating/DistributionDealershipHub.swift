@@ -46,7 +46,7 @@ enum DistributionDealershipHub {
         "SALE", "PURCHASE", "COLLECTION", "PAYMENT", "ORDER", "SHIPMENT", "DELIVERY", "STOCK",
     ]
     static let quickAddSupport: Set<String> = [
-        "SPEND", "BUDGET", "UPDATE", "ISSUE", "APPROVAL", "RETURN",
+        "SPEND", "BUDGET", "TARGET", "UPDATE", "ISSUE", "APPROVAL", "RETURN",
     ]
 
     static func formatMetricValue(_ raw: String?) -> String {

@@ -152,6 +152,14 @@ function applyPostedGst(
     if (input.gst) contract.taxStatus = 'NOT_CONFIGURED';
     return { ok: true, amount: entered };
   }
+  // Operator left tax optional on the sheet — do not require Supply or rate.
+  if (contract.taxMode === 'NOT_CONFIGURED' || contract.taxMode == null) {
+    contract.taxMode = 'NOT_CONFIGURED';
+    contract.taxStatus = 'NOT_CONFIGURED';
+    contract.taxJurisdiction = null;
+    contract.gstRate = null;
+    return { ok: true, amount: entered };
+  }
   const preference = side === 'SALE' ? input.gst.saleIncludesGst : input.gst.purchaseIncludesGst;
   // Prefer the stored code; fall back to resolving the name so a context built without the code
   // still compares correctly.

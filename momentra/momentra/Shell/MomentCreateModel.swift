@@ -387,6 +387,68 @@ final class MomentCreateModel: ObservableObject {
         )
     }
 
+    /// Ensures company (creating draft linkage when needed), uploads logo, patches profileJson.logoMediaId.
+    /// Callers: BusinessSetupShell post-pick upload. Prefers the company already linked to [momentId].
+    func uploadSetupLogo(
+        companyId: String?,
+        momentId: String?,
+        companyName: String,
+        bytes: Data,
+        contentType: String = "image/jpeg"
+    ) async -> Result<SetupLogoUploadResult, Error> {
+        do {
+            let momentLinked: String?
+            if let momentId, !momentId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                momentLinked = await getDomainSetupPrefill(momentId: momentId)?.companyId
+            } else {
+                momentLinked = nil
+            }
+            let resolvedCompanyId: String
+            switch SetupLogoCompanyResolver.resolveForUpload(
+                passedCompanyId: companyId,
+                momentLinkedCompanyId: momentLinked
+            ) {
+            case .useExisting(let id):
+                resolvedCompanyId = id
+            case .wouldCreate:
+                guard let momentId, !momentId.isEmpty else {
+                    return .failure(NSError(
+                        domain: "MomentCreateModel",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Could not create company for logo"]
+                    ))
+                }
+                guard let created = await ensureSetupCompany(
+                    momentId: momentId,
+                    companyName: companyName
+                ) else {
+                    return .failure(NSError(
+                        domain: "MomentCreateModel",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Could not create company for logo"]
+                    ))
+                }
+                resolvedCompanyId = created
+            }
+            let mediaId = try await APIClient.shared.uploadCompanyLogo(
+                companyId: resolvedCompanyId,
+                bytes: bytes,
+                contentType: contentType
+            )
+            let company = try await APIClient.shared.getCompany(companyId: resolvedCompanyId)
+            _ = try await APIClient.shared.patchCompany(
+                companyId: resolvedCompanyId,
+                body: [
+                    "expectedVersion": company.version,
+                    "profileJson": ["logoMediaId": mediaId],
+                ]
+            )
+            return .success(SetupLogoUploadResult(companyId: resolvedCompanyId, mediaId: mediaId))
+        } catch {
+            return .failure(error)
+        }
+    }
+
     private func submitGroupEdit(
         momentId: String,
         title: String,

@@ -1,0 +1,567 @@
+package com.example.momentra.ui.shell.business.shared
+
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import com.example.momentra.ui.shell.empty.business.BusinessSetupKind
+
+/** Shared business sheet tokens aligned with the Group/Trip sheet palette. */
+object BusinessSheetTokens {
+    val bg = Color(0xFF1C1A24)
+    val field = Color(0xFF252332)
+    val border = Color(0xFF323042)
+    val muted = Color(0xFF9E9AA8)
+    val text = Color(0xFFFFFFFF)
+}
+
+/** B01–B03 Business active tokens — Team Ops / Runway / Operations. */
+data class BusinessActiveTheme(
+    val bg: Color,
+    val accent: Color,
+    val accentSolid: Color,
+    val accentLight: Color,
+    val accentSoft: Color,
+    val text: Color,
+    val secondary: Color,
+    val muted: Color,
+    val card: Color,
+    val border: Color,
+    val typeLabel: String,
+    val pulseTitle: String,
+    val momentsTitle: String,
+    val lifeTitle: String,
+    val memoryTitle: String,
+    val hubSubtitle: String,
+    val hubHeroTitle: String,
+    val hubHeroDetail: String,
+    val hubHeroRes: Int,
+    val filterChips: List<String>,
+    val heroGradient: Brush,
+) {
+    companion object {
+        val TeamOperations = BusinessActiveTheme(
+            bg = Color(0xFF0C0F15),
+            accent = Color(0xFF10B981),
+            accentSolid = Color(0xFF059669),
+            accentLight = Color(0xFF34D399),
+            accentSoft = Color(0x3310B981),
+            text = Color(0xFFE5E0EE),
+            secondary = Color(0xFF94A3B8),
+            muted = Color(0xFF64748B),
+            card = Color(0xFF161B26),
+            border = Color(0xFF1E293B),
+            typeLabel = "Team & Work",
+            pulseTitle = "Team & Work",
+            momentsTitle = "Team & Work",
+            lifeTitle = "Team & Work",
+            memoryTitle = "Team & Work",
+            hubSubtitle = "Add progress, decisions, and team updates",
+            hubHeroTitle = "Team & Work",
+            hubHeroDetail = "Add people, plans, decisions, and updates",
+            hubHeroRes = com.example.momentra.R.drawable.team_ops_hub_hero,
+            filterChips = listOf("Team Sync", "Sprint Review"),
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFF6366F1), Color(0xFFA855F7))),
+        )
+
+        val BusinessRunway = BusinessActiveTheme(
+            bg = Color(0xFF0C0F15),
+            accent = Color(0xFFF59E0B),
+            accentSolid = Color(0xFFD97706),
+            accentLight = Color(0xFFFBBF24),
+            accentSoft = Color(0x33F59E0B),
+            text = Color(0xFFE5E0EE),
+            secondary = Color(0xFF94A3B8),
+            muted = Color(0xFF64748B),
+            card = Color(0xFF161B26),
+            border = Color(0xFF1E293B),
+            typeLabel = "Money & Cash Flow",
+            pulseTitle = "Money & Cash Flow",
+            momentsTitle = "Money & Cash Flow",
+            lifeTitle = "Money & Cash Flow",
+            memoryTitle = "Money & Cash Flow",
+            hubSubtitle = "Track cash, spending, and forecasts",
+            hubHeroTitle = "Money & Cash Flow",
+            hubHeroDetail = "Track revenue, expenses, taxes and forecasts",
+            hubHeroRes = com.example.momentra.R.drawable.runway_hub_hero,
+            filterChips = listOf("Revenue", "Expenses"),
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFF6366F1), Color(0xFFA855F7))),
+        )
+
+        val BusinessOperations = BusinessActiveTheme(
+            bg = Color(0xFF0C0F15),
+            accent = Color(0xFF818CF8),
+            accentSolid = Color(0xFF6366F1),
+            accentLight = Color(0xFFA5B4FC),
+            accentSoft = Color(0x33818CF8),
+            text = Color(0xFFE5E0EE),
+            secondary = Color(0xFF94A3B8),
+            muted = Color(0xFF64748B),
+            card = Color(0xFF161B26),
+            border = Color(0xFF1E293B),
+            typeLabel = "Daily Business",
+            pulseTitle = "Daily Business",
+            momentsTitle = "Daily Business",
+            lifeTitle = "Daily Business",
+            memoryTitle = "Daily Business",
+            hubSubtitle = "Track spend, vendors, and daily work",
+            hubHeroTitle = "Daily Business",
+            hubHeroDetail = "Add expenses, vendors, approvals and updates",
+            hubHeroRes = com.example.momentra.R.drawable.ops_hub_hero,
+            filterChips = listOf("Budget Ops", "Vendor Mgmt"),
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFF6366F1), Color(0xFFA855F7))),
+        )
+
+        val Marketing = TeamOperations.copy(
+            accent = Color(0xFF6366F1),
+            accentSolid = Color(0xFF4338CA),
+            accentLight = Color(0xFF818CF8),
+            accentSoft = Color(0x336366F1),
+            typeLabel = "Client Campaign",
+            pulseTitle = "Campaign",
+            momentsTitle = "Campaign",
+            lifeTitle = "Campaign",
+            memoryTitle = "Campaign",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))),
+        )
+        /** Own Pulse/hub — plum canvas/card; magenta→amber hero (Figma `2582:29187`). */
+        val MarketingOwn = Marketing.copy(
+            bg = Color(0xFF0F172A),
+            card = Color(0xFF2A1030),
+            border = Color(0xFFD946EF).copy(alpha = 0.28f),
+            accent = Color(0xFFD946EF),
+            accentSolid = Color(0xFFA21CAF),
+            accentLight = Color(0xFFE879F9),
+            accentSoft = Color(0x33D946EF),
+            typeLabel = "Own Business Campaign",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFFD946EF), Color(0xFFF59E0B))),
+        )
+        val Trading = BusinessRunway.copy(
+            bg = Color(0xFF090D16),
+            card = Color(0xFF0F1623),
+            accent = Color(0xFF10B981),
+            accentSolid = Color(0xFF047857),
+            accentLight = Color(0xFF6EE7B7),
+            accentSoft = Color(0x3310B981),
+            text = Color(0xFFFFFFFF),
+            typeLabel = "Trading / Wholesale",
+            pulseTitle = "Trading",
+            momentsTitle = "Trading",
+            lifeTitle = "Trading",
+            memoryTitle = "Trading",
+        )
+        val Distribution = BusinessRunway.copy(
+            bg = Color(0xFF0F172A),
+            card = Color(0xFF0B1433),
+            accent = Color(0xFFEA580C),
+            accentSolid = Color(0xFFC2410C),
+            accentLight = Color(0xFFFFB598),
+            accentSoft = Color(0x33EA580C),
+            text = Color(0xFFFFFFFF),
+            typeLabel = "Distribution / Dealership",
+            pulseTitle = "Distribution",
+            momentsTitle = "Distribution",
+            lifeTitle = "Distribution",
+            memoryTitle = "Distribution",
+        )
+        // Domain Color System 4 Retail · S `#F43F5E` (RTL-PULSE-v12 `2399:29655`).
+        val Retail = BusinessOperations.copy(
+            bg = Color(0xFF0B0A1F),
+            card = Color(0xFF2A1A1F),
+            border = Color(0xFFE11D48).copy(alpha = 0.40f),
+            accent = Color(0xFFF43F5E),
+            accentSolid = Color(0xFFE11D48),
+            accentLight = Color(0xFFFB7185),
+            accentSoft = Color(0x33F43F5E),
+            text = Color(0xFFFFFFFF),
+            typeLabel = "Retail Store",
+            pulseTitle = "Retail",
+            momentsTitle = "Retail",
+            lifeTitle = "Retail",
+            memoryTitle = "Retail",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFFF43F5E), Color(0xFFF43F5E))),
+        )
+        // Domain Color System 6 Restaurant · S `#EA580C` / P `#881337` (RST-PULSE-v12 `2400:29655`).
+        val Food = BusinessRunway.copy(
+            bg = Color(0xFF1C1917),
+            card = Color(0xFF292524),
+            border = Color(0xFFEA580C).copy(alpha = 0.35f),
+            accent = Color(0xFFEA580C),
+            accentSolid = Color(0xFF881337),
+            accentLight = Color(0xFFFCD34D),
+            accentSoft = Color(0x33EA580C),
+            text = Color(0xFFFFFFFF),
+            typeLabel = "Restaurant / Food",
+            pulseTitle = "Food",
+            momentsTitle = "Food",
+            lifeTitle = "Food",
+            memoryTitle = "Food",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFF881337), Color(0xFFEA580C))),
+        )
+        // Domain Color System 5 Services · P `#0D9488` / S `#84CC16` (SVC-PULSE-v12 `2401:29655`).
+        val ConsumerService = BusinessOperations.copy(
+            bg = Color(0xFF042F2E),
+            card = Color(0xFF134E4A),
+            border = Color(0xFF0D9488).copy(alpha = 0.35f),
+            accent = Color(0xFF0D9488),
+            accentSolid = Color(0xFF115E59),
+            accentLight = Color(0xFF84CC16),
+            accentSoft = Color(0x330D9488),
+            text = Color(0xFFFFFFFF),
+            typeLabel = "Consumer Service",
+            pulseTitle = "Service",
+            momentsTitle = "Service",
+            lifeTitle = "Service",
+            memoryTitle = "Service",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFF0D9488), Color(0xFF84CC16))),
+        )
+        // Domain Color System 3 Manufacturing · S `#F59E0B` / soft `#FBBF24` (MFG-PULSE-v12).
+        val Manufacturing = BusinessOperations.copy(
+            bg = Color(0xFF18181B),
+            card = Color(0xFF27272A),
+            accent = Color(0xFFF59E0B),
+            accentSolid = Color(0xFFB45309),
+            accentLight = Color(0xFFFBBF24),
+            accentSoft = Color(0x33F59E0B),
+            typeLabel = "Standard Production",
+            pulseTitle = "Production",
+            momentsTitle = "Production",
+            lifeTitle = "Production",
+            memoryTitle = "Production",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFFF59E0B), Color(0xFFB45309))),
+        )
+        // MTO shares manufacturing accent `#F59E0B`; hero soft leads with `#FBBF24` (MFG-PULSE / tokens).
+        val MadeToOrder = Manufacturing.copy(
+            accent = Color(0xFFF59E0B),
+            accentSolid = Color(0xFFB45309),
+            accentLight = Color(0xFFFBBF24),
+            accentSoft = Color(0x33F59E0B),
+            typeLabel = "Made-to-Order",
+            pulseTitle = "Made-to-Order",
+            momentsTitle = "Made-to-Order",
+            lifeTitle = "Made-to-Order",
+            memoryTitle = "Made-to-Order",
+            heroGradient = Brush.horizontalGradient(listOf(Color(0xFFFBBF24), Color(0xFFF59E0B))),
+        )
+
+        fun forKind(kind: BusinessSetupKind): BusinessActiveTheme = when (kind) {
+            BusinessSetupKind.MARKETING_CAMPAIGNS -> Marketing
+            BusinessSetupKind.TRADING_DISTRIBUTION -> Trading
+            BusinessSetupKind.RETAIL_CONSUMER -> Retail
+            BusinessSetupKind.MANUFACTURING_PRODUCTION -> Manufacturing
+        }
+
+        fun forTypeCode(momentTypeCode: String?): BusinessActiveTheme {
+            return when (momentTypeCode?.trim()?.uppercase()) {
+                "TRADING_WHOLESALE" -> Trading
+                "DISTRIBUTION_DEALERSHIP" -> Distribution
+                "RETAIL_STORE" -> Retail
+                "RESTAURANT_FOOD" -> Food
+                "CONSUMER_SERVICE" -> ConsumerService
+                "STANDARD_PRODUCTION" -> Manufacturing
+                "MADE_TO_ORDER" -> MadeToOrder
+                "CLIENT_CAMPAIGN" -> Marketing
+                "OWN_BUSINESS_CAMPAIGN" -> MarketingOwn
+                else -> when (OperatingMomentCatalog.kindForTypeCode(momentTypeCode)) {
+                    BusinessSetupKind.MARKETING_CAMPAIGNS ->
+                        if (momentTypeCode?.uppercase()?.contains("OWN") == true) MarketingOwn else Marketing
+                    BusinessSetupKind.TRADING_DISTRIBUTION -> Trading
+                    BusinessSetupKind.RETAIL_CONSUMER -> Retail
+                    BusinessSetupKind.MANUFACTURING_PRODUCTION -> Manufacturing
+                    null -> TeamOperations
+                }
+            }
+        }
+    }
+}
+
+enum class BusinessQuickAddKind {
+    TEAM_UPDATE,
+    DECISION,
+    BLOCKER,
+    MEETING,
+    RECOGNITION,
+    APPROVAL,
+    MILESTONE,
+    RETROSPECTIVE,
+    RISK_FLAG,
+    ACTIVITY_LOG,
+    POLL,
+    MEMORY,
+    REVENUE,
+    EXPENSE,
+    TAX_ENTRY,
+    INVESTOR_UPDATE,
+    BUDGET_ALERT,
+    FORECAST_UPDATE,
+    INVOICE,
+    GENERAL_UPDATE,
+    SPEND_ENTRY,
+    UPDATE_VENDOR,
+    REQUEST_APPROVAL,
+    REPORT_ISSUE,
+    LOG_IMPROVEMENT,
+    BUDGET_REVIEW,
+    SLA_CHECK,
+    KHATA,
+}
+
+fun BusinessQuickAddKind.isLive(): Boolean = when (this) {
+    BusinessQuickAddKind.EXPENSE,
+    BusinessQuickAddKind.SPEND_ENTRY,
+    BusinessQuickAddKind.REVENUE,
+    BusinessQuickAddKind.INVOICE,
+    BusinessQuickAddKind.TAX_ENTRY,
+    BusinessQuickAddKind.INVESTOR_UPDATE,
+    BusinessQuickAddKind.BUDGET_ALERT,
+    BusinessQuickAddKind.FORECAST_UPDATE,
+    BusinessQuickAddKind.POLL,
+    BusinessQuickAddKind.MEMORY,
+    BusinessQuickAddKind.TEAM_UPDATE,
+    BusinessQuickAddKind.DECISION,
+    BusinessQuickAddKind.BLOCKER,
+    BusinessQuickAddKind.MEETING,
+    BusinessQuickAddKind.RECOGNITION,
+    BusinessQuickAddKind.APPROVAL,
+    BusinessQuickAddKind.MILESTONE,
+    BusinessQuickAddKind.RETROSPECTIVE,
+    BusinessQuickAddKind.RISK_FLAG,
+    BusinessQuickAddKind.ACTIVITY_LOG,
+    BusinessQuickAddKind.GENERAL_UPDATE,
+    BusinessQuickAddKind.UPDATE_VENDOR,
+    BusinessQuickAddKind.REQUEST_APPROVAL,
+    BusinessQuickAddKind.REPORT_ISSUE,
+    BusinessQuickAddKind.LOG_IMPROVEMENT,
+    BusinessQuickAddKind.BUDGET_REVIEW,
+    BusinessQuickAddKind.SLA_CHECK,
+    BusinessQuickAddKind.KHATA,
+    -> true
+    else -> false
+}
+
+fun BusinessQuickAddKind.label(): String = when (this) {
+    BusinessQuickAddKind.TEAM_UPDATE -> "Team Update"
+    BusinessQuickAddKind.DECISION -> "Decision"
+    BusinessQuickAddKind.BLOCKER -> "Blocker"
+    BusinessQuickAddKind.MEETING -> "Meeting"
+    BusinessQuickAddKind.RECOGNITION -> "Recognition"
+    BusinessQuickAddKind.APPROVAL -> "Approval"
+    BusinessQuickAddKind.MILESTONE -> "Milestone"
+    BusinessQuickAddKind.RETROSPECTIVE -> "Retrospective"
+    BusinessQuickAddKind.RISK_FLAG -> "Risk Flag"
+    BusinessQuickAddKind.ACTIVITY_LOG -> "Activity Log"
+    BusinessQuickAddKind.POLL -> "Poll"
+    BusinessQuickAddKind.MEMORY -> "Memory"
+    BusinessQuickAddKind.REVENUE -> "Log Revenue"
+    BusinessQuickAddKind.EXPENSE -> "Log Expense"
+    BusinessQuickAddKind.TAX_ENTRY -> "Tax Entry"
+    BusinessQuickAddKind.INVESTOR_UPDATE -> "Investor Update"
+    BusinessQuickAddKind.BUDGET_ALERT -> "Budget Alert"
+    BusinessQuickAddKind.FORECAST_UPDATE -> "Forecast Update"
+    BusinessQuickAddKind.INVOICE -> "Invoice Track"
+    BusinessQuickAddKind.GENERAL_UPDATE -> "General Update"
+    BusinessQuickAddKind.SPEND_ENTRY -> "Log Spend"
+    BusinessQuickAddKind.UPDATE_VENDOR -> "Update Vendor"
+    BusinessQuickAddKind.REQUEST_APPROVAL -> "Request Approval"
+    BusinessQuickAddKind.REPORT_ISSUE -> "Report Issue"
+    BusinessQuickAddKind.LOG_IMPROVEMENT -> "Log Improvement"
+    BusinessQuickAddKind.BUDGET_REVIEW -> "Budget Review"
+    BusinessQuickAddKind.SLA_CHECK -> "SLA Check"
+    BusinessQuickAddKind.KHATA -> "Khata"
+}
+
+fun BusinessQuickAddKind.label(smallShop: Boolean): String {
+    if (!smallShop) return label()
+    return when (this) {
+        BusinessQuickAddKind.TEAM_UPDATE -> "Staff update"
+        BusinessQuickAddKind.APPROVAL -> "Ask approval"
+        BusinessQuickAddKind.POLL -> "Quick poll"
+        BusinessQuickAddKind.EXPENSE -> "Shop expense"
+        BusinessQuickAddKind.MEMORY -> "Save note"
+        BusinessQuickAddKind.KHATA -> "Khata"
+        else -> label()
+    }
+}
+
+fun BusinessQuickAddKind.subtitle(): String = when (this) {
+    BusinessQuickAddKind.TEAM_UPDATE -> "Share progress"
+    BusinessQuickAddKind.DECISION -> "Log choices"
+    BusinessQuickAddKind.BLOCKER -> "Flag issues"
+    BusinessQuickAddKind.MEETING -> "Capture notes"
+    BusinessQuickAddKind.RECOGNITION -> "Celebrate wins"
+    BusinessQuickAddKind.APPROVAL -> "Route requests"
+    BusinessQuickAddKind.MILESTONE -> "Mark progress"
+    BusinessQuickAddKind.RETROSPECTIVE -> "Review & learn"
+    BusinessQuickAddKind.RISK_FLAG -> "Raise concerns"
+    BusinessQuickAddKind.ACTIVITY_LOG -> "Track actions"
+    BusinessQuickAddKind.POLL -> "Gather input"
+    BusinessQuickAddKind.MEMORY -> "Save learnings"
+    BusinessQuickAddKind.REVENUE -> "Track income"
+    BusinessQuickAddKind.EXPENSE -> "Track costs"
+    BusinessQuickAddKind.TAX_ENTRY -> "File taxes"
+    BusinessQuickAddKind.INVESTOR_UPDATE -> "Share metrics"
+    BusinessQuickAddKind.BUDGET_ALERT -> "Flag overrun"
+    BusinessQuickAddKind.FORECAST_UPDATE -> "Update projections"
+    BusinessQuickAddKind.INVOICE -> "Monitor payments"
+    BusinessQuickAddKind.GENERAL_UPDATE -> "Share updates"
+    BusinessQuickAddKind.SPEND_ENTRY -> "Record expenses"
+    BusinessQuickAddKind.UPDATE_VENDOR -> "Update suppliers"
+    BusinessQuickAddKind.REQUEST_APPROVAL -> "Request sign-off"
+    BusinessQuickAddKind.REPORT_ISSUE -> "Flag a problem"
+    BusinessQuickAddKind.LOG_IMPROVEMENT -> "Log optimization"
+    BusinessQuickAddKind.BUDGET_REVIEW -> "Check budgets"
+    BusinessQuickAddKind.SLA_CHECK -> "Monitor SLAs"
+    BusinessQuickAddKind.KHATA -> "Udhaar & collections"
+}
+
+fun BusinessQuickAddKind.emoji(): String = when (this) {
+    BusinessQuickAddKind.TEAM_UPDATE, BusinessQuickAddKind.GENERAL_UPDATE -> "📢"
+    BusinessQuickAddKind.DECISION -> "🚩"
+    BusinessQuickAddKind.BLOCKER, BusinessQuickAddKind.RISK_FLAG, BusinessQuickAddKind.REPORT_ISSUE -> "🛡"
+    BusinessQuickAddKind.MEETING, BusinessQuickAddKind.BUDGET_REVIEW -> "📅"
+    BusinessQuickAddKind.RECOGNITION -> "⭐"
+    BusinessQuickAddKind.APPROVAL, BusinessQuickAddKind.REQUEST_APPROVAL -> "🏪"
+    BusinessQuickAddKind.MILESTONE -> "🏁"
+    BusinessQuickAddKind.RETROSPECTIVE -> "⚡"
+    BusinessQuickAddKind.ACTIVITY_LOG -> "📈"
+    BusinessQuickAddKind.POLL -> "📊"
+    BusinessQuickAddKind.MEMORY -> "📦"
+    BusinessQuickAddKind.REVENUE -> "💰"
+    BusinessQuickAddKind.EXPENSE, BusinessQuickAddKind.SPEND_ENTRY -> "💳"
+    BusinessQuickAddKind.TAX_ENTRY -> "🧾"
+    BusinessQuickAddKind.INVESTOR_UPDATE -> "📣"
+    BusinessQuickAddKind.BUDGET_ALERT -> "🚨"
+    BusinessQuickAddKind.FORECAST_UPDATE -> "📉"
+    BusinessQuickAddKind.INVOICE -> "📄"
+    BusinessQuickAddKind.UPDATE_VENDOR -> "🏷"
+    BusinessQuickAddKind.LOG_IMPROVEMENT -> "✨"
+    BusinessQuickAddKind.SLA_CHECK -> "⏱"
+    BusinessQuickAddKind.KHATA -> "📒"
+}
+
+fun BusinessQuickAddKind.maestroTileId(): String? = when (this) {
+    BusinessQuickAddKind.REVENUE -> com.example.momentra.ui.shell.maestro.MaestroIds.QA_TILE_REVENUE
+    BusinessQuickAddKind.EXPENSE, BusinessQuickAddKind.SPEND_ENTRY ->
+        com.example.momentra.ui.shell.maestro.MaestroIds.QA_TILE_EXPENSE
+    BusinessQuickAddKind.INVOICE -> com.example.momentra.ui.shell.maestro.MaestroIds.QA_TILE_INVOICE
+    BusinessQuickAddKind.MILESTONE -> com.example.momentra.ui.shell.maestro.MaestroIds.QA_TILE_MILESTONE
+    else -> null
+}
+
+fun BusinessQuickAddKind.stripeColor(): Color = when (this) {
+    BusinessQuickAddKind.TEAM_UPDATE, BusinessQuickAddKind.GENERAL_UPDATE,
+    BusinessQuickAddKind.APPROVAL, BusinessQuickAddKind.ACTIVITY_LOG, BusinessQuickAddKind.SPEND_ENTRY,
+    BusinessQuickAddKind.BUDGET_REVIEW,
+    -> Color(0xFF818CF8)
+    BusinessQuickAddKind.DECISION, BusinessQuickAddKind.INVESTOR_UPDATE,
+    BusinessQuickAddKind.UPDATE_VENDOR, BusinessQuickAddKind.MEMORY,
+    -> Color(0xFFA78BFA)
+    BusinessQuickAddKind.BLOCKER, BusinessQuickAddKind.RISK_FLAG, BusinessQuickAddKind.BUDGET_ALERT,
+    BusinessQuickAddKind.REPORT_ISSUE,
+    -> Color(0xFFEF4444)
+    BusinessQuickAddKind.MEETING, BusinessQuickAddKind.REVENUE,
+    BusinessQuickAddKind.FORECAST_UPDATE, BusinessQuickAddKind.REQUEST_APPROVAL,
+    BusinessQuickAddKind.RETROSPECTIVE,
+    -> Color(0xFFF59E0B)
+    BusinessQuickAddKind.RECOGNITION, BusinessQuickAddKind.TAX_ENTRY, BusinessQuickAddKind.LOG_IMPROVEMENT,
+    BusinessQuickAddKind.POLL, BusinessQuickAddKind.EXPENSE, BusinessQuickAddKind.KHATA,
+    -> Color(0xFF10B981)
+    BusinessQuickAddKind.MILESTONE, BusinessQuickAddKind.INVOICE, BusinessQuickAddKind.SLA_CHECK -> Color(0xFF14B8A6)
+}
+
+/** Figma 649:26162 Team Ops Action Center tile icons (MCP exports). */
+fun BusinessQuickAddKind.teamOpsHubIconRes(): Int? = when (this) {
+    BusinessQuickAddKind.TEAM_UPDATE -> com.example.momentra.R.drawable.ic_teamops_qa_update
+    BusinessQuickAddKind.DECISION -> com.example.momentra.R.drawable.ic_teamops_qa_decision
+    BusinessQuickAddKind.BLOCKER -> com.example.momentra.R.drawable.ic_teamops_qa_blocker
+    BusinessQuickAddKind.MEETING -> com.example.momentra.R.drawable.ic_teamops_qa_meeting
+    BusinessQuickAddKind.RECOGNITION -> com.example.momentra.R.drawable.ic_teamops_qa_recognition
+    BusinessQuickAddKind.APPROVAL -> com.example.momentra.R.drawable.ic_teamops_qa_approval
+    BusinessQuickAddKind.MILESTONE -> com.example.momentra.R.drawable.ic_teamops_qa_milestone
+    BusinessQuickAddKind.RETROSPECTIVE -> com.example.momentra.R.drawable.ic_teamops_qa_retro
+    BusinessQuickAddKind.RISK_FLAG -> com.example.momentra.R.drawable.ic_teamops_qa_risk
+    BusinessQuickAddKind.ACTIVITY_LOG -> com.example.momentra.R.drawable.ic_teamops_qa_activity
+    BusinessQuickAddKind.POLL -> com.example.momentra.R.drawable.ic_teamops_qa_poll
+    BusinessQuickAddKind.MEMORY -> com.example.momentra.R.drawable.ic_teamops_qa_memory
+    BusinessQuickAddKind.EXPENSE -> com.example.momentra.R.drawable.ic_teamops_qa_expense
+    else -> null
+}
+
+fun businessHubTiles(theme: BusinessActiveTheme, smallShop: Boolean = false): List<BusinessQuickAddKind> {
+    if (smallShop) {
+        return when (theme.typeLabel) {
+            "Money & Cash Flow" -> listOf(
+                BusinessQuickAddKind.KHATA,
+                BusinessQuickAddKind.REVENUE,
+                BusinessQuickAddKind.EXPENSE,
+                BusinessQuickAddKind.INVOICE,
+                BusinessQuickAddKind.MEMORY,
+            )
+            "Daily Business" -> listOf(
+                BusinessQuickAddKind.KHATA,
+                BusinessQuickAddKind.SPEND_ENTRY,
+                BusinessQuickAddKind.UPDATE_VENDOR,
+                BusinessQuickAddKind.REPORT_ISSUE,
+                BusinessQuickAddKind.MEMORY,
+            )
+            else -> listOf(
+                BusinessQuickAddKind.KHATA,
+                BusinessQuickAddKind.TEAM_UPDATE,
+                BusinessQuickAddKind.EXPENSE,
+                BusinessQuickAddKind.APPROVAL,
+                BusinessQuickAddKind.MEMORY,
+            )
+        }
+    }
+    return when (theme.typeLabel) {
+        "Money & Cash Flow" -> listOf(
+            BusinessQuickAddKind.REVENUE,
+            BusinessQuickAddKind.EXPENSE,
+            BusinessQuickAddKind.TAX_ENTRY,
+            BusinessQuickAddKind.INVESTOR_UPDATE,
+            BusinessQuickAddKind.BUDGET_ALERT,
+            BusinessQuickAddKind.FORECAST_UPDATE,
+            BusinessQuickAddKind.INVOICE,
+            BusinessQuickAddKind.GENERAL_UPDATE,
+            BusinessQuickAddKind.MEMORY,
+        )
+        "Daily Business" -> listOf(
+            BusinessQuickAddKind.SPEND_ENTRY,
+            BusinessQuickAddKind.UPDATE_VENDOR,
+            BusinessQuickAddKind.REQUEST_APPROVAL,
+            BusinessQuickAddKind.REPORT_ISSUE,
+            BusinessQuickAddKind.LOG_IMPROVEMENT,
+            BusinessQuickAddKind.BUDGET_REVIEW,
+            BusinessQuickAddKind.SLA_CHECK,
+            BusinessQuickAddKind.GENERAL_UPDATE,
+            BusinessQuickAddKind.MEMORY,
+        )
+        else -> listOf(
+            BusinessQuickAddKind.TEAM_UPDATE,
+            BusinessQuickAddKind.DECISION,
+            BusinessQuickAddKind.BLOCKER,
+            BusinessQuickAddKind.MEETING,
+            BusinessQuickAddKind.RECOGNITION,
+            BusinessQuickAddKind.APPROVAL,
+            BusinessQuickAddKind.MILESTONE,
+            BusinessQuickAddKind.RETROSPECTIVE,
+            BusinessQuickAddKind.RISK_FLAG,
+            BusinessQuickAddKind.ACTIVITY_LOG,
+            BusinessQuickAddKind.POLL,
+            BusinessQuickAddKind.MEMORY,
+            BusinessQuickAddKind.EXPENSE,
+        )
+    }
+}
+
+fun businessHubSubtitle(theme: BusinessActiveTheme, smallShop: Boolean): String {
+    if (!smallShop) return theme.hubSubtitle
+    return when (theme.typeLabel) {
+        "Money & Cash Flow" -> "Sales, spends, bills, and tax"
+        "Daily Business" -> "Suppliers, spends, and problems"
+        else -> "Staff updates and shop expenses"
+    }
+}
+
+fun businessHubFilterChips(theme: BusinessActiveTheme, smallShop: Boolean): List<String> {
+    // Chips are decorative only today — hide when non-interactive (both audiences).
+    return emptyList()
+}

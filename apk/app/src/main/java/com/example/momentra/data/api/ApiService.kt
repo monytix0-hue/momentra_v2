@@ -964,6 +964,41 @@ interface ApiService {
         @Query("to") to: String? = null,
     ): SuccessEnvelope<OperatingProjectionDto>
 
+    @GET("v1/business/moments/{momentId}/story/options")
+    suspend fun getTradingStoryOptions(
+        @Path("momentId") momentId: String,
+    ): SuccessEnvelope<TradingStoryOptionsDto>
+
+    @POST("v1/business/moments/{momentId}/stories/preview")
+    suspend fun startTradingStoryPreview(
+        @Path("momentId") momentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: TradingStoryPreviewBody,
+    ): SuccessEnvelope<TradingStoryPreviewStartDto>
+
+    @GET("v1/business/story-jobs/{jobId}")
+    suspend fun getTradingStoryJob(
+        @Path("jobId") jobId: String,
+    ): SuccessEnvelope<TradingStoryJobDto>
+
+    @GET("v1/business/story-previews/{previewId}")
+    suspend fun getTradingStoryPreview(
+        @Path("previewId") previewId: String,
+    ): SuccessEnvelope<TradingStoryPreviewDto>
+
+    @POST("v1/business/story-previews/{previewId}/save")
+    suspend fun saveTradingStoryPreview(
+        @Path("previewId") previewId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: Map<String, @JvmSuppressWildcards Any> = emptyMap(),
+    ): SuccessEnvelope<TradingStorySaveResultDto>
+
+    @GET("v1/business/moments/{momentId}/gst/returns")
+    suspend fun getOperatingGstReturns(
+        @Path("momentId") momentId: String,
+        @Query("month") month: String? = null,
+    ): SuccessEnvelope<OperatingGstReturnsDto>
+
     @POST("v1/business/moments/{momentId}/operating-events")
     suspend fun recordOperatingEvent(
         @Path("momentId") momentId: String,

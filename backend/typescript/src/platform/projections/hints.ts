@@ -12,6 +12,7 @@ export const PROJECTION_CODES = [
   'group.pulse',
   'business.moments',
   'business.pulse',
+  'business.operating',
   'business.finance',
 ] as const;
 
@@ -34,6 +35,7 @@ const LEGACY_MAP: Record<string, ProjectionCode> = {
   GROUP_PULSE: 'group.pulse',
   BUSINESS_MOMENTS: 'business.moments',
   BUSINESS_PULSE: 'business.pulse',
+  BUSINESS_OPERATING: 'business.operating',
   BUSINESS_FINANCE: 'business.finance',
 };
 

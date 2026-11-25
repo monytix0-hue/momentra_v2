@@ -207,7 +207,7 @@
         "hint": { "$type": "color", "$value": "#A8A29E" }
       },
       "distribution": {
-        "canvas": { "$type": "color", "$value": "#0F172A", "$extensions": { "figma": "DST-PULSE-v12 2365:29452 root" } },
+        "canvas": { "$type": "color", "$value": "#0F172A", "$extensions": { "figma": "DST-PULSE-v12 5:4890 root" } },
         "canvasTop": { "$type": "color", "$value": "#0B1226", "$extensions": { "figma": "DST-PULSE-v12 moments selector" } },
         "canvasDeep": { "$type": "color", "$value": "#050A18" },
         "surface": { "$type": "color", "$value": "#0B1433", "$extensions": { "figma": "DST-PULSE-v12 section inset" } },
@@ -219,7 +219,40 @@
         "heroStart": { "$type": "color", "$value": "#FFB598", "$extensions": { "figma": "DST-PULSE-v12 hero" } },
         "heroEnd": { "$type": "color", "$value": "#EA580C", "$extensions": { "figma": "DST-PULSE-v12 hero" } },
         "label": { "$type": "color", "$value": "#C7D1E0" },
-        "hint": { "$type": "color", "$value": "#94A4B8" }
+        "hint": { "$type": "color", "$value": "#94A4B8" },
+        "screens": {
+          "pulse": {
+            "canvas": { "$type": "color", "$value": "#0F172A", "$extensions": { "figma": "DST-PULSE-v12 5:4890" } },
+            "surface": { "$type": "color", "$value": "#0B1433", "$extensions": { "figma": "DST-PULSE-v12 pulse card" } },
+            "heroStart": { "$type": "color", "$value": "#FFB598" },
+            "heroEnd": { "$type": "color", "$value": "#EA580C" }
+          },
+          "moments": {
+            "canvas": { "$type": "color", "$value": "#0B1226", "$extensions": { "figma": "DST-MOMENTS-v12 5:5198" } },
+            "surface": { "$type": "color", "$value": "#0B1433" },
+            "heroStart": { "$type": "color", "$value": "#FFB598" },
+            "heroEnd": { "$type": "color", "$value": "#EA580C" }
+          },
+          "life": {
+            "canvas": { "$type": "color", "$value": "#0B1226", "$extensions": { "figma": "DST-LIFE-v12 5:5483" } },
+            "surface": { "$type": "color", "$value": "#0B1433" },
+            "heroStart": { "$type": "color", "$value": "#FFB598" },
+            "heroEnd": { "$type": "color", "$value": "#C2410C" }
+          },
+          "memory": {
+            "canvas": { "$type": "color", "$value": "#0B1226", "$extensions": { "figma": "DST-MEMORY-v12 5:5777" } },
+            "surface": { "$type": "color", "$value": "#0B1433" },
+            "heroStart": { "$type": "color", "$value": "#FFB598" },
+            "heroEnd": { "$type": "color", "$value": "#C2410C" }
+          },
+          "quickAdd": {
+            "canvas": { "$type": "color", "$value": "#0F172A", "$extensions": { "figma": "DST-HUB-v11 5:6336" } },
+            "surface": { "$type": "color", "$value": "#0B1433" },
+            "sheetSurface": { "$type": "color", "$value": "#13203A", "$extensions": { "figma": "DST-QA / DST-HUB sheet #13203A" } },
+            "heroStart": { "$type": "color", "$value": "#FFB598" },
+            "heroEnd": { "$type": "color", "$value": "#EA580C" }
+          }
+        }
       },
       "marketing": {
         "canvas": { "$type": "color", "$value": "#0F172A", "$extensions": { "figma": "MKT-PULSE-v12 2389:29619 canvas gradient mid" } },

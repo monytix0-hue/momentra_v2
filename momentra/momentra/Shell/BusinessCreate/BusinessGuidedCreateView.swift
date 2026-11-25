@@ -25,7 +25,12 @@ struct BusinessGuidedCreateView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    // Figma "Brand and dismiss" (`2:1521`) — logo left, close right.
                     HStack {
+                        Image("ShellTopbarLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 118, height: 40)
                         Spacer()
                         Button(action: onBack) {
                             Image(systemName: "xmark")
@@ -35,12 +40,14 @@ struct BusinessGuidedCreateView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(.top, 12)
+                    .frame(height: 52)
+                    .padding(.top, 4)
 
                     Text("\(BusinessGuidedCreateSpecs.questionLine1)\n\(BusinessGuidedCreateSpecs.questionLine2)")
                         .font(.system(size: 32, weight: .semibold))
                         .foregroundStyle(Color(hex: "#F1F5F9"))
                         .lineSpacing(8)
+                        .padding(.top, 20)
 
                     Text(BusinessGuidedCreateSpecs.subtitle)
                         .font(.system(size: 14))

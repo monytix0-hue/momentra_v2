@@ -941,12 +941,14 @@ struct CompanySetupFlowView: View {
             var softWarnings: [String] = []
             if let logoData {
                 do {
-                    let logo = try await APIClient.shared.uploadCompanyLogo(companyId: created.companyId, bytes: logoData)
+                    // Callers: activate. uploadCompanyLogo returns String mediaId (APIClient ~L1372).
+                    // User: "Value of type 'String' has no member 'mediaId'"
+                    let logoMediaId = try await APIClient.shared.uploadCompanyLogo(companyId: created.companyId, bytes: logoData)
                     _ = try await APIClient.shared.patchCompany(
                         companyId: created.companyId,
                         body: [
                             "expectedVersion": created.version,
-                            "profileJson": ["logoMediaId": logo.mediaId],
+                            "profileJson": ["logoMediaId": logoMediaId],
                         ]
                     )
                 } catch {

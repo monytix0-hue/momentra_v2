@@ -189,6 +189,25 @@ struct OperatingMomentHubView: View {
     @State private var tick = 0
     @State private var loading = true
     @State private var tradingViewAll: TradingSheetState? = nil
+    /// Identifiable wrapper so `.sheet(item:)` always presents with a stable code (no empty first frame).
+    @State private var captureItem: CaptureSheetCode? = nil
+    @State private var mastersTab: String? = nil
+    @State private var mastersEditId: String? = nil
+    @State private var activityActionRow: OperatingActivityPayload? = nil
+    @State private var reverseConfirmRow: OperatingActivityPayload? = nil
+    @State private var reviseSeed: OperatingActivityPayload? = nil
+    @State private var activityActionError: String? = nil
+
+    private var captureCode: String? {
+        get { captureItem?.code }
+        nonmutating set {
+            if let value = newValue, !value.isEmpty {
+                captureItem = CaptureSheetCode(code: value.uppercased())
+            } else {
+                captureItem = nil
+            }
+        }
+    }
 
     private var palette: HubPalette {
         HubPalette.forType(
@@ -217,6 +236,13 @@ struct OperatingMomentHubView: View {
         return family == "TRADING_DISTRIBUTION" && !isDistribution
     }
 
+    /// Figma Trading / Distribution V12 — shared hub path (Android `OperatingMomentPage`).
+    private var usesOperatingV12Hub: Bool {
+        isTradingWholesale || isDistribution
+    }
+
+    @State private var storyConfigOpen = false
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -232,14 +258,7 @@ struct OperatingMomentHubView: View {
                         projection: projection,
                         momentTitle: momentTitle
                     )
-                } else if isDistribution, projection != nil {
-                    DistributionHeroHeader(
-                        projection: projection,
-                        momentTitle: momentTitle,
-                        companyId: companyId ?? projection?.companyId,
-                        palette: palette
-                    )
-                } else if !isOwn && !(isTradingWholesale && tab != .quickAdd) {
+                } else if !isOwn && !(usesOperatingV12Hub && tab != .quickAdd) {
                     Text(familyKicker(projection?.familyCode))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(palette.accent)
@@ -266,27 +285,6 @@ struct OperatingMomentHubView: View {
                     }
                 }
 
-                if tab != .quickAdd && isDistribution {
-                    DistributionQuickActionStrip(palette: palette) { code in
-                        BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: code)
-                        onQuickAddCode(code)
-                    }
-                }
-
-                if isDistribution {
-                    switch tab {
-                    case .moments:
-                        DistributionMomentsHero(projection: projection, palette: palette)
-                    case .life:
-                        DistributionLifeHeader(palette: palette)
-                        DistributionPaymentChips(projection: projection, palette: palette)
-                    case .memory:
-                        DistributionMemoryHero(projection: projection, palette: palette)
-                    default:
-                        EmptyView()
-                    }
-                }
-
                 if loading && projection == nil {
                     ProgressView().tint(palette.accent).frame(maxWidth: .infinity).padding()
                 }
@@ -302,10 +300,9 @@ struct OperatingMomentHubView: View {
 
                 switch tab {
                 case .pulse, .moments, .life, .memory:
-                    if isTradingWholesale {
-                        // Never flash generic Widgets for trading — wait for projection or show error.
+                    if usesOperatingV12Hub {
                         if let projection {
-                            tradingV12Body(projection)
+                            operatingV12Body(projection)
                         }
                     } else {
                         widgetBlocks(for: tab.screenCode ?? "PULSE")
@@ -315,11 +312,11 @@ struct OperatingMomentHubView: View {
                     quickAddForm
                 }
 
-                if let sources, !isTradingWholesale {
+                if let sources, !usesOperatingV12Hub {
                     sourceSection(sources)
                 }
 
-                if tab != .quickAdd && !isTradingWholesale {
+                if tab != .quickAdd && !usesOperatingV12Hub {
                     Button("Quick Adds", action: onOpenQuickAdd).foregroundStyle(palette.accent)
                 }
             }
@@ -327,12 +324,7 @@ struct OperatingMomentHubView: View {
         }
         .background(palette.bg)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if tab == .memory && isDistribution {
-                DistributionGenerateStoryButton(palette: palette, action: onGenerateStory)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(palette.bg.opacity(0.95))
-            } else if tab == .memory && isOwn {
+            if tab == .memory && isOwn {
                 OwnGenerateBusinessStoryButton(palette: palette, action: onGenerateStory)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
@@ -351,36 +343,209 @@ struct OperatingMomentHubView: View {
                     onFooterAction: { action in
                         switch action {
                         case "PAYMENT":
-                            BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: "PAYMENT")
-                            onQuickAddCode("PAYMENT")
-                            onOpenQuickAdd()
+                            captureCode = "PAYMENT"
                         case "ATTENTION":
-                            BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: "ISSUE")
-                            onQuickAddCode("ISSUE")
-                            onOpenQuickAdd()
+                            captureCode = "ISSUE"
                         case "MEMORY":
-                            onGenerateStory()
+                            storyConfigOpen = true
                         default:
-                            onOpenQuickAdd()
+                            if isTradingWholesale || isDistribution {
+                                captureCode = "SALE"
+                            } else {
+                                onOpenQuickAdd()
+                            }
                         }
                         tradingViewAll = nil
+                    },
+                    onOpenRow: { row in
+                        tradingViewAll = nil
+                        activityActionRow = row
                     }
                 )
             }
         }
+        .sheet(isPresented: $storyConfigOpen) {
+            if let projection {
+                OperatingStoryConfigSheet(
+                    model: projection,
+                    momentId: momentId,
+                    theme: isDistribution ? .distribution : .trading,
+                    noun: isDistribution ? "Distribution" : "Trading",
+                    onDismiss: { storyConfigOpen = false }
+                )
+            }
+        }
+        .sheet(item: $captureItem) { item in
+            TradingCaptureSheetHost(
+                momentId: momentId,
+                projection: projection,
+                initialCode: item.code,
+                accent: isDistribution
+                    ? Color(red: 0.92, green: 0.35, blue: 0.05)
+                    : Color(red: 0.06, green: 0.73, blue: 0.51),
+                revisesEventId: reviseSeed?.id,
+                seedActivity: reviseSeed,
+                onDismiss: {
+                    captureItem = nil
+                    reviseSeed = nil
+                },
+                onSaved: { tick += 1 }
+            )
+        }
+        .sheet(isPresented: Binding(
+            get: { mastersTab != nil },
+            set: { if !$0 { mastersTab = nil; mastersEditId = nil } }
+        )) {
+            TradingMastersSheetHost(
+                momentId: momentId,
+                projection: projection,
+                initialTab: mastersTab ?? "Principals",
+                companyId: companyId,
+                editingMasterId: mastersEditId,
+                accent: isDistribution
+                    ? Color(red: 0.92, green: 0.35, blue: 0.05)
+                    : Color(red: 0.06, green: 0.73, blue: 0.51),
+                onDismiss: {
+                    mastersTab = nil
+                    mastersEditId = nil
+                },
+                onSaved: { tick += 1 }
+            )
+        }
+        .confirmationDialog(
+            activityActionRow?.title ?? "Activity",
+            isPresented: Binding(
+                get: { activityActionRow != nil },
+                set: { if !$0 { activityActionRow = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Edit") {
+                guard let row = activityActionRow else { return }
+                activityActionRow = nil
+                handleActivityEdit(row)
+            }
+            Button("Delete", role: .destructive) {
+                guard let row = activityActionRow else { return }
+                activityActionRow = nil
+                reverseConfirmRow = row
+            }
+            Button("Cancel", role: .cancel) {
+                activityActionRow = nil
+            }
+        }
+        .confirmationDialog(
+            "Reverse this record?",
+            isPresented: Binding(
+                get: { reverseConfirmRow != nil },
+                set: { if !$0 { reverseConfirmRow = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Reverse", role: .destructive) {
+                guard let row = reverseConfirmRow else { return }
+                reverseConfirmRow = nil
+                Task { await reverseActivity(row) }
+            }
+            Button("Cancel", role: .cancel) {
+                reverseConfirmRow = nil
+            }
+        } message: {
+            Text("The original stays in the timeline as reversed. Money and stock effects are undone.")
+        }
+        .alert(
+            "Couldn’t update",
+            isPresented: Binding(
+                get: { activityActionError != nil },
+                set: { if !$0 { activityActionError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { activityActionError = nil }
+        } message: {
+            Text(activityActionError ?? "")
+        }
+    }
+
+    private func handleActivityEdit(_ row: OperatingActivityPayload) {
+        let type = row.eventType.uppercased()
+        if type == "REVERSAL" || type == "CORRECTION" {
+            activityActionError = "Reversal rows cannot be edited."
+            return
+        }
+        if let master = projection?.masters?.first(where: {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare(row.title.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+                && ["PRODUCT", "SKU", "PART", "MATERIAL", "SERVICE"].contains($0.kind.uppercased())
+        }), type == "UPDATE" || type == "SKU" || type == "PRODUCT" || type == "MASTERS" {
+            mastersEditId = master.id
+            mastersTab = "Catalogue"
+            return
+        }
+        reviseSeed = row
+        captureCode = captureModeForActivity(row)
+    }
+
+    private func captureModeForActivity(_ row: OperatingActivityPayload) -> String {
+        switch row.eventType.uppercased() {
+        case "SPEND": return "SPEND"
+        case "PAYMENT": return "PAYMENT"
+        case "COLLECTION": return "COLLECTION"
+        case "PURCHASE", "VENDOR": return "PURCHASE"
+        case "STOCK", "TRANSFER": return "STOCK"
+        case "ORDER": return "ORDER"
+        case "SHIPMENT", "DELIVERY": return "SHIPMENT"
+        case "RETURN": return "RETURN"
+        case "ISSUE": return "ISSUE"
+        case "SERVICE": return "SERVICE"
+        case "BUDGET": return "BUDGET"
+        case "TARGET": return "TARGET"
+        default: return "SALE"
+        }
+    }
+
+    private func reverseActivity(_ row: OperatingActivityPayload) async {
+        do {
+            _ = try await APIClient.shared.recordOperatingEvent(
+                momentId: momentId,
+                eventType: row.eventType.isEmpty ? "SALE" : row.eventType,
+                title: row.title.isEmpty ? "Reversed" : row.title,
+                amount: "0",
+                note: "Reversed from activity",
+                channelName: row.channelName,
+                counterpartyName: row.counterpartyName,
+                paymentStatus: nil,
+                occurredAt: nil,
+                parentEventId: row.parentEventId,
+                quantity: "0",
+                unit: row.unit,
+                revisesEventId: row.id,
+                activityStatus: "CANCELLED",
+                idempotencyKey: UUID().uuidString
+            )
+            tick += 1
+        } catch {
+            activityActionError = error.localizedDescription
+        }
     }
 
     @ViewBuilder
-    private func tradingV12Body(_ model: OperatingProjectionPayload) -> some View {
-        let theme = OperatingV12Theme.tradingForScreen(tab)
+    private func operatingV12Body(_ model: OperatingProjectionPayload) -> some View {
+        let theme = OperatingV12Theme.forSubtype(model.subtype ?? momentTypeCode, tab: tab)
         let onCapture: (String) -> Void = { code in
             BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: code)
-            onQuickAddCode(code)
+            if isTradingWholesale || isDistribution {
+                captureCode = code.uppercased()
+            } else {
+                onQuickAddCode(code)
+            }
         }
         let onViewAll: (String) -> Void = { code in
             if let sheet = tradingSheetForPulseOrBoard(code) {
                 tradingViewAll = sheet
             }
+        }
+        let onOpenRow: (OperatingActivityPayload) -> Void = { row in
+            activityActionRow = row
         }
         switch tab {
         case .pulse:
@@ -388,29 +553,33 @@ struct OperatingMomentHubView: View {
                 model: model,
                 theme: theme,
                 onCapture: onCapture,
-                onViewAll: onViewAll
+                onViewAll: onViewAll,
+                onOpenRow: onOpenRow
             )
         case .moments:
             OperatingV12MomentsScreen(
                 model: model,
                 theme: theme,
                 onCapture: onCapture,
-                onViewAll: onViewAll
+                onViewAll: onViewAll,
+                onOpenRow: onOpenRow
             )
         case .life:
             OperatingV12LifeScreen(
                 model: model,
                 theme: theme,
                 onCapture: onCapture,
-                onViewAll: onViewAll
+                onViewAll: onViewAll,
+                onOpenRow: onOpenRow
             )
         case .memory:
             OperatingV12MemoryScreen(
                 model: model,
                 theme: theme,
                 onCapture: onCapture,
-                onStory: onGenerateStory,
-                onViewAll: onViewAll
+                onStory: { storyConfigOpen = true },
+                onViewAll: onViewAll,
+                onOpenRow: onOpenRow
             )
         case .quickAdd:
             EmptyView()
@@ -786,42 +955,19 @@ struct OperatingMomentHubView: View {
                     await submitOwnQuickAdd(eventType: eventType, title: title, amount: amount)
                 }
             )
-        } else if isTradingWholesale, let projection {
+        } else if isTradingWholesale || isDistribution, let projection {
             OperatingV12HubScreen(
                 model: projection,
-                theme: OperatingV12Theme.tradingForScreen(.quickAdd),
+                theme: isDistribution
+                    ? OperatingV12Theme.distributionForScreen(.quickAdd)
+                    : OperatingV12Theme.tradingForScreen(.quickAdd),
                 onCapture: { code in
-                    BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: code)
-                    selectedQuickAdd = code
-                    onQuickAddCode(code)
-                    onOpenQuickAdd()
+                    captureCode = code.uppercased()
                 },
                 onOpenMasters: { tab in
-                    confirm = "Masters · \(tab)"
-                    // Invite opens as a capture hint; other master tabs surface via confirm until sheet host lands.
-                    if tab.caseInsensitiveCompare("Invite") == .orderedSame {
-                        BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: "INVITE")
-                        onQuickAddCode("INVITE")
-                        onOpenQuickAdd()
-                    }
+                    mastersTab = tab
                 }
             )
-        } else if isDistribution {
-            if adds.isEmpty {
-                Text("Your role cannot add to this moment.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(palette.muted)
-            } else {
-                DistributionQuickAddHub(
-                    adds: adds,
-                    palette: palette,
-                    selectedCode: $selectedQuickAdd,
-                    search: $quickAddSearch,
-                    titleText: $titleText,
-                    amountText: $amountText,
-                    onSubmit: { Task { await submitQuickAdd() } }
-                )
-            }
         } else {
             let client = ClientCampaignHubWidgets.isClientCampaign(momentTypeCode ?? projection?.subtype)
             Text("Quick Adds")
@@ -928,12 +1074,14 @@ struct OperatingMomentHubView: View {
         do {
             let op = try await APIClient.shared.getOperatingMoment(momentId: momentId)
             projection = op
-            if tab == .quickAdd, let pending = BusinessMomentFamilyConfig.consumePendingQuickAdd(momentId: momentId) {
-                selectedQuickAdd = pending
-            } else if selectedQuickAdd.isEmpty {
-                selectedQuickAdd = BusinessMomentFamilyConfig.consumePendingQuickAdd(momentId: momentId)
-                    ?? op.quickAdds?.first?.code
-                    ?? ""
+            if let pending = BusinessMomentFamilyConfig.consumePendingQuickAdd(momentId: momentId) {
+                if isTradingWholesale || isDistribution {
+                    captureCode = pending
+                } else if tab == .quickAdd {
+                    selectedQuickAdd = pending
+                }
+            } else if selectedQuickAdd.isEmpty, tab == .quickAdd, !(isTradingWholesale || isDistribution) {
+                selectedQuickAdd = op.quickAdds?.first?.code ?? ""
             }
             error = nil
         } catch {

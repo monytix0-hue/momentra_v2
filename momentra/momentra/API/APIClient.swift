@@ -329,6 +329,90 @@ struct WidgetSourceRowPayload: Decodable {
     let ledgerStatus: String?
 }
 
+struct TradingStoryOptionsPayload: Decodable {
+    let momentId: String?
+    let mode: String?
+    let timezone: String?
+    let currency: String?
+    let allowedPeriods: [String]?
+    let gstAvailable: Bool?
+    let permissions: TradingStoryPermissionsPayload?
+}
+
+struct TradingStoryPermissionsPayload: Decodable {
+    let canGenerate: Bool?
+    let canExport: Bool?
+    let canShare: Bool?
+}
+
+struct TradingStoryPreviewStartPayload: Decodable {
+    let jobId: String?
+    let status: String?
+    let previewId: String?
+}
+
+struct TradingStoryJobPayload: Decodable {
+    let jobId: String?
+    let previewId: String?
+    let momentId: String?
+    let status: String?
+    let progress: Int?
+    let warnings: [String]?
+}
+
+struct TradingStoryPagePayload: Decodable, Identifiable {
+    var id: String { pageId ?? title ?? UUID().uuidString }
+    let pageId: String?
+    let title: String?
+    let hero: TradingStoryHeroPayload?
+    let cards: [TradingStoryCardPayload]?
+    let narrative: [String]?
+    let sourceRefs: [String]?
+    let state: String?
+}
+
+struct TradingStoryHeroPayload: Decodable {
+    let metricId: String?
+    let value: Double?
+    let label: String?
+    let unit: String?
+}
+
+struct TradingStoryCardPayload: Decodable, Identifiable {
+    var id: String { (label ?? "") + (value ?? "") + (metricId ?? "") }
+    let label: String?
+    let value: String?
+    let metricId: String?
+}
+
+struct TradingStoryPreviewPayload: Decodable {
+    let previewId: String?
+    let jobId: String?
+    let status: String?
+    let momentId: String?
+    let mode: String?
+    let currency: String?
+    let detail: String?
+    let includeGst: Bool?
+    let pages: [TradingStoryPagePayload]?
+    let warnings: [String]?
+    let businessName: String?
+    let coverage: [TradingStoryCoveragePayload]?
+}
+
+struct TradingStoryCoveragePayload: Decodable, Identifiable {
+    var id: String { metricId ?? UUID().uuidString }
+    let metricId: String?
+    let missing: Bool?
+}
+
+struct TradingStorySaveResultPayload: Decodable {
+    let storyId: String?
+    let version: Int?
+    let snapshotWatermark: String?
+    let savedAt: String?
+}
+
 struct OperatingProjectionPayload: Decodable {
     let retired: Bool?
     let companyId: String?
@@ -2112,6 +2196,53 @@ final class APIClient {
     struct MomentStoryCreateResult: Decodable {
         let storyId: String?
         let storyVersion: Int?
+    }
+
+    // MARK: - Business Story v3 (Trading / Distribution)
+
+    func getTradingStoryOptions(momentId: String) async throws -> TradingStoryOptionsPayload {
+        try await authorizedGet(path: "v1/business/moments/\(momentId)/story/options")
+    }
+
+    func startTradingStoryPreview(
+        momentId: String,
+        startDate: String,
+        endDate: String,
+        detail: String = "SUMMARY",
+        includeGst: Bool = false,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> TradingStoryPreviewStartPayload {
+        struct Body: Encodable {
+            let startDate: String
+            let endDate: String
+            let detail: String
+            let includeGst: Bool
+        }
+        return try await authorizedPost(
+            path: "v1/business/moments/\(momentId)/stories/preview",
+            body: Body(startDate: startDate, endDate: endDate, detail: detail, includeGst: includeGst),
+            idempotencyKey: idempotencyKey
+        )
+    }
+
+    func getTradingStoryJob(jobId: String) async throws -> TradingStoryJobPayload {
+        try await authorizedGet(path: "v1/business/story-jobs/\(jobId)")
+    }
+
+    func getTradingStoryPreview(previewId: String) async throws -> TradingStoryPreviewPayload {
+        try await authorizedGet(path: "v1/business/story-previews/\(previewId)")
+    }
+
+    func saveTradingStoryPreview(
+        previewId: String,
+        idempotencyKey: String = UUID().uuidString
+    ) async throws -> TradingStorySaveResultPayload {
+        struct Body: Encodable {}
+        return try await authorizedPost(
+            path: "v1/business/story-previews/\(previewId)/save",
+            body: Body(),
+            idempotencyKey: idempotencyKey
+        )
     }
 
     func getMomentStorySharePack(momentId: String) async throws -> MomentStorySharePack {
@@ -6059,6 +6190,8 @@ final class APIClient {
         masterPurchasePriceIncludesGst: String? = nil,
         masterGstEffectiveFrom: String? = nil,
         masterHsn: String? = nil,
+        masterSellPrice: String? = nil,
+        masterPurchasePrice: String? = nil,
         masterGstRegistration: String? = nil,
         masterBusinessState: String? = nil,
         masterBillingState: String? = nil,
@@ -6080,6 +6213,8 @@ final class APIClient {
             let name: String
             let unit: String?
             let conversionToBase: String?
+            let sellPrice: String?
+            let purchasePrice: String?
             let gstApplicable: String?
             let gstClassification: String?
             let gstRate: String?
@@ -6156,7 +6291,28 @@ final class APIClient {
             return nil
         }()
         let master = masterKind?.isEmpty == false
-            ? Master(masterId: masterId, kind: masterKind!, name: title, unit: unit, conversionToBase: conversionToBase, gstApplicable: masterGstApplicable, gstClassification: masterGstClassification, gstRate: masterGstRate, priceIncludesGst: masterPriceIncludesGst, salePriceIncludesGst: masterSalePriceIncludesGst, purchasePriceIncludesGst: masterPurchasePriceIncludesGst, gstEffectiveFrom: masterGstEffectiveFrom, hsn: masterHsn, gstRegistration: masterGstRegistration, businessState: masterBusinessState, billingState: masterBillingState, deliveryState: masterDeliveryState, gstin: masterGstin)
+            ? Master(
+                masterId: masterId,
+                kind: masterKind!,
+                name: title,
+                unit: unit,
+                conversionToBase: conversionToBase,
+                sellPrice: masterSellPrice,
+                purchasePrice: masterPurchasePrice,
+                gstApplicable: masterGstApplicable,
+                gstClassification: masterGstClassification,
+                gstRate: masterGstRate,
+                priceIncludesGst: masterPriceIncludesGst,
+                salePriceIncludesGst: masterSalePriceIncludesGst,
+                purchasePriceIncludesGst: masterPurchasePriceIncludesGst,
+                gstEffectiveFrom: masterGstEffectiveFrom,
+                hsn: masterHsn,
+                gstRegistration: masterGstRegistration,
+                businessState: masterBusinessState,
+                billingState: masterBillingState,
+                deliveryState: masterDeliveryState,
+                gstin: masterGstin
+            )
             : nil
         let body = Body(
             eventType: eventType,

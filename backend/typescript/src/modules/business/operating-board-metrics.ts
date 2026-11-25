@@ -25,6 +25,10 @@ import {
   tradingStockPositions,
   consignmentStockHint,
 } from './operating-trading-contract';
+import { computeTradingFacts } from './trading-facts';
+
+/** Shared M01–M18 fact service — Story v3 + Pulse/Moments/Life/Memory reconciliation. */
+export { computeTradingFacts } from './trading-facts';
 
 const NOT_RECORDED = 'Not recorded';
 
@@ -547,12 +551,25 @@ export function tradingPulseMetrics(args: {
 }): OperatingPulseMetricGroup[] {
   const { prefs, projection } = args;
   const facts = buildFacts(args.events, args.visible, args.currency, args.asOf);
+  // Canonical M01–M18 — Pulse FINANCE tiles must match Story v3 / Memory (missing ≠ zero).
+  const tradingFacts = computeTradingFacts({
+    events: args.events,
+    currency: args.currency,
+    asOf: args.asOf,
+    financeVisible: args.visible,
+    periodTarget: projection.target?.configured ? num(projection.target.value) : null,
+  });
+  const m = tradingFacts.metrics;
+  const factMoney = (id: keyof typeof m) => {
+    if (!args.visible) return 'Hidden';
+    if (m[id].missing || m[id].value == null) return NOT_RECORDED;
+    return moneyValue(facts, m[id].value);
+  };
   const overdue = projection.paymentReadiness.filter((row) => row.dueBucket === 'OVERDUE').length;
   const dueSoon = projection.paymentReadiness.filter((row) => row.dueBucket === 'DUE_SOON').length;
   const high = projection.attention.filter((row) => row.severity === 'HIGH').length;
   const pendingApprovals = args.events.filter((row) => row.approvalStatus === 'PENDING').length;
   const gstRows = facts.live.filter((row) => row.contract?.gst);
-
   return [
     {
       code: 'TARGET_BUDGET',
@@ -591,18 +608,20 @@ export function tradingPulseMetrics(args: {
     {
       code: 'FINANCE',
       metrics: [
-        metric('sales', 'Sales', projection.finance ? moneyValue(facts, num(projection.finance.sales)) : 'Hidden'),
-        metric('received', 'Received', projection.finance ? moneyValue(facts, num(projection.finance.received)) : 'Hidden'),
+        metric('sales', 'Sales', factMoney('M03')),
+        metric('received', 'Received', factMoney('M04')),
         metric(
           'outstanding',
           'Outstanding',
-          projection.finance ? moneyValue(facts, num(projection.finance.outstanding)) : 'Hidden',
+          factMoney('M05'),
           null,
-          projection.finance && num(projection.finance.outstanding) > 0 ? 'WARNING' : 'NORMAL'
+          !m.M05.missing && (m.M05.value ?? 0) > 0 ? 'WARNING' : 'NORMAL'
         ),
-        metric('payable', 'Payable', projection.finance ? moneyValue(facts, num(projection.finance.payable)) : 'Hidden'),
+        metric('payable', 'Payable', factMoney('M09')),
       ],
-      why: projection.finance ? null : 'Finance figures are visible to owner, finance, and approver roles.',
+      why: args.visible
+        ? tradingFacts.warnings[0] ?? null
+        : 'Finance figures are visible to owner, finance, and approver roles.',
     },
     {
       code: 'PAYMENT_READINESS',

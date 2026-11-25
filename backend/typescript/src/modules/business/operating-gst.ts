@@ -463,6 +463,14 @@ export function stampPostedGst(input: {
   if (input.contract.gst?.taxStatus === 'CALCULATED' && input.contract.gst.invoiceTotal) {
     return { ok: true, amount: Number(input.contract.gst.invoiceTotal) };
   }
+  // Operator left tax optional — skip Supply / rate stamping.
+  if (input.contract.taxMode === 'NOT_CONFIGURED' || input.contract.taxMode == null) {
+    input.contract.taxMode = 'NOT_CONFIGURED';
+    input.contract.taxStatus = 'NOT_CONFIGURED';
+    input.contract.taxJurisdiction = null;
+    input.contract.gstRate = null;
+    return { ok: true, amount: input.entered };
+  }
   const preference = input.side === 'SALE' ? input.gst.saleIncludesGst : input.gst.purchaseIncludesGst;
   const businessState = input.gst.businessState.trim();
   const businessStateCode = input.gst.businessStateCode || gstStateCodeOf(businessState);
@@ -479,7 +487,7 @@ export function stampPostedGst(input: {
   const canonicalSupply = supplyState || input.contract.placeOfSupply || businessState;
   input.contract.placeOfSupply = gstStateName(canonicalSupply) || canonicalSupply;
   const priced = (input.lines ?? []).filter((line) => Number(line.unitPrice) > 0 && Number(line.quantity) > 0);
-  const sources = priced.length > 0 ? priced : [{ quantity: '1', unitPrice: String(input.entered), gstRate: input.contract.gstRate, taxMode: input.contract.taxMode === 'NOT_CONFIGURED' ? null : input.contract.taxMode, discount: input.contract.discount, master: null }];
+  const sources = priced.length > 0 ? priced : [{ quantity: '1', unitPrice: String(input.entered), gstRate: input.contract.gstRate, taxMode: input.contract.taxMode, discount: input.contract.discount, master: null }];
   const gstLines: GstLineInput[] = [];
   for (const source of sources) {
     const master = source.master;

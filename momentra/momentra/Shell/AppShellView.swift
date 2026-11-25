@@ -200,9 +200,8 @@ struct AppShellView: View {
             selection: bottomTabSelection,
             accent: momentAccent,
             context: model.selectedContext,
-            businessMomentTypeCode: model.selectedContext == .business
-                ? model.selectedMomentTypeCode
-                : nil,
+            // Callers: shellPage → NativeShellTabView (ShellChrome). No businessMomentTypeCode param.
+            // User: "Extra argument 'businessMomentTypeCode' in call"
             content: { tabNavigationRoot }
         )
         .background(Color(hex: "#14121B").ignoresSafeArea())
@@ -1285,15 +1284,19 @@ struct AppShellView: View {
                 subtype: model.selectedMomentTypeCode
                     ?? model.moments.first(where: { $0.momentId == momentId })?.momentTypeCode,
                 destination: model.bottomDestination,
-                refreshToken: model.businessTabRefreshToken,
+                // Callers: OperatingExperienceHost.refreshToken is Int; model token is UInt64.
+                // User: "cannot convert value of type 'UInt64' to expected argument type 'Int'"
+                refreshToken: Int(truncatingIfNeeded: model.businessTabRefreshToken),
                 momentTitle: model.selectedMomentTitle,
+                // Callers: OperatingExperienceHost — property order onViewAllAttention then onQuickAddCode.
+                // User: "Argument 'onViewAllAttention' must precede argument 'onQuickAddCode'"
                 onStoryReady: { id in storyMomentId = id },
                 onOpenQuickAdd: { model.selectBottomDestination(.create) },
+                onViewAllAttention: { businessAttentionViewAllOpen = true },
                 onQuickAddCode: { code in
                     BusinessMomentFamilyConfig.setPendingQuickAdd(momentId: momentId, code: code)
                     model.selectBottomDestination(.create)
-                },
-                onViewAllAttention: { businessAttentionViewAllOpen = true }
+                }
             )
             .id(momentId)
         } else if model.selectedContext == .business,

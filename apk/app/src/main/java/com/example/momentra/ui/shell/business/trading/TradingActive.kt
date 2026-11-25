@@ -22,6 +22,7 @@ import com.example.momentra.ui.shell.business.appstate.BusinessAppStateBody
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStatePhase
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateScreen
 import com.example.momentra.ui.shell.business.appstate.BusinessAppStateSpecs
+import com.example.momentra.ui.shell.business.shared.BusinessMomentFamilyConfig
 import com.example.momentra.ui.shell.business.shared.OperatingChromeState
 import com.example.momentra.ui.shell.business.shared.OperatingTab
 import com.example.momentra.ui.shell.business.shared.OperatingV12LifeScreen
@@ -51,12 +52,16 @@ fun TradingActive(
     onRecord: suspend (TradingEventDraft) -> Unit,
     onDecide: suspend (String, String) -> Unit,
     companyId: String? = null,
+    momentId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var sheet by remember { mutableStateOf<TradingSheetState?>(null) }
     val theme = remember(tab) { OperatingV12Theme.tradingForScreen(tab) }
+    val resolvedMomentId = momentId ?: OperatingChromeState.momentId
     val openCapture: (String) -> Unit = { code ->
-        OperatingChromeState.quickAddHint = code.lowercase()
+        // Pending survives AppShell clearTransientUi on CREATE navigation.
+        resolvedMomentId?.let { BusinessMomentFamilyConfig.setPendingQuickAdd(it, code) }
+        OperatingChromeState.quickAddHint = code.uppercase()
         onOpenQuickAdd()
     }
     val openViewAll: (String) -> Unit = { code ->
@@ -66,7 +71,13 @@ fun TradingActive(
     // Per-tab canvas from trading.screens.* tokens (Pulse/Moments/Life/Memory/Quick Add).
     Box(modifier.fillMaxSize().background(theme.canvas)) {
         if (tab == OperatingTab.QUICK_ADD) {
-            TradingQuickAddHub(model, onRecord, onDecide, companyId = companyId)
+            TradingQuickAddHub(
+                model = model,
+                onRecord = onRecord,
+                onDecide = onDecide,
+                companyId = companyId,
+                momentId = resolvedMomentId,
+            )
         } else if (tab == OperatingTab.PULSE && !model.hasUsefulPulseChrome()) {
             // Keep empty Pulse outside verticalScroll — BusinessAppStateBody scrolls itself.
             // Only take over when setup has no budget/target/GST and feeds are quiet.
@@ -130,12 +141,11 @@ fun TradingActive(
                 onDismiss = { sheet = null },
                 onFooterAction = { action ->
                     when (action) {
-                        "PAYMENT" -> OperatingChromeState.quickAddHint = "payment"
+                        "PAYMENT" -> openCapture("PAYMENT")
                         "MEMORY" -> OperatingChromeState.storyConfigOpen = true
-                        "ATTENTION" -> OperatingChromeState.quickAddHint = "issue"
-                        else -> OperatingChromeState.quickAddHint = "sale"
+                        "ATTENTION" -> openCapture("ISSUE")
+                        else -> openCapture("SALE")
                     }
-                    if (action != "MEMORY") onOpenQuickAdd()
                     sheet = null
                 },
             )

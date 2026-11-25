@@ -13,8 +13,6 @@ struct OperatingExperienceHost: View {
     var onViewAllAttention: () -> Void = {}
     var onQuickAddCode: (String) -> Void = { _ in }
 
-    @State private var storyConfirm: String?
-
     var body: some View {
         OperatingMomentHubView(
             momentId: momentId,
@@ -27,21 +25,12 @@ struct OperatingExperienceHost: View {
             onViewAllAttention: onViewAllAttention,
             onQuickAddCode: onQuickAddCode,
             onGenerateStory: {
-                storyConfirm = "Story opens when available — no second ledger."
+                let code = subtype?.uppercased() ?? ""
+                if code == "TRADING_WHOLESALE" || code == "DISTRIBUTION_DEALERSHIP" {
+                    return
+                }
                 onStoryReady(momentId)
             }
         )
-        .overlay(alignment: .bottom) {
-            if let storyConfirm {
-                Text(storyConfirm)
-                    .font(.system(size: 12))
-                    .padding(12)
-                    .background(Color.black.opacity(0.75))
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .padding()
-                    .onTapGesture { self.storyConfirm = nil }
-            }
-        }
     }
 }

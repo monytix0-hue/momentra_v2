@@ -235,6 +235,28 @@ class AppShellViewModel(
                 "scopeId" to (event.scopeId?.take(8) ?: ""),
             ),
         )
+        val codes = buildList {
+            event.projection?.takeIf { it.isNotBlank() }?.let { add(it.uppercase()) }
+            event.projections.orEmpty().forEach { code ->
+                if (code.isNotBlank()) add(code.uppercase())
+            }
+        }
+        // Prefer projection codes over USER scopeId (SSE is often USER-scoped).
+        if (codes.any { it.startsWith("BUSINESS_") || it == "BUSINESS_PULSE" || it == "BUSINESS_OPERATING" }) {
+            if (_state.value.selectedContext == AppContext.BUSINESS) {
+                _state.value.selectedMomentId?.let { mid ->
+                    com.example.momentra.ui.shell.business.shared.OperatingProjectionCache.invalidate(mid)
+                }
+                refreshVisibleBusinessTab()
+                return
+            }
+        }
+        if (codes.any { it.startsWith("GROUP_") }) {
+            if (_state.value.selectedContext == AppContext.GROUP) {
+                refreshVisibleGroupTab()
+                return
+            }
+        }
         val scopeId = event.scopeId
         val selectedMomentId = _state.value.selectedMomentId
         if (!scopeId.isNullOrBlank() && scopeId == selectedMomentId) {

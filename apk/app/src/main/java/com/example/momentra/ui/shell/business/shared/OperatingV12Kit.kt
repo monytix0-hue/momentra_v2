@@ -19,6 +19,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -175,18 +178,49 @@ data class OperatingV12Theme(
             val heroEnd: Color,
         )
 
-        fun distribution() = OperatingV12Theme(
-            accent = Color(0xFFEA580C),
-            canvas = Color(0xFF0F172A),
-            // Domain distribution.heroStart / heroEnd (DST-PULSE-v12)
-            heroStart = Color(0xFFFFB598),
-            heroEnd = Color(0xFFEA580C),
-            label = "Distribution",
-            partyNoun = "Dealers",
-            motionLine = "Source. Move. Settle.",
-            isTrading = false,
-            verticalKey = "distribution",
-        )
+        fun distribution() = distributionForScreen(OperatingTab.PULSE)
+
+        /** Per-tab Distribution orange palette from `color.domain.distribution.screens.*` tokens. */
+        fun distributionForScreen(tab: OperatingTab): OperatingV12Theme {
+            val c = BusinessTokens.Colors
+            val (canvas, surface, heroStart, heroEnd) = when (tab) {
+                OperatingTab.PULSE -> ScreenPalette(
+                    c.DISTRIBUTIONPulseCanvas, c.DISTRIBUTIONPulseSurface,
+                    c.DISTRIBUTIONPulseHeroStart, c.DISTRIBUTIONPulseHeroEnd,
+                )
+                OperatingTab.MOMENTS -> ScreenPalette(
+                    c.DISTRIBUTIONMomentsCanvas, c.DISTRIBUTIONMomentsSurface,
+                    c.DISTRIBUTIONMomentsHeroStart, c.DISTRIBUTIONMomentsHeroEnd,
+                )
+                OperatingTab.LIFE -> ScreenPalette(
+                    c.DISTRIBUTIONLifeCanvas, c.DISTRIBUTIONLifeSurface,
+                    c.DISTRIBUTIONLifeHeroStart, c.DISTRIBUTIONLifeHeroEnd,
+                )
+                OperatingTab.MEMORY -> ScreenPalette(
+                    c.DISTRIBUTIONMemoryCanvas, c.DISTRIBUTIONMemorySurface,
+                    c.DISTRIBUTIONMemoryHeroStart, c.DISTRIBUTIONMemoryHeroEnd,
+                )
+                OperatingTab.QUICK_ADD -> ScreenPalette(
+                    c.DISTRIBUTIONQuickAddCanvas, c.DISTRIBUTIONQuickAddSurface,
+                    c.DISTRIBUTIONQuickAddHeroStart, c.DISTRIBUTIONQuickAddHeroEnd,
+                )
+            }
+            return OperatingV12Theme(
+                accent = c.DISTRIBUTIONAccent,
+                canvas = canvas,
+                heroStart = heroStart,
+                heroEnd = heroEnd,
+                label = "Distribution",
+                partyNoun = "Dealers",
+                motionLine = "Source. Move. Settle.",
+                isTrading = false,
+                verticalKey = "distribution",
+                surface = surface,
+                canvasTop = c.DISTRIBUTIONCanvasTop,
+                inset = c.DISTRIBUTIONInset,
+                softLink = c.DISTRIBUTIONAccentSoft,
+            )
+        }
 
         fun manufacturing() = OperatingV12Theme(
             accent = Color(0xFFF59E0B),
@@ -357,8 +391,15 @@ object OperatingV12Money {
     fun amount(raw: String?, currency: String?): String = grouped(raw, currency)
 
     fun tile(metric: OperatingBoardMetricDto, currency: String?): String {
-        val text = grouped(metric.value, currency)
-        val unit = metric.unit?.takeIf { it.isNotBlank() && !it.equals("count", ignoreCase = true) }
+        val isCount = metric.unit.equals("count", ignoreCase = true)
+        val text = if (isCount) {
+            val raw = metric.value?.trim().orEmpty()
+            if (raw.isEmpty()) "—"
+            else parse(raw, currency)?.let { indianGroupedNumber(abs(it)) } ?: raw
+        } else {
+            grouped(metric.value, currency)
+        }
+        val unit = metric.unit?.takeIf { it.isNotBlank() && !isCount }
         return if (unit == null) text else "$text $unit"
     }
 }
@@ -443,22 +484,27 @@ fun OperatingV12Card(
     // Twin shadow locked for TRD/DST-v12 Figma chrome:
     // elevation 12, black ambient 0.35, Trading accent glow 0.18 / Dist 0.32, default radius 20.
     val glow = if (theme.isTrading) 0.18f else 0.32f
-    Column(
-        modifier
+    val shape = RoundedCornerShape(radius)
+    ElevatedCard(
+        modifier = modifier
             .fillMaxWidth()
             .shadow(
-                12.dp,
-                RoundedCornerShape(radius),
+                elevation = 12.dp,
+                shape = shape,
                 ambientColor = Color.Black.copy(alpha = 0.35f),
                 spotColor = theme.accent.copy(alpha = glow),
             )
-            .clip(RoundedCornerShape(radius))
-            .background(fill)
-            .border(1.dp, theme.accent.copy(alpha = borderOpacity), RoundedCornerShape(radius))
-            .padding(padding),
-        verticalArrangement = Arrangement.spacedBy(spacing),
-        content = { content() },
-    )
+            .border(1.dp, theme.accent.copy(alpha = borderOpacity), shape),
+        shape = shape,
+        colors = CardDefaults.elevatedCardColors(containerColor = fill)
+    ) {
+        Column(
+            modifier = Modifier.padding(padding),
+            verticalArrangement = Arrangement.spacedBy(spacing),
+        ) {
+            content()
+        }
+    }
 }
 
 @Composable
@@ -543,16 +589,19 @@ fun OperatingV12Tile(
     labelTone: Color = OperatingV12.subtitle,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier
-            .clip(RoundedCornerShape(radius))
-            .background(fill)
-            .border(1.dp, OperatingV12.hairline, RoundedCornerShape(radius))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+    val shape = RoundedCornerShape(radius)
+    Surface(
+        modifier = modifier.border(1.dp, OperatingV12.hairline, shape),
+        shape = shape,
+        color = fill,
     ) {
-        Text(label, color = labelTone, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(value, color = tone, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(label, color = labelTone, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(value, color = tone, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
@@ -657,40 +706,36 @@ fun OperatingV12QuickActions(
         Action("PAYMENT", TradingChromeIcons.pulseActionDrawable("PAYMENT"), "Payment", false),
     )
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        actions.forEachIndexed { index, action ->
+        actions.forEach { action ->
             val tone = if (action.cyan) OperatingV12.cyan else theme.accent
-            val selected = tinted && index == 0
-            Column(
-                Modifier
+            // Removed the hardcoded 'index == 0' highlight so all buttons are uniform
+            val selected = false
+            val shape = RoundedCornerShape(radius)
+            Surface(
+                modifier = Modifier
                     .weight(1f)
                     .shadow(
                         elevation = if (selected) 10.dp else 0.dp,
-                        shape = RoundedCornerShape(radius),
+                        shape = shape,
                         ambientColor = theme.accent.copy(alpha = 0.35f),
                         spotColor = theme.accent.copy(alpha = 0.45f),
                     )
-                    .clip(RoundedCornerShape(radius))
-                    .background(if (tinted) tone.copy(alpha = 0.12f) else OperatingV12.inset)
                     .border(
                         1.dp,
                         if (selected) theme.accent.copy(alpha = 0.55f) else tone.copy(alpha = if (tinted) 0.3f else 0.28f),
-                        RoundedCornerShape(radius),
-                    )
-                    .clickable { onOpen(action.code) }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                        shape,
+                    ),
+                shape = shape,
+                color = if (tinted) tone.copy(alpha = 0.12f) else OperatingV12.inset,
+                onClick = { onOpen(action.code) },
             ) {
-                if (selected) {
-                    Box(
-                        Modifier
-                            .size(4.dp)
-                            .clip(CircleShape)
-                            .background(theme.accent),
-                    )
-                }
-                Icon(
-                    painter = painterResource(action.icon),
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(action.icon),
                     contentDescription = null,
                     tint = if (selected) theme.accent else tone,
                     modifier = Modifier.size(18.dp),
@@ -703,6 +748,7 @@ fun OperatingV12QuickActions(
                     fontSize = 11.sp,
                     maxLines = 1,
                 )
+            }
             }
         }
     }
@@ -790,6 +836,90 @@ fun OperatingV12PulseHero(
 
 data class OperatingV12ChipSpec(val label: String, val tone: Color = OperatingV12.subtitle, val dot: Boolean = false)
 data class OperatingV12KpiSpec(val label: String, val value: String, val tone: Color = OperatingV12.title)
+
+/**
+ * Figma `TRD-HUB-v11` Hub Hero (`5:16497`) — Trading Quick Adds only.
+ * Live meta: business · FY · currency · GST on|off.
+ */
+@Composable
+fun OperatingV12HubHero(
+    model: OperatingProjectionDto,
+    theme: OperatingV12Theme,
+) {
+    val business = model.title.orEmpty().ifBlank { theme.label }
+    val fy = OperatingV12Date.fiscalYear(model.startDate)
+    val currency = model.currency ?: "INR"
+    val gstLabel = if (model.gstTracking.equals("YES", ignoreCase = true)) "GST on" else "GST off"
+    val meta = "$business · $fy · $currency · $gstLabel"
+    val fill = Color(0xFF151D2E)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 24.dp,
+                shape = RoundedCornerShape(24.dp),
+                ambientColor = Color.Black.copy(alpha = 0.6f),
+                spotColor = Color.Black.copy(alpha = 0.6f),
+            )
+            .shadow(
+                elevation = 40.dp,
+                shape = RoundedCornerShape(24.dp),
+                ambientColor = theme.accent.copy(alpha = 0.12f),
+                spotColor = OperatingV12.cyan.copy(alpha = 0.18f),
+            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(fill)
+            .border(1.dp, OperatingV12.cyan.copy(alpha = 0.25f), RoundedCornerShape(24.dp))
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(
+                "QUICK ADDS · v11.1",
+                color = OperatingV12.cyan,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp,
+                letterSpacing = 1.2.sp,
+            )
+            Text(
+                "Quick Adds",
+                color = Color.White,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Bold,
+                fontSize = 28.sp,
+            )
+            Text(
+                theme.motionLine,
+                color = theme.accent,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+            )
+            Text(
+                meta,
+                color = Color(0xFF94A3B8),
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+            )
+            Text(
+                "Dispatch moves goods on a route; Record Sale raises the buyer invoice.",
+                color = Color(0xFF94A3B8),
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+            )
+        }
+        // Inset top highlight (Figma white 12% hairline).
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Color.White.copy(alpha = 0.12f)),
+        )
+    }
+}
 
 @Composable
 fun OperatingV12Hero(
@@ -879,23 +1009,27 @@ fun OperatingV12ActionTile(
     locked: String? = null,
 ) {
     val enabled = locked == null
-    Column(
-        modifier
+    val shape = RoundedCornerShape(16.dp)
+    ElevatedCard(
+        modifier = modifier
             .height(112.dp)
             .shadow(
                 if (enabled) 6.dp else 0.dp,
-                RoundedCornerShape(16.dp),
+                shape,
                 ambientColor = Color.Black.copy(alpha = 0.4f),
                 spotColor = theme.accent.copy(alpha = if (theme.isTrading) 0.25f else 0.4f),
             )
-            .clip(RoundedCornerShape(16.dp))
-            .background(OperatingV12.surface)
-            .border(1.dp, theme.accent.copy(alpha = if (enabled) 0.35f else 0.15f), RoundedCornerShape(16.dp))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .border(1.dp, theme.accent.copy(alpha = if (enabled) 0.35f else 0.15f), shape),
+        shape = shape,
+        colors = CardDefaults.elevatedCardColors(containerColor = OperatingV12.surface),
+        onClick = onClick,
+        enabled = enabled,
     ) {
-        Box(
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box(
             Modifier
                 .size(32.dp)
                 .shadow(
@@ -931,6 +1065,7 @@ fun OperatingV12ActionTile(
             fontSize = 10.sp,
             maxLines = 2,
         )
+    }
     }
 }
 

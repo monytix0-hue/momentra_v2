@@ -131,6 +131,15 @@ object StoryStateSpecs {
         body = "",
     )
 
+    fun partialPreview(): StoryStateSpec = StoryStateSpec(
+        kind = StoryStateKind.PartialPreview,
+        title = "Some slides are incomplete",
+        body = "We only show recorded facts. Slides with missing metrics say Not recorded — nothing is invented.",
+        primaryLabel = "Continue",
+        secondaryLabel = "Cancel",
+        errorCode = "PARTIAL_FACTS",
+    )
+
     fun loadError(detail: String?): StoryStateSpec = StoryStateSpec(
         kind = StoryStateKind.GeneratingFailed,
         title = "Couldn’t load Story",

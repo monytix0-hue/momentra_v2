@@ -94,6 +94,9 @@ export const recordOperatingEventSchema = z
         purchasePriceIncludesGst: z.enum(['YES', 'NO']).nullish(),
         gstEffectiveFrom: z.string().max(10).nullish(),
         hsn: z.string().max(16).nullish(),
+        sellPrice: amountSchema.nullish(),
+        purchasePrice: amountSchema.nullish(),
+        mrp: amountSchema.nullish(),
         gstRegistration: z.enum(['REGISTERED', 'UNREGISTERED', 'NOT_SURE']).nullish(),
         businessState: z.string().max(80).nullish(),
         billingState: z.string().max(80).nullish(),
@@ -1375,7 +1378,20 @@ export async function reviseOperatingEvent(
   let revisedQuantity = body.quantity ?? current.quantity;
   let revisedParent = body.parentEventId ?? current.parentEventId;
 
+  // Void / reverse: amount 0 (or CANCELLED activity) skips commercial validators so
+  // append-only REVERSAL + zero CORRECTION can run for posted ledger events.
+  const voiding =
+    (body.amount != null && Number(body.amount) === 0) ||
+    body.activityStatus === 'CANCELLED';
+  if (voiding) {
+    revisedAmount = '0';
+    revisedQuantity = body.quantity ?? '0';
+    revisedStatus = 'NONE';
+    payload.activityStatus = 'CANCELLED';
+  }
+
   if (
+    !voiding &&
     isRetailSubtype(prefs.subtype) &&
     (body.contract || current.contract) &&
     ['SALE', 'SERVICE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'STOCK', 'ORDER', 'APPOINTMENT'].includes(current.eventType)
@@ -1404,6 +1420,7 @@ export async function reviseOperatingEvent(
     revisedQuantity = checked.quantity;
     payload.contract = checked.contract;
   } else if (
+    !voiding &&
     isTradingSubtype(prefs.subtype) &&
     (body.contract || current.contract) &&
     ['SALE', 'PURCHASE', 'SPEND', 'PAYMENT', 'COLLECTION', 'STOCK', 'ORDER', 'SHIPMENT', 'DELIVERY', 'RETURN'].includes(
@@ -1435,6 +1452,7 @@ export async function reviseOperatingEvent(
     revisedQuantity = checked.quantity;
     payload.contract = checked.contract;
   } else if (
+    !voiding &&
     isManufacturingSubtype(prefs.subtype) &&
     ['PRODUCTION', 'PURCHASE', 'SPEND', 'SALE', 'CUSTOMER_ORDER', 'DELIVERY', 'PAYMENT', 'COLLECTION', 'STOCK'].includes(
       current.eventType
