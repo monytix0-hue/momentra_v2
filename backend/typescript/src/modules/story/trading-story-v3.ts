@@ -362,7 +362,7 @@ async function loadMomentContext(
   );
   const row = moment.rows[0];
   if (!row) {
-    throw new AppError(ErrorCode.NOT_FOUND, 'Moment not found', 404);
+    throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Moment not found', 404);
   }
   const access = await client.query(
     `SELECT 1 FROM collaboration.moment_participant
@@ -545,13 +545,13 @@ export async function startTradingStoryPreview(
 
 export function getTradingStoryJob(jobId: string): JobRecord {
   const job = jobs.get(jobId);
-  if (!job) throw new AppError(ErrorCode.NOT_FOUND, 'Story job not found', 404);
+  if (!job) throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Story job not found', 404);
   return job;
 }
 
 export function getTradingStoryPreview(previewId: string): StoryPreviewPayload {
   const preview = previews.get(previewId);
-  if (!preview) throw new AppError(ErrorCode.NOT_FOUND, 'Story preview not found', 404);
+  if (!preview) throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Story preview not found', 404);
   return preview;
 }
 
@@ -578,7 +578,7 @@ export function getSavedTradingStory(storyId: string): SavedStory {
     const hit = list.find((s) => s.storyId === storyId);
     if (hit) return hit;
   }
-  throw new AppError(ErrorCode.NOT_FOUND, 'Story not found', 404);
+  throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, 'Story not found', 404);
 }
 
 export async function listSavedTradingStories(
